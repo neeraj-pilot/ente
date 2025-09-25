@@ -1,0 +1,5 @@
+# Ignore all platform directories (contain large binary files)
+*/
+# But keep the .gitignore and README
+!.gitignore
+!README.md
