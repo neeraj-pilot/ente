@@ -578,7 +578,7 @@ func (c *FileController) UpdateMagicMetadata(ctx *gin.Context, req ente.UpdateMu
 
 // UpdateThumbnail updates thumbnail of a file
 func (c *FileController) UpdateThumbnail(ctx *gin.Context, fileID int64, newThumbnail ente.FileAttributes, app ente.App) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	objectPathPrefix := strconv.FormatInt(userID, 10) + "/"
 	if !strings.HasPrefix(newThumbnail.ObjectKey, objectPathPrefix) {
 		return stacktrace.Propagate(ente.ErrBadRequest, "Incorrect object key reported")
@@ -654,7 +654,7 @@ func (c *FileController) VerifyFileOwnership(ctx *gin.Context, ownerID int64, fi
 }
 
 func (c *FileController) validateUpdateMetadataRequest(ctx *gin.Context, req ente.UpdateMultipleMagicMetadataRequest, isPublicMetadata bool) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	for _, updateMMdRequest := range req.MetadataList {
 		ownerID, existingMetadata, err := c.FileRepo.GetOwnerAndMagicMetadata(updateMMdRequest.ID, isPublicMetadata)
 		if err != nil {

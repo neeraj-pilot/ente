@@ -37,7 +37,7 @@ type Controller struct {
 
 func (c *Controller) GetUserReferralView(ctx *gin.Context) (*entity.GetUserReferralView, error) {
 	// Get the user id from the context
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 
 	// Use goroutines to fetch UserRepo.Get, HasAppliedReferral
 	user, err := c.UserRepo.Get(userID)
@@ -81,7 +81,7 @@ func (c *Controller) GetUserReferralView(ctx *gin.Context) (*entity.GetUserRefer
 
 func (c *Controller) ApplyReferralCode(ctx *gin.Context, code string) error {
 	// Get user id from the context
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	user, err := c.UserRepo.Get(userID)
 	if err != nil {
 		return stacktrace.Propagate(err, "failed to get user")

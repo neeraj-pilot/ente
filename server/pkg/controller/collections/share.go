@@ -16,7 +16,7 @@ import (
 )
 
 func (c *CollectionController) Share(ctx *gin.Context, req ente.AlterShareRequest) ([]ente.CollectionUser, error) {
-	fromUserID := auth.GetUserID(ctx.Request.Header)
+	fromUserID := auth.GetUserID(ctx)
 	cID := req.CollectionID
 	encryptedKey := req.EncryptedKey
 	toUserEmail := strings.ToLower(strings.TrimSpace(req.Email))
@@ -59,7 +59,7 @@ func (c *CollectionController) Share(ctx *gin.Context, req ente.AlterShareReques
 }
 
 func (c *CollectionController) JoinViaLink(ctx *gin.Context, req ente.JoinCollectionViaLinkRequest) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	collection, err := c.CollectionRepo.Get(req.CollectionID)
 	if err != nil {
 		return stacktrace.Propagate(err, "")
@@ -135,7 +135,7 @@ func (c *CollectionController) UnShare(ctx *gin.Context, cID int64, fromUserID i
 
 // Leave leaves the collection owned by someone else,
 func (c *CollectionController) Leave(ctx *gin.Context, cID int64) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	collection, err := c.CollectionRepo.Get(cID)
 	if err != nil {
 		return stacktrace.Propagate(err, "")
@@ -162,7 +162,7 @@ func (c *CollectionController) Leave(ctx *gin.Context, cID int64) error {
 }
 
 func (c *CollectionController) UpdateShareeMagicMetadata(ctx *gin.Context, req ente.UpdateCollectionMagicMetadata) error {
-	actorUserId := auth.GetUserID(ctx.Request.Header)
+	actorUserId := auth.GetUserID(ctx)
 	resp, err := c.AccessCtrl.GetCollection(ctx, &access.GetCollectionParams{
 		CollectionID: req.ID,
 		ActorUserID:  actorUserId,

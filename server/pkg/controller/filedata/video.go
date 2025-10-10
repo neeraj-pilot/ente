@@ -16,7 +16,7 @@ func (c *Controller) InsertVideoPreview(ctx *gin.Context, req *filedata.VidPrevi
 	if err := req.Validate(); err != nil {
 		return stacktrace.Propagate(err, "validation failed")
 	}
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	err := c._checkPreviewWritePerm(ctx, req.FileID, userID)
 	if err != nil {
 		return stacktrace.Propagate(err, "")

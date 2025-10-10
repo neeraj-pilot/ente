@@ -23,7 +23,7 @@ func (h *EmergencyHandler) AddContact(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, "Could not bind request params"))
 		return
 	}
-	err := h.Controller.AddContact(c, auth.GetUserID(c.Request.Header), request)
+	err := h.Controller.AddContact(c, auth.GetUserID(c), request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -32,7 +32,7 @@ func (h *EmergencyHandler) AddContact(c *gin.Context) {
 }
 
 func (h *EmergencyHandler) GetInfo(c *gin.Context) {
-	resp, err := h.Controller.GetInfo(c, auth.GetUserID(c.Request.Header))
+	resp, err := h.Controller.GetInfo(c, auth.GetUserID(c))
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -46,7 +46,7 @@ func (h *EmergencyHandler) UpdateContact(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage("failed to validate req param"), err.Error()))
 		return
 	}
-	err := h.Controller.UpdateContact(c, auth.GetUserID(c.Request.Header), request)
+	err := h.Controller.UpdateContact(c, auth.GetUserID(c), request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -60,7 +60,7 @@ func (h *EmergencyHandler) StartRecovery(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage("failed to validate req param"), err.Error()))
 		return
 	}
-	err := h.Controller.StartRecovery(c, auth.GetUserID(c.Request.Header), request)
+	err := h.Controller.StartRecovery(c, auth.GetUserID(c), request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -74,7 +74,7 @@ func (h *EmergencyHandler) StopRecovery(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage("failed to validate req param"), err.Error()))
 		return
 	}
-	err := h.Controller.StopRecovery(c, auth.GetUserID(c.Request.Header), request)
+	err := h.Controller.StopRecovery(c, auth.GetUserID(c), request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -88,7 +88,7 @@ func (h *EmergencyHandler) RejectRecovery(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage("failed to validate req param"), err.Error()))
 		return
 	}
-	err := h.Controller.RejectRecovery(c, auth.GetUserID(c.Request.Header), request)
+	err := h.Controller.RejectRecovery(c, auth.GetUserID(c), request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -102,7 +102,7 @@ func (h *EmergencyHandler) ApproveRecovery(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage("failed to validate req param"), err.Error()))
 		return
 	}
-	err := h.Controller.ApproveRecovery(c, auth.GetUserID(c.Request.Header), request)
+	err := h.Controller.ApproveRecovery(c, auth.GetUserID(c), request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -116,7 +116,7 @@ func (h *EmergencyHandler) GetRecoveryInfo(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage("failed to validate req param"), err.Error()))
 		return
 	}
-	encRecovery, keyAttr, err := h.Controller.GetRecoveryInfo(c, auth.GetUserID(c.Request.Header), sessionID)
+	encRecovery, keyAttr, err := h.Controller.GetRecoveryInfo(c, auth.GetUserID(c), sessionID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -133,7 +133,7 @@ func (h *EmergencyHandler) InitChangePassword(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage("failed to validate req param"), err.Error()))
 		return
 	}
-	resp, err := h.Controller.InitChangePassword(c, auth.GetUserID(c.Request.Header), request)
+	resp, err := h.Controller.InitChangePassword(c, auth.GetUserID(c), request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -147,7 +147,7 @@ func (h *EmergencyHandler) ChangePassword(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage("failed to validate req param"), err.Error()))
 		return
 	}
-	resp, err := h.Controller.ChangePassword(c, auth.GetUserID(c.Request.Header), request)
+	resp, err := h.Controller.ChangePassword(c, auth.GetUserID(c), request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return

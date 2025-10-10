@@ -85,7 +85,7 @@ func (c *CollectionController) GetCollection(ctx *gin.Context, userID int64, cID
 }
 
 func (c *CollectionController) GetFile(ctx *gin.Context, collectionID int64, fileID int64) (*ente.File, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	files, err := c.CollectionRepo.GetFile(collectionID, fileID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
@@ -116,7 +116,7 @@ func (c *CollectionController) TrashV3(ctx *gin.Context, req ente.TrashCollectio
 	if req.KeepFiles == nil {
 		return ente.ErrBadRequest
 	}
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	cID := req.CollectionID
 	resp, err := c.AccessCtrl.GetCollection(ctx, &access.GetCollectionParams{
 		CollectionID:   cID,
@@ -179,7 +179,7 @@ func (c *CollectionController) Rename(userID int64, cID int64, encryptedName str
 
 // UpdateMagicMetadata updates the magic metadata for given collection
 func (c *CollectionController) UpdateMagicMetadata(ctx *gin.Context, request ente.UpdateCollectionMagicMetadata, isPublicMetadata bool) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	if err := c.verifyOwnership(request.ID, userID); err != nil {
 		return stacktrace.Propagate(err, "")
 	}

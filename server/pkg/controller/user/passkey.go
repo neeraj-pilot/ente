@@ -9,12 +9,12 @@ import (
 
 // GetTwoFactorRecoveryStatus returns a user's passkey reset status
 func (c *UserController) GetTwoFactorRecoveryStatus(ctx *gin.Context) (*ente.TwoFactorRecoveryStatus, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	return c.TwoFactorRecoveryRepo.GetStatus(userID)
 }
 
 func (c *UserController) ConfigurePasskeyRecovery(ctx *gin.Context, req *ente.SetPasskeyRecoveryRequest) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	return c.TwoFactorRecoveryRepo.SetPasskeyRecovery(ctx, userID, req)
 }
 

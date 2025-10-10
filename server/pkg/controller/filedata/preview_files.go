@@ -33,7 +33,7 @@ func (c *Controller) PreviewUploadURL(ctx *gin.Context, request filedata.Preview
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
-	actorUser := auth.GetUserID(ctx.Request.Header)
+	actorUser := auth.GetUserID(ctx)
 	if err := c._checkPreviewWritePerm(ctx, request.FileID, actorUser); err != nil {
 		return nil, err
 	}

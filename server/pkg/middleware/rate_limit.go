@@ -106,7 +106,7 @@ func (r *RateLimitMiddleware) APIRateLimitForUserMiddleware(urlSanitizer func(_ 
 		requestPath := urlSanitizer(c)
 		rateLimiter := r.getLimiter(requestPath, c.Request.Method)
 		if rateLimiter != nil {
-			userID := auth.GetUserID(c.Request.Header)
+			userID := auth.GetUserID(c)
 			if userID == 0 {
 				// do not apply limit, just log
 				log.Error("userID must be present in request header for applying rate-limit")
