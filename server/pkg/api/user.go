@@ -61,7 +61,7 @@ func (h *UserHandler) Logout(c *gin.Context) {
 
 // GetDetailsV2 returns details about the requesting user
 func (h *UserHandler) GetDetailsV2(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	fetchMemoryCount, _ := strconv.ParseBool(c.DefaultQuery("memoryCount", "true"))
 
 	enteApp := auth.GetApp(c)
@@ -76,7 +76,7 @@ func (h *UserHandler) GetDetailsV2(c *gin.Context) {
 
 // SetAttributes sets the attributes for a user
 func (h *UserHandler) SetAttributes(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	var request ente.SetUserAttributesRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -95,7 +95,7 @@ func (h *UserHandler) SetAttributes(c *gin.Context) {
 }
 
 func (h *UserHandler) UpdateEmailMFA(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	var request ente.UpdateEmailMFA
 	if err := c.ShouldBindJSON(&request); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -111,7 +111,7 @@ func (h *UserHandler) UpdateEmailMFA(c *gin.Context) {
 
 // SetRecoveryKey sets the recovery key attributes for a user.
 func (h *UserHandler) SetRecoveryKey(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	var request ente.SetRecoveryKeyRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -140,7 +140,7 @@ func (h *UserHandler) GetPublicKey(c *gin.Context) {
 
 // GetSessionValidityV2 verifies the user's session token and returns if the user has set their keys or not
 func (h *UserHandler) GetSessionValidityV2(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	keyAttributes, err := h.UserController.GetAttributes(userID)
 	if err == nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -192,7 +192,7 @@ func (h *UserHandler) ChangeEmail(c *gin.Context) {
 
 // GetTwoFactorStatus returns a user's two factor status
 func (h *UserHandler) GetTwoFactorStatus(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	status, err := h.UserController.GetTwoFactorStatus(userID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -228,7 +228,7 @@ func (h *UserHandler) ConfigurePasskeyRecovery(c *gin.Context) {
 
 // SetupTwoFactor generates a two factor secret and sends it to user to setup his authenticator app with
 func (h *UserHandler) SetupTwoFactor(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	response, err := h.UserController.SetupTwoFactor(userID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -239,7 +239,7 @@ func (h *UserHandler) SetupTwoFactor(c *gin.Context) {
 
 // EnableTwoFactor handles the two factor activation request after user has setup his two factor by validing a totp request
 func (h *UserHandler) EnableTwoFactor(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	var request ente.TwoFactorEnableRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -370,7 +370,7 @@ func (h *UserHandler) GetTokenForPasskeySession(c *gin.Context) {
 }
 
 func (h *UserHandler) IsPasskeyRecoveryEnabled(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	response, err := h.UserController.GetKeyAttributeAndToken(c, userID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -381,7 +381,7 @@ func (h *UserHandler) IsPasskeyRecoveryEnabled(c *gin.Context) {
 
 // DisableTwoFactor disables the two factor authentication for a user
 func (h *UserHandler) DisableTwoFactor(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	err := h.UserController.DisableTwoFactor(userID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -441,7 +441,7 @@ func (h *UserHandler) ReportEvent(c *gin.Context) {
 }
 
 func (h *UserHandler) GetPaymentToken(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	token, err := h.UserController.GetJWTToken(userID, jwt.PAYMENT)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -453,7 +453,7 @@ func (h *UserHandler) GetPaymentToken(c *gin.Context) {
 }
 
 func (h *UserHandler) GetFamiliesToken(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	token, err := h.UserController.GetJWTToken(userID, jwt.FAMILIES)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -466,7 +466,7 @@ func (h *UserHandler) GetFamiliesToken(c *gin.Context) {
 }
 
 func (h *UserHandler) GetAccountsToken(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	token, err := h.UserController.GetJWTToken(userID, jwt.ACCOUNTS)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -479,7 +479,7 @@ func (h *UserHandler) GetAccountsToken(c *gin.Context) {
 }
 
 func (h *UserHandler) GetActiveSessions(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	sessions, err := h.UserController.GetActiveSessions(c, userID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -492,7 +492,7 @@ func (h *UserHandler) GetActiveSessions(c *gin.Context) {
 
 // TerminateSession removes the auth token from (instance) cache & database.
 func (h *UserHandler) TerminateSession(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	token := c.Query("token")
 	err := h.UserController.TerminateSession(userID, token)
 	if err != nil {
@@ -522,9 +522,9 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 	// todo: (neeraj) refactor this part, currently there's a circular dependency between user and emergency controllers
-	removeLegacyErr := h.EmergencyController.HandleAccountDeletion(c, auth.GetUserID(c.Request.Header),
+	removeLegacyErr := h.EmergencyController.HandleAccountDeletion(c, auth.GetUserID(c),
 		logrus.WithFields(logrus.Fields{
-			"user_id": auth.GetUserID(c.Request.Header),
+			"user_id": auth.GetUserID(c),
 			"req_id":  requestid.Get(c),
 			"req_ctx": "self_account_deletion",
 		}))
@@ -586,7 +586,7 @@ func (h *UserHandler) SetupSRP(c *gin.Context) {
 			stacktrace.Propagate(ente.ErrBadRequest, fmt.Sprintf("Request binding failed %s", err)))
 		return
 	}
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	resp, err := h.UserController.SetupSRP(c, userID, request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -619,7 +619,7 @@ func (h *UserHandler) UpdateSrpAndKeyAttributes(c *gin.Context) {
 			stacktrace.Propagate(ente.ErrBadRequest, fmt.Sprintf("Request binding failed %s", err)))
 		return
 	}
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	// default to true
 	clearTokens := true
 	if request.LogOutOtherDevices != nil {

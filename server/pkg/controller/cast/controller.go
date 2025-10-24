@@ -50,12 +50,12 @@ func (c *Controller) GetEncCastData(ctx context.Context, deviceCode string) (*st
 }
 
 func (c *Controller) InsertCastData(ctx *gin.Context, request *cast.CastRequest) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	return c.CastRepo.InsertCastData(ctx, userID, request.DeviceCode, request.CollectionID, request.CastToken, request.EncPayload)
 }
 
 func (c *Controller) RevokeAllToken(ctx *gin.Context) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	return c.CastRepo.RevokeTokenForUser(ctx, userID)
 }
 

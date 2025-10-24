@@ -52,7 +52,7 @@ func (h *BillingHandler) GetPlansV2(c *gin.Context) {
 
 // GetUserPlans returns the available  plans from the stripe account and the country the user's existing plan is from
 func (h *BillingHandler) GetUserPlans(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	plans, err := h.Controller.GetUserPlans(c, userID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, "Failed to user plans"))
@@ -76,7 +76,7 @@ func (h *BillingHandler) GetUserPlans(c *gin.Context) {
 // GetStripeAccountCountry returns the stripe account country the user's existing plan is from
 // if he doesn't have default stripe account country is returned
 func (h *BillingHandler) GetStripeAccountCountry(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	stripeAccountCountry, err := h.Controller.GetStripeAccountCountry(userID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, "Failed to get stripe account country"))
@@ -98,7 +98,7 @@ func (h *BillingHandler) GetUsage(c *gin.Context) {
 
 // GetSubscription returns the current subscription for a user if any
 func (h *BillingHandler) GetSubscription(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	subscription, err := h.Controller.GetSubscription(c, userID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -111,7 +111,7 @@ func (h *BillingHandler) GetSubscription(c *gin.Context) {
 
 // VerifySubscription verifies and returns the verified subscription
 func (h *BillingHandler) VerifySubscription(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	var request ente.SubscriptionVerificationRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -178,7 +178,7 @@ func (h *BillingHandler) IOSNotificationHandler(c *gin.Context) {
 
 // GetCheckoutSession generates and returns stripe checkout session for subscription purchase
 func (h *BillingHandler) GetCheckoutSession(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	productID := c.Query("productID")
 	redirectRootURL, err := h.Controller.GetRedirectURL(c)
 	if err != nil {
@@ -229,7 +229,7 @@ func (h *BillingHandler) StripeUSNotificationHandler(c *gin.Context) {
 
 // StripeUpdateSubscription handles stripe subscription updates requests
 func (h *BillingHandler) StripeUpdateSubscription(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	var request ente.StripeUpdateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -245,7 +245,7 @@ func (h *BillingHandler) StripeUpdateSubscription(c *gin.Context) {
 
 // StripeCancelSubscription handles stripe subscription cancel requests
 func (h *BillingHandler) StripeCancelSubscription(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	subscription, err := h.StripeController.UpdateSubscriptionCancellationStatus(userID, true)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -256,7 +256,7 @@ func (h *BillingHandler) StripeCancelSubscription(c *gin.Context) {
 
 // StripeActivateSubscription handles stripe subscription activation requests
 func (h *BillingHandler) StripeActivateSubscription(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	subscription, err := h.StripeController.UpdateSubscriptionCancellationStatus(userID, false)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -267,7 +267,7 @@ func (h *BillingHandler) StripeActivateSubscription(c *gin.Context) {
 
 // GetStripeCustomerPortal handles stripe customer portal url retrieval request
 func (h *BillingHandler) GetStripeCustomerPortal(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	redirectRootURL, err := h.Controller.GetRedirectURL(c)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))

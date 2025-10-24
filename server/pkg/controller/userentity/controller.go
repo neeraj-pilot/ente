@@ -15,13 +15,13 @@ type Controller struct {
 
 // CreateKey stores an entity key for the given type
 func (c *Controller) CreateKey(ctx *gin.Context, req model.EntityKeyRequest) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	return c.Repo.CreateKey(ctx, userID, req)
 }
 
 // GetKey
 func (c *Controller) GetKey(ctx *gin.Context, req model.GetEntityKeyRequest) (*model.EntityKey, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	res, err := c.Repo.GetKey(ctx, userID, req.Type)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
@@ -31,7 +31,7 @@ func (c *Controller) GetKey(ctx *gin.Context, req model.GetEntityKeyRequest) (*m
 
 // CreateEntity stores entity data for the given type
 func (c *Controller) CreateEntity(ctx *gin.Context, req model.EntityDataRequest) (*model.EntityData, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	if err := req.IsValid(userID); err != nil {
 		return nil, stacktrace.Propagate(err, "invalid EntityDataRequest")
 	}
@@ -44,7 +44,7 @@ func (c *Controller) CreateEntity(ctx *gin.Context, req model.EntityDataRequest)
 
 // UpdateEntity...
 func (c *Controller) UpdateEntity(ctx *gin.Context, req model.UpdateEntityDataRequest) (*model.EntityData, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	err := c.Repo.Update(ctx, userID, req)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "failed to updateEntity")
@@ -54,12 +54,12 @@ func (c *Controller) UpdateEntity(ctx *gin.Context, req model.UpdateEntityDataRe
 
 // Delete...
 func (c *Controller) Delete(ctx *gin.Context, entityID string) (bool, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	return c.Repo.Delete(ctx, userID, entityID)
 }
 
 // GetDiff returns diff of EntityData for the given type
 func (c *Controller) GetDiff(ctx *gin.Context, req model.GetEntityDiffRequest) ([]model.EntityData, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	return c.Repo.GetDiff(ctx, userID, req.Type, *req.SinceTime, req.Limit)
 }

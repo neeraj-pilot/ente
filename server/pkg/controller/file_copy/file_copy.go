@@ -62,7 +62,7 @@ func (fci fileCopyInternal) newFile(ownedID int64) ente.File {
 }
 
 func (fc *FileCopyController) CopyFiles(c *gin.Context, req ente.CopyFileSyncRequest) (*ente.CopyResponse, error) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	app := auth.GetApp(c)
 	logger := logrus.WithFields(logrus.Fields{"req_id": requestid.Get(c), "user_id": userID})
 	err := fc.CollectionCtrl.IsCopyAllowed(c, userID, req)

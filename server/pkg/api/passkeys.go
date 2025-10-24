@@ -16,7 +16,7 @@ type PasskeyHandler struct {
 }
 
 func (h *PasskeyHandler) GetPasskeys(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 
 	passkeys, err := h.Controller.GetPasskeys(userID)
 	if err != nil {
@@ -30,7 +30,7 @@ func (h *PasskeyHandler) GetPasskeys(c *gin.Context) {
 }
 
 func (h *PasskeyHandler) RenamePasskey(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 
 	passkeyID := uuid.MustParse(c.Param("passkeyID"))
 	newName := c.Query("friendlyName")
@@ -45,7 +45,7 @@ func (h *PasskeyHandler) RenamePasskey(c *gin.Context) {
 }
 
 func (h *PasskeyHandler) DeletePasskey(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 
 	passkeyID := uuid.MustParse(c.Param("passkeyID"))
 
@@ -59,7 +59,7 @@ func (h *PasskeyHandler) DeletePasskey(c *gin.Context) {
 }
 
 func (h *PasskeyHandler) BeginRegistration(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 
 	options, _, sessionID, err := h.Controller.BeginRegistration(userID)
 	if err != nil {
@@ -74,7 +74,7 @@ func (h *PasskeyHandler) BeginRegistration(c *gin.Context) {
 }
 
 func (h *PasskeyHandler) FinishRegistration(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 
 	friendlyName := c.Query("friendlyName")
 	sessionID := uuid.MustParse(c.Query("sessionID"))

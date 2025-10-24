@@ -31,7 +31,7 @@ func (h StorageBonusHandler) UpdateReferralCode(context *gin.Context) {
 		handler.Error(context, stacktrace.Propagate(ente.NewBadRequestWithMessage(err.Error()), ""))
 		return
 	}
-	userID := auth.GetUserID(context.Request.Header)
+	userID := auth.GetUserID(context)
 	err := h.Controller.UpdateReferralCode(context, userID, request.Code, false)
 	if err != nil {
 		handler.Error(context, stacktrace.Propagate(err, ""))
@@ -41,7 +41,7 @@ func (h StorageBonusHandler) UpdateReferralCode(context *gin.Context) {
 }
 
 func (h StorageBonusHandler) GetStorageBonusDetails(context *gin.Context) {
-	response, err := h.Controller.GetStorageBonusDetailResponse(context, auth.GetUserID(context.Request.Header))
+	response, err := h.Controller.GetStorageBonusDetailResponse(context, auth.GetUserID(context))
 	if err != nil {
 		handler.Error(context, stacktrace.Propagate(err, ""))
 		return

@@ -277,7 +277,7 @@ func (c *UserController) ChangeEmail(ctx *gin.Context, request ente.EmailVerific
 		return stacktrace.Propagate(err, "")
 	}
 
-	return c.UpdateEmail(ctx, auth.GetUserID(ctx.Request.Header), email)
+	return c.UpdateEmail(ctx, auth.GetUserID(ctx), email)
 }
 
 // UpdateEmail updates the email address of the user with the provided userID
@@ -340,7 +340,7 @@ func (c *UserController) UpdateEmail(ctx *gin.Context, userID int64, email strin
 // known issue: the token may be still cached in other instances till the expiry time (10min), JWTs might remain too
 func (c *UserController) Logout(ctx *gin.Context) error {
 	token := auth.GetToken(ctx)
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	return c.TerminateSession(userID, token)
 }
 

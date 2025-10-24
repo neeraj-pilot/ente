@@ -84,7 +84,7 @@ func (c *Controller) InsertOrUpdateMetadata(ctx *gin.Context, req *fileData.PutF
 	if err := req.Validate(); err != nil {
 		return stacktrace.Propagate(err, "validation failed")
 	}
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	fileOwnerID, err := c.FileRepo.GetOwnerID(req.FileID)
 	if err != nil {
 		return stacktrace.Propagate(err, "")
@@ -172,7 +172,7 @@ func (c *Controller) GetFileData(ctx *gin.Context, actorUser int64, req fileData
 }
 
 func (c *Controller) GetFilesData(ctx *gin.Context, req fileData.GetFilesData) (*fileData.GetFilesDataResponse, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	if err := req.Validate(); err != nil {
 		return nil, stacktrace.Propagate(err, "req validation failed")
 	}
@@ -377,6 +377,6 @@ func (c *Controller) _checkPreviewWritePerm(ctx *gin.Context, fileID int64, acto
 }
 
 func (c *Controller) FileDataStatusDiff(ctx *gin.Context, req fileData.FDDiffRequest) ([]fileData.FDStatus, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	return c.Repo.GetFDForUser(ctx, userID, *req.LastUpdatedAt, 5000)
 }

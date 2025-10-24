@@ -84,7 +84,7 @@ func (c *CollectionController) RestoreFiles(ctx *gin.Context, userID int64, cID 
 // MoveFiles from one collection to another collection. Both the collections and files should belong to
 // single user
 func (c *CollectionController) MoveFiles(ctx *gin.Context, req ente.MoveFilesRequest) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	_, err := c.AccessCtrl.GetCollection(ctx, &access.GetCollectionParams{
 		CollectionID:   req.FromCollectionID,
 		ActorUserID:    userID,
@@ -123,7 +123,7 @@ func (c *CollectionController) MoveFiles(ctx *gin.Context, req ente.MoveFilesReq
 
 // RemoveFilesV3 removes files from a collection as long as owner(s) of the file is different from collection owner
 func (c *CollectionController) RemoveFilesV3(ctx *gin.Context, req ente.RemoveFilesV3Request) error {
-	actorUserID := auth.GetUserID(ctx.Request.Header)
+	actorUserID := auth.GetUserID(ctx)
 	resp, err := c.AccessCtrl.GetCollection(ctx, &access.GetCollectionParams{
 		CollectionID: req.CollectionID,
 		ActorUserID:  actorUserID,

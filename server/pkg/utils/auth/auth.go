@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"github.com/ente-io/museum/ente/cast"
+	"github.com/sirupsen/logrus"
 	"math/big"
 	"net/http"
 	"strconv"
@@ -20,6 +21,7 @@ const (
 	PublicAccessKey   = "X-Public-Access-ID"
 	FileLinkAccessKey = "X-Public-FileLink-Access-ID"
 	CastContext       = "X-Cast-Context"
+	UserIDContextKey  = "X-Auth-User-ID-Context"
 )
 
 // GenerateRandomBytes returns securely generated random bytes.
@@ -79,8 +81,59 @@ func CompareHashes(hash string, s string) error {
 	return bcrypt.CompareHashAndPassword(existing, incoming)
 }
 
-// GetUserID fetches the userID embedded in a request header
-func GetUserID(header http.Header) int64 {
+// GetUserID fetches the userID from context and validates against header
+// If context value is missing, logs warning and uses header value
+// If values differ, returns an error
+func GetUserID(c *gin.Context) int64 {
+	// Get userID from context
+	contextUserID, exists := c.Get(UserIDContextKey)
+
+	// Get userID from header
+	headerUserID, _ := strconv.ParseInt(c.Request.Header.Get("X-Auth-User-ID"), 10, 64)
+
+	if !exists {
+		// Context value not present, log and use header value
+		logrus.WithField("header_user_id", headerUserID).
+			Warn("User ID not found in context, falling back to header value")
+		return headerUserID
+	}
+
+	// Convert context value to int64
+	contextUserIDInt64, ok := contextUserID.(int64)
+	if !ok {
+		logrus.WithField("context_user_id", contextUserID).
+			Error("User ID in context is not int64")
+		return 0
+	}
+
+	// Compare context and header values
+	if contextUserIDInt64 != headerUserID {
+		logrus.WithFields(logrus.Fields{
+			"context_user_id": contextUserIDInt64,
+			"header_user_id":  headerUserID,
+		}).Error("User ID mismatch between context and header")
+		return 0
+	}
+
+	return contextUserIDInt64
+}
+
+// GetUserIDFromContext fetches the userID from the Gin context
+func GetUserIDFromContext(c *gin.Context) (int64, bool) {
+	userID, exists := c.Get(UserIDContextKey)
+	if !exists {
+		return 0, false
+	}
+	userIDInt64, ok := userID.(int64)
+	if !ok {
+		return 0, false
+	}
+	return userIDInt64, true
+}
+
+// GetUserIDFromHeader fetches the userID embedded in a request header
+// This is a legacy function for backward compatibility
+func GetUserIDFromHeader(header http.Header) int64 {
 	userID, _ := strconv.ParseInt(header.Get("X-Auth-User-ID"), 10, 64)
 	return userID
 }

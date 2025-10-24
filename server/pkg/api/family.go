@@ -25,7 +25,7 @@ type FamilyHandler struct {
 
 // CreateFamily creates a family with current user as admin member
 func (h *FamilyHandler) CreateFamily(c *gin.Context) {
-	err := h.Controller.CreateFamily(c, auth.GetUserID(c.Request.Header))
+	err := h.Controller.CreateFamily(c, auth.GetUserID(c))
 
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -42,7 +42,7 @@ func (h *FamilyHandler) InviteMember(c *gin.Context) {
 		return
 	}
 
-	err := h.Controller.InviteMember(c, auth.GetUserID(c.Request.Header), request.Email, request.StorageLimit)
+	err := h.Controller.InviteMember(c, auth.GetUserID(c), request.Email, request.StorageLimit)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -52,7 +52,7 @@ func (h *FamilyHandler) InviteMember(c *gin.Context) {
 
 // FetchMembers returns information about members who have been invited (only for admin) or are part of family plan
 func (h *FamilyHandler) FetchMembers(c *gin.Context) {
-	members, err := h.Controller.FetchMembers(c, auth.GetUserID(c.Request.Header))
+	members, err := h.Controller.FetchMembers(c, auth.GetUserID(c))
 
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -68,7 +68,7 @@ func (h *FamilyHandler) RemoveMember(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.ErrBadRequest, "failed to find valid uuid"))
 		return
 	}
-	err = h.Controller.RemoveMember(c, auth.GetUserID(c.Request.Header), familyMembershipID)
+	err = h.Controller.RemoveMember(c, auth.GetUserID(c), familyMembershipID)
 
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -79,7 +79,7 @@ func (h *FamilyHandler) RemoveMember(c *gin.Context) {
 
 // Leave family
 func (h *FamilyHandler) Leave(c *gin.Context) {
-	err := h.Controller.LeaveFamily(c, auth.GetUserID(c.Request.Header))
+	err := h.Controller.LeaveFamily(c, auth.GetUserID(c))
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -95,7 +95,7 @@ func (h *FamilyHandler) RevokeInvite(c *gin.Context) {
 		return
 	}
 
-	err = h.Controller.RevokeInvite(c, auth.GetUserID(c.Request.Header), familyMembershipID)
+	err = h.Controller.RevokeInvite(c, auth.GetUserID(c), familyMembershipID)
 
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -128,7 +128,7 @@ func (h *FamilyHandler) ModifyStorageLimit(c *gin.Context) {
 		return
 	}
 
-	err := h.Controller.ModifyMemberStorage(c, auth.GetUserID(c.Request.Header), request.ID, request.StorageLimit)
+	err := h.Controller.ModifyMemberStorage(c, auth.GetUserID(c), request.ID, request.StorageLimit)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return

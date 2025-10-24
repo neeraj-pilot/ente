@@ -22,7 +22,7 @@ type Controller struct {
 
 // InsertOrUpdate the key's value
 func (c *Controller) InsertOrUpdate(ctx *gin.Context, request ente.UpdateKeyValueRequest) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	if err := c._validateRequest(userID, request.Key, request.Value, false); err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func (c *Controller) InsertOrUpdate(ctx *gin.Context, request ente.UpdateKeyValu
 
 // RemoveKey removes the key from remote store
 func (c *Controller) RemoveKey(ctx *gin.Context, key string) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	if valid := ente.IsValidFlagKey(key); !valid {
 		return stacktrace.Propagate(ente.NewBadRequestWithMessage(fmt.Sprintf("key %s is not allowed", key)), "invalid flag key")
 	}
@@ -52,7 +52,7 @@ func (c *Controller) AdminInsertOrUpdate(ctx *gin.Context, request ente.AdminUpd
 }
 
 func (c *Controller) Get(ctx *gin.Context, req ente.GetValueRequest) (*ente.GetValueResponse, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	value, err := c.Repo.GetValue(ctx, userID, req.Key)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) && req.DefaultValue != nil {
@@ -65,7 +65,7 @@ func (c *Controller) Get(ctx *gin.Context, req ente.GetValueRequest) (*ente.GetV
 }
 
 func (c *Controller) GetFeatureFlags(ctx *gin.Context) (*ente.FeatureFlagResponse, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	values, err := c.Repo.GetAllValues(ctx, userID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
