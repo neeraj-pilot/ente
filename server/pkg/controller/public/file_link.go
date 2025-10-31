@@ -20,7 +20,7 @@ type FileLinkController struct {
 }
 
 func (c *FileLinkController) CreateLink(ctx *gin.Context, req ente.CreateFileUrl) (*ente.FileUrl, error) {
-	actorUserID := auth.GetUserID(ctx.Request.Header)
+	actorUserID := auth.GetUserID(ctx)
 	app := auth.GetApp(ctx)
 	if req.App != app {
 		return nil, stacktrace.Propagate(ente.NewBadRequestWithMessage("app mismatch"), "app mismatch")
@@ -46,7 +46,7 @@ func (c *FileLinkController) CreateLink(ctx *gin.Context, req ente.CreateFileUrl
 
 // Disable all public accessTokens generated for the given fileID till date.
 func (c *FileLinkController) Disable(ctx *gin.Context, fileID int64) error {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	file, err := c.FileRepo.GetFileAttributes(fileID)
 	if err != nil {
 		return stacktrace.Propagate(err, "failed to get file attributes")
@@ -58,7 +58,7 @@ func (c *FileLinkController) Disable(ctx *gin.Context, fileID int64) error {
 }
 
 func (c *FileLinkController) GetUrls(ctx *gin.Context, sinceTime int64, limit int64) ([]*ente.FileUrl, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	app := auth.GetApp(ctx)
 	fileLinks, err := c.FileLinkRepo.GetFileUrls(ctx, userID, sinceTime, limit, app)
 	if err != nil {
@@ -79,7 +79,7 @@ func (c *FileLinkController) UpdateSharedUrl(ctx *gin.Context, req ente.UpdateFi
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "failed to get file link info")
 	}
-	if fileLinkRow.OwnerID != auth.GetUserID(ctx.Request.Header) {
+	if fileLinkRow.OwnerID != auth.GetUserID(ctx) {
 		return nil, stacktrace.Propagate(ente.NewPermissionDeniedError("not file owner"), "")
 	}
 	if req.ValidTill != nil {

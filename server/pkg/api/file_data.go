@@ -103,7 +103,7 @@ func (h *FileHandler) GetFileData(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, ente.NewBadRequestWithMessage(err.Error()))
 		return
 	}
-	actorUser := auth.GetUserID(ctx.Request.Header)
+	actorUser := auth.GetUserID(ctx)
 	resp, err := h.FileDataCtrl.GetFileData(ctx, actorUser, req)
 	if err != nil {
 		handler.Error(ctx, err)
@@ -138,7 +138,7 @@ func (h *FileHandler) GetPreviewURL(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.ErrBadRequest, fmt.Sprintf("Request binding failed %s", err)))
 		return
 	}
-	actorUser := auth.GetUserID(c.Request.Header)
+	actorUser := auth.GetUserID(c)
 	url, err := h.FileDataCtrl.GetPreviewUrl(c, actorUser, request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))

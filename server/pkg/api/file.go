@@ -37,7 +37,7 @@ const DefaultCopyBatchSize = 100
 
 // CreateOrUpdate creates an entry for a file
 func (h *FileHandler) CreateOrUpdate(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	var file ente.File
 	if err := c.ShouldBindJSON(&file); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -69,7 +69,7 @@ func (h *FileHandler) CreateOrUpdate(c *gin.Context) {
 
 // CreateMetaFile creates an entry for a file
 func (h *FileHandler) CreateMetaFile(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	var file ente.MetaFile
 	if err := c.ShouldBindJSON(&file); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -116,7 +116,7 @@ func (h *FileHandler) CopyFiles(c *gin.Context) {
 func (h *FileHandler) Update(c *gin.Context) {
 	enteApp := auth.GetApp(c)
 
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	var file ente.File
 	if err := c.ShouldBindJSON(&file); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -139,7 +139,7 @@ func (h *FileHandler) Update(c *gin.Context) {
 func (h *FileHandler) GetUploadURLs(c *gin.Context) {
 	enteApp := auth.GetApp(c)
 
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	count, _ := strconv.Atoi(c.Query("count"))
 	urls, err := h.Controller.GetUploadURLs(c, userID, count, enteApp, false)
 	if err != nil {
@@ -172,7 +172,7 @@ func (h *FileHandler) GetUploadURLV2(c *gin.Context) {
 func (h *FileHandler) GetMultipartUploadURLs(c *gin.Context) {
 	enteApp := auth.GetApp(c)
 
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	count, _ := strconv.Atoi(c.Query("count"))
 	urls, err := h.Controller.GetMultipartUploadURLs(c, userID, count, enteApp)
 	if err != nil {
@@ -262,7 +262,7 @@ func (h *FileHandler) Trash(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.ErrBatchSizeTooLarge, ""))
 		return
 	}
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	request.OwnerID = userID
 	err := h.Controller.Trash(c, userID, request)
 	if err != nil {
@@ -279,7 +279,7 @@ func (h *FileHandler) GetSize(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	shouldReject, err := shouldRejectRequest(c)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -307,7 +307,7 @@ func (h *FileHandler) GetInfo(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, "failed to bind request"))
 		return
 	}
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 
 	response, err := h.Controller.GetFileInfo(c, userID, request.FileIDs)
 	if err != nil {
@@ -359,7 +359,7 @@ func shouldRejectRequest(c *gin.Context) (bool, error) {
 
 // GetDuplicates returns the list of files of the same size
 func (h *FileHandler) GetDuplicates(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	dupes, err := h.Controller.GetDuplicates(userID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -372,7 +372,7 @@ func (h *FileHandler) GetDuplicates(c *gin.Context) {
 
 // GetLargeThumbnail returns the list of files whose thumbnail size is larger than threshold size
 func (h *FileHandler) GetLargeThumbnailFiles(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	threshold, _ := strconv.ParseInt(c.Query("threshold"), 10, 64)
 	largeThumbnailFiles, err := h.Controller.GetLargeThumbnailFiles(userID, threshold)
 	if err != nil {
@@ -448,7 +448,7 @@ func (h *FileHandler) GetTotalFileCount(c *gin.Context) {
 
 func getUserAndFileIDs(c *gin.Context) (int64, int64) {
 	fileID, _ := strconv.ParseInt(c.Param("fileID"), 10, 64)
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	return userID, fileID
 }
 

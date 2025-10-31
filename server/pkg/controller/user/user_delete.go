@@ -14,7 +14,7 @@ import (
 )
 
 func (c *UserController) GetDeleteChallengeToken(ctx *gin.Context) (*ente.DeleteChallengeResponse, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	user, err := c.UserRepo.Get(userID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
@@ -62,7 +62,7 @@ func (c *UserController) GetDeleteChallengeToken(ctx *gin.Context) (*ente.Delete
 }
 
 func (c *UserController) SelfDeleteAccount(ctx *gin.Context, req ente.DeleteAccountRequest) (*ente.DeleteAccountResponse, error) {
-	userID := auth.GetUserID(ctx.Request.Header)
+	userID := auth.GetUserID(ctx)
 	claim, err := c.ValidateJWTToken(req.Challenge, enteJWT.DELETE_ACCOUNT)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "failed to validate jwt token")

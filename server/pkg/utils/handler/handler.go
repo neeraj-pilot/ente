@@ -22,7 +22,7 @@ func Error(c *gin.Context, err error) {
 	contextLogger := log.WithError(err).
 		WithFields(log.Fields{
 			"req_id":  requestid.Get(c),
-			"user_id": auth.GetUserID(c.Request.Header),
+			"user_id": auth.GetUserID(c),
 		})
 	isClientError := false
 	// Tip: To trigger the "unexpected EOF" error, connect with:

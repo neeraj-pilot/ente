@@ -84,7 +84,10 @@ func (m *AuthMiddleware) TokenAuthMiddleware(jwtClaimScope *jwt.ClaimScope) gin.
 			}
 			m.Cache.Set(cacheKey, userID, cache.DefaultExpiration)
 		}
-		c.Request.Header.Set("X-Auth-User-ID", strconv.FormatInt(userID.(int64), 10))
+		// Set user ID in both header and context
+		userIDInt64 := userID.(int64)
+		c.Request.Header.Set("X-Auth-User-ID", strconv.FormatInt(userIDInt64, 10))
+		c.Set(auth.UserIDContextKey, userIDInt64)
 		c.Next()
 	}
 }
@@ -94,7 +97,7 @@ func (m *AuthMiddleware) TokenAuthMiddleware(jwtClaimScope *jwt.ClaimScope) gin.
 // NOTE: Should be added after TokenAuthMiddleware middleware
 func (m *AuthMiddleware) AdminAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID := auth.GetUserID(c.Request.Header)
+		userID := auth.GetUserID(c)
 		admins := viper.GetIntSlice("internal.admins")
 		for _, admin := range admins {
 			if int64(admin) == userID {

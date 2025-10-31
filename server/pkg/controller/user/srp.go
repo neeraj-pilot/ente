@@ -46,7 +46,7 @@ func (c *UserController) SetupSRP(context *gin.Context, userID int64, req ente.S
 }
 
 func (c *UserController) CompleteSRPSetup(context *gin.Context, req ente.CompleteSRPSetupRequest) (*ente.CompleteSRPSetupResponse, error) {
-	userID := auth.GetUserID(context.Request.Header)
+	userID := auth.GetUserID(context)
 	setup, err := c.UserAuthRepo.GetTempSRPSetupEntity(context, req.SetupID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")

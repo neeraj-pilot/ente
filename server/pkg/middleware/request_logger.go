@@ -115,7 +115,7 @@ func Logger(urlSanitizer func(_ *gin.Context) string) gin.HandlerFunc {
 			"latency_time": latencyTime,
 			"h_latency":    timeUtil.HumanFriendlyDuration(latencyTime),
 			"status_code":  statusCode,
-			"user_id":      auth.GetUserID(c.Request.Header),
+			"user_id":      auth.GetUserID(c),
 		}).Info("outgoing")
 	}
 }

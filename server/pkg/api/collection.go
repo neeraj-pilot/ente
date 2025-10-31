@@ -33,7 +33,7 @@ func (h *CollectionHandler) Create(c *gin.Context) {
 	collection.App = string(auth.GetApp(c))
 	collection.UpdationTime = time.Microseconds()
 	collection, err := h.Controller.Create(collection,
-		auth.GetUserID(c.Request.Header))
+		auth.GetUserID(c))
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, "Could not create collection"))
 		return
@@ -50,7 +50,7 @@ func (h *CollectionHandler) GetCollectionByID(c *gin.Context) {
 		handler.Error(c, ente.ErrBadRequest)
 		return
 	}
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	collection, err := h.Controller.GetCollection(c, userID, cID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -69,7 +69,7 @@ func (h *CollectionHandler) Get(c *gin.Context) {
 
 // GetV2 returns the list of collections accessible to a user
 func (h *CollectionHandler) GetV2(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	sinceTime, _ := strconv.ParseInt(c.Query("sinceTime"), 10, 64)
 	app := auth.GetApp(c)
 	ownedCollections, err := h.Controller.GetOwnedV2(userID, sinceTime, app, nil)
@@ -89,7 +89,7 @@ func (h *CollectionHandler) GetV2(c *gin.Context) {
 
 // GetWithLimit returns owned and shared collections accessible to a user
 func (h *CollectionHandler) GetWithLimit(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	sinceTime, _ := strconv.ParseInt(c.Query("sinceTime"), 10, 64)
 	sharedSinceTime, _ := strconv.ParseInt(c.Query("sharedSinceTime"), 10, 64)
 	limit := int64(1000)
@@ -154,7 +154,7 @@ func (h *CollectionHandler) ShareURL(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
-	response, err := h.Controller.ShareURL(c, auth.GetUserID(c.Request.Header), request)
+	response, err := h.Controller.ShareURL(c, auth.GetUserID(c), request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -171,7 +171,7 @@ func (h *CollectionHandler) UpdateShareURL(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
-	response, err := h.Controller.UpdateShareURL(c, auth.GetUserID(c.Request.Header), req)
+	response, err := h.Controller.UpdateShareURL(c, auth.GetUserID(c), req)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -188,7 +188,7 @@ func (h *CollectionHandler) UnShareURL(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.ErrBadRequest, ""))
 		return
 	}
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	err = h.Controller.DisableSharedURL(c, userID, cID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -204,7 +204,7 @@ func (h *CollectionHandler) UnShare(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
-	resp, err := h.Controller.UnShare(c, request.CollectionID, auth.GetUserID(c.Request.Header), request.Email)
+	resp, err := h.Controller.UnShare(c, request.CollectionID, auth.GetUserID(c), request.Email)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -241,7 +241,7 @@ func (h *CollectionHandler) AddFiles(c *gin.Context) {
 		return
 	}
 
-	if err := h.Controller.AddFiles(c, auth.GetUserID(c.Request.Header), request.Files, request.CollectionID); err != nil {
+	if err := h.Controller.AddFiles(c, auth.GetUserID(c), request.Files, request.CollectionID); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
@@ -261,7 +261,7 @@ func (h *CollectionHandler) RestoreFiles(c *gin.Context) {
 		return
 	}
 
-	if err := h.Controller.RestoreFiles(c, auth.GetUserID(c.Request.Header), request.CollectionID, request.Files); err != nil {
+	if err := h.Controller.RestoreFiles(c, auth.GetUserID(c), request.CollectionID, request.Files); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
@@ -312,7 +312,7 @@ func (h *CollectionHandler) RemoveFilesV3(c *gin.Context) {
 
 // GetDiffV2 returns the diff within a collection since a timestamp
 func (h *CollectionHandler) GetDiffV2(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	cID, _ := strconv.ParseInt(c.Query("collectionID"), 10, 64)
 	sinceTime, _ := strconv.ParseInt(c.Query("sinceTime"), 10, 64)
 	files, hasMore, err := h.Controller.GetDiffV2(c, cID, userID, sinceTime)
@@ -342,7 +342,7 @@ func (h *CollectionHandler) GetFile(c *gin.Context) {
 
 // GetSharees returns the list of users a collection has been shared with
 func (h *CollectionHandler) GetSharees(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	cID, _ := strconv.ParseInt(c.Query("collectionID"), 10, 64)
 	sharees, err := h.Controller.GetSharees(c, cID, userID)
 	if err != nil {
@@ -377,7 +377,7 @@ func (h *CollectionHandler) Rename(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
-	if err := h.Controller.Rename(auth.GetUserID(c.Request.Header), request.CollectionID, request.EncryptedName, request.NameDecryptionNonce); err != nil {
+	if err := h.Controller.Rename(auth.GetUserID(c), request.CollectionID, request.EncryptedName, request.NameDecryptionNonce); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}

@@ -23,7 +23,7 @@ type TrashHandler struct {
 func (t *TrashHandler) GetDiff(c *gin.Context) {
 	enteApp := auth.GetApp(c)
 
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	sinceTime, _ := strconv.ParseInt(c.Query("sinceTime"), 10, 64)
 	diff, hasMore, err := t.Controller.GetDiff(userID, sinceTime, false, enteApp)
 	if err != nil {
@@ -39,7 +39,7 @@ func (t *TrashHandler) GetDiff(c *gin.Context) {
 func (t *TrashHandler) GetDiffV2(c *gin.Context) {
 	enteApp := auth.GetApp(c)
 
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	sinceTime, _ := strconv.ParseInt(c.Query("sinceTime"), 10, 64)
 	diff, hasMore, err := t.Controller.GetDiff(userID, sinceTime, true, enteApp)
 	if err != nil {
@@ -54,7 +54,7 @@ func (t *TrashHandler) GetDiffV2(c *gin.Context) {
 
 // Delete files permanently, queues up the file for deletion & free up the space based on file's object size
 func (t *TrashHandler) Delete(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	var request ente.DeleteTrashFilesRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -71,7 +71,7 @@ func (t *TrashHandler) Delete(c *gin.Context) {
 
 // Empty deletes eligible files from the trash
 func (t *TrashHandler) Empty(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
+	userID := auth.GetUserID(c)
 	var request ente.EmptyTrashRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
