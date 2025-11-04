@@ -67,22 +67,43 @@ func NewClient(p Params) *Client {
 	} else {
 		enteAPI.SetBaseURL(EnteAPIEndpoint)
 	}
+	downloadAPI := resty.New().
+		SetRetryCount(3).
+		SetRetryWaitTime(10 * time.Second).
+		SetRetryMaxWaitTime(20 * time.Second).
+		AddRetryCondition(func(r *resty.Response, err error) bool {
+			shouldRetry := r.StatusCode() == 429 || r.StatusCode() >= 500
+			if shouldRetry {
+				amxRequestID := r.Header().Get("X-Amz-Request-Id")
+				cfRayID := r.Header().Get("CF-Ray")
+				wasabiRefID := r.Header().Get("X-Wasabi-Cm-Reference-Id")
+				log.Printf("Retry scheduled. error statusCode: %d, X-Amz-Request-Id: %s, CF-Ray: %s, X-Wasabi-Cm-Reference-Id: %s", r.StatusCode(), amxRequestID, cfRayID, wasabiRefID)
+			}
+			return shouldRetry
+		})
+
+	downloadAPI.OnBeforeRequest(func(c *resty.Client, req *resty.Request) error {
+		app := readValueFromContext(req.Context(), "app")
+		if app == nil {
+			panic("app not set in context")
+		}
+		req.Header.Set(ClientPkgHeader, StringToApp(app.(string)).ClientPkg())
+		attachToken(req)
+		if p.Debug {
+			logRequest(req)
+		}
+		return nil
+	})
+	if p.Debug {
+		downloadAPI.OnAfterResponse(func(c *resty.Client, resp *resty.Response) error {
+			logResponse(resp)
+			return nil
+		})
+	}
+
 	return &Client{
-		restClient: enteAPI,
-		downloadClient: resty.New().
-			SetRetryCount(3).
-			SetRetryWaitTime(10 * time.Second).
-			SetRetryMaxWaitTime(20 * time.Second).
-			AddRetryCondition(func(r *resty.Response, err error) bool {
-				shouldRetry := r.StatusCode() == 429 || r.StatusCode() >= 500
-				if shouldRetry {
-					amxRequestID := r.Header().Get("X-Amz-Request-Id")
-					cfRayID := r.Header().Get("CF-Ray")
-					wasabiRefID := r.Header().Get("X-Wasabi-Cm-Reference-Id")
-					log.Printf("Retry scheduled. error statusCode: %d, X-Amz-Request-Id: %s, CF-Ray: %s, X-Wasabi-Cm-Reference-Id: %s", r.StatusCode(), amxRequestID, cfRayID, wasabiRefID)
-				}
-				return shouldRetry
-			}),
+		restClient:     enteAPI,
+		downloadClient: downloadAPI,
 	}
 }
 

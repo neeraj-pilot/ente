@@ -141,69 +141,90 @@ func (c *ClICtrl) downloadEntry(ctx context.Context,
 		}
 	}
 	if !diskInfo.IsFilePresent(file) {
-		decrypt, err := c.downloadAndDecrypt(ctx, file, c.KeyHolder.DeviceKey)
-		if err != nil {
-			return err
-		}
 		fileDiskMetadata := mapper.MapRemoteFileToDiskMetadata(file)
-		// Get the extension
 		extension := filepath.Ext(fileDiskMetadata.Title)
+		if file.GetFileType() == model.FileTypeInfo && extension == "" {
+			extension = ".json"
+		}
 		baseFileName := strings.TrimSuffix(filepath.Clean(filepath.Base(fileDiskMetadata.Title)), extension)
 		diskMetaFileName := diskInfo.GenerateUniqueMetaFileName(baseFileName, extension)
-		if file.IsLivePhoto() {
-			imagePath, videoPath, err := UnpackLive(*decrypt)
+		if file.GetFileType() == model.FileTypeInfo {
+			var infoPayload interface{} = map[string]interface{}{}
+			if file.PublicMetadata != nil {
+				if info, ok := file.PublicMetadata["info"]; ok {
+					infoPayload = info
+				} else {
+					infoPayload = file.PublicMetadata
+				}
+			} else if file.Metadata != nil {
+				infoPayload = file.Metadata
+			}
+			infoBytes, err := json.MarshalIndent(infoPayload, "", "  ")
 			if err != nil {
 				return err
 			}
-			if imagePath == "" && videoPath == "" {
-				log.Printf("imagePath %s, videoPath %s", imagePath, videoPath)
-				return model.ErrLiveZip
+			infoFileName := diskInfo.GenerateUniqueFileName(baseFileName, extension)
+			infoFilePath := filepath.Join(diskInfo.ExportRoot, diskInfo.AlbumMeta.FolderName, infoFileName)
+			if writeErr := os.WriteFile(infoFilePath, infoBytes, 0644); writeErr != nil {
+				return writeErr
 			}
-			if imagePath != "" {
-				imageExtn := filepath.Ext(imagePath)
-				imageFileName := diskInfo.GenerateUniqueFileName(baseFileName, imageExtn)
-				imageFilePath := filepath.Join(diskInfo.ExportRoot, diskInfo.AlbumMeta.FolderName, imageFileName)
-				moveErr := Move(imagePath, imageFilePath)
-				if moveErr != nil {
-					return moveErr
-				}
-				fileDiskMetadata.AddFileName(imageFileName)
-			}
-			if videoPath != "" {
-				videoExtn := filepath.Ext(videoPath)
-				videoFileName := diskInfo.GenerateUniqueFileName(baseFileName, videoExtn)
-				videoFilePath := filepath.Join(diskInfo.ExportRoot, diskInfo.AlbumMeta.FolderName, videoFileName)
-				// move the decrypt file to filePath
-				moveErr := Move(videoPath, videoFilePath)
-				if moveErr != nil {
-					return moveErr
-				}
-				fileDiskMetadata.AddFileName(videoFileName)
-			}
+			fileDiskMetadata.AddFileName(infoFileName)
 		} else {
-			fileName := diskInfo.GenerateUniqueFileName(baseFileName, extension)
-			filePath := filepath.Join(diskInfo.ExportRoot, diskInfo.AlbumMeta.FolderName, fileName)
-			// move the decrypt file to filePath
-			err = Move(*decrypt, filePath)
+			decrypt, err := c.downloadAndDecrypt(ctx, file, c.KeyHolder.DeviceKey)
 			if err != nil {
 				return err
 			}
-			fileDiskMetadata.AddFileName(fileName)
+			if file.IsLivePhoto() {
+				imagePath, videoPath, err := UnpackLive(*decrypt)
+				if err != nil {
+					return err
+				}
+				if imagePath == "" && videoPath == "" {
+					log.Printf("imagePath %s, videoPath %s", imagePath, videoPath)
+					return model.ErrLiveZip
+				}
+				if imagePath != "" {
+					imageExtn := filepath.Ext(imagePath)
+					imageFileName := diskInfo.GenerateUniqueFileName(baseFileName, imageExtn)
+					imageFilePath := filepath.Join(diskInfo.ExportRoot, diskInfo.AlbumMeta.FolderName, imageFileName)
+					moveErr := Move(imagePath, imageFilePath)
+					if moveErr != nil {
+						return moveErr
+					}
+					fileDiskMetadata.AddFileName(imageFileName)
+				}
+				if videoPath != "" {
+					videoExtn := filepath.Ext(videoPath)
+					videoFileName := diskInfo.GenerateUniqueFileName(baseFileName, videoExtn)
+					videoFilePath := filepath.Join(diskInfo.ExportRoot, diskInfo.AlbumMeta.FolderName, videoFileName)
+					moveErr := Move(videoPath, videoFilePath)
+					if moveErr != nil {
+						return moveErr
+					}
+					fileDiskMetadata.AddFileName(videoFileName)
+				}
+			} else {
+				fileName := diskInfo.GenerateUniqueFileName(baseFileName, extension)
+				filePath := filepath.Join(diskInfo.ExportRoot, diskInfo.AlbumMeta.FolderName, fileName)
+				err = Move(*decrypt, filePath)
+				if err != nil {
+					return err
+				}
+				fileDiskMetadata.AddFileName(fileName)
+			}
 		}
 
 		fileDiskMetadata.MetaFileName = diskMetaFileName
-		err = diskInfo.AddEntry(fileDiskMetadata)
+		err := diskInfo.AddEntry(fileDiskMetadata)
 		if err != nil {
 			return err
 		}
 
-		err = writeJSONToFile(filepath.Join(diskInfo.ExportRoot, diskInfo.AlbumMeta.FolderName, ".meta", diskMetaFileName), fileDiskMetadata)
-		if err != nil {
+		if err := writeJSONToFile(filepath.Join(diskInfo.ExportRoot, diskInfo.AlbumMeta.FolderName, ".meta", diskMetaFileName), fileDiskMetadata); err != nil {
 			return err
 		}
 		albumEntry.SyncedLocally = true
-		putErr := c.UpsertAlbumEntry(ctx, albumEntry)
-		if putErr != nil {
+		if putErr := c.UpsertAlbumEntry(ctx, albumEntry); putErr != nil {
 			return putErr
 		}
 	}

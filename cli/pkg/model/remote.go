@@ -4,16 +4,26 @@ import (
 	"fmt"
 	"github.com/ente-io/cli/pkg/model/export"
 	"sort"
+	"strconv"
 	"time"
 )
 
 type FileType int8
 
 const (
-	Image FileType = iota
-	Video
-	LivePhoto
-	Unknown = 127
+	FileTypeImage FileType = iota
+	FileTypeVideo
+	FileTypeLivePhoto
+	FileTypeOther
+	FileTypeInfo
+	FileTypeUnknown FileType = 127
+)
+
+const (
+	Image     = FileTypeImage
+	Video     = FileTypeVideo
+	LivePhoto = FileTypeLivePhoto
+	Unknown   = FileTypeUnknown
 )
 
 type RemoteFile struct {
@@ -72,23 +82,60 @@ func SortAlbumFileEntry(entries []*AlbumFileEntry) {
 }
 
 func (r *RemoteFile) GetFileType() FileType {
+	if r.Metadata == nil {
+		return FileTypeOther
+	}
 	value, ok := r.Metadata["fileType"]
 	if !ok {
-		panic("fileType not found in metadata")
+		return FileTypeOther
 	}
-	switch int8(value.(float64)) {
+	return coerceFileType(value)
+}
+
+func coerceFileType(value interface{}) FileType {
+	switch v := value.(type) {
+	case float64:
+		return fileTypeFromInt(int(v))
+	case int:
+		return fileTypeFromInt(v)
+	case int32:
+		return fileTypeFromInt(int(v))
+	case int64:
+		return fileTypeFromInt(int(v))
+	case uint:
+		return fileTypeFromInt(int(v))
+	case uint32:
+		return fileTypeFromInt(int(v))
+	case uint64:
+		return fileTypeFromInt(int(v))
+	case string:
+		// Some older payloads might serialize the enum as a stringified int.
+		if parsed, err := strconv.Atoi(v); err == nil {
+			return fileTypeFromInt(parsed)
+		}
+	}
+	return FileTypeOther
+}
+
+func fileTypeFromInt(v int) FileType {
+	switch v {
 	case 0:
-		return Image
+		return FileTypeImage
 	case 1:
-		return Video
+		return FileTypeVideo
 	case 2:
-		return LivePhoto
+		return FileTypeLivePhoto
+	case 3:
+		return FileTypeOther
+	case 4:
+		return FileTypeInfo
+	default:
+		return FileTypeOther
 	}
-	panic(fmt.Sprintf("invalid fileType %d", value.(int8)))
 }
 
 func (r *RemoteFile) IsLivePhoto() bool {
-	return r.GetFileType() == LivePhoto
+	return r.GetFileType() == FileTypeLivePhoto
 }
 
 func (r *RemoteFile) GetFileHash() *string {

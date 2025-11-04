@@ -40,7 +40,7 @@ func MapCollectionToAlbum(ctx context.Context, collection api.Collection, holder
 	}
 	album.AlbumName = name
 	if collection.MagicMetadata != nil {
-		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64(collection.MagicMetadata.Data, collectionKey, collection.MagicMetadata.Header)
+		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64Auth(collection.MagicMetadata.Data, collectionKey, collection.MagicMetadata.Header)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt magic metadata for collection %d: %w", collection.ID, err)
 		}
@@ -50,7 +50,7 @@ func MapCollectionToAlbum(ctx context.Context, collection api.Collection, holder
 		}
 	}
 	if collection.PublicMagicMetadata != nil {
-		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64(collection.PublicMagicMetadata.Data, collectionKey, collection.PublicMagicMetadata.Header)
+		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64Auth(collection.PublicMagicMetadata.Data, collectionKey, collection.PublicMagicMetadata.Header)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt public magic metadata for collection %d: %w", collection.ID, err)
 		}
@@ -60,7 +60,7 @@ func MapCollectionToAlbum(ctx context.Context, collection api.Collection, holder
 		}
 	}
 	if album.IsShared && collection.SharedMagicMetadata != nil {
-		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64(collection.SharedMagicMetadata.Data, collectionKey, collection.SharedMagicMetadata.Header)
+		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64Auth(collection.SharedMagicMetadata.Data, collectionKey, collection.SharedMagicMetadata.Header)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt shared magic metadata for collection %d: %w", collection.ID, err)
 		}
@@ -98,7 +98,7 @@ func MapApiFileToPhotoFile(ctx context.Context, album model.RemoteAlbum, file ap
 		}
 	}
 	if file.Metadata.DecryptionHeader != "" {
-		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64(file.Metadata.EncryptedData, fileKey, file.Metadata.DecryptionHeader)
+		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64Auth(file.Metadata.EncryptedData, fileKey, file.Metadata.DecryptionHeader)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt metadata for file %d: %w", file.ID, err)
 		}
@@ -108,7 +108,7 @@ func MapApiFileToPhotoFile(ctx context.Context, album model.RemoteAlbum, file ap
 		}
 	}
 	if file.MagicMetadata != nil {
-		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64(file.MagicMetadata.Data, fileKey, file.MagicMetadata.Header)
+		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64Auth(file.MagicMetadata.Data, fileKey, file.MagicMetadata.Header)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt magic metadata for file %d: %w", file.ID, err)
 		}
@@ -118,7 +118,7 @@ func MapApiFileToPhotoFile(ctx context.Context, album model.RemoteAlbum, file ap
 		}
 	}
 	if file.PubicMagicMetadata != nil {
-		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64(file.PubicMagicMetadata.Data, fileKey, file.PubicMagicMetadata.Header)
+		_, encodedJsonBytes, err := eCrypto.DecryptChaChaBase64Auth(file.PubicMagicMetadata.Data, fileKey, file.PubicMagicMetadata.Header)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt public magic metadata for file %d: %w", file.ID, err)
 		}
