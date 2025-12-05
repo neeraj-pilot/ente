@@ -64,6 +64,13 @@ var ErrFileTooLarge = errors.New("file too large")
 // ErrSharingDisabledForFreeAccounts is thrown when free subscription user tries to share files
 var ErrSharingDisabledForFreeAccounts = errors.New("sharing Feature is disabled for free accounts")
 
+// ErrDeviceLimitChangeNotAllowedForFreeAccounts is thrown when free user tries to change device limit
+var ErrDeviceLimitChangeNotAllowedForFreeAccounts = &ApiError{
+	Code:           DeviceLimitChangeNotAllowedForFreeAccounts,
+	Message:        "Free users cannot change the device limit. Please subscribe to modify this setting.",
+	HttpStatusCode: http.StatusPaymentRequired,
+}
+
 // ErrDuplicateFileObjectFound is thrown when another file with the same objectKey is detected
 var ErrDuplicateFileObjectFound = errors.New("file object already exists")
 
@@ -253,6 +260,9 @@ const (
 	FileLimitReached ErrorCode = "FILE_LIMIT_REACHED"
 
 	SessionExpired ErrorCode = "SESSION_EXPIRED"
+
+	// DeviceLimitChangeNotAllowedForFreeAccounts indicates free users cannot change device limit
+	DeviceLimitChangeNotAllowedForFreeAccounts ErrorCode = "DEVICE_LIMIT_CHANGE_NOT_ALLOWED_FOR_FREE_ACCOUNTS"
 )
 
 type ApiError struct {

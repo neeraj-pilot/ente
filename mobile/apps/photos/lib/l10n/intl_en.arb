@@ -356,6 +356,7 @@
   "sorryCouldNotAddToFavorites": "Sorry, could not add to favorites!",
   "sorryCouldNotRemoveFromFavorites": "Sorry, could not remove from favorites!",
   "subscribeToEnableSharing": "You need an active paid subscription to enable sharing.",
+  "deviceLimitChangeRequiresSubscription": "On the free plan, you cannot change the device limit. Please subscribe to modify this setting.",
   "subscribe": "Subscribe",
   "canOnlyRemoveFilesOwnedByYou": "Can only remove files owned by you",
   "deleteSharedAlbum": "Delete shared album?",

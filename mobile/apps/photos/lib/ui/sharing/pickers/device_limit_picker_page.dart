@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:photos/core/constants.dart';
+import "package:photos/core/errors.dart";
 import "package:photos/generated/l10n.dart";
 import 'package:photos/models/collection/collection.dart';
 import 'package:photos/services/collections_service.dart';
 import 'package:photos/theme/ente_theme.dart';
+import 'package:photos/ui/components/buttons/button_widget.dart';
 import 'package:photos/ui/components/captioned_text_widget.dart';
 import 'package:photos/ui/components/divider_widget.dart';
 import 'package:photos/ui/components/menu_item_widget/menu_item_widget.dart';
+import 'package:photos/ui/components/models/button_type.dart';
 import 'package:photos/ui/components/title_bar_title_widget.dart';
 import 'package:photos/ui/components/title_bar_widget.dart';
+import 'package:photos/ui/payment/subscription.dart';
 import 'package:photos/utils/dialog_util.dart';
 import 'package:photos/utils/separators_util.dart';
 
@@ -139,8 +143,59 @@ class _ItemsWidgetState extends State<ItemsWidget> {
     try {
       await CollectionsService.instance.updateShareUrl(widget.collection, prop);
     } catch (e) {
-      await showGenericErrorDialog(context: context, error: e);
+      if (e is DeviceLimitChangeNotAllowedForFreeAccountsError) {
+        await _showDeviceLimitUpgradeAlert(context);
+      } else {
+        await showGenericErrorDialog(context: context, error: e);
+      }
       rethrow;
     }
+  }
+
+  Future<void> _showDeviceLimitUpgradeAlert(BuildContext context) async {
+    final AlertDialog alert = AlertDialog(
+      title: Text(AppLocalizations.of(context).sorry),
+      content: Text(
+        AppLocalizations.of(context).deviceLimitChangeRequiresSubscription,
+      ),
+      actions: [
+        ButtonWidget(
+          buttonType: ButtonType.primary,
+          isInAlert: true,
+          shouldStickToDarkTheme: false,
+          buttonAction: ButtonAction.first,
+          shouldSurfaceExecutionStates: true,
+          labelText: AppLocalizations.of(context).subscribe,
+          onTap: () async {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (BuildContext context) {
+                  return getSubscriptionPage();
+                },
+              ),
+            ).ignore();
+          },
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: ButtonWidget(
+            buttonType: ButtonType.secondary,
+            buttonAction: ButtonAction.cancel,
+            isInAlert: true,
+            shouldStickToDarkTheme: false,
+            labelText: AppLocalizations.of(context).ok,
+          ),
+        ),
+      ],
+    );
+
+    return showDialog(
+      useRootNavigator: false,
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+      barrierDismissible: true,
+    );
   }
 }

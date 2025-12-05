@@ -194,6 +194,21 @@ func (c *BillingController) HasActiveSelfOrFamilySubscription(userID int64, must
 	return nil
 }
 
+// IsSelfOrFamilyOnPaidPlan returns true if the user or their family admin is on a paid subscription plan
+func (c *BillingController) IsSelfOrFamilyOnPaidPlan(userID int64) (bool, error) {
+	var subscriptionUserID int64
+	familyAdminID, err := c.UserRepo.GetFamilyAdminID(userID)
+	if err != nil {
+		return false, stacktrace.Propagate(err, "")
+	}
+	if familyAdminID != nil {
+		subscriptionUserID = *familyAdminID
+	} else {
+		subscriptionUserID = userID
+	}
+	return c.BillingRepo.IsUserOnPaidPlan(subscriptionUserID)
+}
+
 // VerifySubscription verifies and returns the verified subscription
 func (c *BillingController) VerifySubscription(
 	userID int64,

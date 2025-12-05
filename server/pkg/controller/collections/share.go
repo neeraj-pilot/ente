@@ -203,6 +203,9 @@ func (c *CollectionController) UpdateShareeMagicMetadata(ctx *gin.Context, req e
 	return nil
 }
 
+// FreeUserDeviceLimit is the device limit for free users when creating public links
+const FreeUserDeviceLimit = 5
+
 // ShareURL generates a public auth-token for the given collectionID
 func (c *CollectionController) ShareURL(ctx *gin.Context, userID int64, req ente.CreatePublicAccessTokenRequest) (
 	ente.PublicURL, error) {
@@ -216,9 +219,19 @@ func (c *CollectionController) ShareURL(ctx *gin.Context, userID int64, req ente
 	if userID != collection.Owner.ID {
 		return ente.PublicURL{}, stacktrace.Propagate(ente.ErrPermissionDenied, "")
 	}
-	err = c.BillingCtrl.HasActiveSelfOrFamilySubscription(userID, true)
+	// Check if user has an active subscription (free or paid)
+	err = c.BillingCtrl.HasActiveSelfOrFamilySubscription(userID, false)
 	if err != nil {
 		return ente.PublicURL{}, stacktrace.Propagate(err, "")
+	}
+	// Check if user is on a paid plan
+	isPaidUser, err := c.BillingCtrl.IsSelfOrFamilyOnPaidPlan(userID)
+	if err != nil {
+		return ente.PublicURL{}, stacktrace.Propagate(err, "")
+	}
+	// For free users, force device limit to 5
+	if !isPaidUser {
+		req.DeviceLimit = FreeUserDeviceLimit
 	}
 	response, err := c.CollectionLinkCtrl.CreateLink(ctx, req)
 	if err != nil {
@@ -239,9 +252,19 @@ func (c *CollectionController) UpdateShareURL(
 	if err := c.verifyOwnership(req.CollectionID, userID); err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
-	err := c.BillingCtrl.HasActiveSelfOrFamilySubscription(userID, true)
+	// Check if user has an active subscription (free or paid)
+	err := c.BillingCtrl.HasActiveSelfOrFamilySubscription(userID, false)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
+	}
+	// Check if user is on a paid plan
+	isPaidUser, err := c.BillingCtrl.IsSelfOrFamilyOnPaidPlan(userID)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	// For free users, reject any attempt to change device limit
+	if !isPaidUser && req.DeviceLimit != nil {
+		return nil, ente.ErrDeviceLimitChangeNotAllowedForFreeAccounts
 	}
 	response, err := c.CollectionLinkCtrl.UpdateSharedUrl(ctx, req)
 	if err != nil {

@@ -78,6 +78,8 @@ class SrpSetupNotCompleteError extends Error {}
 
 class SharingNotPermittedForFreeAccountsError extends Error {}
 
+class DeviceLimitChangeNotAllowedForFreeAccountsError extends Error {}
+
 class NoMediaLocationAccessError extends Error {}
 
 class PassKeySessionNotVerifiedError extends Error {}

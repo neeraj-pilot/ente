@@ -1275,6 +1275,13 @@ class CollectionsService {
       );
     } on DioException catch (e) {
       if (e.response?.statusCode == 402) {
+        // Check if it's a device limit change error for free users
+        final responseData = e.response?.data;
+        if (responseData is Map &&
+            responseData['code'] ==
+                'DEVICE_LIMIT_CHANGE_NOT_ALLOWED_FOR_FREE_ACCOUNTS') {
+          throw DeviceLimitChangeNotAllowedForFreeAccountsError();
+        }
         throw SharingNotPermittedForFreeAccountsError();
       }
       rethrow;
