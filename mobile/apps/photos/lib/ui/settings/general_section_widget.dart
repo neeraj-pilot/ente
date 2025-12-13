@@ -1,6 +1,7 @@
 import "dart:async";
 
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import "package:photos/app.dart";
 import "package:photos/generated/l10n.dart";
 import "package:photos/l10n/l10n.dart";
@@ -21,8 +22,12 @@ import "package:photos/ui/settings/widget_settings_screen.dart";
 import 'package:photos/core/local_mode.dart';
 import 'package:photos/ui/settings/ml/machine_learning_settings_page.dart';
 import 'package:photos/utils/navigation_util.dart';
+import 'package:photos/ui/notification/toast.dart';
+import 'package:photos/utils/dialog_util.dart';
 
 class GeneralSectionWidget extends StatelessWidget {
+  static final _logger = Logger("GeneralSectionWidget");
+
   const GeneralSectionWidget({super.key});
 
   @override
@@ -51,6 +56,23 @@ class GeneralSectionWidget extends StatelessWidget {
         },
       ),
     );
+    if (wrappedService.isEnabled) {
+      items.addAll([
+        sectionOptionSpacing,
+        MenuItemWidget(
+          captionedTextWidget: const CaptionedTextWidget(
+            title: "Recompute Ente Rewind",
+            subTitle: "Refresh your yearly recap",
+          ),
+          pressedColor: getEnteColorScheme(context).fillFaint,
+          trailingIcon: Icons.chevron_right_outlined,
+          trailingIconIsMuted: true,
+          onTap: () async {
+            await _onRewindRecomputeTapped(context);
+          },
+        ),
+      ]);
+    }
     items.addAll([
       sectionOptionSpacing,
       MenuItemWidget(
@@ -224,5 +246,16 @@ class GeneralSectionWidget extends StatelessWidget {
       context,
       const MemoriesSettingsScreen(),
     );
+  }
+
+  Future<void> _onRewindRecomputeTapped(BuildContext context) async {
+    try {
+      await wrappedService.forceRecompute();
+      await localSettings.resetWrapped2025Complete();
+      showShortToast(context, "Ente Rewind recomputed");
+    } catch (e, s) {
+      _logger.severe("Failed to recompute Ente Rewind", e, s);
+      await showGenericErrorDialog(context: context, error: e);
+    }
   }
 }
