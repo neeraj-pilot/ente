@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:photos/core/constants.dart';
+import 'package:photos/core/local_mode.dart';
 import "package:photos/generated/l10n.dart";
 import 'package:photos/models/user_details.dart';
 import 'package:photos/states/user_details_state.dart';
@@ -12,6 +13,7 @@ import "package:photos/ui/common/loading_widget.dart";
 import 'package:photos/ui/payment/subscription.dart';
 import 'package:photos/ui/settings/storage_progress_widget.dart';
 import 'package:photos/utils/standalone/data.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class StorageCardWidget extends StatefulWidget {
   const StorageCardWidget({super.key});
@@ -52,6 +54,17 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLocalOnlyDemo) {
+      return GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: _launchOfflineSite,
+        onTapDown: (details) => _isStorageCardPressed.value = true,
+        onTapCancel: () => _isStorageCardPressed.value = false,
+        onTapUp: (details) => _isStorageCardPressed.value = false,
+        child: _offlineCard(),
+      );
+    }
+
     final inheritedUserDetails = InheritedUserDetails.of(context);
     final userDetails = inheritedUserDetails?.userDetails;
 
@@ -111,6 +124,42 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
                 },
                 valueListenable: _isStorageCardPressed,
               ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _offlineCard() {
+    return Stack(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: _background,
+        ),
+        Positioned.fill(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Visit ente.io",
+                  style: getEnteTextTheme(context)
+                      .h2Bold
+                      .copyWith(color: textBaseDark),
+                ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _isStorageCardPressed,
+                  builder: (context, value, child) {
+                    return Icon(
+                      Icons.chevron_right_outlined,
+                      color: value ? strokeMutedDark : strokeBaseDark,
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         ),
@@ -370,5 +419,20 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
         ),
       ),
     ];
+  }
+
+  Future<void> _launchOfflineSite() async {
+    const url = "https://ente.io/?ref=offline";
+    try {
+      final launched = await launchUrlString(
+        url,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        _logger.warning("Failed to launch $url");
+      }
+    } catch (e) {
+      _logger.warning("Failed to launch $url", e);
+    }
   }
 }

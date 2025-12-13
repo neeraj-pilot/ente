@@ -1035,6 +1035,15 @@ class CollectionsService {
         },
       );
       collection.setName(newName);
+      _cacheLocalPathAndCollection(collection);
+      await _db.insert(<Collection>[collection]);
+      Bus.instance.fire(
+        CollectionUpdatedEvent(
+          collection.id,
+          const <EnteFile>[],
+          "rename",
+        ),
+      );
       sync().ignore();
     } catch (e, s) {
       _logger.warning("failed to rename collection", e, s);
@@ -1098,6 +1107,14 @@ class CollectionsService {
       collection.magicMetadata = CollectionMagicMetadata.fromJson(jsonToUpdate);
       collection.mMdVersion = currentVersion + 1;
       _collectionIDToCollections[collection.id] = collection;
+      await _db.insert(<Collection>[collection]);
+      Bus.instance.fire(
+        CollectionUpdatedEvent(
+          collection.id,
+          const <EnteFile>[],
+          "updateMagicMetadata",
+        ),
+      );
 
       // trigger sync to fetch the latest collection state from server
       sync().ignore();
@@ -1158,6 +1175,14 @@ class CollectionsService {
           CollectionPubMagicMetadata.fromJson(jsonToUpdate);
       collection.mMbPubVersion = currentVersion + 1;
       _cacheLocalPathAndCollection(collection);
+      await _db.insert(<Collection>[collection]);
+      Bus.instance.fire(
+        CollectionUpdatedEvent(
+          collection.id,
+          const <EnteFile>[],
+          "updatePublicMagicMetadata",
+        ),
+      );
       // trigger sync to fetch the latest collection state from server
       sync().ignore();
     } on DioException catch (e) {
@@ -1218,6 +1243,14 @@ class CollectionsService {
           ShareeMagicMetadata.fromJson(jsonToUpdate);
       collection.sharedMmdVersion = currentVersion + 1;
       _cacheLocalPathAndCollection(collection);
+      await _db.insert(<Collection>[collection]);
+      Bus.instance.fire(
+        CollectionUpdatedEvent(
+          collection.id,
+          const <EnteFile>[],
+          "updateShareeMagicMetadata",
+        ),
+      );
       // trigger sync to fetch the latest collection state from server
       sync().ignore();
     } on DioException catch (e) {
@@ -2287,7 +2320,7 @@ class CollectionsService {
     CreateRequest createRequest,
   ) async {
     final dynamic payload = createRequest.toJson();
-    return _enteDio
+    return await _enteDio
         .post(
       "/collections",
       data: payload,
@@ -2295,7 +2328,9 @@ class CollectionsService {
         .then((response) async {
       final collectionData = response.data["collection"];
       final collection = await _fromRemoteCollection(collectionData);
-      return _cacheLocalPathAndCollection(collection);
+      final cached = _cacheLocalPathAndCollection(collection);
+      await _db.insert(<Collection>[cached]);
+      return cached;
     });
   }
 

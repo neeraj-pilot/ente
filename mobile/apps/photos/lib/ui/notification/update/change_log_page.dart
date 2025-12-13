@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import "package:photos/core/local_mode.dart";
 import "package:photos/generated/l10n.dart";
 import "package:photos/l10n/l10n.dart";
 import "package:photos/service_locator.dart";
@@ -92,18 +93,38 @@ class _ChangeLogPageState extends State<ChangeLogPage> {
   Widget _getChangeLog(BuildContext ctx) {
     final scrollController = ScrollController();
     final List<ChangeLogEntry> items = [];
-    items.addAll([
-      ChangeLogEntry(
-        context.l10n.cLTitle1,
-        context.l10n.cLDesc1,
-        isFeature: true,
-      ),
-      ChangeLogEntry(
-        context.l10n.cLTitle2,
-        context.l10n.cLDesc2,
-        isFeature: true,
-      ),
-    ]);
+    if (isLocalOnlyDemo) {
+      items.addAll([
+        ChangeLogEntry(
+          "Ente Offline (hackathon)",
+          "This is an experimental one-day hackathon build. Expect rough edges and no ongoing maintenance.",
+          isFeature: true,
+        ),
+        ChangeLogEntry(
+          "Local-only networking",
+          "The app never uploads data. It connects to localhost only to download ML models so features like search can run.",
+          isFeature: true,
+        ),
+        ChangeLogEntry(
+          "UI text still mentions backups",
+          "Some screens still reference regular Ente behavior, but this build keeps everything local and never uploads.",
+          isFeature: false,
+        ),
+      ]);
+    } else {
+      items.addAll([
+        ChangeLogEntry(
+          context.l10n.cLTitle1,
+          context.l10n.cLDesc1,
+          isFeature: true,
+        ),
+        ChangeLogEntry(
+          context.l10n.cLTitle2,
+          context.l10n.cLDesc2,
+          isFeature: true,
+        ),
+      ]);
+    }
     return Container(
       padding: const EdgeInsets.only(left: 16),
       child: Scrollbar(

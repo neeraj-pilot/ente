@@ -876,9 +876,6 @@ class SmartMemoriesService {
       for (final entry in fileIDToImageEmbedding.entries) {
         similarities[entry.key] = entry.value.vector.dot(activityVector);
       }
-      w?.log(
-        'comparing embeddings for clipMemoryType $clipMemoryType',
-      );
       final List<EnteFile> clipFiles = [];
       for (final file in allFiles) {
         final uploadedFileID = file.uploadedFileID;

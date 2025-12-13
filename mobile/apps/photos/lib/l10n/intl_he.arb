@@ -263,7 +263,7 @@
   "shareTextConfirmOthersVerificationID": "היי, תוכל לוודא שזה מזהה האימות שלך של ente.io: {verificationID}",
   "somethingWentWrong": "משהו השתבש",
   "sendInvite": "שלח הזמנה",
-  "shareTextRecommendUsingEnte": "הורד את ente על מנת שנוכל לשתף תמונות וסרטונים באיכות המקור באופן קל\n\nhttps://ente.io",
+  "shareTextRecommendUsingEnte": "הורד את ente על מנת שנוכל לשתף תמונות וסרטונים באיכות המקור באופן קל\n\nhttps://ente.io/?ref=offline",
   "done": "בוצע",
   "applyCodeTitle": "החל קוד",
   "enterCodeDescription": "הכנס את הקוד שנמסר לך מחברך בשביל לקבל מקום אחסון בחינם עבורך ועבורו",

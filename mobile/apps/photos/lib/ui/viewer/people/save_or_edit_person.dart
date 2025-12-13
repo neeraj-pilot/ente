@@ -319,8 +319,8 @@ class _SaveOrEditPersonState extends State<SaveOrEditPerson> {
                                 clusterID: widget.clusterID!,
                                 birthdate: _selectedDate,
                                 email: _email,
-                              ).catchError((e) {
-                                _logger.severe("Error adding new person", e);
+                              ).catchError((e, s) {
+                                _logger.severe("Error adding new person", e, s);
                                 return null;
                               });
                               if (newPersonEntity != null) {
@@ -593,8 +593,8 @@ class _SaveOrEditPersonState extends State<SaveOrEditPerson> {
         ),
       );
       return personEntity;
-    } catch (e) {
-      _logger.severe("Error adding new person", e);
+    } catch (e, s) {
+      _logger.severe("Error adding new person", e, s);
       userAlreadyAssigned = false;
       await showGenericErrorDialog(context: context, error: e);
       return null;

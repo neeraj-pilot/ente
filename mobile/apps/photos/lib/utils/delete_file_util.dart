@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photos/core/constants.dart';
+import 'package:photos/core/local_mode.dart';
 import 'package:photos/core/event_bus.dart';
 import 'package:photos/db/files_db.dart';
 import 'package:photos/events/collection_updated_event.dart';
@@ -39,6 +40,11 @@ Future<void> deleteFilesFromEverywhere(
   BuildContext context,
   List<EnteFile> files,
 ) async {
+  if (isLocalOnlyDemo) {
+    throw StateError(
+      "Asset deletion via PhotoManager is disabled in local-only demo mode.",
+    );
+  }
   _logger.info("Trying to deleteFilesFromEverywhere " + files.toString());
   final List<String> localAssetIDs = [];
   final List<String> localSharedMediaIDs = [];
@@ -197,6 +203,11 @@ Future<void> deleteFilesOnDeviceOnly(
   BuildContext context,
   List<EnteFile> files,
 ) async {
+  if (isLocalOnlyDemo) {
+    throw StateError(
+      "Asset deletion via PhotoManager is disabled in local-only demo mode.",
+    );
+  }
   _logger.info("Trying to deleteFilesOnDeviceOnly" + files.toString());
   final List<String> localAssetIDs = [];
   final List<String> localSharedMediaIDs = [];

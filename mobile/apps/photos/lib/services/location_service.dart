@@ -1,9 +1,9 @@
 import "dart:convert";
-import "dart:io";
 import "dart:math";
 
 import "package:computer/computer.dart";
 import "package:flutter/foundation.dart";
+import "package:flutter/services.dart" show rootBundle;
 import "package:logging/logging.dart";
 import "package:photos/core/constants.dart";
 import "package:photos/core/event_bus.dart";
@@ -16,7 +16,6 @@ import "package:photos/models/local_entity_data.dart";
 import "package:photos/models/location/location.dart";
 import 'package:photos/models/location_tag/location_tag.dart';
 import "package:photos/service_locator.dart";
-import "package:photos/services/remote_assets_service.dart";
 import "package:shared_preferences/shared_preferences.dart";
 
 const double earthRadius = 6371; // Earth's radius in kilometers
@@ -30,7 +29,7 @@ class LocationService {
   // need to refresh the discovery section after the cities are loaded.
   bool reloadLocationDiscoverySection = false;
 
-  static const kCitiesRemotePath = "https://static.ente.io/world_cities.json";
+  static const kCitiesAssetPath = "assets/world_cities.json";
 
   List<City> _cities = [];
 
@@ -249,11 +248,12 @@ class LocationService {
 
   Future<void> _loadCities() async {
     try {
-      final file =
-          await RemoteAssetsService.instance.getAsset(kCitiesRemotePath);
+      final citiesJson = await rootBundle.loadString(kCitiesAssetPath);
       final startTime = DateTime.now();
-      _cities =
-          await _computer.compute(parseCities, param: {"filePath": file.path});
+      _cities = await _computer.compute(
+        parseCities,
+        param: {"json": citiesJson},
+      );
       final endTime = DateTime.now();
       _logger.info(
         "Loaded cities in ${(endTime.millisecondsSinceEpoch - startTime.millisecondsSinceEpoch)}ms, reloadingDiscovery: $reloadLocationDiscoverySection",
@@ -305,8 +305,7 @@ Map<LocationTag, int> _getLocationTagsToOccurenceForIsolate(
 }
 
 Future<List<City>> parseCities(Map args) async {
-  final file = File(args["filePath"]);
-  final citiesJson = json.decode(await file.readAsString());
+  final citiesJson = json.decode(args["json"] as String);
 
   final List<dynamic> jsonData = citiesJson['data'];
   final cities =

@@ -361,6 +361,9 @@ class _WrappedViewerPageState extends State<WrappedViewerPage>
     }
     if (_currentIndex >= _cards.length - 1) {
       wrappedService.markComplete();
+      if (_cards.length <= 3) {
+        wrappedService.scheduleSparseRecompute();
+      }
       _pauseAutoplay();
       return;
     }

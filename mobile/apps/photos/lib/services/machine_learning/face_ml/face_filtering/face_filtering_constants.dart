@@ -18,7 +18,7 @@ const kMediumQualityFaceScore = 0.85;
 const kHighQualityFaceScore = 0.90;
 
 /// The minimum cluster size for displaying a cluster in the UI by default
-const kMinimumClusterSizeSearchResult = 10;
+const kMinimumClusterSizeSearchResult = 2;
 
 /// The minimum cluster size for displaying a cluster when the user wants to see all faces
 const kMinimumClusterSizeAllFaces = 1;

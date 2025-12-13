@@ -7,6 +7,7 @@ import "package:ente_crypto/ente_crypto.dart";
 import 'package:logging/logging.dart';
 import 'package:photos/core/constants.dart';
 import 'package:photos/core/event_bus.dart';
+import 'package:photos/core/local_mode.dart';
 import "package:photos/db/files_db.dart";
 import 'package:photos/db/trash_db.dart';
 import 'package:photos/events/collection_updated_event.dart';
@@ -152,6 +153,16 @@ class TrashSyncService {
   }
 
   Future<TrashDiff> getTrashFilesDiff(int sinceTime) async {
+    if (isLocalOnlyDemo) {
+      _logger.fine("Local-only demo mode: returning empty trash diff.");
+      return TrashDiff(
+        const <TrashFile>[],
+        const <TrashFile>[],
+        const <int>[],
+        false,
+        0,
+      );
+    }
     try {
       final response = await _enteDio.get(
         "/trash/v2/diff",
