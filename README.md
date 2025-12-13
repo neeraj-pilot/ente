@@ -1,8 +1,6 @@
-# What's New in Ente Offline
+# Ente Offline (hackathon)
 
 This repo snapshot mirrors the in-app changelog for the hackathon-only offline build of Ente Photos. The app never uploads data, keeps everything local, and is meant purely as an experimental showcase.
-
-## Ente Offline (hackathon)
 
 - This is an experimental one-day hackathon build. Expect rough edges and no ongoing maintenance.
 
