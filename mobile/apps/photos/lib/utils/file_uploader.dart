@@ -15,6 +15,7 @@ import 'package:photos/core/configuration.dart';
 import "package:photos/core/constants.dart";
 import 'package:photos/core/errors.dart';
 import 'package:photos/core/event_bus.dart';
+import 'package:photos/core/local_mode.dart';
 import 'package:photos/core/network/network.dart';
 import 'package:photos/db/files_db.dart';
 import 'package:photos/db/upload_locks_db.dart';
@@ -1289,6 +1290,7 @@ class FileUploader {
       file.fileDecryptionHeader = fileDecryptionHeader;
       file.thumbnailDecryptionHeader = thumbnailDecryptionHeader;
       file.metadataDecryptionHeader = metadataDecryptionHeader;
+      file.fileSize = fileSize;
       return file;
     } on DioException catch (e) {
       final int statusCode = e.response?.statusCode ?? -1;
@@ -1362,6 +1364,7 @@ class FileUploader {
       file.fileDecryptionHeader = fileDecryptionHeader;
       file.thumbnailDecryptionHeader = thumbnailDecryptionHeader;
       file.metadataDecryptionHeader = metadataDecryptionHeader;
+      file.fileSize = fileSize;
       return file;
     } on DioException catch (e) {
       final int statusCode = e.response?.statusCode ?? -1;
@@ -1518,6 +1521,12 @@ class FileUploader {
     String? contentMd5,
     int attempt = 1,
   }) async {
+    if (isLocalOnlyDemo) {
+      _logger.info(
+        "Local-only demo mode: skipping upload for ${basename(file.path)}",
+      );
+      return "local-demo-object-${basename(file.path)}";
+    }
     final startTime = DateTime.now().millisecondsSinceEpoch;
     final fileName = basename(file.path);
     int bytesSent = 0;

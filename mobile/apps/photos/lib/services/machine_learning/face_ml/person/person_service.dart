@@ -15,6 +15,7 @@ import "package:photos/models/local_entity_data.dart";
 import 'package:photos/models/ml/face/face.dart';
 import "package:photos/models/ml/face/person.dart";
 import "package:photos/service_locator.dart";
+import 'package:photos/core/local_mode.dart';
 import "package:photos/services/entity_service.dart";
 import "package:photos/utils/face/face_thumbnail_cache.dart";
 import "package:shared_preferences/shared_preferences.dart";
@@ -40,6 +41,7 @@ class PersonService {
 
   Future<List<PersonEntity>>? _cachedPersonsFuture;
   int _lastCacheRefreshTime = 0;
+  bool _forceCacheReload = false;
 
   static PersonService get instance {
     if (_instance == null) {
@@ -68,10 +70,11 @@ class PersonService {
     _emailToPartialPersonDataMapCache.clear();
     _cachedPersonsFuture = null;
     _lastCacheRefreshTime = 0;
+    _forceCacheReload = true;
   }
 
   Future<void> refreshPersonCache() async {
-    _lastCacheRefreshTime = 0;
+    _forceCacheReload = true;
     // wait to ensure cache is refreshed
     final _ = await getPersons();
   }
@@ -94,9 +97,11 @@ class PersonService {
   }
 
   Future<List<PersonEntity>> getPersons() async {
-    if (_lastCacheRefreshTime != lastRemoteSyncTime()) {
-      _lastCacheRefreshTime = lastRemoteSyncTime();
+    final remoteSyncTime = lastRemoteSyncTime();
+    if (_forceCacheReload || _lastCacheRefreshTime != remoteSyncTime) {
       _cachedPersonsFuture = null; // Invalidate cache
+      _lastCacheRefreshTime = remoteSyncTime;
+      _forceCacheReload = false;
     }
     _cachedPersonsFuture ??= _fetchAndCachePersons();
     return _cachedPersonsFuture!;
@@ -118,7 +123,12 @@ class PersonService {
           kNameKey: person.data.name,
         };
       }
+      if (isLocalOnlyDemo) {
+        await _ensureLocalClusterMappings(person);
+      }
     }
+
+    logger.finest("reading all persons from local db ${persons.length}");
 
     return persons;
   }
@@ -275,9 +285,9 @@ class PersonService {
       personID: result.id,
       clusterID: clusterID,
     );
-    if (data.email != null) {
-      await refreshPersonCache();
-    }
+    await _ensureLocalClusterMappings(PersonEntity(result.id, data));
+    clearCache();
+    await refreshPersonCache();
     memoriesCacheService.queueUpdateCache();
     return PersonEntity(result.id, data);
   }
@@ -376,6 +386,8 @@ class PersonService {
         if (entity.data.email != null) {
           await refreshPersonCache();
         }
+      }else {
+        await refreshPersonCache();
       }
     }
 
@@ -387,6 +399,10 @@ class PersonService {
   Future<bool> fetchRemoteClusterFeedback({
     bool skipClusterUpdateIfNoChange = true,
   }) async {
+    if (isLocalOnlyDemo) {
+      logger.info("Local-only demo: skipping remote cluster feedback sync");
+      return false;
+    }
     final int changedEntities =
         await entityService.syncEntity(EntityType.cgroup);
     final bool changed = changedEntities > 0;
@@ -644,7 +660,7 @@ class PersonService {
     String? id,
   }) async {
     final result = await entityService.addOrUpdate(type, jsonMap, id: id);
-    _lastCacheRefreshTime = 0; // Invalidate cache
+    _forceCacheReload = true; // Invalidate cache
     return result;
   }
 
@@ -653,5 +669,21 @@ class PersonService {
       "Removing local ML mappings for person $personID because entity no longer exists",
     );
     await faceMLDataDB.removePerson(personID);
+  }
+
+  Future<void> _ensureLocalClusterMappings(PersonEntity person) async {
+    final faceToCluster = <String, String>{};
+    for (final cluster in person.data.assigned) {
+      await faceMLDataDB.assignClusterToPerson(
+        personID: person.remoteID,
+        clusterID: cluster.id,
+      );
+      for (final faceID in cluster.faces) {
+        faceToCluster[faceID] = cluster.id;
+      }
+    }
+    if (faceToCluster.isNotEmpty) {
+      await faceMLDataDB.updateFaceIdToClusterId(faceToCluster);
+    }
   }
 }

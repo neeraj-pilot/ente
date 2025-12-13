@@ -149,6 +149,9 @@ class LogConfig {
 
   String prefix;
 
+  /// Forces Sentry to stay disabled regardless of DSN configuration.
+  bool disableSentry;
+
   LogConfig({
     this.sentryDsn,
     this.tunnel,
@@ -159,6 +162,7 @@ class LogConfig {
     this.body,
     this.dateFmt,
     this.prefix = "",
+    this.disableSentry = false,
   }) {
     dateFmt ??= DateFormat("y-M-d");
   }
@@ -177,6 +181,10 @@ class SuperLogging {
 
   static Future<void> main([LogConfig? appConfig]) async {
     appConfig ??= LogConfig();
+    if (appConfig.disableSentry) {
+      appConfig.sentryDsn = null;
+      appConfig.tunnel = null;
+    }
     SuperLogging.config = appConfig;
 
     WidgetsFlutterBinding.ensureInitialized();
@@ -192,6 +200,7 @@ class SuperLogging {
     final enable = appConfig.enableInDebugMode || kReleaseMode;
     sentryIsEnabled = enable &&
         appConfig.sentryDsn != null &&
+        !appConfig.disableSentry &&
         !isFDroidClient &&
         shouldReportCrashes();
     fileIsEnabled = enable && appConfig.logDirPath != null;

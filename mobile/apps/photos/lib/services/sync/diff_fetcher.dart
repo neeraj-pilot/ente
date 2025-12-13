@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:ente_crypto/ente_crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:photos/core/local_mode.dart';
 import 'package:photos/core/network/network.dart';
 import 'package:photos/db/files_db.dart';
 import 'package:photos/generated/l10n.dart';
@@ -23,6 +24,12 @@ class DiffFetcher {
     int collectionID,
     bool sortAsc,
   ) async {
+    if (isLocalOnlyDemo) {
+      _logger.fine(
+        "Local-only demo mode: returning empty public files diff for $collectionID",
+      );
+      return const <EnteFile>[];
+    }
     try {
       bool hasMore = false;
       final sharedFiles = <EnteFile>[];
@@ -104,6 +111,12 @@ class DiffFetcher {
   }
 
   Future<Diff> getEncryptedFilesDiff(int collectionID, int sinceTime) async {
+    if (isLocalOnlyDemo) {
+      _logger.fine(
+        "Local-only demo mode: returning empty encrypted diff for $collectionID",
+      );
+      return Diff(const <EnteFile>[], const <EnteFile>[], false, 0);
+    }
     try {
       final response = await _enteDio.get(
         "/collections/v2/diff",

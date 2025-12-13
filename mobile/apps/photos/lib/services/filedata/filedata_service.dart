@@ -4,6 +4,7 @@ import "package:computer/computer.dart";
 import "package:dio/dio.dart";
 import "package:flutter/foundation.dart" show Uint8List;
 import "package:logging/logging.dart";
+import 'package:photos/core/local_mode.dart';
 import "package:photos/db/files_db.dart";
 import "package:photos/db/ml/db.dart";
 import "package:photos/db/ml/filedata.dart";
@@ -123,6 +124,10 @@ class FileDataService {
 
   Future<void> syncFDStatus() async {
     try {
+      if (isLocalOnlyDemo) {
+        _logger.fine("Local-only demo mode: skipping status diff sync.");
+        return;
+      }
       bool hasMoreData = false;
       do {
         final lastTime = _prefs.getInt("fd.lastSyncTime") ?? 0;

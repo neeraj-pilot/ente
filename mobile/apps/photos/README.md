@@ -11,7 +11,7 @@ commit](https://github.com/ente-io/ente/commit/a8cdc811fd20ca4289d8e779c97f08ef5
         Hello world
 
 To know more about Ente, see [our main README](../../../README.md) or visit
-[ente.io](https://ente.io).
+[ente.io](https://ente.io/?ref=offline).
 
 To use Ente Photos on the web, see [../../../web](../../../web/README.md). To use Ente
 Photos on the desktop, see [../../../desktop](../../../desktop/README.md). There is a also a
@@ -65,6 +65,11 @@ You can alternatively install the build from PlayStore or F-Droid.
      and run `flutter build apk --release --flavor independent`
 
 7. For iOS, run `flutter build ios`
+
+8. Local-only offline flavor:
+
+   - `FLAVOR=offline ./run.sh` (reads `.env` by default and auto-defines `IS_LOCAL_ONLY_DEMO=true`)
+   - or `flutter run -t lib/main.dart --flavor offline --dart-define IS_LOCAL_ONLY_DEMO=true`
 
 Some common issues and troubleshooting tips are in [docs/dev](docs/dev.md).
 

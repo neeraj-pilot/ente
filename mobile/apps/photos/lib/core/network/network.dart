@@ -5,7 +5,9 @@ import "package:native_dio_adapter/native_dio_adapter.dart";
 import 'package:package_info_plus/package_info_plus.dart';
 import "package:photos/core/configuration.dart";
 import "package:photos/core/event_bus.dart";
+import 'package:photos/core/local_mode.dart';
 import 'package:photos/core/network/ente_interceptor.dart';
+import 'package:photos/core/network/local_mode_interceptor.dart';
 import "package:photos/events/endpoint_updated_event.dart";
 import "package:ua_client_hints/ua_client_hints.dart";
 
@@ -57,6 +59,9 @@ class NetworkClient {
 
   void _setupInterceptors(String endpoint) {
     _enteDio.interceptors.clear();
+    if (isLocalOnlyDemo) {
+      _enteDio.interceptors.add(LocalModeInterceptor(endpoint));
+    }
     _enteDio.interceptors.add(EnteRequestInterceptor(endpoint));
   }
 

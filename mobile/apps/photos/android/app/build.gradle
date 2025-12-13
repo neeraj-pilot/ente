@@ -83,6 +83,10 @@ android {
             dimension "default"
             applicationIdSuffix ".dev"
         }
+        offline {
+            dimension "default"
+            applicationIdSuffix ".offline"
+        }
         playstore {
             dimension "default"
         }

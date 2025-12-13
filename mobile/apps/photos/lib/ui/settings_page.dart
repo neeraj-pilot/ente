@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import "package:flutter_animate/flutter_animate.dart";
 import "package:log_viewer/log_viewer.dart";
 import 'package:photos/core/configuration.dart';
+import 'package:photos/core/local_mode.dart';
 import 'package:photos/core/event_bus.dart';
 import 'package:photos/events/opened_settings_event.dart';
 import "package:photos/generated/l10n.dart";
@@ -30,6 +31,7 @@ import 'package:photos/ui/settings/support_section_widget.dart';
 import 'package:photos/ui/settings/theme_switch_widget.dart';
 import "package:photos/ui/sharing/verify_identity_dialog.dart";
 import "package:photos/utils/navigation_util.dart";
+import 'package:url_launcher/url_launcher_string.dart';
 
 class SettingsPage extends StatelessWidget {
   final ValueNotifier<String?> emailNotifier;
@@ -110,6 +112,25 @@ class SettingsPage extends StatelessWidget {
     );
 
     contents.add(const SizedBox(height: 8));
+    final bool isDemo = isLocalOnlyDemo;
+    if (isDemo) {
+      contents.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: NotificationWidget(
+            startIcon: Icons.language,
+            actionIcon: Icons.open_in_new_rounded,
+            text: "Visit https://ente.io",
+            subText: "Click here to support this project.",
+            type: NotificationType.notice,
+            onTap: () => launchUrlString(
+              "https://ente.io/?ref=offline",
+              mode: LaunchMode.externalApplication,
+            ),
+          ),
+        ),
+      );
+    }
     if (hasLoggedIn) {
       // show banner in debug mode and ente production
       final showStorageBonusBanner =

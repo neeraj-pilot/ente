@@ -1,6 +1,7 @@
 import "dart:async";
 import 'dart:convert';
 import "dart:io";
+import 'dart:typed_data';
 
 import 'package:bip39/bip39.dart' as bip39;
 import "package:ente_crypto/ente_crypto.dart";
@@ -12,6 +13,7 @@ import 'package:photos/core/cache/image_cache.dart';
 import 'package:photos/core/cache/thumbnail_in_memory_cache.dart';
 import 'package:photos/core/cache/video_cache_manager.dart';
 import 'package:photos/core/constants.dart';
+import 'package:photos/core/local_mode.dart';
 import 'package:photos/core/error-reporting/super_logging.dart';
 import 'package:photos/core/event_bus.dart';
 import 'package:photos/db/collections_db.dart';
@@ -41,6 +43,12 @@ import 'package:photos/utils/validator_util.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import "package:tuple/tuple.dart";
 import 'package:uuid/uuid.dart';
+
+const _localDemoEndpoint = "http://localhost:8080";
+const _localDemoToken = "dummy_token";
+const int _localDemoUserId = 1;
+// 32-byte (256-bit) key material for demo mode.
+const int _localDemoKeyLength = 32;
 
 class Configuration {
   Configuration._privateConstructor();
@@ -103,7 +111,9 @@ class Configuration {
       _sharedDocumentsMediaDirectory =
           _documentsDirectory + "/ente-shared-media";
       Directory(_sharedDocumentsMediaDirectory).createSync(recursive: true);
-      if (!_preferences.containsKey(tokenKey)) {
+      if (isLocalOnlyDemo) {
+        await _applyLocalDemoDefaults();
+      } else if (!_preferences.containsKey(tokenKey)) {
         _logger.info(
           "(for debugging) Token not found, deleting all secure storage data",
         );
@@ -186,6 +196,19 @@ class Configuration {
     } catch (e) {
       _logger.warning(e);
     }
+  }
+
+  Future<void> _applyLocalDemoDefaults() async {
+    final demoKeyBytes = Uint8List(_localDemoKeyLength);
+    demoKeyBytes[0] = 1;
+    final encodedKey = CryptoUtil.bin2base64(demoKeyBytes);
+    _key = encodedKey;
+    _secretKey = encodedKey;
+    _cachedToken = _localDemoToken;
+    await _preferences.setString(tokenKey, _localDemoToken);
+    await _preferences.setInt(userIDKey, _localDemoUserId);
+    await _preferences.setString(endPointKey, _localDemoEndpoint);
+    await _preferences.setString(emailKey, "demo@localhost");
   }
 
   Future<void> logout({bool autoLogout = false}) async {
@@ -490,6 +513,9 @@ class Configuration {
   }
 
   String getHttpEndpoint() {
+    if (isLocalOnlyDemo) {
+      return _preferences.getString(endPointKey) ?? _localDemoEndpoint;
+    }
     return _preferences.getString(endPointKey) ?? endpoint;
   }
 
@@ -506,6 +532,10 @@ class Configuration {
   }
 
   String? getToken() {
+    if (isLocalOnlyDemo) {
+      _cachedToken ??= _preferences.getString(tokenKey) ?? _localDemoToken;
+      return _cachedToken;
+    }
     _cachedToken ??= _preferences.getString(tokenKey);
     return _cachedToken;
   }
@@ -537,6 +567,9 @@ class Configuration {
   }
 
   int? getUserID() {
+    if (isLocalOnlyDemo) {
+      return _preferences.getInt(userIDKey) ?? _localDemoUserId;
+    }
     return _preferences.getInt(userIDKey);
   }
 
@@ -586,10 +619,20 @@ class Configuration {
   }
 
   Uint8List? getKey() {
+    if (_key == null && isLocalOnlyDemo) {
+      final demoKeyBytes = Uint8List(_localDemoKeyLength);
+      demoKeyBytes[0] = 1;
+      _key = CryptoUtil.bin2base64(demoKeyBytes);
+    }
     return _key == null ? null : CryptoUtil.base642bin(_key!);
   }
 
   Uint8List? getSecretKey() {
+    if (_secretKey == null && isLocalOnlyDemo) {
+      final demoKeyBytes = Uint8List(_localDemoKeyLength);
+      demoKeyBytes[0] = 1;
+      _secretKey = CryptoUtil.bin2base64(demoKeyBytes);
+    }
     return _secretKey == null ? null : CryptoUtil.base642bin(_secretKey!);
   }
 

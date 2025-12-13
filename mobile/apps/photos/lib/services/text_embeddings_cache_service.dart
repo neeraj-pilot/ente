@@ -13,7 +13,6 @@ class TextEmbeddingsCacheService {
     final dbResult =
         await MLDataDB.instance.getRepeatedTextEmbeddingCache(query);
     if (dbResult != null) {
-      _logger.info('Text embedding cache hit for query');
       return dbResult;
     }
 

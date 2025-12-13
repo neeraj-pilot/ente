@@ -64,6 +64,7 @@ class WrappedService {
   final Lock _computeLock;
   final ValueNotifier<WrappedEntryState> _state;
   bool _initialLoadScheduled = false;
+  bool _sparseRecomputeScheduled = false;
 
   ValueListenable<WrappedEntryState> get stateListenable => _state;
 
@@ -149,6 +150,21 @@ class WrappedService {
         reason: reason,
         bypassFlag: bypassFlag,
       ),
+    );
+  }
+
+  void scheduleSparseRecompute() {
+    if (_sparseRecomputeScheduled) {
+      _logger.fine("Sparse recompute already scheduled, skipping");
+      return;
+    }
+    _sparseRecomputeScheduled = true;
+    _logger.info("Scheduling sparse Wrapped recompute");
+    unawaited(
+      _runCompute(
+        reason: "sparse",
+        bypassFlag: false,
+      ).whenComplete(() => _sparseRecomputeScheduled = false),
     );
   }
 

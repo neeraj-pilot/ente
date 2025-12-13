@@ -20,6 +20,7 @@ import 'package:photos/core/configuration.dart';
 import 'package:photos/core/constants.dart';
 import 'package:photos/core/error-reporting/super_logging.dart';
 import 'package:photos/core/errors.dart';
+import 'package:photos/core/local_mode.dart';
 import 'package:photos/core/network/network.dart';
 import "package:photos/db/ml/db.dart";
 import 'package:photos/ente_theme_data.dart';
@@ -394,6 +395,7 @@ Future runWithLogs(Function() function, {String prefix = ""}) async {
       maxLogFiles: 5,
       sentryDsn: kDebugMode ? sentryDebugDSN : sentryDSN,
       tunnel: sentryTunnel,
+      disableSentry: isLocalOnlyDemo,
       enableInDebugMode: true,
       prefix: prefix,
     ),

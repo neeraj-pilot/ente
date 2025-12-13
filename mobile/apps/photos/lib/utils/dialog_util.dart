@@ -7,6 +7,8 @@ import 'package:photos/models/button_result.dart';
 import 'package:photos/models/typedefs.dart';
 import "package:photos/service_locator.dart";
 import 'package:photos/theme/colors.dart';
+import 'package:url_launcher/url_launcher_string.dart';
+import 'package:photos/core/local_mode.dart';
 import 'package:photos/ui/common/loading_widget.dart';
 import 'package:photos/ui/common/progress_dialog.dart';
 import 'package:photos/ui/components/action_sheet_widget.dart';
@@ -74,9 +76,16 @@ Future<ButtonResult?> showErrorDialogForException({
   String apiErrorPrefix = "It looks like something went wrong.",
   String? message,
 }) async {
-  String errorMessage =
-      message ?? AppLocalizations.of(context).tempErrorContactSupportIfPersists;
-  if (exception is DioException &&
+  final defaultMessage =
+      AppLocalizations.of(context).tempErrorContactSupportIfPersists;
+  String errorMessage = message ??
+      parseErrorForUI(
+        context,
+        defaultMessage,
+        error: exception,
+      );
+  if (errorMessage == defaultMessage &&
+      exception is DioException &&
       exception.response != null &&
       exception.response!.data["code"] != null) {
     errorMessage =
@@ -107,6 +116,7 @@ String parseErrorForUI(
   if (error == null) {
     return genericError;
   }
+  String errorInfo = "";
   if (error is DioException) {
     final DioException dioError = error;
     if (dioError.type == DioExceptionType.receiveTimeout ||
@@ -119,14 +129,14 @@ String parseErrorForUI(
         return AppLocalizations.of(context).networkConnectionRefusedErr;
       }
     }
-  }
-  // return generic error if the user is not internal and the error is not in debug mode
-  if (!(flagService.internalUser && kDebugMode)) {
-    return genericError;
-  }
-  String errorInfo = "";
-  if (error is DioException) {
-    final DioException dioError = error;
+    if (isLocalOnlyDemo &&
+        dioError.error?.toString().contains("Local-only demo mode") == true) {
+      final endpoint = dioError.requestOptions.path;
+      return "This action isn't available in the local-only demo yet.\n\nMissing mock for: $endpoint";
+    }
+    if (isLocalOnlyDemo && dioError.type == DioExceptionType.unknown) {
+      return "This operation isn't supported in the local-only demo.";
+    }
     if (dioError.type == DioExceptionType.badResponse) {
       if (dioError.response?.data["code"] != null) {
         errorInfo = "Reason: " + dioError.response!.data["code"];
@@ -138,7 +148,12 @@ String parseErrorForUI(
     } else {
       errorInfo = "Reason: " + dioError.type.toString();
     }
-  } else {
+  }
+  // return generic error if the user is not internal and the error is not in debug mode
+  if (!(flagService.internalUser && kDebugMode)) {
+    return genericError;
+  }
+  if (error is! DioException) {
     if (kDebugMode) {
       errorInfo = error.toString();
     } else {
@@ -177,19 +192,32 @@ Future<ButtonResult?> showGenericErrorDialog({
         buttonAction: ButtonAction.first,
         isInAlert: true,
       ),
-      ButtonWidget(
-        buttonType: ButtonType.secondary,
-        labelText: AppLocalizations.of(context).contactSupport,
-        buttonAction: ButtonAction.second,
-        onTap: () async {
-          await sendLogs(
-            context,
-            AppLocalizations.of(context).contactSupport,
-            "support@ente.io",
-            postShare: () {},
-          );
-        },
-      ),
+      if (isLocalOnlyDemo)
+        ButtonWidget(
+          buttonType: ButtonType.secondary,
+          labelText: "Visit ente.io",
+          buttonAction: ButtonAction.second,
+          onTap: () async {
+            await launchUrlString(
+              "https://ente.io/?ref=offline",
+              mode: LaunchMode.externalApplication,
+            );
+          },
+        )
+      else
+        ButtonWidget(
+          buttonType: ButtonType.secondary,
+          labelText: AppLocalizations.of(context).contactSupport,
+          buttonAction: ButtonAction.second,
+          onTap: () async {
+            await sendLogs(
+              context,
+              AppLocalizations.of(context).contactSupport,
+              "support@ente.io",
+              postShare: () {},
+            );
+          },
+        ),
     ],
   );
   return result;

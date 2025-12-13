@@ -1,4 +1,5 @@
 import "package:dio/dio.dart";
+import 'package:photos/core/local_mode.dart';
 import "package:photos/models/api/entity/data.dart";
 import "package:photos/models/api/entity/key.dart";
 import "package:photos/models/api/entity/type.dart";
@@ -95,6 +96,9 @@ class EntityGateway {
     int sinceTime, {
     int limit = 500,
   }) async {
+    if (isLocalOnlyDemo) {
+      return const <EntityData>[];
+    }
     final response = await _enteDio.get(
       "/user-entity/entity/diff",
       queryParameters: {

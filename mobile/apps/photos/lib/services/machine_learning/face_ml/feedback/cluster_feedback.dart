@@ -731,6 +731,12 @@ class ClusterFeedbackService<T> {
     w?.log('getAllClusterIdToFaceIDs done');
 
     // First only do a simple check on the big clusters, if the person does not have small clusters yet
+    if (personClusters.isEmpty) {
+      _logger.warning(
+        "[ClusterFeedbackService] No clusters linked to ${p.remoteID}, skip suggestions",
+      );
+      return const <(String, double, bool)>[];
+    }
     final smallestPersonClusterSize = personClusters
         .map((clusterID) => allClusterIdsToCountMap[clusterID] ?? 0)
         .reduce((value, element) => min(value, element));

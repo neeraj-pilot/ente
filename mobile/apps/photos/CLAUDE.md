@@ -91,6 +91,10 @@ flutter build apk --release --flavor independent
 # iOS build
 cd ios && pod install && cd ..
 flutter build ios
+
+# Offline local-only flavor
+FLAVOR=offline ./run.sh
+flutter run -t lib/main.dart --flavor offline --dart-define IS_LOCAL_ONLY_DEMO=true
 ```
 
 ### Code Quality
