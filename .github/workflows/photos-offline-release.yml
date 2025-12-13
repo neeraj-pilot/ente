@@ -92,7 +92,7 @@ jobs:
 
             - name: Build offline APK
               run: |
-                  flutter build apk --dart-define=IS_LOCAL_ONLY_DEMO=true --release --flavor offline
+                  flutter build apk --dart-define=IS_LOCAL_ONLY_DEMO=true --dart-define=cronetHttpNoPlay=true --release --flavor offline
                   mv build/app/outputs/flutter-apk/app-offline-release.apk build/app/outputs/flutter-apk/ente-${{ env.ARTIFACT_SUFFIX }}-offline.apk
               env:
                   SIGNING_KEY_PATH: "/home/runner/work/_temp/keystore/ente_photos_offline_key.jks"

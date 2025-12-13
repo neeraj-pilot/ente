@@ -11,7 +11,7 @@ commit](https://github.com/ente-io/ente/commit/a8cdc811fd20ca4289d8e779c97f08ef5
         Hello world
 
 To know more about Ente, see [our main README](../../../README.md) or visit
-[ente.io](https://ente.io/?ref=offline).
+[ente.io](https://ente.io/?utm_source=offline).
 
 To use Ente Photos on the web, see [../../../web](../../../web/README.md). To use Ente
 Photos on the desktop, see [../../../desktop](../../../desktop/README.md). There is a also a

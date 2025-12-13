@@ -22,7 +22,9 @@ Our source code and cryptography have been externally audited by Cure53 (a
 German cybersecurity firm, arguably the world's best), Symbolic Software (French
 cryptography experts) and Fallible (an Indian penetration testing firm).
 
-Learn more at [ente.io](https://ente.io).
+Learn more at [ente.io](https://ente.io/?utm_source=offline).
+
+> Similar to the stories we log in our [CHANGELOG](CHANGELOG.md), this hackathon project is another snapshot of how Ente evolves. If you like what you're seeing, please click through to [ente.io](https://ente.io/?utm_source=offline) to let us know and to keep exploring.
 
 <br />
 

@@ -8,7 +8,7 @@ import "package:url_launcher/url_launcher.dart";
 import "package:url_launcher/url_launcher_string.dart";
 
 const String _userAgent =
-    "Ente Photos/1.2 (+https://ente.io/?ref=offline; contact: team@ente.io)";
+    "Ente Photos/1.2 (+https://ente.io/?utm_source=offline; contact: team@ente.io)";
 
 class MapAttributionOptions {
   final double permanentHeight;

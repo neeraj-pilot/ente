@@ -124,7 +124,7 @@ class SettingsPage extends StatelessWidget {
             subText: "Click here to support this project.",
             type: NotificationType.notice,
             onTap: () => launchUrlString(
-              "https://ente.io/?ref=offline",
+              "https://ente.io/?utm_source=offline",
               mode: LaunchMode.externalApplication,
             ),
           ),

@@ -316,7 +316,7 @@
   "claimMore": "领取更多！",
   "theyAlsoGetXGb": "他们也会获得 {storageAmountInGB} GB",
   "freeStorageOnReferralSuccess": "每当有人使用您的代码注册付费计划时您将获得{storageAmountInGB} GB",
-  "shareTextReferralCode": "Ente 推荐代码：{referralCode}\n\n在 \"设置\"→\"通用\"→\"推荐 \"中应用它，即可在注册付费计划后免费获得 {referralStorageInGB} GB 存储空间\n\nhttps://ente.io/?ref=offline",
+  "shareTextReferralCode": "Ente 推荐代码：{referralCode}\n\n在 \"设置\"→\"通用\"→\"推荐 \"中应用它，即可在注册付费计划后免费获得 {referralStorageInGB} GB 存储空间\n\nhttps://ente.io/?utm_source=offline",
   "claimFreeStorage": "领取免费存储",
   "inviteYourFriends": "邀请您的朋友",
   "failedToFetchReferralDetails": "无法获取引荐详细信息。 请稍后再试。",

@@ -422,7 +422,7 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
   }
 
   Future<void> _launchOfflineSite() async {
-    const url = "https://ente.io/?ref=offline";
+    const url = "https://ente.io/?utm_source=offline";
     try {
       final launched = await launchUrlString(
         url,

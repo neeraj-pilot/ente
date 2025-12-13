@@ -199,7 +199,7 @@ Future<ButtonResult?> showGenericErrorDialog({
           buttonAction: ButtonAction.second,
           onTap: () async {
             await launchUrlString(
-              "https://ente.io/?ref=offline",
+              "https://ente.io/?utm_source=offline",
               mode: LaunchMode.externalApplication,
             );
           },
