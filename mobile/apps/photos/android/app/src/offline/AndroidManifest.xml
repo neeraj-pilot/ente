@@ -1,0 +1,16 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="io.ente.photos">
+
+    <!-- Remove duplicate launcher entry for offline flavor -->
+    <application>
+        <activity android:name=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category
+                    android:name="android.intent.category.LAUNCHER"
+                    tools:node="remove" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
