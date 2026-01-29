@@ -145,7 +145,6 @@ class _CustomIconPageState extends State<CustomIconPage> {
             ? Text(l10n.chooseIcon)
             : TextField(
                 autocorrect: false,
-                enableSuggestions: false,
                 autofocus: _autoFocusSearch,
                 controller: _textController,
                 onChanged: (value) {

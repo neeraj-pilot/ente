@@ -1445,7 +1445,6 @@ class _HomePageState extends State<HomePage> {
           ? const AuthLogoWidget(height: 18)
           : TextField(
               autocorrect: false,
-              enableSuggestions: false,
               autofocus: _autoFocusSearch,
               controller: _textController,
               onChanged: (val) {
