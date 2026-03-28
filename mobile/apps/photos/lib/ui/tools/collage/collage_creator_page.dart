@@ -55,10 +55,14 @@ class _CollageCreatorPageState extends State<CollageCreatorPage> {
     });
 
     try {
-      final bytes = await _controller!.capture();
+      final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+      final bytes = await _controller!.capture(pixelRatio: pixelRatio);
       _logger.info('Size before compression = ${bytes!.length}');
+      final decodedImage = await decodeImageFromList(bytes);
       final compressedBytes = await FlutterImageCompress.compressWithList(
         bytes,
+        minWidth: decodedImage.width,
+        minHeight: decodedImage.height,
         quality: 80,
       );
       _logger.info('Size after compression = ${compressedBytes.length}');
