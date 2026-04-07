@@ -41,6 +41,7 @@ import { errorDialogAttributes } from "ente-base/components/utils/dialog";
 import { useIsSmallWidth } from "ente-base/components/utils/hooks";
 import { useModalVisibility } from "ente-base/components/utils/modal";
 import { useBaseContext } from "ente-base/context";
+import { ensureContactsReady } from "ente-contacts-web";
 import { subscribeMainWindowFocus } from "ente-base/electron";
 import { hasPendingAlbumToJoin } from "ente-base/join-album";
 import log from "ente-base/log";
@@ -535,6 +536,18 @@ const Page: React.FC = () => {
 
             // Initialize the reducer.
             const user = ensureLocalUser();
+            const masterKey = await masterKeyFromSession();
+            if (masterKey) {
+                void ensureContactsReady({
+                    userID: user.id,
+                    masterKeyB64: masterKey,
+                }).catch((error: unknown) => {
+                    log.warn(
+                        "[gallery] Failed to warm contacts display cache",
+                        error,
+                    );
+                });
+            }
             const userDetails = await savedUserDetailsOrTriggerPull();
             dispatch({
                 type: "mount",
