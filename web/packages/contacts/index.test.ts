@@ -67,11 +67,13 @@ describe("resolveContactDisplayFromSnapshot", () => {
 beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.useRealTimers();
 });
 
 type SetupOptions = {
     diff?: object[];
     getProfilePictureError?: Error;
+    getProfilePictureBytes?: Uint8Array;
 };
 
 const setupContactsModule = async (options: SetupOptions = {}) => {
@@ -115,6 +117,9 @@ const setupContactsModule = async (options: SetupOptions = {}) => {
         .mockResolvedValueOnce(diff)
         .mockResolvedValueOnce([]);
     const get_profile_picture = vi.fn(async () => {
+        if (options.getProfilePictureBytes) {
+            return options.getProfilePictureBytes;
+        }
         throw options.getProfilePictureError ?? new Error("boom");
     });
 
@@ -202,5 +207,63 @@ describe("profile picture loading", () => {
         expect(info.mock.calls[0]?.[0]).toContain(
             "Failed to load contact profile picture for ct_1",
         );
+    });
+
+    test("uses the inferred image mime type for avatar blobs", async () => {
+        const createObjectURL = vi.fn((_blob: Blob) => "blob:contact");
+        vi.stubGlobal("URL", {
+            createObjectURL,
+            revokeObjectURL: vi.fn(),
+        });
+        const pngBytes = Uint8Array.from([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+            0x00, 0x00, 0x00, 0x0d,
+        ]);
+        const { contacts } = await setupContactsModule({
+            getProfilePictureBytes: pngBytes,
+        });
+
+        await contacts.ensureContactsReady({
+            userID: 101,
+            masterKeyB64: "ignored",
+        });
+        await contacts.__testing.preloadResolvedContactAvatar({
+            userID: 101,
+        });
+
+        const blobArg = createObjectURL.mock.calls[0]?.[0] as Blob | undefined;
+        expect(blobArg?.type).toBe("image/png");
+    });
+});
+
+describe("retry after warm-up failure", () => {
+    test("retries with the last ready input after a transient failure", async () => {
+        vi.useFakeTimers();
+        const { contacts, get_diff } = await setupContactsModule();
+        get_diff.mockReset();
+        get_diff
+            .mockRejectedValueOnce(new Error("transient"))
+            .mockResolvedValueOnce([
+                {
+                    id: "ct_1",
+                    contactUserId: 101,
+                    email: "set@test.test",
+                    name: "Set",
+                    profilePictureAttachmentID: "ua_1",
+                    isDeleted: false,
+                    updatedAt: 1,
+                },
+            ])
+            .mockResolvedValueOnce([]);
+
+        await expect(
+            contacts.ensureContactsReady({
+                userID: 101,
+                masterKeyB64: "ignored",
+            }),
+        ).rejects.toThrow("transient");
+        await vi.advanceTimersByTimeAsync(5_001);
+
+        expect(get_diff).toHaveBeenCalledTimes(3);
     });
 });

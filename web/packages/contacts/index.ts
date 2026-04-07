@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import log from "ente-base/log";
 import { apiOrigin } from "ente-base/origins";
 import { savedAuthToken } from "ente-base/token";
@@ -30,6 +30,7 @@ import type {
 
 const CONTACT_DIFF_LIMIT = 500;
 const AVATAR_FAILURE_TTL_MS = 60_000;
+const READY_RETRY_COOLDOWN_MS = 5_000;
 const CONTACTS_CACHE_SCHEMA_VERSION = 2;
 
 type RemoteContactRecord = {
@@ -61,6 +62,9 @@ type ContactsState = {
     avatarURLByContactID: Map<string, string>;
     avatarLoadsByContactID: Map<string, Promise<void>>;
     avatarFailureUntilByContactID: Map<string, number>;
+    avatarListenersByContactID: Map<string, Set<() => void>>;
+    lastReadyInput: ContactsReadyInput | undefined;
+    retryTimer: ReturnType<typeof setTimeout> | undefined;
 };
 
 const emptySnapshot = (): ContactsDisplaySnapshot => ({
@@ -83,16 +87,32 @@ const state: ContactsState = {
     avatarURLByContactID: new Map(),
     avatarLoadsByContactID: new Map(),
     avatarFailureUntilByContactID: new Map(),
+    avatarListenersByContactID: new Map(),
+    lastReadyInput: undefined,
+    retryTimer: undefined,
 };
 
 const buildSessionKey = (baseURL: string, userID: number) =>
     `${encodeURIComponent(baseURL)}:${userID}:v${CONTACTS_CACHE_SCHEMA_VERSION}`;
 
-const cleanupAvatarURL = (contactID: string) => {
+const emitAvatarURL = (contactID: string) => {
+    const listeners = state.avatarListenersByContactID.get(contactID);
+    if (!listeners) {
+        return;
+    }
+    for (const listener of listeners) {
+        listener();
+    }
+};
+
+const cleanupAvatarURL = (contactID: string, shouldEmit = false) => {
     const current = state.avatarURLByContactID.get(contactID);
     if (current) {
         URL.revokeObjectURL(current);
         state.avatarURLByContactID.delete(contactID);
+        if (shouldEmit) {
+            emitAvatarURL(contactID);
+        }
     }
     state.avatarLoadsByContactID.delete(contactID);
     state.avatarFailureUntilByContactID.delete(contactID);
@@ -111,6 +131,10 @@ const clearInMemoryState = () => {
     state.avatarURLByContactID = new Map();
     state.avatarLoadsByContactID = new Map();
     state.avatarFailureUntilByContactID = new Map();
+    if (state.retryTimer) {
+        clearTimeout(state.retryTimer);
+        state.retryTimer = undefined;
+    }
 };
 
 const emitSnapshot = (isHydrated = true) => {
@@ -156,7 +180,7 @@ const removeContact = (contactID: string) => {
     if (normalizedEmail) {
         state.contactIDByEmail.delete(normalizedEmail);
     }
-    cleanupAvatarURL(contactID);
+    cleanupAvatarURL(contactID, true);
 };
 
 const upsertContact = (record: ContactDisplayRecord) => {
@@ -174,7 +198,7 @@ const upsertContact = (record: ContactDisplayRecord) => {
             previous.profilePictureAttachmentID !==
             record.profilePictureAttachmentID
         ) {
-            cleanupAvatarURL(record.contactId);
+            cleanupAvatarURL(record.contactId, true);
         }
     }
 
@@ -216,6 +240,22 @@ export const contactsDisplaySubscribe = (onChange: () => void) => {
         state.listeners.delete(onChange);
     };
 };
+
+const subscribeAvatarURL = (contactID: string, onChange: () => void) => {
+    const listeners =
+        state.avatarListenersByContactID.get(contactID) ?? new Set<() => void>();
+    listeners.add(onChange);
+    state.avatarListenersByContactID.set(contactID, listeners);
+    return () => {
+        listeners.delete(onChange);
+        if (listeners.size === 0) {
+            state.avatarListenersByContactID.delete(contactID);
+        }
+    };
+};
+
+const avatarURLSnapshot = (contactID: string | undefined) =>
+    contactID ? state.avatarURLByContactID.get(contactID) : undefined;
 
 export const contactsDisplaySnapshot = () => state.snapshot;
 
@@ -314,6 +354,7 @@ export const ensureContactsReady = async ({
     userID,
     masterKeyB64,
 }: ContactsReadyInput) => {
+    state.lastReadyInput = { userID, masterKeyB64 };
     const authToken = await savedAuthToken();
     if (!authToken) {
         return;
@@ -336,11 +377,73 @@ export const ensureContactsReady = async ({
         authToken,
         userID,
         masterKeyB64,
-    }).finally(() => {
-        state.readyPromise = undefined;
-    });
+    })
+        .then(() => {
+            if (state.retryTimer) {
+                clearTimeout(state.retryTimer);
+                state.retryTimer = undefined;
+            }
+        })
+        .catch((error) => {
+            if (state.retryTimer) {
+                clearTimeout(state.retryTimer);
+            }
+            const retryInput = state.lastReadyInput;
+            state.retryTimer = setTimeout(() => {
+                state.retryTimer = undefined;
+                if (retryInput) {
+                    void ensureContactsReady(retryInput).catch(() => undefined);
+                }
+            }, READY_RETRY_COOLDOWN_MS);
+            throw error;
+        })
+        .finally(() => {
+            state.readyPromise = undefined;
+        });
 
     return state.readyPromise;
+};
+
+const inferImageMimeType = (bytes: Uint8Array) => {
+    if (
+        bytes.length >= 12 &&
+        bytes[0] === 0x52 &&
+        bytes[1] === 0x49 &&
+        bytes[2] === 0x46 &&
+        bytes[3] === 0x46 &&
+        bytes[8] === 0x57 &&
+        bytes[9] === 0x45 &&
+        bytes[10] === 0x42 &&
+        bytes[11] === 0x50
+    ) {
+        return "image/webp";
+    }
+    if (
+        bytes.length >= 8 &&
+        bytes[0] === 0x89 &&
+        bytes[1] === 0x50 &&
+        bytes[2] === 0x4e &&
+        bytes[3] === 0x47 &&
+        bytes[4] === 0x0d &&
+        bytes[5] === 0x0a &&
+        bytes[6] === 0x1a &&
+        bytes[7] === 0x0a
+    ) {
+        return "image/png";
+    }
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+        return "image/jpeg";
+    }
+    if (
+        bytes.length >= 6 &&
+        bytes[0] === 0x47 &&
+        bytes[1] === 0x49 &&
+        bytes[2] === 0x46 &&
+        bytes[3] === 0x38
+    ) {
+        return "image/gif";
+    }
+    return "application/octet-stream";
 };
 
 const ensureProfilePictureLoaded = async (contactID: string) => {
@@ -366,13 +469,15 @@ const ensureProfilePictureLoaded = async (contactID: string) => {
 
     const load = state.ctx
         .get_profile_picture(contactID)
-        .then((bytes) => {
-            const blob = new Blob([bytes], { type: "image/jpeg" });
+        .then((bytes: Uint8Array) => {
+            const blob = new Blob([bytes], {
+                type: inferImageMimeType(bytes),
+            });
             const url = URL.createObjectURL(blob);
             cleanupAvatarURL(contactID);
             state.avatarURLByContactID.set(contactID, url);
             state.avatarFailureUntilByContactID.delete(contactID);
-            emitSnapshot(state.snapshot.isHydrated);
+            emitAvatarURL(contactID);
         })
         .catch((error: unknown) => {
             state.avatarFailureUntilByContactID.set(
@@ -418,6 +523,17 @@ export const useResolvedContactAvatar = (
         () => resolveContactDisplayFromSnapshot(snapshot, lookup),
         [lookup.email, lookup.userID, snapshot],
     );
+    const avatarURL = useSyncExternalStore(
+        useCallback(
+            (onChange: () => void) =>
+                display.contactId
+                    ? subscribeAvatarURL(display.contactId, onChange)
+                    : () => undefined,
+            [display.contactId],
+        ),
+        () => avatarURLSnapshot(display.contactId),
+        () => avatarURLSnapshot(display.contactId),
+    );
 
     useEffect(() => {
         if (!display.contactId || !display.profilePictureAttachmentID) {
@@ -428,8 +544,6 @@ export const useResolvedContactAvatar = (
 
     return {
         ...display,
-        avatarURL: display.contactId
-            ? snapshot.avatarURLsByContactID.get(display.contactId)
-            : undefined,
+        avatarURL,
     };
 };
