@@ -5,7 +5,12 @@
     launcher entries. We can remove this along with the `LAUNCHER` category from
     main/AndroidManifest.xml once
     https://github.com/flutter/flutter/issues/38965 is fixed. -->
-    <application>
+    <!-- F-Droid rebuilds and re-signs the APK which can break the page-aligned
+    native library storage that useLegacyPackaging=false relies on. Force
+    extraction so dlopen() loads from disk instead of directly from the APK. -->
+    <application
+        android:extractNativeLibs="true"
+        tools:replace="android:extractNativeLibs">
         <activity android:name=".MainActivity"
             android:launchMode="singleTask"
             android:theme="@style/LaunchTheme"
