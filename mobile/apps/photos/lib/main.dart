@@ -78,7 +78,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FFmpegKitConfig.init().ignore();
   await rive.RiveNative.init();
-  MediaKit.ensureInitialized();
+  try {
+    MediaKit.ensureInitialized();
+  } catch (e) {
+    _logger.severe("Failed to initialize MediaKit", e);
+  }
 
   final savedThemeMode = await AdaptiveTheme.getThemeMode();
   await _runInForeground(savedThemeMode);
