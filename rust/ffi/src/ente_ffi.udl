@@ -1,0 +1,446 @@
+// UniFFI interface for EnteCoreFFI.
+//
+// Exposes crypto primitives plus the shared ente3/rust account and wall flows
+// to Swift, Kotlin, and any other UniFFI-supported host.
+
+namespace ente_ffi {
+    // ---- Account auth ----
+
+    [Throws=FfiError]
+    void account_send_ott(string base_url, string email, string purpose);
+
+    [Throws=FfiError]
+    FfiAccountLoginResult account_signup(
+        string base_url,
+        string email,
+        string ott,
+        string password
+    );
+
+    [Throws=FfiError]
+    FfiAccountLoginResult account_login(
+        string base_url,
+        string email,
+        string password
+    );
+
+    [Throws=FfiError]
+    FfiAccountLoginPreflight account_login_preflight(
+        string base_url,
+        string email
+    );
+
+    [Throws=FfiError]
+    FfiAccountLoginResult account_login_with_ott(
+        string base_url,
+        string email,
+        string ott,
+        string password
+    );
+
+    [Throws=FfiError]
+    FfiAccountLoginResult account_recover(
+        string base_url,
+        string email,
+        string ott,
+        string recovery_key,
+        string new_password
+    );
+
+    [Throws=FfiError]
+    string account_list_device_sessions_json(string base_url, string auth_token);
+
+    [Throws=FfiError]
+    FfiAccountSessionValidity account_session_validity(string base_url, string auth_token);
+
+    [Throws=FfiError]
+    void account_revoke_device_session(string base_url, string auth_token, string device_id);
+
+    [Throws=FfiError]
+    void account_logout(string base_url, string auth_token);
+
+    [Throws=FfiError]
+    void account_change_password(
+        string base_url,
+        string auth_token,
+        bytes master_key,
+        string new_password,
+        boolean log_out_other_devices
+    );
+
+    // ---- Wall product surface ----
+
+    [Throws=FfiError]
+    string wall_list_owned_walls_json(FfiWallSession session);
+
+    [Throws=FfiError]
+    string wall_lookup_by_slug_json(FfiWallSession session, string wall_slug);
+
+    [Throws=FfiError]
+    string wall_create_json(
+        FfiWallSession session,
+        string wall_slug,
+        string? display_name,
+        string? bio
+    );
+
+    [Throws=FfiError]
+    string wall_update_slug_json(
+        FfiWallSession session,
+        string wall_id,
+        string wall_slug
+    );
+
+    [Throws=FfiError]
+    string wall_update_profile_json(
+        FfiWallSession session,
+        string wall_id,
+        string? display_name,
+        string? bio
+    );
+
+    [Throws=FfiError]
+    string wall_upload_avatar_json(
+        FfiWallSession session,
+        string wall_id,
+        bytes jpeg_data
+    );
+
+    [Throws=FfiError]
+    string wall_remove_avatar_json(
+        FfiWallSession session,
+        string wall_id
+    );
+
+    [Throws=FfiError]
+    string wall_list_wall_posts_json(
+        FfiWallSession session,
+        string wall_id,
+        string? cursor,
+        i32 limit
+    );
+
+    [Throws=FfiError]
+    string wall_list_feed_json(FfiWallSession session, string? cursor, i32 limit);
+
+    [Throws=FfiError]
+    string wall_fetch_post_json(FfiWallSession session, i64 post_id);
+
+    [Throws=FfiError]
+    string wall_create_post_json(
+        FfiWallSession session,
+        string wall_id,
+        string caption,
+        sequence<FfiCreatePostImage> images
+    );
+
+    [Throws=FfiError]
+    boolean wall_set_post_like(FfiWallSession session, i64 post_id, boolean like);
+
+    [Throws=FfiError]
+    void wall_delete_post(FfiWallSession session, i64 post_id);
+
+    [Throws=FfiError]
+    string wall_list_comments_json(
+        FfiWallSession session,
+        i64 post_id,
+        string? post_key_b64,
+        string? cursor,
+        i32 limit
+    );
+
+    [Throws=FfiError]
+    string wall_create_comment_json(
+        FfiWallSession session,
+        i64 post_id,
+        string post_key_b64,
+        string text,
+        i64? parent_comment_id
+    );
+
+    [Throws=FfiError]
+    void wall_delete_comment(FfiWallSession session, i64 post_id, i64 comment_id);
+
+    [Throws=FfiError]
+    string wall_search_community_json(
+        FfiWallSession session,
+        string query,
+        string? cursor,
+        i32 limit
+    );
+
+    [Throws=FfiError]
+    string wall_list_follow_requests_json(FfiWallSession session, string direction);
+
+    [Throws=FfiError]
+    string wall_list_followers_json(FfiWallSession session, string wall_id);
+
+    [Throws=FfiError]
+    string wall_list_following_json(FfiWallSession session);
+
+    [Throws=FfiError]
+    void wall_request_follow(FfiWallSession session, string wall_id);
+
+    [Throws=FfiError]
+    void wall_approve_follow_request(FfiWallSession session, i64 request_id);
+
+    [Throws=FfiError]
+    void wall_reject_follow_request(FfiWallSession session, i64 request_id);
+
+    [Throws=FfiError]
+    void wall_cancel_follow_request(FfiWallSession session, i64 request_id);
+
+    [Throws=FfiError]
+    void wall_unfollow(FfiWallSession session, string wall_id);
+
+    [Throws=FfiError]
+    bytes wall_load_asset_bytes(
+        FfiWallSession session,
+        string wall_id,
+        string object_key,
+        string post_key_b64
+    );
+
+    [Throws=FfiError]
+    bytes wall_load_avatar_bytes(
+        FfiWallSession session,
+        string wall_id,
+        string object_key
+    );
+
+    // ---- Key generation & KEK derivation ----
+
+    [Throws=FfiError]
+    FfiKeyGenResult generate_keys(string password);
+
+    [Throws=FfiError]
+    FfiKeyGenResult generate_keys_interactive(string password);
+
+    [Throws=FfiError]
+    bytes derive_kek(string password, string kek_salt_b64, u32 mem_limit, u32 ops_limit);
+
+    [Throws=FfiError]
+    bytes derive_login_key(bytes kek);
+
+    [Throws=FfiError]
+    FfiGeneratedKek generate_sensitive_kek(string password);
+
+    [Throws=FfiError]
+    FfiGeneratedKek generate_interactive_kek(string password);
+
+    [Throws=FfiError]
+    FfiDecryptedKeys decrypt_keys(bytes kek, FfiKeyAttributes key_attrs);
+
+    [Throws=FfiError]
+    FfiDecryptedSecrets decrypt_secrets(
+        bytes kek,
+        FfiKeyAttributes key_attrs,
+        string encrypted_token
+    );
+
+    [Throws=FfiError]
+    FfiSrpSetup generate_srp_setup(bytes kek, string srp_user_id);
+
+    // ---- Symmetric crypto (secretbox family) ----
+
+    [Throws=FfiError]
+    bytes encrypt_secretbox_packed(bytes key, bytes plaintext);
+
+    [Throws=FfiError]
+    bytes decrypt_secretbox_packed(bytes key, bytes packed);
+
+    [Throws=FfiError]
+    FfiSplitCiphertext encrypt_secretbox_split(bytes key, bytes plaintext);
+
+    [Throws=FfiError]
+    bytes decrypt_secretbox_split(bytes key, bytes ciphertext, bytes nonce);
+
+    // ---- Asset crypto ----
+
+    [Throws=FfiError]
+    bytes encrypt_asset_payload(bytes key, bytes plaintext);
+
+    [Throws=FfiError]
+    bytes decrypt_asset_payload(bytes key, bytes payload);
+
+    // ---- Entity keys ----
+
+    [Throws=FfiError]
+    FfiEntityKeyPayload encrypt_entity_key(bytes master_key, bytes plaintext);
+
+    [Throws=FfiError]
+    bytes decrypt_entity_key(bytes master_key, FfiEntityKeyPayload payload);
+
+    // ---- Sealed box (NaCl anonymous) ----
+
+    [Throws=FfiError]
+    bytes seal_for_public_key(bytes recipient_public_key, bytes plaintext);
+
+    [Throws=FfiError]
+    bytes open_sealed_box(bytes public_key, bytes secret_key, bytes ciphertext);
+
+    // ---- Base64 ----
+
+    string encode_b64(bytes data);
+
+    [Throws=FfiError]
+    bytes decode_b64(string encoded);
+
+    string encode_b64_url(bytes data);
+
+    [Throws=FfiError]
+    bytes decode_b64_url(string encoded);
+
+    // ---- Utilities ----
+
+    bytes derive_labeled_key(bytes secret, string label);
+
+    bytes pack_payload(bytes ciphertext, bytes nonce);
+
+    [Throws=FfiError]
+    FfiUnpackedPayload unpack_payload(bytes packed);
+
+    bytes generate_key();
+};
+
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
+
+// Flat to match `#[uniffi(flat_error)]` in lib.rs — Swift sees a single
+// string message per variant.
+[Error]
+enum FfiError {
+    "Crypto",
+    "Auth",
+    "Decode",
+    "InvalidInput",
+};
+
+// ---------------------------------------------------------------------------
+// Dictionaries (plain data carriers)
+// ---------------------------------------------------------------------------
+
+dictionary FfiKeyAttributes {
+    string kek_salt;
+    string encrypted_key;
+    string key_decryption_nonce;
+    string public_key;
+    string encrypted_secret_key;
+    string secret_key_decryption_nonce;
+    u32? mem_limit;
+    u32? ops_limit;
+    string? master_key_encrypted_with_recovery_key;
+    string? master_key_decryption_nonce;
+    string? recovery_key_encrypted_with_master_key;
+    string? recovery_key_decryption_nonce;
+};
+
+dictionary FfiAccountLoginResult {
+    i64 user_id;
+    string email;
+    string? username;
+    string auth_token;
+    bytes master_key;
+    bytes secret_key;
+    bytes public_key;
+    string? recovery_key;
+};
+
+enum FfiAccountLoginFlow {
+    "PasswordOnly",
+    "EmailOttAndPassword",
+    "Signup",
+};
+
+dictionary FfiAccountLoginPreflight {
+    FfiAccountLoginFlow flow;
+};
+
+dictionary FfiAccountSessionValidity {
+    boolean has_set_keys;
+};
+
+dictionary FfiWallSession {
+    string base_url;
+    string auth_token;
+    bytes master_key;
+    bytes public_key;
+    bytes private_key;
+    i64? user_id;
+};
+
+dictionary FfiCreatePostImage {
+    bytes data;
+    i32 position;
+    string variant;
+    i32 width;
+    i32 height;
+    string blur_hash;
+    string? content_type;
+};
+
+dictionary FfiKeyGenResult {
+    FfiKeyAttributes key_attributes;
+    string master_key_b64;
+    string recovery_key_hex;
+    string secret_key_b64;
+    bytes key_encryption_key;
+    bytes login_key;
+};
+
+dictionary FfiGeneratedKek {
+    bytes key;
+    bytes salt;
+    u32 mem_limit;
+    u32 ops_limit;
+};
+
+dictionary FfiDecryptedKeys {
+    bytes master_key;
+    bytes secret_key;
+};
+
+dictionary FfiDecryptedSecrets {
+    bytes master_key;
+    bytes secret_key;
+    bytes token;
+};
+
+dictionary FfiSrpSetup {
+    bytes srp_salt;
+    bytes srp_verifier;
+    bytes login_sub_key;
+};
+
+dictionary FfiEntityKeyPayload {
+    string encrypted_key;
+    string nonce;
+};
+
+dictionary FfiSplitCiphertext {
+    bytes ciphertext;
+    bytes nonce;
+};
+
+dictionary FfiUnpackedPayload {
+    bytes ciphertext;
+    bytes nonce;
+};
+
+// ---------------------------------------------------------------------------
+// Stateful SRP session
+// ---------------------------------------------------------------------------
+
+interface FfiSrpSession {
+    [Throws=FfiError]
+    constructor(string srp_user_id, bytes srp_salt, bytes login_key);
+
+    bytes public_a();
+
+    [Throws=FfiError]
+    bytes compute_m1(bytes server_b);
+
+    [Throws=FfiError]
+    boolean verify_m2(bytes server_m2);
+};

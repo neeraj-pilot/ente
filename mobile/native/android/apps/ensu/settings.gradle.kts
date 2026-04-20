@@ -16,6 +16,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "ensu"
-include(":app-ui", ":domain", ":data", ":crypto-auth-core", ":rust")
+include(":app-ui", ":domain", ":data", ":crypto-auth-core", ":rust", ":wall")
 
 project(":rust").projectDir = file("../../packages/rust")
+project(":wall").projectDir = file("../../packages/wall")
