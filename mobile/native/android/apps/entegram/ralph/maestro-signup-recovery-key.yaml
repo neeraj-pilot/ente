@@ -1,0 +1,46 @@
+appId: io.ente.entegram.debug
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Create account"
+- assertVisible: "Create account"
+- tapOn: "Create account"
+- assertVisible: "Email address"
+- tapOn: "Email address"
+- eraseText
+- inputText: "${SIGNUP_EMAIL}"
+- tapOn: "Continue"
+- assertVisible: "Verification code"
+- tapOn: "Verification code"
+- eraseText
+- inputText: "${OTP}"
+- extendedWaitUntil:
+    visible: "Set your password"
+    timeout: 20000
+- assertVisible: "Password"
+- tapOn: "Password"
+- eraseText
+- inputText: "${SIGNUP_PASSWORD}"
+- tapOn: "Confirm password"
+- eraseText
+- inputText: "${SIGNUP_PASSWORD}"
+- tapOn: "Continue"
+- assertVisible: "Choose your handle"
+- tapOn: "your-handle"
+- eraseText
+- inputText: "${SIGNUP_USERNAME}"
+- extendedWaitUntil:
+    visible: "@${SIGNUP_USERNAME} is available"
+    timeout: 20000
+- tapOn: "Create account"
+- extendedWaitUntil:
+    visible: "Save your recovery key"
+    timeout: 180000
+- scrollUntilVisible:
+    element:
+      text: "I've saved my key"
+    direction: DOWN
+- tapOn: "I've saved my key"
+- extendedWaitUntil:
+    visible: "Find people"
+    timeout: 30000

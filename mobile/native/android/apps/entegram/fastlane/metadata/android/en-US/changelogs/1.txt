@@ -1,0 +1,9 @@
+Initial release.
+
+- Photo feed with multi-photo posts
+- End-to-end encrypted posting and commenting
+- Follow management with approve/reject flows
+- Community discovery
+- Onboarding with recovery key backup
+- Offline support with cached feed
+- Dark and light themes

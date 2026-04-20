@@ -1,0 +1,42 @@
+appId: io.ente.entegram.debug
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Create account"
+- assertVisible: "Sign in"
+- tapOn: "Sign in"
+- assertVisible: "you@example.com"
+- tapOn: "you@example.com"
+- eraseText
+- inputText: "${ACCOUNT_EMAIL}"
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Enter your password"
+    timeout: 20000
+- tapOn: "Forgot password? Use your recovery key"
+- extendedWaitUntil:
+    visible: "Verify to reset"
+    timeout: 20000
+- tapOn: "Verification code"
+- eraseText
+- inputText: "${OTP}"
+- extendedWaitUntil:
+    visible: "Recovery key"
+    timeout: 20000
+- tapOn: "xxxx-xxxx-xxxx-xxxx"
+- eraseText
+- inputText: "${RECOVERY_KEY}"
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Set a new password"
+    timeout: 20000
+- tapOn: "Password"
+- eraseText
+- inputText: "${NEW_PASSWORD}"
+- tapOn: "Confirm password"
+- eraseText
+- inputText: "${NEW_PASSWORD}"
+- tapOn: "Reset password"
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 30000

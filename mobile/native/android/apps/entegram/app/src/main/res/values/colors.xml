@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only for launcher-level items; Compose theme owns the rest -->
+    <color name="ic_launcher_background">#000000</color>
+    <color name="ic_launcher_foreground">#7C5CFF</color>
+    <!-- Window background to prevent flash before Compose renders -->
+    <color name="window_background_light">#FAFAFC</color>
+    <color name="window_background_dark">#000000</color>
+</resources>

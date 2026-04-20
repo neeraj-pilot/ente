@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">enteGram</string>
+    <string name="app_tagline">private walls, shared moments</string>
+
+    <!-- Common / shared -->
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="feed_tab">Feed</string>
+    <string name="retry">Retry</string>
+    <string name="refresh">Refresh</string>
+    <string name="try_again">Try again</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="posts">Posts</string>
+    <string name="followers">Followers</string>
+    <string name="following">Following</string>
+    <string name="post_label">Post</string>
+
+    <!-- Feed screen -->
+    <string name="feed_settings">Settings</string>
+    <string name="feed_discover">Discover</string>
+    <string name="feed_follow_requests">Follow requests</string>
+    <string name="feed_new_post">New post</string>
+    <string name="feed_empty_headline">Your feed is quiet</string>
+    <string name="feed_empty_body">Share your first moment or find people to follow.</string>
+    <string name="feed_empty_action">Find people</string>
+    <string name="feed_empty_create_post">Create a post</string>
+    <string name="feed_offline_banner">Offline \u00b7 showing cached posts</string>
+    <string name="feed_offline_description">Offline. Showing cached posts.</string>
+    <string name="feed_loading_more">Loading more posts</string>
+
+    <!-- Feed post card -->
+    <string name="post_more_options">More options</string>
+    <string name="post_menu_delete">Delete</string>
+    <string name="post_delete_title">Delete post?</string>
+    <string name="post_delete_body">This post will be removed from your wall and follower feeds.</string>
+    <string name="post_unlike">Unlike</string>
+    <string name="post_like">Like</string>
+    <string name="post_comments">Comments</string>
+    <string name="post_photo">Post photo</string>
+    <string name="post_photo_n_of_total">Photo %1$d of %2$d</string>
+    <string name="post_photo_by">Photo by @%1$s</string>
+    <string name="post_photo_by_caption">Photo by @%1$s: %2$s</string>
+
+    <!-- Post detail screen -->
+    <string name="post_detail_not_found_headline">Post not found</string>
+    <string name="post_detail_not_found_body">This post may have been removed.</string>
+    <string name="post_detail_no_comments_headline">No comments yet</string>
+    <string name="post_detail_no_comments_body">Be the first to share a thought.</string>
+    <string name="post_detail_loading_more_comments">Loading more comments</string>
+    <string name="post_detail_comment_placeholder">Add a comment\u2026</string>
+    <string name="post_detail_comment_description">Add a comment</string>
+    <string name="post_detail_send_comment">Send comment</string>
+    <string name="post_detail_type_to_send">Type a comment to send</string>
+    <string name="post_detail_comment_count_singular">1 comment</string>
+    <string name="post_detail_comment_count_plural">%1$d comments</string>
+    <string name="post_detail_comment_more_options">Comment options</string>
+    <string name="post_detail_delete_comment_action">Delete comment</string>
+    <string name="post_detail_delete_comment_title">Delete comment?</string>
+    <string name="post_detail_delete_comment_body">This comment will be removed from the post.</string>
+
+    <!-- Follow management screen -->
+    <string name="follow_title">Connections</string>
+    <string name="follow_no_activity_headline">No follow activity</string>
+    <string name="follow_no_activity_body">When people request to follow you, or you send follow requests, they\'ll appear here.</string>
+    <string name="follow_tab_followers">Followers</string>
+    <string name="follow_tab_following">Following</string>
+    <string name="follow_tab_received">Received</string>
+    <string name="follow_tab_sent">Sent</string>
+    <string name="follow_following_empty_headline">Not following anyone</string>
+    <string name="follow_following_empty_body">When you follow someone, they\'ll appear here.</string>
+    <string name="follow_requests_empty_headline">No pending requests</string>
+    <string name="follow_requests_empty_body">When someone asks to follow you, their request will show up here.</string>
+    <string name="follow_sent_empty_headline">No sent requests</string>
+    <string name="follow_sent_empty_body">Requests you\'ve sent to follow others will appear here.</string>
+    <string name="follow_followers_empty_headline">No followers yet</string>
+    <string name="follow_followers_empty_body">People who follow your wall will show up here.</string>
+    <string name="follow_reject">Reject</string>
+    <string name="follow_approve">Approve</string>
+    <string name="follow_follower_singular">follower</string>
+    <string name="follow_follower_plural">followers</string>
+
+    <!-- Community screen -->
+    <string name="community_title">Discover</string>
+    <string name="community_search_placeholder">Search walls by name or slug</string>
+    <string name="community_search_icon">Search</string>
+    <string name="community_clear_search">Clear search</string>
+    <string name="community_no_results_headline">No results</string>
+    <string name="community_no_results_body">Try a different name or slug.</string>
+    <string name="community_idle_headline">Find your people</string>
+    <string name="community_idle_body">Search for walls to follow and see their posts in your feed.</string>
+    <string name="community_search_walls">Search walls</string>
+    <string name="community_view_wall">View wall for %1$s</string>
+
+    <!-- Wall screen -->
+    <string name="wall_title">Wall</string>
+    <string name="wall_empty_headline">No posts yet</string>
+    <string name="wall_empty_body">Share your first moment and it will appear here.</string>
+    <string name="wall_follow">Follow</string>
+    <string name="wall_follow_loading">Sending…</string>
+    <string name="wall_follow_pending">Follow request sent</string>
+    <string name="wall_following">Following</string>
+    <string name="wall_locked_idle">Follow this wall to see shared posts.</string>
+    <string name="wall_locked_pending">Your follow request is pending approval.</string>
+    <string name="wall_locked_following">You follow this wall, but its posts are not available on this device yet. Try again shortly.</string>
+
+    <!-- Composer screen -->
+    <string name="composer_title">New Post</string>
+    <string name="composer_share">Share</string>
+    <string name="composer_caption_label">Caption</string>
+    <string name="composer_caption_placeholder">Add caption\u2026</string>
+    <string name="composer_caption_description">Caption</string>
+    <string name="composer_budget_hint">%1$d/%2$d photos \u00b7 up to 2 MB each</string>
+    <string name="composer_budget_oversize_description">%1$d of %2$d photos. Warning: one or more photos exceed the 2 megabyte limit.</string>
+    <string name="composer_add_another_photo">Add another photo</string>
+    <string name="composer_add_photos">Add photos</string>
+    <string name="composer_add_photos_hint">Choose up to 10 photos. You can add a caption next.</string>
+    <string name="composer_selected_photo">Selected photo %1$d of %2$d</string>
+    <string name="composer_remove_photo">Remove photo</string>
+    <string name="composer_photo_n">Photo %1$d</string>
+    <string name="composer_exceeds_size_limit">Exceeds size limit</string>
+
+    <!-- Onboarding — email -->
+    <string name="onboarding_email_title">Welcome to enteGram</string>
+    <string name="onboarding_email_subtitle">Enter your email to get started. We\'ll send you a verification code.</string>
+    <string name="onboarding_email_placeholder">Email address</string>
+
+    <!-- Onboarding — OTT verification -->
+    <string name="onboarding_ott_title">Check your email</string>
+    <string name="onboarding_ott_subtitle">We sent a 6-digit code to %1$s</string>
+    <string name="onboarding_ott_verification_code">Verification code</string>
+    <string name="onboarding_ott_resend_cooldown">Resend code in %1$ds</string>
+    <string name="onboarding_ott_resend">Resend code</string>
+    <string name="onboarding_ott_verify">Verify</string>
+
+    <!-- Onboarding — password setup -->
+    <string name="onboarding_password_title">Set your password</string>
+    <string name="onboarding_password_subtitle">Choose a strong password to protect your account. You\'ll need this to log in.</string>
+    <string name="onboarding_password_placeholder">Password</string>
+    <string name="onboarding_password_confirm_placeholder">Confirm password</string>
+    <string name="onboarding_password_show">Show password</string>
+    <string name="onboarding_password_hide">Hide password</string>
+    <string name="onboarding_password_mismatch">Passwords don\'t match</string>
+    <string name="onboarding_password_strength_weak">Weak</string>
+    <string name="onboarding_password_strength_fair">Fair</string>
+    <string name="onboarding_password_strength_good">Good</string>
+    <string name="onboarding_password_strength_strong">Strong</string>
+
+    <!-- Onboarding — wall name -->
+    <string name="onboarding_wallname_title">Choose your handle</string>
+    <string name="onboarding_wallname_subtitle">This is your @name on enteGram. You can always change it later.</string>
+    <string name="onboarding_wallname_placeholder">your-handle</string>
+    <string name="onboarding_wallname_too_short">At least 3 characters</string>
+    <string name="onboarding_wallname_taken">@%1$s is already taken</string>
+    <string name="onboarding_wallname_available">@%1$s is available</string>
+    <string name="onboarding_wallname_checking">Checking availability\u2026</string>
+    <string name="onboarding_wallname_rules">Lowercase letters, numbers, and hyphens \u00b7 3\u201330 characters</string>
+    <string name="onboarding_wallname_create_account">Create account</string>
+    <string name="onboarding_wallname_available_icon">Available</string>
+    <string name="onboarding_wallname_taken_icon">Taken</string>
+
+    <!-- Onboarding — recovery key -->
+    <string name="onboarding_recovery_title">Save your recovery key</string>
+    <string name="onboarding_recovery_subtitle">If you forget your password, this key is the only way to recover your data. Store it somewhere safe.</string>
+    <string name="onboarding_recovery_copy">Copy recovery key</string>
+    <string name="onboarding_recovery_copied">Copied</string>
+    <string name="onboarding_recovery_warning">Without this key, your encrypted data cannot be recovered if you lose your password.</string>
+    <string name="onboarding_recovery_done">I\'ve saved my key</string>
+
+    <!-- Onboarding — shared -->
+    <string name="onboarding_continue">Continue</string>
+    <string name="onboarding_go_back">Go back</string>
+    <string name="onboarding_step_n_of_total">Step %1$d of %2$d</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">You</string>
+    <string name="settings_own_posts">Own posts</string>
+    <string name="settings_connections">Connections</string>
+    <string name="settings_follows">Followers &amp; requests</string>
+    <string name="settings_profile">Profile</string>
+    <string name="settings_edit_profile">Edit profile</string>
+    <string name="settings_edit_profile_body">Update your profile details and avatar.</string>
+    <string name="settings_save_profile">Save</string>
+    <string name="settings_display_name_label">Display name</string>
+    <string name="settings_bio_label">Bio</string>
+    <string name="settings_change_avatar">Change avatar</string>
+    <string name="settings_remove_avatar">Remove avatar</string>
+    <string name="settings_about">About</string>
+    <string name="settings_licenses">Licenses</string>
+    <string name="settings_privacy_policy">Privacy policy</string>
+    <string name="settings_view_logs">View logs</string>
+    <string name="settings_logs_title">App logs</string>
+    <string name="settings_logs_empty">No logs yet.</string>
+    <string name="settings_logs_refresh">Refresh</string>
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_sign_out_description">Sign out of your account</string>
+    <string name="settings_sign_out_dialog_title">Sign out?</string>
+    <string name="settings_sign_out_dialog_body">This wipes your keys on this device. You\u2019ll need to sign in again.</string>
+    <string name="settings_you_fallback">You</string>
+
+    <!-- Profile bottom sheet -->
+    <string name="profile_sheet_your_profile">Your profile</string>
+    <string name="profile_sheet_discover">Discover</string>
+    <string name="profile_sheet_connections">Connections</string>
+
+    <!-- Accessibility -->
+    <string name="avatar_description">Avatar for %1$s</string>
+    <string name="photos_count">%1$d photos</string>
+</resources>

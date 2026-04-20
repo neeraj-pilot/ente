@@ -30,6 +30,7 @@ import uniffi.ente_ffi.FfiWallSession
 class RustWallClient @Inject constructor(
     private val authSessionStore: AuthSessionStore,
     private val enteWallCore: EnteWallCore,
+    private val assetCache: AssetCache,
 ) : WallClient {
     private val defaultBaseUrl: String = BuildConfig.ENTEGRAM_API_BASE_URL
     private val postKeys = ConcurrentHashMap<Long, String>()
@@ -283,25 +284,36 @@ class RustWallClient @Inject constructor(
     }
 
     override suspend fun loadAssetBytes(objectKey: String): ByteArray {
+        val session = requireWallSession()
+        val cacheKey = session.assetCacheKey(objectKey)
+        assetCache.read(cacheKey)?.let { return it }
         val key = assetKeys[objectKey] ?: throw WallClientException.NotFound()
-        return runRustCall {
+        val bytes = runRustCall {
             enteWallCore.loadAssetBytes(
-                session = requireWallSession(),
+                session = session,
                 wallId = key.wallId,
                 objectKey = objectKey,
                 postKeyB64 = key.postKeyB64,
             )
         }
+        assetCache.write(cacheKey, bytes)
+        return bytes
     }
 
-    override suspend fun loadAvatarBytes(wallId: String, objectKey: String): ByteArray =
-        runRustCall {
+    override suspend fun loadAvatarBytes(wallId: String, objectKey: String): ByteArray {
+        val session = requireWallSession()
+        val cacheKey = session.avatarCacheKey(wallId, objectKey)
+        assetCache.read(cacheKey)?.let { return it }
+        val bytes = runRustCall {
             enteWallCore.loadAvatarBytes(
-                session = requireWallSession(),
+                session = session,
                 wallId = wallId,
                 objectKey = objectKey,
             )
         }
+        assetCache.write(cacheKey, bytes)
+        return bytes
+    }
 
     private suspend fun requireWallSession(): FfiWallSession {
         val persisted = authSessionStore.read() ?: throw WallClientException.NotAuthenticated()
@@ -638,3 +650,9 @@ private fun String.cacheKey(): String = lowercase()
 
 private fun parseInstantOrFallback(value: String?): Instant =
     value.nonBlank()?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: Instant.EPOCH
+
+private fun FfiWallSession.assetCacheKey(objectKey: String): String =
+    "user:$userId:asset:$objectKey"
+
+private fun FfiWallSession.avatarCacheKey(wallId: String, objectKey: String): String =
+    "user:$userId:avatar:$wallId:$objectKey"

@@ -1,0 +1,16 @@
+*.iml
+.gradle
+.kotlin
+/local.properties
+/.idea
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+ralph/logs/
+
+# Release keystore — never commit
+*.jks
+*.keystore

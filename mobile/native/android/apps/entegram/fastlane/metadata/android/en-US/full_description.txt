@@ -1,0 +1,14 @@
+enteGram is a private photo-sharing wall for the people who matter most.
+
+Every photo, caption, and comment is end-to-end encrypted before it leaves your device. The server only ever sees ciphertext — not your memories.
+
+Features:
+- End-to-end encrypted photo posts with captions
+- Private walls you control — invite followers, approve requests
+- Comments and likes, all encrypted
+- Recovery key backup so you never lose access
+- No ads, no tracking, no data mining
+- Dark and light themes
+- Built on open-source cryptography (XSalsa20-Poly1305)
+
+Your photos belong to you. enteGram keeps them that way.

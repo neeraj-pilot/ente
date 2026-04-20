@@ -1,0 +1,49 @@
+appId: io.ente.entegram.debug
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Create account"
+- assertVisible: "Sign in"
+- tapOn: "Sign in"
+- assertVisible: "you@example.com"
+- tapOn: "you@example.com"
+- eraseText
+- inputText: "${ACCOUNT_EMAIL}"
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Enter your password"
+    timeout: 20000
+- tapOn: "Password"
+- eraseText
+- inputText: "${ACCOUNT_PASSWORD}"
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 30000
+- tapOn: "Settings"
+- extendedWaitUntil:
+    visible: "You"
+    timeout: 20000
+- tapOn: "Devices"
+- scrollUntilVisible:
+    element:
+      text: "Active sessions"
+    direction: DOWN
+- assertVisible: "Active sessions"
+- assertVisible: "Current"
+- scrollUntilVisible:
+    element:
+      text: "Sign out of your account"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "Sign out of your account"
+    direction: DOWN
+- tapOn: "Sign out of your account"
+- assertVisible: "Sign out?"
+- tapOn:
+    text: "Sign out"
+    index: 0
+- extendedWaitUntil:
+    visible: "Sign in"
+    timeout: 30000
