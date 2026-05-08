@@ -13,8 +13,6 @@ import "package:ente_ui/components/alert_bottom_sheet.dart";
 import "package:ente_ui/theme/ente_theme.dart";
 import "package:ente_ui/utils/dialog_util.dart";
 import "package:ente_ui/utils/toast_util.dart";
-import "package:ente_utils/file_saver_util.dart";
-import "package:file_saver/file_saver.dart";
 import "package:flutter/material.dart";
 import "package:intl/intl.dart";
 import "package:share_plus/share_plus.dart";
@@ -272,6 +270,7 @@ class _LegacyKitPageState extends State<LegacyKitPage> {
       final shares = await LegacyKitService.instance.downloadShares(_kit.id);
       final sortedShares = shares.toList(growable: false)
         ..sort((a, b) => a.shareIndex.compareTo(b.shareIndex));
+      final pdfs = <({Uint8List bytes, LegacyKitPart part})>[];
       for (final share in sortedShares) {
         final bytes = await const LegacyKitPdfService().buildRecoverySheet(
           accountEmail: widget.accountEmail,
@@ -279,15 +278,11 @@ class _LegacyKitPageState extends State<LegacyKitPage> {
           share: share,
           allShares: shares,
         );
-        final saved = await _savePdf(bytes, _kit, part: _partForShare(share));
-        if (!saved) {
-          await dialog.hide();
-          return;
-        }
+        pdfs.add((bytes: bytes, part: _partForShare(share)));
       }
       await dialog.hide();
       if (mounted) {
-        showShortToast(context, context.strings.legacyKitDownloaded);
+        await _sharePdfs(pdfs);
       }
     } catch (_) {
       await dialog.hide();
@@ -479,36 +474,42 @@ class _LegacyKitPageState extends State<LegacyKitPage> {
     return authenticator(context, reason);
   }
 
-  Future<bool> _savePdf(
-    Uint8List bytes,
-    LegacyKit kit, {
-    LegacyKitPart? part,
-  }) {
-    return FileSaverUtil.saveFile(
-      _fileNameForKit(kit, part: part),
-      "pdf",
-      bytes,
-      MimeType.pdf,
-    );
-  }
-
   Future<ShareResult> _sharePdf(
     Uint8List bytes,
     LegacyKit kit, {
     LegacyKitPart? part,
   }) {
+    return _sharePdfs(
+      [
+        (
+          bytes: bytes,
+          part: part,
+        ),
+      ],
+      kit: kit,
+    );
+  }
+
+  Future<ShareResult> _sharePdfs(
+    List<({Uint8List bytes, LegacyKitPart? part})> pdfs, {
+    LegacyKit? kit,
+  }) {
     final size = MediaQuery.sizeOf(context);
     return SharePlus.instance.share(
       ShareParams(
-        files: [
-          XFile.fromData(
-            bytes,
-            mimeType: "application/pdf",
-          ),
-        ],
-        fileNameOverrides: [
-          "${_fileNameForKit(kit, part: part)}.pdf",
-        ],
+        files: pdfs
+            .map(
+              (pdf) => XFile.fromData(
+                pdf.bytes,
+                mimeType: "application/pdf",
+              ),
+            )
+            .toList(growable: false),
+        fileNameOverrides: pdfs
+            .map(
+              (pdf) => "${_fileNameForKit(kit ?? _kit, part: pdf.part)}.pdf",
+            )
+            .toList(growable: false),
         sharePositionOrigin: Offset.zero & size,
       ),
     );
