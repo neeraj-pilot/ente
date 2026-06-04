@@ -1,3 +1,4 @@
+import "package:ente_pure_utils/ente_pure_utils.dart";
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:photos/core/configuration.dart';
@@ -23,6 +24,7 @@ import 'package:photos/ui/components/toggle_switch_widget.dart';
 import 'package:photos/ui/viewer/actions/file_selection_overlay_bar.dart';
 import 'package:photos/ui/viewer/gallery/gallery.dart';
 import 'package:photos/ui/viewer/gallery/gallery_app_bar_widget.dart';
+import "package:photos/ui/viewer/gallery/ignored_uploads_page.dart";
 import "package:photos/ui/viewer/gallery/state/gallery_boundaries_provider.dart";
 import "package:photos/ui/viewer/gallery/state/gallery_files_inherited_widget.dart";
 import "package:photos/ui/viewer/gallery/state/selection_state.dart";
@@ -228,18 +230,9 @@ class _BackupHeaderWidgetState extends State<BackupHeaderWidget> {
     final List<EnteFile> deviceCollectionFiles = await filesInDeviceCollection;
     final allIgnoredIDs =
         await IgnoredFilesService.instance.idToIgnoreReasonMap;
-    if (allIgnoredIDs.isEmpty) {
-      return false;
-    }
-    for (EnteFile file in deviceCollectionFiles) {
-      final String? ignoreID = IgnoredFilesService.instance.getIgnoredIDForFile(
-        file,
-      );
-      if (ignoreID != null && allIgnoredIDs.containsKey(ignoreID)) {
-        return true;
-      }
-    }
-    return false;
+    return IgnoredFilesService.instance
+        .getIgnoredUploads(allIgnoredIDs, deviceCollectionFiles)
+        .isNotEmpty;
   }
 }
 
@@ -272,28 +265,22 @@ class _ResetIgnoredFilesWidgetState extends State<ResetIgnoredFilesWidget> {
           leadingIcon: Icons.cloud_off_outlined,
           alwaysShowSuccessState: true,
           onTap: () async {
-            await _removeFilesFromIgnoredFiles(widget.filesInDeviceCollection);
-            // ignore: unawaited_futures
-            RemoteSyncService.instance.sync(silently: true).then((value) {
-              if (mounted) {
-                widget.parentSetState.call();
-              }
-            });
+            await routeToPage(
+              context,
+              IgnoredUploadsPage(
+                filesInDeviceCollection: widget.filesInDeviceCollection,
+                onIgnoredUploadsChanged: widget.parentSetState,
+              ),
+            );
+            if (mounted) {
+              widget.parentSetState.call();
+            }
           },
         ),
         MenuSectionDescriptionWidget(
           content: AppLocalizations.of(context).ignoredFolderUploadReason,
         ),
       ],
-    );
-  }
-
-  Future<void> _removeFilesFromIgnoredFiles(
-    Future<List<EnteFile>> filesInDeviceCollection,
-  ) async {
-    final List<EnteFile> deviceCollectionFiles = await filesInDeviceCollection;
-    await IgnoredFilesService.instance.removeIgnoredMappings(
-      deviceCollectionFiles,
     );
   }
 }
