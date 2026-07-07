@@ -67,36 +67,28 @@ func (r *DripsRepository) ListProfileMissingCandidates(ctx context.Context, now 
 
 func (r *DripsRepository) ListInvitePeopleCandidates(ctx context.Context, threshold int64, excludeTemplateIDs []string, limit int) ([]SpaceDripCandidate, error) {
 	rows, err := r.DB.QueryContext(ctx, `
-		WITH candidate_users AS (
-			SELECT s.owner_id AS user_id, MIN(s.created_at) AS event_at
-			FROM spaces s
-			JOIN users u ON u.user_id = s.owner_id AND u.encrypted_email IS NOT NULL
-			GROUP BY s.owner_id
-			HAVING MIN(s.created_at) <= $1
-		)
-		SELECT c.user_id
-		FROM candidate_users c
-		WHERE NOT EXISTS (
+		SELECT s.owner_id
+		FROM spaces s
+		JOIN users u ON u.user_id = s.owner_id AND u.encrypted_email IS NOT NULL
+		WHERE s.created_at <= $1
+		  AND NOT EXISTS (
 		      SELECT 1
 		      FROM notification_history nh
-		      WHERE nh.user_id = c.user_id
+		      WHERE nh.user_id = s.owner_id
 		        AND nh.template_id = ANY($2)
 		  )
 		  AND NOT EXISTS (
 		      SELECT 1
-		      FROM spaces owned
-		      JOIN space_friend_shares f ON f.space_id = owned.space_id
-		      WHERE owned.owner_id = c.user_id
+		      FROM space_friend_shares f
+		      WHERE f.space_id = s.space_id
 		  )
 		  AND NOT EXISTS (
 		      SELECT 1
-		      FROM spaces owned
-		      JOIN space_friend_requests fr
-		        ON fr.requester_space_id = owned.space_id
-		        OR fr.target_space_id = owned.space_id
-		      WHERE owned.owner_id = c.user_id
+		      FROM space_friend_requests fr
+		      WHERE fr.requester_space_id = s.space_id
+		        OR fr.target_space_id = s.space_id
 		  )
-		ORDER BY c.event_at ASC, c.user_id ASC
+		ORDER BY s.created_at ASC, s.owner_id ASC
 		LIMIT $3
 	`, threshold, pq.Array(excludeTemplateIDs), spaceDripCandidateLimit(limit))
 	if err != nil {
@@ -112,8 +104,8 @@ func (r *DripsRepository) ListFirstPostCandidates(ctx context.Context, threshold
 			FROM spaces s
 			JOIN users u ON u.user_id = s.owner_id AND u.encrypted_email IS NOT NULL
 			JOIN space_friend_shares f ON f.space_id = s.space_id
+			WHERE f.created_at <= $1
 			GROUP BY s.owner_id
-			HAVING MIN(f.created_at) <= $1
 		)
 		SELECT ff.user_id
 		FROM first_friend ff
@@ -145,6 +137,7 @@ func (r *DripsRepository) ListFeedbackCandidates(ctx context.Context, threshold 
 			FROM spaces s
 			JOIN users u ON u.user_id = s.owner_id AND u.encrypted_email IS NOT NULL
 			JOIN space_posts p ON p.space_id = s.space_id
+			WHERE p.created_at <= $1
 
 			UNION ALL
 
@@ -153,12 +146,12 @@ func (r *DripsRepository) ListFeedbackCandidates(ctx context.Context, threshold 
 			JOIN users u ON u.user_id = s.owner_id AND u.encrypted_email IS NOT NULL
 			JOIN space_messages m ON m.sender_space_id = s.space_id
 			WHERE m.kind = 'post_reply'
+			  AND m.created_at <= $1
 		),
 		first_activity AS (
 			SELECT user_id, MIN(event_at) AS event_at
 			FROM activities
 			GROUP BY user_id
-			HAVING MIN(event_at) <= $1
 		)
 		SELECT fa.user_id
 		FROM first_activity fa
