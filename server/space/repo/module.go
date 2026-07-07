@@ -14,6 +14,7 @@ type Module struct {
 	Assets   *AssetsRepository
 	Read     *ReadMarkersRepository
 	Sessions *SessionsRepository
+	Drips    *DripsRepository
 }
 
 type SpacesRepository struct {
@@ -42,6 +43,10 @@ type ReadMarkersRepository struct {
 }
 
 type SessionsRepository struct {
+	DB *sql.DB
+}
+
+type DripsRepository struct {
 	DB *sql.DB
 }
 
@@ -224,5 +229,6 @@ func NewModule(db *sql.DB, s3Config *s3config.S3Config) *Module {
 		Assets:   &AssetsRepository{DB: db, S3Config: s3Config},
 		Read:     &ReadMarkersRepository{DB: db},
 		Sessions: &SessionsRepository{DB: db},
+		Drips:    &DripsRepository{DB: db},
 	}
 }
