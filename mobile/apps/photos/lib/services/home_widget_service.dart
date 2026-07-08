@@ -147,6 +147,9 @@ class HomeWidgetService {
     int? uploadedFileID,
   ) async {
     try {
+      if (file.creationTime == null || file.generatedID == null) {
+        return false;
+      }
       // Get thumbnail data
       final thumbnail = await getThumbnail(file);
       if (thumbnail == null) {
