@@ -271,6 +271,7 @@ class _TextInputWidgetState extends State<TextInputWidget> {
   void _onSubmit() async {
     _debouncer.run(
       () => Future(() {
+        if (!mounted) return;
         setState(() {
           executionState = ExecutionState.inProgress;
         });
