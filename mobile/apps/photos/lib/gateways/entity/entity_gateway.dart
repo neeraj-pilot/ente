@@ -1,7 +1,14 @@
 import "package:dio/dio.dart";
+import "package:photos/core/exceptions.dart";
 import "package:photos/gateways/entity/models/data.dart";
 import "package:photos/gateways/entity/models/key.dart";
 import "package:photos/gateways/entity/models/type.dart";
+
+class MalformedEntityResponseException
+    implements Exception, LocallyHandledError {
+  @override
+  String toString() => "MalformedEntityResponseException";
+}
 
 class EntityGateway {
   final Dio _enteDio;
@@ -91,7 +98,17 @@ class EntityGateway {
       },
     );
     final List<EntityData> authEntities = <EntityData>[];
-    final diff = response.data["diff"] as List;
+    final data = response.data;
+    if (data is! Map) {
+      throw MalformedEntityResponseException();
+    }
+    final diff = data["diff"];
+    if (diff == null) {
+      return authEntities;
+    }
+    if (diff is! List) {
+      throw MalformedEntityResponseException();
+    }
     for (var entry in diff) {
       final EntityData entity = EntityData.fromMap(entry);
       authEntities.add(entity);
