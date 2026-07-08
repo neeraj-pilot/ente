@@ -632,6 +632,8 @@ class _SaveOrEditPersonState extends State<SaveOrEditPerson> {
     } catch (e) {
       _logger.severe("Error adding new person", e);
       userAlreadyAssigned = false;
+      if (!mounted) return null;
+      context = this.context;
       await showGenericErrorDialog(context: context, error: e);
       return null;
     }
