@@ -48,10 +48,10 @@ class CollectionPage extends StatelessWidget {
       return const EmptyState();
     }
 
-    final galleryType = getGalleryType(
-      c.collection,
-      Configuration.instance.getUserID()!,
-    );
+    final userID = Configuration.instance.getUserID();
+    final galleryType = userID == null
+        ? GalleryType.sharedCollection
+        : getGalleryType(c.collection, userID);
     final List<EnteFile>? initialFiles = c.thumbnail != null
         ? [c.thumbnail!]
         : null;
