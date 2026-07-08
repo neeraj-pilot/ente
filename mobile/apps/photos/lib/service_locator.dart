@@ -47,6 +47,7 @@ import "package:photos/settings/local_settings.dart";
 import "package:shared_preferences/shared_preferences.dart";
 
 class ServiceLocator {
+  bool _initialized = false;
   late final SharedPreferences prefs;
   late final Dio enteDio;
   late final Dio nonEnteDio;
@@ -68,6 +69,9 @@ class ServiceLocator {
     Dio downloadDio,
     PackageInfo packageInfo,
   ) {
+    if (_initialized) {
+      return;
+    }
     this.prefs = prefs;
     this.enteDio = enteDio;
     this.nonEnteDio = nonEnteDio;
@@ -76,6 +80,7 @@ class ServiceLocator {
     endpointConfig = EndpointConfig(prefs);
     localSettings = LocalSettings(prefs);
     backupSettings = BackupSettings(prefs);
+    _initialized = true;
   }
 }
 
