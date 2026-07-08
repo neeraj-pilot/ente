@@ -1,11 +1,31 @@
 import "package:dio/dio.dart";
 import "package:photos/core/errors.dart";
+import "package:photos/core/exceptions.dart";
 import "package:photos/core/network/endpoint_config.dart";
 import "package:photos/gateways/users/models/key_attributes.dart";
 import "package:photos/gateways/users/models/sessions.dart";
 import "package:photos/gateways/users/models/set_recovery_key_request.dart";
 import "package:photos/gateways/users/models/srp.dart";
 import "package:photos/models/user_details.dart";
+
+class MalformedUsersResponseException
+    implements Exception, LocallyHandledError {
+  final String endpoint;
+  final String expected;
+  final String actualType;
+
+  MalformedUsersResponseException({
+    required this.endpoint,
+    required this.expected,
+    required Object? actual,
+  }) : actualType = actual == null ? "null" : actual.runtimeType.toString();
+
+  @override
+  String toString() {
+    return "MalformedUsersResponseException: expected $expected at "
+        "$endpoint.response, got $actualType";
+  }
+}
 
 /// Gateway for user-related API endpoints.
 ///
@@ -114,7 +134,7 @@ class UsersGateway {
       "/users/details/v2",
       queryParameters: {"memoryCount": memoryCount},
     );
-    return UserDetails.fromMap(response.data);
+    return UserDetails.fromMap(_responseMap(response, "/users/details/v2"));
   }
 
   /// Get all active sessions for the user.
@@ -536,6 +556,36 @@ class UsersGateway {
     await _publicDio.post(
       "$_endpoint/anonymous/feedback",
       data: {"feedback": feedback, "type": type},
+    );
+  }
+
+  Map<String, dynamic> _responseMap(
+    Response<dynamic> response,
+    String endpoint,
+  ) {
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    if (data is Map) {
+      final result = <String, dynamic>{};
+      for (final entry in data.entries) {
+        final key = entry.key;
+        if (key is! String) {
+          throw MalformedUsersResponseException(
+            endpoint: endpoint,
+            expected: "JSON object with string keys",
+            actual: data,
+          );
+        }
+        result[key] = entry.value;
+      }
+      return result;
+    }
+    throw MalformedUsersResponseException(
+      endpoint: endpoint,
+      expected: "JSON object",
+      actual: data,
     );
   }
 }
