@@ -190,7 +190,9 @@ Future<void> changeCoverPhoto(
     );
   } catch (e, s) {
     _logger.severe("failed to update cover", e, s);
-    showShortToast(context, AppLocalizations.of(context).somethingWentWrong);
+    if (context.mounted) {
+      showShortToast(context, AppLocalizations.of(context).somethingWentWrong);
+    }
     rethrow;
   }
 }

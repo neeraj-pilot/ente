@@ -91,6 +91,7 @@ Future<void> share(
       s,
     );
     await dialog.hide();
+    if (!context.mounted) return;
     await showGenericErrorDialog(context: context, error: e);
   }
 }
