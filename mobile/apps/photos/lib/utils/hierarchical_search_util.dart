@@ -62,7 +62,7 @@ Future<List<EnteFile>> getFilteredFiles(
 ) async {
   final logger = Logger("HierarchicalSearchUtil");
   final mlDataDB = MLDataDB.instance;
-  late final List<EnteFile> filteredFiles;
+  List<EnteFile> filteredFiles = [];
   final files = await SearchService.instance.getAllFilesForHierarchicalSearch();
   final resultsNeverComputedFilters = <HierarchicalSearchFilter>[];
   final ignoredCollections = CollectionsService.instance
