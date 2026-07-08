@@ -714,6 +714,10 @@ class FileAppBarState extends State<FileAppBar> {
     final Collection? sharedLinkCollection = await CollectionActions(
       CollectionsService.instance,
     ).createSharedCollectionLink(context, [file]);
+    if (!mounted) {
+      await dialog.hide();
+      return;
+    }
     if (sharedLinkCollection == null) {
       await dialog.hide();
       return;
