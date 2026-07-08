@@ -135,6 +135,7 @@ class _FileDetailsWidgetState extends State<FileDetailsWidget> {
       log("videoCustomProps ${properties.toString()}");
       log("PropData ${properties?.propData.toString()}");
     }
+    if (!mounted) return;
     setState(() {});
   }
 
