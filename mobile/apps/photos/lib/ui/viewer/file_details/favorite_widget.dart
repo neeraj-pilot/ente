@@ -120,10 +120,12 @@ class _FavoriteWidgetState extends State<FavoriteWidget> {
       } catch (e, s) {
         _logger.severe("Failed to add file to favorites", e, s);
         hasError = true;
-        showToast(
-          context,
-          AppLocalizations.of(context).sorryCouldNotAddToFavorites,
-        );
+        if (mounted) {
+          showToast(
+            context,
+            AppLocalizations.of(context).sorryCouldNotAddToFavorites,
+          );
+        }
         _stateMachine?.trigger("Stroke")?.fire();
       }
     } else {
@@ -138,10 +140,12 @@ class _FavoriteWidgetState extends State<FavoriteWidget> {
       } catch (e, s) {
         _logger.severe("Failed to remove file from favorites", e, s);
         hasError = true;
-        showToast(
-          context,
-          AppLocalizations.of(context).sorryCouldNotRemoveFromFavorites,
-        );
+        if (mounted) {
+          showToast(
+            context,
+            AppLocalizations.of(context).sorryCouldNotRemoveFromFavorites,
+          );
+        }
         _stateMachine?.trigger("Filled")?.fire();
       }
     }
