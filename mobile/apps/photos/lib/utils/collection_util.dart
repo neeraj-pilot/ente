@@ -20,7 +20,7 @@ Future<void> requestPermissionToOpenLinksInApp(
       body: AppLocalizations.of(context).allowAppToOpenSharedAlbumLinks,
       firstButtonLabel: AppLocalizations.of(context).allow,
     );
-    if (choice!.action == ButtonAction.first) {
+    if (choice?.action == ButtonAction.first) {
       final AndroidIntent intent;
       if (packageName == 'io.ente.photos.independent') {
         intent = const AndroidIntent(
