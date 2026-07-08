@@ -1804,11 +1804,12 @@ class CollectionsService {
   }
 
   Future<Collection> createAlbum(String albumName) async {
+    final masterKey = _config.getKey();
+    if (masterKey == null) {
+      throw MissingMasterKeyError();
+    }
     final collectionKey = CryptoUtil.generateKey();
-    final encryptedKeyData = CryptoUtil.encryptSync(
-      collectionKey,
-      _config.getKey()!,
-    );
+    final encryptedKeyData = CryptoUtil.encryptSync(collectionKey, masterKey);
     final encryptedName = CryptoUtil.encryptSync(
       utf8.encode(albumName),
       collectionKey,

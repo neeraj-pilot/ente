@@ -50,6 +50,8 @@ class NoActiveSubscriptionError extends Error implements LocallyHandledError {}
 
 class StorageLimitExceededError extends Error implements LocallyHandledError {}
 
+class MissingMasterKeyError extends Error implements LocallyHandledError {}
+
 // error when file size + current usage >= storage plan limit + buffer
 class FileTooLargeForPlanError extends Error {}
 
