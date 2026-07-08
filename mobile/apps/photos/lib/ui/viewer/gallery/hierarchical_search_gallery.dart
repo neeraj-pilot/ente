@@ -107,6 +107,7 @@ class _HierarchicalSearchGalleryState extends State<HierarchicalSearchGallery> {
 
     _isLoading.value = true;
     final filterdFiles = await getFilteredFiles(filters);
+    if (!mounted) return;
 
     _setFilteredFiles(filterdFiles);
     await curateFilters(_searchFilterDataProvider!, filterdFiles, context);
