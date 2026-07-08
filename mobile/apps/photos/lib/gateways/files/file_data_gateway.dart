@@ -1,4 +1,26 @@
 import "package:dio/dio.dart";
+import "package:photos/core/exceptions.dart";
+
+class MalformedFileDataResponseException
+    implements Exception, LocallyHandledError {
+  final String endpoint;
+  final String field;
+  final String expected;
+  final String actualType;
+
+  MalformedFileDataResponseException({
+    required this.endpoint,
+    required this.field,
+    required this.expected,
+    required Object? actual,
+  }) : actualType = actual == null ? "null" : actual.runtimeType.toString();
+
+  @override
+  String toString() {
+    return "MalformedFileDataResponseException: expected $expected at "
+        "$endpoint.$field, got $actualType";
+  }
+}
 
 /// Gateway for file data API endpoints.
 ///
@@ -47,7 +69,7 @@ class FileDataGateway {
       "/files/data/fetch",
       data: {"fileIDs": fileIDs, "type": type},
     );
-    return response.data as Map<String, dynamic>;
+    return _responseMap(response, "/files/data/fetch");
   }
 
   /// Gets the file data status diff since the given timestamp.
@@ -62,7 +84,7 @@ class FileDataGateway {
       "/files/data/status-diff",
       data: {"lastUpdatedAt": lastUpdatedAt},
     );
-    return response.data as Map<String, dynamic>;
+    return _responseMap(response, "/files/data/status-diff");
   }
 
   /// Stores video preview data for a file.
@@ -111,9 +133,14 @@ class FileDataGateway {
       queryParameters: {"fileID": fileID, "type": type},
       cancelToken: cancelToken,
     );
+    final data = _responseMap(response, "/files/data/preview-upload-url");
     return (
-      url: response.data["url"] as String,
-      objectID: response.data["objectID"] as String,
+      url: _stringField(data, "url", "/files/data/preview-upload-url"),
+      objectID: _stringField(
+        data,
+        "objectID",
+        "/files/data/preview-upload-url",
+      ),
     );
   }
 
@@ -128,7 +155,8 @@ class FileDataGateway {
       "/files/data/preview",
       queryParameters: {"fileID": fileID, "type": type},
     );
-    return response.data["url"] as String;
+    final data = _responseMap(response, "/files/data/preview");
+    return _stringField(data, "url", "/files/data/preview");
   }
 
   /// Fetches file data for a single file (for video preview playlist).
@@ -143,9 +171,19 @@ class FileDataGateway {
       "/files/data/fetch/",
       queryParameters: {"fileID": fileID, "type": type},
     );
+    final data = _responseMap(response, "/files/data/fetch/");
+    final fileData = _nestedMap(data, "data", "/files/data/fetch/");
     return (
-      encryptedData: response.data["data"]["encryptedData"] as String,
-      decryptionHeader: response.data["data"]["decryptionHeader"] as String,
+      encryptedData: _stringField(
+        fileData,
+        "encryptedData",
+        "/files/data/fetch/",
+      ),
+      decryptionHeader: _stringField(
+        fileData,
+        "decryptionHeader",
+        "/files/data/fetch/",
+      ),
     );
   }
 
@@ -171,9 +209,23 @@ class FileDataGateway {
       queryParameters: {"fileID": fileID, "type": type},
       options: Options(headers: headers),
     );
+    final data = _responseMap(response, "/public-collection/files/data/fetch/");
+    final fileData = _nestedMap(
+      data,
+      "data",
+      "/public-collection/files/data/fetch/",
+    );
     return (
-      encryptedData: response.data["data"]["encryptedData"] as String,
-      decryptionHeader: response.data["data"]["decryptionHeader"] as String,
+      encryptedData: _stringField(
+        fileData,
+        "encryptedData",
+        "/public-collection/files/data/fetch/",
+      ),
+      decryptionHeader: _stringField(
+        fileData,
+        "decryptionHeader",
+        "/public-collection/files/data/fetch/",
+      ),
     );
   }
 
@@ -198,6 +250,66 @@ class FileDataGateway {
       queryParameters: {"fileID": fileID, "type": type},
       options: Options(headers: headers),
     );
-    return response.data["url"] as String;
+    final data = _responseMap(
+      response,
+      "/public-collection/files/data/preview",
+    );
+    return _stringField(data, "url", "/public-collection/files/data/preview");
+  }
+
+  Map<String, dynamic> _responseMap(
+    Response<dynamic> response,
+    String endpoint,
+  ) {
+    return _mapValue(response.data, endpoint, "response");
+  }
+
+  Map<String, dynamic> _nestedMap(
+    Map<String, dynamic> data,
+    String key,
+    String endpoint,
+  ) {
+    return _mapValue(data[key], endpoint, key);
+  }
+
+  Map<String, dynamic> _mapValue(Object? value, String endpoint, String field) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      final result = <String, dynamic>{};
+      for (final entry in value.entries) {
+        final key = entry.key;
+        if (key is! String) {
+          throw MalformedFileDataResponseException(
+            endpoint: endpoint,
+            field: field,
+            expected: "JSON object with string keys",
+            actual: value,
+          );
+        }
+        result[key] = entry.value;
+      }
+      return result;
+    }
+    throw MalformedFileDataResponseException(
+      endpoint: endpoint,
+      field: field,
+      expected: "JSON object",
+      actual: value,
+    );
+  }
+
+  String _stringField(Map<String, dynamic> data, String key, String endpoint) {
+    final value = data[key];
+    if (value is String) {
+      return value;
+    }
+    throw MalformedFileDataResponseException(
+      endpoint: endpoint,
+      field: key,
+      expected: "string",
+      actual: value,
+    );
   }
 }

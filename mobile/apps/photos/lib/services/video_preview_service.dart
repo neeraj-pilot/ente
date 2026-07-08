@@ -1101,6 +1101,9 @@ class VideoPreviewService {
         e,
         s,
       );
+      if (e is MalformedFileDataResponseException) {
+        return null;
+      }
       rethrow;
     }
   }
