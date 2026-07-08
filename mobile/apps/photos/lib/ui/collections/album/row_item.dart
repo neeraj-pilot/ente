@@ -52,7 +52,8 @@ class AlbumRowItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isOwner = c.isOwner(Configuration.instance.getUserID()!);
+    final userID = Configuration.instance.getUserID();
+    final bool isOwner = userID != null && c.isOwner(userID);
     final String tagPrefix =
         (isOwner ? "collection" : "shared_collection") +
         tag +
