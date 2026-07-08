@@ -102,7 +102,7 @@ class UserService {
       // add artificial delay in refreshing 2FA status
       Future.delayed(
         const Duration(seconds: 5),
-        () => {setTwoFactor(fetchTwoFactorStatus: true).ignore()},
+        () => {fetchTwoFactorStatus(reportFailure: false).ignore()},
       );
     }
   }
@@ -1109,7 +1109,7 @@ class UserService {
     }
   }
 
-  Future<bool> fetchTwoFactorStatus() async {
+  Future<bool> fetchTwoFactorStatus({bool reportFailure = true}) async {
     try {
       final previousStatus = hasEnabledTwoFactor();
       final status = await _gateway.getTwoFactorStatus();
@@ -1118,9 +1118,13 @@ class UserService {
         Bus.instance.fire(UserDetailsChangedEvent());
       }
       return status;
-    } catch (e) {
-      _logger.severe("Failed to fetch 2FA status", e);
-      rethrow;
+    } catch (e, s) {
+      if (reportFailure) {
+        _logger.severe("Failed to fetch 2FA status", e, s);
+        rethrow;
+      }
+      _logger.warning("Failed to refresh 2FA status", e, s);
+      return hasEnabledTwoFactor();
     }
   }
 
