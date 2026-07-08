@@ -40,7 +40,7 @@ class LocalAuthenticationService {
     }
     if (await isLocalAuthSupportedOnDevice() ||
         LockScreenSettings.instance.getIsAppLockSet()) {
-      AppLock.of(context)!.setEnabled(false);
+      AppLock.of(context)?.setEnabled(false);
       bool result = false;
       WindowsLocalAuthenticationException? windowsLocalAuthException;
       LocalAuthenticationUnavailableException? localAuthUnavailableException;
@@ -61,7 +61,7 @@ class LocalAuthenticationService {
       } finally {
         AppLock.of(
           context,
-        )!.setEnabled(await LockScreenSettings.instance.shouldShowLockScreen());
+        )?.setEnabled(await LockScreenSettings.instance.shouldShowLockScreen());
         if (refocusWindows) {
           await PlatformUtil.refocusWindows();
         }
