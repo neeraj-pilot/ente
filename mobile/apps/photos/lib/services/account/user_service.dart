@@ -278,7 +278,9 @@ class UserService {
     try {
       await _gateway.logout();
       await Configuration.instance.logout();
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      if (context.mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     } catch (e) {
       // Determine if we should silently ignore the error and proceed with logout
       final bool silentlyIgnoreError =
@@ -308,10 +310,12 @@ class UserService {
       _logger.severe("Failed to logout", e);
       //This future is for waiting for the dialog from which logout() is called
       //to close and only then to show the error dialog.
-      Future.delayed(
-        const Duration(milliseconds: 150),
-        () => showGenericErrorBottomSheet(context: context, error: null),
-      );
+      if (!context.mounted) return;
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (context.mounted) {
+          showGenericErrorBottomSheet(context: context, error: null);
+        }
+      });
     }
   }
 
