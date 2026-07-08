@@ -31,7 +31,7 @@ class SyncService {
   final _uploader = FileUploader.instance;
   bool _syncStopRequested = false;
   Completer<bool>? _existingSync;
-  late SharedPreferences _prefs;
+  SharedPreferences? _prefs;
   SyncStatusUpdate? _lastSyncStatusEvent;
 
   static const kLastStorageLimitExceededNotificationPushTime =
@@ -252,11 +252,16 @@ class SyncService {
   }
 
   void _showStorageLimitExceededNotification() async {
+    final prefs = _prefs;
+    if (prefs == null) {
+      _logger.warning("Skipping storage limit notification before sync init");
+      return;
+    }
     final lastNotificationShownTime =
-        _prefs.getInt(kLastStorageLimitExceededNotificationPushTime) ?? 0;
+        prefs.getInt(kLastStorageLimitExceededNotificationPushTime) ?? 0;
     final now = DateTime.now().microsecondsSinceEpoch;
     if ((now - lastNotificationShownTime) > microSecondsInDay) {
-      await _prefs.setInt(kLastStorageLimitExceededNotificationPushTime, now);
+      await prefs.setInt(kLastStorageLimitExceededNotificationPushTime, now);
       final s = await LanguageService.locals;
       // ignore: unawaited_futures
       NotificationService.instance.showNotification(
