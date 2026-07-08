@@ -258,6 +258,7 @@ class _FileInfoFaceWidgetState extends State<FileInfoFaceWidget> {
             )
             .toList();
       }
+      if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => ClusterPage(
@@ -277,6 +278,7 @@ class _FileInfoFaceWidgetState extends State<FileInfoFaceWidget> {
       // assigning a manual new clusterID so that the user can cluster it manually
       final String clusterID = newClusterID();
       await mlDataDB.updateFaceIdToClusterId({widget.face.faceID: clusterID});
+      if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) =>
@@ -286,6 +288,7 @@ class _FileInfoFaceWidgetState extends State<FileInfoFaceWidget> {
       return;
     }
 
+    if (!mounted) return;
     showShortToast(context, AppLocalizations.of(context).faceNotClusteredYet);
     unawaited(MLService.instance.clusterAllImages(force: true));
     return;
@@ -298,6 +301,7 @@ class _FileInfoFaceWidgetState extends State<FileInfoFaceWidget> {
             faceID: widget.face.faceID,
             clusterID: widget.clusterID,
           );
+      if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => SaveOrEditPerson(
