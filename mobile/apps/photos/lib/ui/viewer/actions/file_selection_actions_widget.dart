@@ -1144,6 +1144,7 @@ class _FileSelectionActionsWidgetState
           addedToQueueCount = enqueueResult.addedCount;
         } catch (e) {
           _logger.warning("Failed to enqueue files for download", e);
+          if (!mounted) return;
           await showGenericErrorDialog(context: context, error: e);
           return;
         }
@@ -1197,6 +1198,7 @@ class _FileSelectionActionsWidgetState
       }
     }
 
+    if (!mounted) return;
     if (skippedFilesCount > 0) {
       String finalMessage;
       if (skippedFilesCount == 1) {
