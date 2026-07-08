@@ -336,7 +336,7 @@ class FFProbeProps {
     if (value == null) return null;
     final int? t = int.tryParse(value.split('/')[0]);
     final int? b = int.tryParse(value.split('/')[1]);
-    if (t != null && b != null) {
+    if (t != null && b != null && b != 0) {
       // return the value upto 2 decimal places. ignore even two decimal places
       // if t is perfectly divisible by b
       return (t % b == 0)
