@@ -202,7 +202,21 @@ class MemoryShareService {
   Future<List<MemoryShare>> listMemoryShares() async {
     try {
       final response = await _enteDio.get('/memory-share');
-      final List<dynamic> shares = response.data['memoryShares'] ?? [];
+      final data = response.data;
+      if (data is! Map) {
+        _logger.warning(
+          "Ignoring malformed memory-share list response: ${data.runtimeType}",
+        );
+        return _db.getAll();
+      }
+      final rawShares = data['memoryShares'];
+      if (rawShares != null && rawShares is! List<dynamic>) {
+        _logger.warning(
+          "Ignoring malformed memoryShares list: ${rawShares.runtimeType}",
+        );
+        return _db.getAll();
+      }
+      final List<dynamic> shares = rawShares ?? [];
       final localSharesByID = {
         for (final share in await _db.getAll()) share.id: share,
       };
