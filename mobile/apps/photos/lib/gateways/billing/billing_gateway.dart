@@ -1,7 +1,27 @@
 import "package:dio/dio.dart";
 import "package:photos/core/errors.dart";
+import "package:photos/core/exceptions.dart";
 import "package:photos/gateways/billing/models/billing_plan.dart";
 import "package:photos/gateways/billing/models/subscription.dart";
+
+class MalformedBillingResponseException
+    implements Exception, LocallyHandledError {
+  final String endpoint;
+  final String expected;
+  final String actualType;
+
+  MalformedBillingResponseException({
+    required this.endpoint,
+    required this.expected,
+    required Object? actual,
+  }) : actualType = actual == null ? "null" : actual.runtimeType.toString();
+
+  @override
+  String toString() {
+    return "MalformedBillingResponseException: expected $expected at "
+        "$endpoint.response, got $actualType";
+  }
+}
 
 /// Gateway for billing API endpoints.
 ///
@@ -16,7 +36,7 @@ class BillingGateway {
   /// Returns [BillingPlans] containing all available subscription plans.
   Future<BillingPlans> getUserPlans() async {
     final response = await _enteDio.get("/billing/user-plans/");
-    return BillingPlans.fromMap(response.data);
+    return BillingPlans.fromMap(_responseMap(response, "/billing/user-plans/"));
   }
 
   /// Verifies an in-app purchase subscription.
@@ -97,5 +117,35 @@ class BillingGateway {
       queryParameters: {"redirectURL": redirectURL},
     );
     return response.data["url"] as String;
+  }
+
+  Map<String, dynamic> _responseMap(
+    Response<dynamic> response,
+    String endpoint,
+  ) {
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    if (data is Map) {
+      final result = <String, dynamic>{};
+      for (final entry in data.entries) {
+        final key = entry.key;
+        if (key is! String) {
+          throw MalformedBillingResponseException(
+            endpoint: endpoint,
+            expected: "JSON object with string keys",
+            actual: data,
+          );
+        }
+        result[key] = entry.value;
+      }
+      return result;
+    }
+    throw MalformedBillingResponseException(
+      endpoint: endpoint,
+      expected: "JSON object",
+      actual: data,
+    );
   }
 }
