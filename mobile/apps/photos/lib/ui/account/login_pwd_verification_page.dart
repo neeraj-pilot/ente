@@ -248,7 +248,7 @@ class _LoginPasswordVerificationPageState
       firstButtonLabel: AppLocalizations.of(context).contactSupport,
       secondButtonLabel: AppLocalizations.of(context).ok,
     );
-    if (dialogChoice!.action == ButtonAction.first) {
+    if (dialogChoice?.action == ButtonAction.first && context.mounted) {
       await sendLogs(
         context,
         AppLocalizations.of(context).contactSupport,

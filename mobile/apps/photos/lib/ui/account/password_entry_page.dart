@@ -419,6 +419,7 @@ class _PasswordEntryPageState extends State<PasswordEntryPage> {
     } catch (e) {
       _logger.severe(e);
       await dialog.hide();
+      if (!mounted) return;
       if (e is UnsupportedError) {
         // ignore: unawaited_futures
         showAlertBottomSheet(
