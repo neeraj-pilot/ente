@@ -153,6 +153,9 @@ class _MapScreenState extends State<MapScreen> {
     _mapMoveSubscription = receivePort.listen((dynamic message) async {
       if (message is List<EnteFile>) {
         if (!message.equals(prevMessage ?? [])) {
+          if (visibleImages.isClosed) {
+            return;
+          }
           visibleImages.sink.add(message);
         }
 

@@ -290,7 +290,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
               {
                 if (d.delta.dy > dragSensitivity)
                   {
-                    {Navigator.of(context).pop()},
+                    {unawaited(Navigator.maybePop(context))},
                   }
                 else if (d.delta.dy < (dragSensitivity * -1))
                   {showDetailsSheet(context, widget.photo)},
