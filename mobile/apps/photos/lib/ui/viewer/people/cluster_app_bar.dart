@@ -242,6 +242,10 @@ class _AppBarWidgetState extends State<ClusterAppBar> {
               biggestClusterID = clusterToFaces.key;
             }
           }
+          if (biggestClusterID.isEmpty) {
+            _logger.warning("Breakup cluster returned no non-empty clusters");
+            return;
+          }
           // Get the files for the biggest new cluster
           final biggestClusterFileIDs = newClusterIDToFaceIDs[biggestClusterID]!
               .map((e) => getFileIdFromFaceId<int>(e))
@@ -251,7 +255,7 @@ class _AppBarWidgetState extends State<ClusterAppBar> {
               .then((mapping) => mapping.values.toList());
           // Sort the files to prevent issues with the order of the files in gallery
           biggestClusterFiles.sort(
-            (a, b) => b.creationTime!.compareTo(a.creationTime!),
+            (a, b) => (b.creationTime ?? 0).compareTo(a.creationTime ?? 0),
           );
 
           userConfirmed = true;
