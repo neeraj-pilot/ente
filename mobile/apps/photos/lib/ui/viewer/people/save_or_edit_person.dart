@@ -618,8 +618,12 @@ class _SaveOrEditPersonState extends State<SaveOrEditPerson> {
       );
       final bool extraPhotosFound = await ClusterFeedbackService.instance
           .checkAndDoAutomaticMerges(personEntity, personClusterID: clusterID);
-      if (extraPhotosFound) {
-        showShortToast(context, AppLocalizations.of(context).extraPhotosFound);
+      if (extraPhotosFound && mounted) {
+        final stateContext = this.context;
+        showShortToast(
+          stateContext,
+          AppLocalizations.of(stateContext).extraPhotosFound,
+        );
       }
       Bus.instance.fire(
         PeopleChangedEvent(
