@@ -1,6 +1,28 @@
 import "package:dio/dio.dart";
+import "package:photos/core/exceptions.dart";
 import "package:photos/gateways/collections/models/create_request.dart";
 import "package:photos/gateways/collections/models/metadata.dart";
+
+class MalformedCollectionsResponseException
+    implements Exception, LocallyHandledError {
+  final String endpoint;
+  final String field;
+  final String expected;
+  final String actualType;
+
+  MalformedCollectionsResponseException({
+    required this.endpoint,
+    required this.field,
+    required this.expected,
+    required Object? actual,
+  }) : actualType = actual == null ? "null" : actual.runtimeType.toString();
+
+  @override
+  String toString() {
+    return "MalformedCollectionsResponseException: expected $expected at "
+        "$endpoint.$field, got $actualType";
+  }
+}
 
 /// Gateway for collection CRUD and metadata API endpoints.
 ///
@@ -23,7 +45,8 @@ class CollectionsGateway {
       "/collections",
       data: createRequest.toJson(),
     );
-    return response.data["collection"];
+    final data = _responseMap(response, "/collections");
+    return _mapField(data, "collection", "/collections");
   }
 
   /// Gets a collection by its ID.
@@ -33,7 +56,8 @@ class CollectionsGateway {
   /// Returns the raw collection data from the API response.
   Future<Map<String, dynamic>> getCollection(int collectionID) async {
     final response = await _enteDio.get("/collections/$collectionID");
-    return response.data["collection"];
+    final data = _responseMap(response, "/collections/$collectionID");
+    return _mapField(data, "collection", "/collections/$collectionID");
   }
 
   /// Deletes a collection.
@@ -90,7 +114,7 @@ class CollectionsGateway {
       "/collections/v2/diff",
       queryParameters: {"collectionID": collectionID, "sinceTime": sinceTime},
     );
-    return response.data;
+    return _responseMap(response, "/collections/v2/diff");
   }
 
   /// Updates the private magic metadata of a collection.
@@ -155,7 +179,7 @@ class CollectionsGateway {
       "/collections/v2",
       queryParameters: {"sinceTime": sinceTime, "source": source},
     );
-    return response.data;
+    return _responseMap(response, "/collections/v2");
   }
 
   /// Fetches pending removal actions for collections.
@@ -163,7 +187,7 @@ class CollectionsGateway {
   /// Returns the raw response data containing pending actions.
   Future<Map<String, dynamic>> fetchPendingRemovalActions() async {
     final response = await _enteDio.get("/collection-actions/pending-remove");
-    return response.data;
+    return _responseMap(response, "/collection-actions/pending-remove");
   }
 
   /// Fetches delete suggestion actions for collections.
@@ -173,7 +197,7 @@ class CollectionsGateway {
     final response = await _enteDio.get(
       "/collection-actions/delete-suggestions",
     );
-    return response.data;
+    return _responseMap(response, "/collection-actions/delete-suggestions");
   }
 
   /// Rejects delete suggestions for specified files.
@@ -183,6 +207,49 @@ class CollectionsGateway {
     await _enteDio.post(
       "/collection-actions/reject-delete-suggestions",
       data: {"fileIDs": fileIDs},
+    );
+  }
+
+  Map<String, dynamic> _responseMap(
+    Response<dynamic> response,
+    String endpoint,
+  ) {
+    return _mapValue(response.data, endpoint, "response");
+  }
+
+  Map<String, dynamic> _mapField(
+    Map<String, dynamic> data,
+    String key,
+    String endpoint,
+  ) {
+    return _mapValue(data[key], endpoint, key);
+  }
+
+  Map<String, dynamic> _mapValue(Object? value, String endpoint, String field) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      final result = <String, dynamic>{};
+      for (final entry in value.entries) {
+        final key = entry.key;
+        if (key is! String) {
+          throw MalformedCollectionsResponseException(
+            endpoint: endpoint,
+            field: field,
+            expected: "JSON object with string keys",
+            actual: value,
+          );
+        }
+        result[key] = entry.value;
+      }
+      return result;
+    }
+    throw MalformedCollectionsResponseException(
+      endpoint: endpoint,
+      field: field,
+      expected: "JSON object",
+      actual: value,
     );
   }
 }
