@@ -341,16 +341,10 @@ GPSData gpsDataFromExif(Map<String, IfdTag> exif) {
     "longRef": null,
   };
   if (exif["GPS GPSLatitude"] != null) {
-    exifLocationData["lat"] = exif["GPS GPSLatitude"]!.values
-        .toList()
-        .map((e) => ((e as Ratio).numerator / e.denominator))
-        .toList();
+    exifLocationData["lat"] = _gpsCoordinateParts(exif["GPS GPSLatitude"]!);
   }
   if (exif["GPS GPSLongitude"] != null) {
-    exifLocationData["long"] = exif["GPS GPSLongitude"]!.values
-        .toList()
-        .map((e) => ((e as Ratio).numerator / e.denominator))
-        .toList();
+    exifLocationData["long"] = _gpsCoordinateParts(exif["GPS GPSLongitude"]!);
   }
   if (exif["GPS GPSLatitudeRef"] != null) {
     exifLocationData["latRef"] = exif["GPS GPSLatitudeRef"].toString();
@@ -364,4 +358,15 @@ GPSData gpsDataFromExif(Map<String, IfdTag> exif) {
     exifLocationData["longRef"],
     exifLocationData["long"],
   );
+}
+
+List<double> _gpsCoordinateParts(IfdTag tag) {
+  return tag.values.toList().map(_gpsCoordinatePart).toList();
+}
+
+double _gpsCoordinatePart(dynamic value) {
+  if (value is Ratio) {
+    return value.numerator / value.denominator;
+  }
+  return (value as num).toDouble();
 }

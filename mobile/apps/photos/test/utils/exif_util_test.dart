@@ -1,3 +1,4 @@
+import "package:exif_reader/exif_reader.dart";
 import "package:photos/utils/exif_util.dart";
 import "package:test/test.dart";
 
@@ -213,4 +214,25 @@ void main() {
       );
     });
   });
+
+  group("gpsDataFromExif", () {
+    test("parses integer GPS coordinate parts", () {
+      final gpsData = gpsDataFromExif({
+        "GPS GPSLatitude": _ifdTag(const IfdInts([40, 26, 46])),
+        "GPS GPSLatitudeRef": _ifdTag(const IfdInts([0]), printable: "N"),
+        "GPS GPSLongitude": _ifdTag(const IfdInts([79, 58, 56])),
+        "GPS GPSLongitudeRef": _ifdTag(const IfdInts([0]), printable: "W"),
+      });
+
+      final location = gpsData.toLocationObj();
+
+      expect(location, isNotNull);
+      expect(location!.latitude, closeTo(40.446111, 0.000001));
+      expect(location.longitude, closeTo(-79.982222, 0.000001));
+    });
+  });
+}
+
+IfdTag _ifdTag(IfdValues values, {String printable = ""}) {
+  return IfdTag(tag: 0, tagType: "", printable: printable, values: values);
 }
