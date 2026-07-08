@@ -23,11 +23,11 @@ class EnteWakeLockService {
   static final EnteWakeLockService instance =
       EnteWakeLockService._privateConstructor();
 
-  late SharedPreferences _prefs;
+  SharedPreferences? _prefs;
 
   void init(SharedPreferences prefs) {
     _prefs = prefs;
-    if (_prefs.getBool(kKeepAppAwakeAcrossSessions) ?? false) {
+    if (_prefs?.getBool(kKeepAppAwakeAcrossSessions) ?? false) {
       WakelockPlus.enable();
     }
   }
@@ -39,7 +39,7 @@ class EnteWakeLockService {
     if (wakeLockFor == WakeLockFor.fasterBackupsOniOSByKeepingScreenAwake ||
         wakeLockFor == WakeLockFor.handlingMediaKitEdgeCase) {
       WakelockPlus.toggle(enable: enable);
-      _prefs.setBool(kKeepAppAwakeAcrossSessions, enable);
+      _prefs?.setBool(kKeepAppAwakeAcrossSessions, enable);
     } else {
       if (!shouldKeepAppAwakeAcrossSessions) {
         WakelockPlus.toggle(enable: enable);
@@ -48,5 +48,5 @@ class EnteWakeLockService {
   }
 
   bool get shouldKeepAppAwakeAcrossSessions =>
-      _prefs.getBool(kKeepAppAwakeAcrossSessions) ?? false;
+      _prefs?.getBool(kKeepAppAwakeAcrossSessions) ?? false;
 }
