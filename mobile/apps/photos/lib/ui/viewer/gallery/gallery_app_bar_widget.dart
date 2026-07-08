@@ -1029,6 +1029,7 @@ class _GalleryAppBarWidgetState extends State<GalleryAppBarWidget> {
       widget.collection!,
       useCache: false,
     );
+    if (!mounted) return;
     final bool isEmptyCollection = count == 0;
     if (isEmptyCollection) {
       final dialog = createProgressDialog(
@@ -1041,10 +1042,12 @@ class _GalleryAppBarWidgetState extends State<GalleryAppBarWidget> {
           widget.collection!,
         );
         await dialog.hide();
+        if (!mounted) return;
         Navigator.of(context).pop();
       } catch (e, s) {
         _logger.warning("failed to trash collection", e, s);
         await dialog.hide();
+        if (!mounted) return;
         await showGenericErrorDialog(context: context, error: e);
       }
     } else {
@@ -1052,6 +1055,7 @@ class _GalleryAppBarWidgetState extends State<GalleryAppBarWidget> {
         context,
         widget.collection!,
       );
+      if (!mounted) return;
       if (result == true) {
         Navigator.of(context).pop();
       } else {
