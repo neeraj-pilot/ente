@@ -75,6 +75,7 @@ class CollectionsService {
   final _localPathToCollectionID = <String, int>{};
   final _collectionIDToCollections = <int, Collection>{};
   final _cachedKeys = <int, Uint8List>{};
+  final _collectionKeyRepairInProgress = <int>{};
   final _cachedUserIdToUser = <int, User>{};
   Collection? cachedDefaultHiddenCollection;
   Future<Map<int, int>>? _collectionIDToNewestFileTime;
@@ -1132,6 +1133,10 @@ class CollectionsService {
         // would become inaccessible to the new Developer Account
         throw Exception("key can not be null");
       }
+      if (collection.keyDecryptionNonce == null) {
+        _repairCollectionWithMissingKey(collection.id);
+        throw MissingCollectionKeyError(collection.id);
+      }
       collectionKey = CryptoUtil.decryptSync(
         encryptedKey,
         _config.getKey()!,
@@ -1147,6 +1152,26 @@ class CollectionsService {
     }
     _cachedKeys[collection.id] = collectionKey;
     return collectionKey;
+  }
+
+  void _repairCollectionWithMissingKey(int collectionID) {
+    if (!_collectionKeyRepairInProgress.add(collectionID)) {
+      return;
+    }
+    unawaited(_repairCollectionWithMissingKeyAsync(collectionID));
+  }
+
+  Future<void> _repairCollectionWithMissingKeyAsync(int collectionID) async {
+    try {
+      await _fetchAndCacheCollectionByID(collectionID);
+      _logger.info("Repaired missing collection key nonce for $collectionID");
+    } catch (e) {
+      _logger.warning(
+        "Failed to repair missing collection key nonce for $collectionID: $e",
+      );
+    } finally {
+      _collectionKeyRepairInProgress.remove(collectionID);
+    }
   }
 
   Future<void> rename(Collection collection, String newName) async {
@@ -1829,13 +1854,7 @@ class CollectionsService {
   Future<Collection> fetchCollectionByID(int collectionID) async {
     try {
       _logger.info('fetching collectionByID $collectionID');
-      final collectionData = await collectionsGateway.getCollection(
-        collectionID,
-      );
-      final collection = await _fromRemoteCollection(collectionData);
-      await _db.insert(List.from([collection]));
-      _cacheLocalPathAndCollection(collection);
-      return collection;
+      return await _fetchAndCacheCollectionByID(collectionID);
     } catch (e) {
       if (e is DioException && e.response?.statusCode == 401) {
         throw UnauthorizedError();
@@ -1843,6 +1862,14 @@ class CollectionsService {
       _logger.severe('failed to fetch collection: $collectionID', e);
       rethrow;
     }
+  }
+
+  Future<Collection> _fetchAndCacheCollectionByID(int collectionID) async {
+    final collectionData = await collectionsGateway.getCollection(collectionID);
+    final collection = await _fromRemoteCollection(collectionData);
+    await _db.insert(List.from([collection]));
+    _cacheLocalPathAndCollection(collection);
+    return collection;
   }
 
   Future<Collection> getOrCreateForPath(String path) async {

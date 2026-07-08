@@ -86,6 +86,15 @@ class InvalidStateError extends AssertionError {
   InvalidStateError(String super.message);
 }
 
+class MissingCollectionKeyError implements Exception, LocallyHandledError {
+  final int collectionID;
+
+  MissingCollectionKeyError(this.collectionID);
+
+  @override
+  String toString() => "MissingCollectionKeyError: $collectionID";
+}
+
 class SrpSetupNotCompleteError extends Error {}
 
 class SharingNotPermittedForFreeAccountsError extends Error {}
