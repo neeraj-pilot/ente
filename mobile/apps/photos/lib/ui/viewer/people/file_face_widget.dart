@@ -142,13 +142,14 @@ class _FileFaceWidgetState extends State<FileFaceWidget> {
             clusterID: widget.clusterID,
           );
       if (faceToUse == null) {
-        _logger.severe(
+        _logger.warning(
           "Cannot find face to crop, widget.face: ${widget.face}, clusterID: ${widget.clusterID}",
         );
+        return null;
       }
       final cropMap = await getCachedFaceCrops(
         widget.file,
-        [faceToUse!],
+        [faceToUse],
         useFullFile: widget.useFullFile,
         useTempCache: true,
       );
