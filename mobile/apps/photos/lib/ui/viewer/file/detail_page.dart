@@ -399,9 +399,10 @@ class _BodyState extends State<_Body> {
           },
           playbackCallback: (shouldEnable, reason) {
             Future.delayed(Duration.zero, () {
-              InheritedDetailPageState.of(
+              if (!context.mounted) return;
+              InheritedDetailPageState.maybeOf(
                 context,
-              ).requestFullScreen(shouldEnable: shouldEnable, reason: reason);
+              )?.requestFullScreen(shouldEnable: shouldEnable, reason: reason);
             });
           },
           backgroundDecoration: const BoxDecoration(color: Colors.black),
