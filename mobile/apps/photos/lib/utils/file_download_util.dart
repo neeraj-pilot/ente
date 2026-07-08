@@ -73,6 +73,17 @@ String _getGallerySaveTitle(EnteFile file, String fallbackPath) {
   return file_path.basename(fallbackPath);
 }
 
+String _sanitizeAndroidVideoGalleryTitle(String title) {
+  final fragmentIndex = title.lastIndexOf("#");
+  if (!Platform.isAndroid ||
+      fragmentIndex < 0 ||
+      title.lastIndexOf(".") <= fragmentIndex) {
+    return title;
+  }
+  // Android's MIME guesser treats # as a URL fragment delimiter.
+  return title.replaceAll("#", "_");
+}
+
 Future<String?> getExistingLocalFolderNameForDownloadSkipToast(
   EnteFile file,
 ) async {
@@ -361,7 +372,11 @@ Future<void> downloadToGallery(
     if (fileToSave == null) {
       throw DownloadFailedError("Unable to fetch file for gallery download");
     }
-    final galleryTitle = _getGallerySaveTitle(file, fileToSave.path);
+    final galleryTitle = type == FileType.video
+        ? _sanitizeAndroidVideoGalleryTitle(
+            _getGallerySaveTitle(file, fileToSave.path),
+          )
+        : _getGallerySaveTitle(file, fileToSave.path);
     // We use a lock to prevent synchronisation to occur while it is downloading
     // as this introduces wrong entry in FilesDB due to race condition
     // This is a fix for https://github.com/ente/ente/issues/4296
