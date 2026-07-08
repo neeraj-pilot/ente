@@ -119,7 +119,7 @@ class _PasswordReentryPageState extends State<PasswordReentryPage> {
         body: AppLocalizations.of(context).recreatePasswordBody,
         firstButtonLabel: AppLocalizations.of(context).useRecoveryKey,
       );
-      if (dialogChoice!.action == ButtonAction.first) {
+      if (dialogChoice?.action == ButtonAction.first) {
         // ignore: unawaited_futures
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -140,7 +140,7 @@ class _PasswordReentryPageState extends State<PasswordReentryPage> {
         firstButtonLabel: AppLocalizations.of(context).contactSupport,
         secondButtonLabel: AppLocalizations.of(context).ok,
       );
-      if (dialogChoice!.action == ButtonAction.first) {
+      if (dialogChoice?.action == ButtonAction.first) {
         await sendLogs(
           context,
           AppLocalizations.of(context).contactSupport,
