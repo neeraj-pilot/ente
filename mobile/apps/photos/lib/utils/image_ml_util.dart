@@ -1,5 +1,5 @@
 import "dart:async";
-import "dart:io" show File, Platform;
+import "dart:io" show File, PathNotFoundException, Platform;
 import "dart:math" show exp, max, min, pi;
 import "dart:typed_data" show Float32List, Uint8List;
 import "dart:ui";
@@ -152,7 +152,13 @@ Map<String, IfdTag> _normalizeExifResult(dynamic result) {
 Future<Uint8List?> createSafeJpegDecodeFallbackBytes({
   required String imagePath,
 }) async {
-  final imageData = await File(imagePath).readAsBytes();
+  final Uint8List imageData;
+  try {
+    imageData = await File(imagePath).readAsBytes();
+  } on PathNotFoundException {
+    _logger.info("Skipping JPEG fallback for missing image $imagePath");
+    return null;
+  }
   return createSafeJpegDecodeFallbackBytesFromData(imageData);
 }
 
