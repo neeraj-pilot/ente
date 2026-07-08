@@ -320,6 +320,8 @@ class _AlbumVerticalListWidgetState extends State<AlbumVerticalListWidget> {
         popnavAfterSubmission: true,
       );
       if (result is Exception) {
+        if (!mounted) return;
+        context = this.context;
         await showGenericErrorDialog(context: context, error: result);
         _logger.severe("Failed to name album", result);
       }
@@ -392,6 +394,8 @@ class _AlbumVerticalListWidgetState extends State<AlbumVerticalListWidget> {
     Collection item,
   ) async {
     if (await _runCollectionAction(context, item)) {
+      if (!mounted) return;
+      context = this.context;
       late final String toastMessage;
       bool shouldNavigateToCollection = false;
       bool hasVerifiedLock = false;
