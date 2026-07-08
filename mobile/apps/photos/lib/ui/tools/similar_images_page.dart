@@ -978,7 +978,9 @@ class _SimilarImagesPageState extends State<SimilarImagesPage>
             );
           } catch (e, s) {
             _logger.severe("Failed to delete files", e, s);
-            await showGenericErrorDialog(context: context, error: e);
+            if (mounted) {
+              await showGenericErrorDialog(context: context, error: e);
+            }
           }
         },
       );
