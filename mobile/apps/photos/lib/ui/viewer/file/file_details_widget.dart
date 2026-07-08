@@ -8,7 +8,6 @@ import "package:flutter/material.dart";
 import "package:logging/logging.dart";
 import "package:photos/core/configuration.dart";
 import "package:photos/core/event_bus.dart";
-import "package:photos/core/user_config.dart";
 import "package:photos/events/people_changed_event.dart";
 import "package:photos/generated/l10n.dart";
 import "package:photos/models/ffmpeg/ffprobe_props.dart";
@@ -78,7 +77,7 @@ class _FileDetailsWidgetState extends State<FileDetailsWidget> {
   @override
   void initState() {
     debugPrint('file_details_sheet initState');
-    _currentUserID = Configuration.instance.getUserIDV2();
+    _currentUserID = Configuration.instance.getUserID() ?? -1;
     hasLocationData.value = widget.file.hasLocation;
     _isImage =
         widget.file.fileType == FileType.image ||
