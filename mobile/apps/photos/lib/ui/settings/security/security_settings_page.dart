@@ -227,7 +227,7 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
           context,
           AppLocalizations.of(context).authToViewPasskey,
         );
-    if (hasAuthenticated) {
+    if (hasAuthenticated && mounted && context.mounted) {
       await _handlePasskeyClick(context);
     }
   }
@@ -236,9 +236,10 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
     try {
       final isPassKeyResetEnabled = await PasskeyService.instance
           .isPasskeyRecoveryEnabled();
+      if (!mounted || !buildContext.mounted) return;
       if (!isPassKeyResetEnabled) {
         final Uint8List recoveryKey = await UserService.instance
-            .getOrCreateRecoveryKey(context);
+            .getOrCreateRecoveryKey(buildContext);
         final resetKey = CryptoUtil.generateKey();
         final resetKeyBase64 = CryptoUtil.bin2base64(resetKey);
         final encryptionResult = CryptoUtil.encryptSync(resetKey, recoveryKey);
@@ -248,10 +249,13 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
           CryptoUtil.bin2base64(encryptionResult.nonce!),
         );
       }
+      if (!mounted || !buildContext.mounted) return;
       PasskeyService.instance.openPasskeyPage(buildContext).ignore();
     } catch (e, s) {
       _logger.severe("failed to open passkey page", e, s);
-      await showGenericErrorDialog(context: context, error: e);
+      if (buildContext.mounted) {
+        await showGenericErrorDialog(context: buildContext, error: e);
+      }
     }
   }
 
