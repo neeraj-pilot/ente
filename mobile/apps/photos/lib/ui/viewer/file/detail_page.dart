@@ -463,6 +463,7 @@ class _BodyState extends State<_Body> {
   }
 
   Future<void> _onFileRemoved(EnteFile file) async {
+    if (!mounted || _files == null) return;
     final totalFiles = _files!.length;
     if (totalFiles == 1) {
       // Deleted the only file
