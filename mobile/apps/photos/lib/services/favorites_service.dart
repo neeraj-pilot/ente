@@ -211,17 +211,14 @@ class FavoritesService {
         file,
         favCollection.id,
       );
-      if (favFile == null) {
-        throw StateError(
-          "Failed to resolve favorites entry for file ${file.uploadedFileID}",
+      if (favFile != null) {
+        await _collectionActions.moveFilesFromCurrentCollection(
+          context,
+          favCollection,
+          [favFile],
         );
+        file = favFile;
       }
-      await _collectionActions.moveFilesFromCurrentCollection(
-        context,
-        favCollection,
-        [favFile],
-      );
-      file = favFile;
     }
     _updateFavoriteFilesCache([file], favFlag: false);
     Bus.instance.fire(
