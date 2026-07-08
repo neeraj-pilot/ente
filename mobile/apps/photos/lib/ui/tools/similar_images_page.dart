@@ -905,7 +905,7 @@ class _SimilarImagesPageState extends State<SimilarImagesPage>
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
-              Text(formatBytes(file.fileSize!), style: textTheme.miniMuted),
+              Text(formatBytes(file.fileSize ?? 0), style: textTheme.miniMuted),
               const SizedBox(height: 16),
             ],
           ),
