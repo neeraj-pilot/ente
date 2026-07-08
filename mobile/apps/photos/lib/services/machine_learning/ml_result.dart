@@ -185,12 +185,11 @@ T getFileIdFromFaceId<T extends Object>(String faceId) {
 }
 
 int? tryGetFileIdFromFaceId(String faceId) {
-  try {
-    return int.tryParse(faceId.substring(0, faceId.indexOf('_')));
-  } catch (e, s) {
-    Logger("FaceID").severe("Error parsing faceId: $faceId", e, s);
+  final separatorIndex = faceId.indexOf('_');
+  if (separatorIndex <= 0) {
     return null;
   }
+  return int.tryParse(faceId.substring(0, separatorIndex));
 }
 
 class PetFaceResult {

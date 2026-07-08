@@ -293,6 +293,10 @@ class _PersonFaceWidgetState extends State<PersonFaceWidget>
         final hiddenFileIDs = await SearchService.instance
             .getHiddenFiles()
             .then((onValue) => onValue.map((e) => e.uploadedFileID));
+        if (fixedFaceID != null &&
+            tryGetFileIdFromFaceId(fixedFaceID) == null) {
+          fixedFaceID = null;
+        }
         if (fixedFaceID != null) {
           final fileID = getFileIdFromFaceId<int>(fixedFaceID);
           final fileInDB = await FilesDB.instance.getAnyUploadedFile(fileID);
