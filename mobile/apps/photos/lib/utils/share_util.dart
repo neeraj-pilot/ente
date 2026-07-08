@@ -98,7 +98,6 @@ Future<void> share(
 /// Returns the rect of button if context and key are not null
 /// If key is null, returned rect will be at the center of the screen
 Rect shareButtonRect(BuildContext context, GlobalKey? shareButtonKey) {
-  Size size = MediaQuery.sizeOf(context);
   final RenderObject? renderObject = shareButtonKey?.currentContext
       ?.findRenderObject();
   RenderBox? renderBox;
@@ -106,9 +105,10 @@ Rect shareButtonRect(BuildContext context, GlobalKey? shareButtonKey) {
     renderBox = renderObject;
   }
   if (renderBox == null) {
+    final size = MediaQuery.maybeOf(context)?.size ?? const Size(1, 1);
     return Rect.fromLTWH(0, 0, size.width, size.height / 2);
   }
-  size = renderBox.size;
+  final size = renderBox.size;
   final Offset position = renderBox.localToGlobal(Offset.zero);
   return Rect.fromCenter(
     center: position + Offset(size.width / 2, size.height / 2),
