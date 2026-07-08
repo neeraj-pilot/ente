@@ -685,6 +685,12 @@ class UserService {
       }
     }
     await dialog.hide();
+    if (!context.mounted) {
+      if (page is HomeWidget) {
+        Bus.instance.fire(AccountConfiguredEvent());
+      }
+      return;
+    }
     if (page is HomeWidget) {
       Navigator.of(context).popUntil((route) => route.isFirst);
       Bus.instance.fire(AccountConfiguredEvent());
