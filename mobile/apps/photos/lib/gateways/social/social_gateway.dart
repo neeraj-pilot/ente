@@ -1,5 +1,25 @@
 import "package:dio/dio.dart";
+import "package:photos/core/exceptions.dart";
 import "package:photos/models/social/api_responses.dart";
+
+class MalformedSocialResponseException
+    implements Exception, LocallyHandledError {
+  final String endpoint;
+  final String expected;
+  final String actualType;
+
+  MalformedSocialResponseException({
+    required this.endpoint,
+    required this.expected,
+    required Object? actual,
+  }) : actualType = actual == null ? "null" : actual.runtimeType.toString();
+
+  @override
+  String toString() {
+    return "MalformedSocialResponseException: expected $expected at "
+        "$endpoint.response, got $actualType";
+  }
+}
 
 /// Gateway for social features API endpoints (comments and reactions).
 class SocialGateway {
@@ -192,7 +212,7 @@ class SocialGateway {
   Future<LatestUpdatesResponse> fetchLatestUpdates() async {
     final response = await _enteDio.get("/comments-reactions/updated-at");
     return LatestUpdatesResponse.fromJson(
-      response.data as Map<String, dynamic>,
+      _responseMap(response, "/comments-reactions/updated-at"),
     );
   }
 
@@ -259,6 +279,36 @@ class SocialGateway {
     }
     return countsData.map(
       (key, value) => MapEntry(int.parse(key), value as int),
+    );
+  }
+
+  Map<String, dynamic> _responseMap(
+    Response<dynamic> response,
+    String endpoint,
+  ) {
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    if (data is Map) {
+      final result = <String, dynamic>{};
+      for (final entry in data.entries) {
+        final key = entry.key;
+        if (key is! String) {
+          throw MalformedSocialResponseException(
+            endpoint: endpoint,
+            expected: "JSON object with string keys",
+            actual: data,
+          );
+        }
+        result[key] = entry.value;
+      }
+      return result;
+    }
+    throw MalformedSocialResponseException(
+      endpoint: endpoint,
+      expected: "JSON object",
+      actual: data,
     );
   }
 }
