@@ -3,8 +3,8 @@ package repo
 import (
 	"context"
 
-	timeutil "github.com/ente-io/museum/pkg/utils/time"
-	"github.com/ente-io/stacktrace"
+	timeutil "github.com/ente/museum/pkg/utils/time"
+	"github.com/ente/stacktrace"
 )
 
 func (r *SessionsRepository) CreateBrowserSession(ctx context.Context, tokenHash []byte, userID int64, sessionWrapKey string, expiresAt int64) error {

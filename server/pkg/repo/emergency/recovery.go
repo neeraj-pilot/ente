@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 
-	"github.com/ente-io/museum/ente"
-	"github.com/ente-io/museum/pkg/utils/time"
-	"github.com/ente-io/stacktrace"
+	"github.com/ente/museum/ente"
+	"github.com/ente/museum/pkg/utils/time"
+	"github.com/ente/stacktrace"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -128,6 +128,16 @@ func (repo *Repository) UpdateRecoveryStatusForID(ctx context.Context, sessionID
 	} else {
 		result, err = repo.DB.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1 WHERE id=$2 and status = ANY($3)`, status, sessionID, pq.Array(validPrevStatus))
 	}
+	if err != nil {
+		return false, stacktrace.Propagate(err, "")
+	}
+	rows, _ := result.RowsAffected()
+	return rows > 0, nil
+}
+
+func (repo *Repository) ApproveRecoveryForSession(ctx context.Context, sessionID uuid.UUID, userID, emergencyContactID int64) (bool, error) {
+	result, err := repo.DB.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1, wait_till=$2 WHERE id=$3 and user_id=$4 and emergency_contact_id=$5 and status = ANY($6)`,
+		ente.RecoveryStatusReady, time.Microseconds(), sessionID, userID, emergencyContactID, pq.Array(validPreviousStatus(ente.RecoveryStatusReady)))
 	if err != nil {
 		return false, stacktrace.Propagate(err, "")
 	}

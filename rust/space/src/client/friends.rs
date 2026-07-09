@@ -42,10 +42,15 @@ impl AccountSpaceCtx {
             requester_key_version: requester_space.key_version,
         };
         let path = format!("/spaces/{}/friends/add", requester_space.space_id);
-        self.client()
+        let response: FriendStatusResponse = self
+            .client()
             .post_json(&path, &payload)
             .await
-            .map_err(Into::into)
+            .map_err(SpaceError::from)?;
+        if response.status == "friend" {
+            self.clear_friend_share_cache()?;
+        }
+        Ok(response)
     }
 
     pub async fn request_friend_by_username(

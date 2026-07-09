@@ -1,5 +1,5 @@
 import "package:dotted_border/dotted_border.dart";
-import "package:ente_ui/theme/ente_theme.dart";
+import "package:ente_components/ente_components.dart";
 import "package:flutter/material.dart";
 import 'package:locker/l10n/l10n.dart';
 
@@ -10,24 +10,20 @@ class HomeEmptyStateWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = getEnteColorScheme(context);
-    final textTheme = getEnteTextTheme(context);
+    final colors = context.componentColors;
     return isLoading
-        ? CircularProgressIndicator(
-            strokeWidth: 3,
-            color: colorScheme.primary700,
-          )
+        ? CircularProgressIndicator(strokeWidth: 3, color: colors.primary)
         : DottedBorder(
             options: RoundedRectDottedBorderOptions(
               strokeWidth: 1,
-              color: colorScheme.textFaint,
+              color: colors.textLighter,
               dashPattern: const [5, 5],
               radius: const Radius.circular(24),
             ),
             child: Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: colorScheme.backdropBase,
+                color: colors.fillLight,
                 borderRadius: BorderRadius.circular(24),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 42),
@@ -37,17 +33,12 @@ class HomeEmptyStateWidget extends StatelessWidget {
                 children: [
                   Image.asset('assets/upload_file.png'),
                   const SizedBox(height: 12),
-                  Text(
-                    context.l10n.homeLockerEmptyTitle,
-                    style: textTheme.h3Bold.copyWith(
-                      color: colorScheme.textBase,
-                    ),
-                  ),
+                  Text(context.l10n.homeLockerEmptyTitle, style: TextStyles.h2),
                   const SizedBox(height: 8),
                   Text(
                     context.l10n.homeLockerEmptySubtitle,
-                    style: textTheme.small.copyWith(
-                      color: colorScheme.primary700,
+                    style: TextStyles.body.copyWith(
+                      color: colors.primary,
                       decoration: TextDecoration.none,
                     ),
                   ),

@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/ente-io/museum/ente"
-	"github.com/ente-io/museum/space/models"
-	spacerepo "github.com/ente-io/museum/space/repo"
+	"github.com/ente/museum/ente"
+	"github.com/ente/museum/space/models"
+	spacerepo "github.com/ente/museum/space/repo"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )

@@ -311,8 +311,6 @@ where
         params: CreateAccountParams,
         otp: &str,
     ) -> Result<AuthenticatedAccount> {
-        crypto::init()?;
-
         let email = params.email;
         let password = params.password;
         let verification = self

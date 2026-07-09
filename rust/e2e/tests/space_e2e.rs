@@ -84,7 +84,7 @@ async fn space_bootstrap_posts_and_friend_share_suite() {
         .create_space(&friend_slug, &friend_profile_payload)
         .await
         .expect("friend space creation failed");
-    outsider_ctx
+    let outsider_space = outsider_ctx
         .create_space(
             &outsider_slug,
             &space::profile_payload("Outsider", "Outsider bio"),
@@ -100,7 +100,7 @@ async fn space_bootstrap_posts_and_friend_share_suite() {
     assert_eq!(owned[0].space_id, owner_space.space_id);
 
     let decrypted_profile = owner_ctx
-        .get_space_profile_decrypted(&owner_space.space_id, None)
+        .get_space_profile_decrypted(&owner_space.space_id, None, None)
         .await
         .expect("owner should decrypt profile");
     assert_eq!(decrypted_profile.profile, owner_profile);
@@ -108,7 +108,7 @@ async fn space_bootstrap_posts_and_friend_share_suite() {
 
     space::assert_http_status(
         outsider_ctx
-            .get_space_profile_raw(&owner_space.space_id, None)
+            .get_space_profile_raw(&owner_space.space_id, Some(&outsider_space.space_id), None)
             .await,
         403,
     );
@@ -161,7 +161,7 @@ async fn space_bootstrap_posts_and_friend_share_suite() {
         Some(br#"{"caption":"hello world"}"#.as_slice())
     );
     let owner_feed = owner_ctx
-        .list_feed(None, Some(10))
+        .list_feed(&owner_space.space_id, None, Some(10))
         .await
         .expect("owner feed should include own post");
     let owner_feed_post = owner_feed
@@ -188,7 +188,7 @@ async fn space_bootstrap_posts_and_friend_share_suite() {
 
     space::assert_http_status(
         friend_ctx
-            .get_space_profile_raw(&owner_space.space_id, None)
+            .get_space_profile_raw(&owner_space.space_id, Some(&friend_space.space_id), None)
             .await,
         403,
     );
@@ -203,12 +203,13 @@ async fn space_bootstrap_posts_and_friend_share_suite() {
     .await;
 
     let shares = friend_ctx
-        .list_friend_shares()
+        .list_friend_shares(&friend_space.space_id)
         .await
         .expect("friend shares should load");
     assert_eq!(shares.len(), 1);
     let decrypted_share = friend_ctx
-        .decrypt_friend_share(&shares[0])
+        .decrypt_friend_share(&friend_space.space_id, &shares[0])
+        .await
         .expect("friend share should decrypt");
     assert_eq!(decrypted_share.space_id, owner_space.space_id);
 
@@ -221,21 +222,21 @@ async fn space_bootstrap_posts_and_friend_share_suite() {
     assert_eq!(hydrated.friends[0].space_id, owner_space.space_id);
 
     let friend_profile = friend_ctx
-        .get_space_profile_decrypted(&owner_space.space_id, None)
+        .get_space_profile_decrypted(&owner_space.space_id, Some(&friend_space.space_id), None)
         .await
         .expect("approved friend should decrypt profile");
     assert_eq!(friend_profile.profile, updated_profile);
     assert_eq!(friend_profile.space_slug, updated_slug);
 
     let owner_view_of_friend = owner_ctx
-        .get_space_profile_decrypted(&friend_space.space_id, None)
+        .get_space_profile_decrypted(&friend_space.space_id, Some(&owner_space.space_id), None)
         .await
         .expect("approved owner should decrypt friend profile");
     assert_eq!(owner_view_of_friend.profile, friend_profile_payload);
     assert_eq!(owner_view_of_friend.space_slug, friend_slug);
 
     let feed = friend_ctx
-        .list_feed(None, Some(10))
+        .list_feed(&friend_space.space_id, None, Some(10))
         .await
         .expect("feed should load after friend approval");
     assert_eq!(feed.items.len(), 1);
@@ -362,17 +363,17 @@ async fn space_unfriend_revokes_reciprocal_account_access_suite() {
     .await;
 
     let friend_owner_profile = friend_ctx
-        .get_space_profile_decrypted(&owner_space.space_id, None)
+        .get_space_profile_decrypted(&owner_space.space_id, Some(&friend_space.space_id), None)
         .await
         .expect("friend should decrypt owner profile before unfriend");
     assert_eq!(friend_owner_profile.profile, owner_profile);
     let owner_friend_profile = owner_ctx
-        .get_space_profile_decrypted(&friend_space.space_id, None)
+        .get_space_profile_decrypted(&friend_space.space_id, Some(&owner_space.space_id), None)
         .await
         .expect("owner should decrypt friend profile before unfriend");
     assert_eq!(owner_friend_profile.profile, friend_profile);
     let feed = friend_ctx
-        .list_feed(None, Some(10))
+        .list_feed(&friend_space.space_id, None, Some(10))
         .await
         .expect("friend feed should load before unfriend");
     assert!(feed.items.iter().any(|item| item.post_id == post_id));
@@ -381,11 +382,20 @@ async fn space_unfriend_revokes_reciprocal_account_access_suite() {
         .await
         .expect("friend should like owner post before unfriend");
     let direct_message = friend_ctx
-        .send_message(&owner_space.space_id, "hello before unfriend")
+        .send_message(
+            &friend_space.space_id,
+            &owner_space.space_id,
+            "hello before unfriend",
+        )
         .await
         .expect("friend should send owner a direct message before unfriend");
     let owner_thread = owner_ctx
-        .list_message_thread(&friend_space.space_id, None, Some(10))
+        .list_message_thread(
+            &owner_space.space_id,
+            &friend_space.space_id,
+            None,
+            Some(10),
+        )
         .await
         .expect("owner should read direct message thread before unfriend");
     let owner_thread_message = owner_thread
@@ -394,26 +404,27 @@ async fn space_unfriend_revokes_reciprocal_account_access_suite() {
         .find(|message| message.message_id == direct_message.message_id)
         .expect("direct message should be in owner thread before unfriend");
     let decrypted_message = owner_ctx
-        .decrypt_message(owner_thread_message)
+        .decrypt_message(&owner_space.space_id, owner_thread_message)
+        .await
         .expect("owner should decrypt direct message before unfriend");
     assert_eq!(decrypted_message.payload.text, "hello before unfriend");
     owner_ctx
-        .like_message(&direct_message.message_id, true)
+        .like_message(&owner_space.space_id, &direct_message.message_id, true)
         .await
         .expect("owner should like direct message before unfriend");
 
     owner_ctx
-        .unfriend_by_space(&friend_space.space_id)
+        .unfriend_by_space(&owner_space.space_id, &friend_space.space_id)
         .await
         .expect("owner should unfriend friend");
 
     let owner_shares = owner_ctx
-        .list_friend_shares()
+        .list_friend_shares(&owner_space.space_id)
         .await
         .expect("owner friend shares should load after unfriend");
     assert!(owner_shares.is_empty());
     let friend_shares = friend_ctx
-        .list_friend_shares()
+        .list_friend_shares(&friend_space.space_id)
         .await
         .expect("friend shares should load after unfriend");
     assert!(friend_shares.is_empty());
@@ -429,12 +440,12 @@ async fn space_unfriend_revokes_reciprocal_account_access_suite() {
     assert!(friend_friends.is_empty());
 
     let owner_relationship = owner_ctx
-        .get_relationship(&friend_space.space_id)
+        .get_relationship(&owner_space.space_id, &friend_space.space_id)
         .await
         .expect("owner relationship should load after unfriend");
     assert!(owner_relationship.relationship.is_empty());
     let friend_relationship = friend_ctx
-        .get_relationship(&owner_space.space_id)
+        .get_relationship(&friend_space.space_id, &owner_space.space_id)
         .await
         .expect("friend relationship should load after unfriend");
     assert!(friend_relationship.relationship.is_empty());
@@ -446,7 +457,7 @@ async fn space_unfriend_revokes_reciprocal_account_access_suite() {
     assert_eq!(hydrated.owned.len(), 1);
     assert!(hydrated.friends.is_empty());
     let feed = friend_ctx
-        .list_feed(None, Some(10))
+        .list_feed(&friend_space.space_id, None, Some(10))
         .await
         .expect("friend feed should load after unfriend");
     assert!(
@@ -455,7 +466,12 @@ async fn space_unfriend_revokes_reciprocal_account_access_suite() {
             .all(|item| item.space_id != owner_space.space_id)
     );
     let owner_thread = owner_ctx
-        .list_message_thread(&friend_space.space_id, None, Some(10))
+        .list_message_thread(
+            &owner_space.space_id,
+            &friend_space.space_id,
+            None,
+            Some(10),
+        )
         .await
         .expect("owner should still read direct message thread after unfriend");
     let owner_thread_message = owner_thread
@@ -464,18 +480,20 @@ async fn space_unfriend_revokes_reciprocal_account_access_suite() {
         .find(|message| message.message_id == direct_message.message_id)
         .expect("direct message should remain in owner thread after unfriend");
     let decrypted_message = owner_ctx
-        .decrypt_message(owner_thread_message)
+        .decrypt_message(&owner_space.space_id, owner_thread_message)
+        .await
         .expect("owner should still decrypt old direct message after unfriend");
     assert_eq!(decrypted_message.payload.text, "hello before unfriend");
     space::assert_invalid_input_contains(
         friend_ctx
-            .send_message(&owner_space.space_id, "should fail")
+            .send_message(&friend_space.space_id, &owner_space.space_id, "should fail")
             .await,
         "not a friend",
     );
     space::assert_invalid_input_contains(
         owner_ctx
             .reply_to_message(
+                &owner_space.space_id,
                 &friend_space.space_id,
                 &direct_message.message_id,
                 "should fail",
@@ -485,24 +503,26 @@ async fn space_unfriend_revokes_reciprocal_account_access_suite() {
     );
     space::assert_http_status(
         owner_ctx
-            .like_message(&direct_message.message_id, false)
-            .await,
-        403,
-    );
-    space::assert_http_status(
-        owner_ctx.delete_message(&direct_message.message_id).await,
-        403,
-    );
-
-    space::assert_http_status(
-        friend_ctx
-            .get_space_profile_raw(&owner_space.space_id, None)
+            .like_message(&owner_space.space_id, &direct_message.message_id, false)
             .await,
         403,
     );
     space::assert_http_status(
         owner_ctx
-            .get_space_profile_raw(&friend_space.space_id, None)
+            .delete_message(&owner_space.space_id, &direct_message.message_id)
+            .await,
+        403,
+    );
+
+    space::assert_http_status(
+        friend_ctx
+            .get_space_profile_raw(&owner_space.space_id, Some(&friend_space.space_id), None)
+            .await,
+        403,
+    );
+    space::assert_http_status(
+        owner_ctx
+            .get_space_profile_raw(&friend_space.space_id, Some(&owner_space.space_id), None)
             .await,
         403,
     );
@@ -603,7 +623,11 @@ async fn space_rotation_history_and_refresh_suite() {
     .await;
 
     let friend_profile_v1 = friend_ctx
-        .get_space_profile_decrypted(&owner_space.space_id, Some(owner_space.key_version))
+        .get_space_profile_decrypted(
+            &owner_space.space_id,
+            Some(&friend_space.space_id),
+            Some(owner_space.key_version),
+        )
         .await
         .expect("friend should decrypt v1 profile");
     assert_eq!(friend_profile_v1.profile, profile_v1);
@@ -621,7 +645,7 @@ async fn space_rotation_history_and_refresh_suite() {
         .expect("friend shares should refresh");
     assert_eq!(refreshed, 1);
     let refreshed_shares = friend_ctx
-        .list_friend_shares()
+        .list_friend_shares(&friend_space.space_id)
         .await
         .expect("refreshed friend shares should load");
     assert_eq!(refreshed_shares.len(), 1);
@@ -651,23 +675,23 @@ async fn space_rotation_history_and_refresh_suite() {
         .expect("v2 post creation should succeed");
 
     let owner_profile_v1 = owner_ctx
-        .get_space_profile_decrypted(&owner_space.space_id, Some(owner_space.key_version))
+        .get_space_profile_decrypted(&owner_space.space_id, None, Some(owner_space.key_version))
         .await
         .expect("owner should decrypt historical profile");
     assert_eq!(owner_profile_v1.profile, profile_v1);
     let owner_profile_v2 = owner_ctx
-        .get_space_profile_decrypted(&owner_space.space_id, None)
+        .get_space_profile_decrypted(&owner_space.space_id, None, None)
         .await
         .expect("owner should decrypt current profile");
     assert_eq!(owner_profile_v2.profile, profile_v2);
     let friend_profile_v2 = friend_ctx
-        .get_space_profile_decrypted(&owner_space.space_id, None)
+        .get_space_profile_decrypted(&owner_space.space_id, Some(&friend_space.space_id), None)
         .await
         .expect("friend should decrypt current profile");
     assert_eq!(friend_profile_v2.profile, profile_v2);
 
     let feed = friend_ctx
-        .list_feed(None, Some(10))
+        .list_feed(&friend_space.space_id, None, Some(10))
         .await
         .expect("feed should load after rotation");
     let feed_v1 = feed

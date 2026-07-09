@@ -1697,6 +1697,10 @@
       ]
     },
     {
+      "title": "PenFed",
+      "slug": "penfed"
+    },
+    {
       "title": "Perkbox",
       "slug": "perkbox"
     },
@@ -2020,6 +2024,9 @@
       "altNames": [
         "Smogon University"
       ]
+    },
+    {
+      "title": "Smouter"
     },
     {
       "title": "SMSPool",

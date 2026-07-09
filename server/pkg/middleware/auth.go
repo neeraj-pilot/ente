@@ -4,16 +4,17 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"net/http"
 	"strconv"
 
-	"github.com/ente-io/museum/ente/jwt"
-	"github.com/ente-io/museum/pkg/utils/network"
+	"github.com/ente/museum/ente"
+	"github.com/ente/museum/ente/jwt"
+	"github.com/ente/museum/pkg/utils/network"
+	"github.com/sirupsen/logrus"
 
-	"github.com/ente-io/museum/pkg/controller/user"
-	"github.com/ente-io/museum/pkg/repo"
-	"github.com/ente-io/museum/pkg/utils/auth"
+	"github.com/ente/museum/pkg/controller/user"
+	"github.com/ente/museum/pkg/repo"
+	"github.com/ente/museum/pkg/utils/auth"
 	"github.com/gin-gonic/gin"
 	"github.com/patrickmn/go-cache"
 	"github.com/spf13/viper"
@@ -85,6 +86,22 @@ func (m *AuthMiddleware) TokenAuthMiddleware(jwtClaimScope *jwt.ClaimScope) gin.
 			m.Cache.Set(cacheKey, userID, cache.DefaultExpiration)
 		}
 		c.Request.Header.Set("X-Auth-User-ID", strconv.FormatInt(userID.(int64), 10))
+		c.Set(auth.AppContextKey, app)
+		c.Next()
+	}
+}
+
+func RejectAuthApp() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		app, ok := auth.GetAuthenticatedApp(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authenticated app"})
+			return
+		}
+		if app == ente.Auth {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "invalid app for endpoint"})
+			return
+		}
 		c.Next()
 	}
 }

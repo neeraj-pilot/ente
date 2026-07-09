@@ -64,7 +64,7 @@ Future<File?> getFile(
   bool forGalleryDownload = false, // only relevant for live photos
 }) async {
   try {
-    if (file.isRemoteFile) {
+    if (file.isRemoteOnlyFile) {
       return getFileFromServer(
         file,
         liveVideo: liveVideo,
@@ -139,7 +139,7 @@ String getSharedMediaPathFromLocalID(String localID) {
 }
 
 void preloadThumbnail(EnteFile file) {
-  if (file.isRemoteFile) {
+  if (file.isRemoteOnlyFile) {
     getThumbnailFromServer(file);
   } else {
     getThumbnailFromLocal(file);

@@ -1,7 +1,9 @@
 import "package:dio/dio.dart";
 import "package:ente_cast/ente_cast.dart";
 import "package:ente_feature_flag/ente_feature_flag.dart";
+import "package:ente_install_source/ente_install_source.dart";
 import "package:package_info_plus/package_info_plus.dart";
+import "package:photos/core/configuration.dart";
 import "package:photos/core/network/endpoint_config.dart";
 import "package:photos/gateways/billing/billing_gateway.dart";
 import "package:photos/gateways/collections/collection_files_gateway.dart";
@@ -25,7 +27,6 @@ import "package:photos/services/backup_preference_service.dart";
 import "package:photos/services/collections_service.dart";
 import "package:photos/services/entity_service.dart";
 import "package:photos/services/filedata/filedata_service.dart";
-import "package:photos/services/install_source_service.dart";
 import "package:photos/services/location_service.dart";
 import "package:photos/services/machine_learning/compute_controller.dart";
 import "package:photos/services/machine_learning/face_ml/face_recognition_service.dart";
@@ -292,6 +293,8 @@ InstallSourceService? _installSourceService;
 InstallSourceService get installSourceService {
   _installSourceService ??= InstallSourceService(
     ServiceLocator.instance.enteDio,
+    app: "photos",
+    getToken: Configuration.instance.getToken,
   );
   return _installSourceService!;
 }

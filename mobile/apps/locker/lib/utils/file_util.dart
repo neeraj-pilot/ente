@@ -1,7 +1,7 @@
 import "dart:io";
 import "dart:typed_data";
 
-import "package:ente_ui/components/alert_bottom_sheet.dart";
+import "package:ente_components/ente_components.dart";
 import "package:ente_ui/components/progress_dialog.dart";
 import "package:ente_ui/utils/dialog_util.dart";
 import "package:ente_ui/utils/toast_util.dart";
@@ -16,12 +16,13 @@ import "package:locker/services/files/download/file_downloader.dart"
 import "package:locker/services/files/offline/offline_file_storage.dart";
 import "package:locker/services/files/sync/models/file.dart";
 import "package:locker/services/info_file_service.dart";
-import "package:locker/ui/components/gradient_button.dart";
 import "package:locker/ui/pages/account_credentials_page.dart";
 import "package:locker/ui/pages/base_info_page.dart";
 import "package:locker/ui/pages/emergency_contact_page.dart";
 import "package:locker/ui/pages/personal_note_page.dart";
 import "package:locker/ui/pages/physical_records_page.dart";
+import "package:locker/utils/bottom_sheet_illustration.dart";
+import "package:locker/utils/error_sheet.dart";
 import "package:logging/logging.dart";
 import "package:open_file/open_file.dart";
 import "package:path/path.dart" as p;
@@ -35,9 +36,9 @@ class FileUtil {
     }
 
     if (file.uploadedFileID == null) {
-      await showGenericErrorBottomSheet(
-        context: context,
-        error: Exception(context.l10n.errorOpeningFile),
+      await showLockerErrorSheet(
+        context,
+        Exception(context.l10n.errorOpeningFile),
       );
       return;
     }
@@ -91,24 +92,26 @@ class FileUtil {
           lockerFile: file,
         );
       } else {
-        await showAlertBottomSheet(
-          context,
-          title: context.l10n.downloadFailed,
-          message: context.l10n.failedToDownloadOrDecrypt,
-          assetPath: "assets/warning-grey.png",
-          buttons: [
-            GradientButton(
-              text: context.l10n.contactSupport,
-              onTap: () async {
-                await sendLogs(context, "support@ente.com", postShare: () {});
-              },
-            ),
-          ],
+        await showBottomSheetComponent(
+          context: context,
+          builder: (_) => BottomSheetComponent(
+            title: context.l10n.downloadFailed,
+            message: context.l10n.failedToDownloadOrDecrypt,
+            illustration: LockerBottomSheetIllustration.warningGrey,
+            actions: [
+              ButtonComponent(
+                label: context.l10n.contactSupport,
+                onTap: () async {
+                  await sendLogs(context, "support@ente.com", postShare: () {});
+                },
+              ),
+            ],
+          ),
         );
       }
     } catch (e) {
       await dialog.hide();
-      await showGenericErrorBottomSheet(context: context, error: e);
+      await showLockerErrorSheet(context, e);
     }
   }
 
@@ -343,19 +346,21 @@ class FileUtil {
     try {
       final infoItem = InfoFileService.instance.extractInfoFromFile(file);
       if (infoItem == null) {
-        await showAlertBottomSheet(
-          context,
-          title: context.l10n.errorOpeningFile,
-          message: "Unable to extract information from this file",
-          assetPath: "assets/warning-grey.png",
-          buttons: [
-            GradientButton(
-              text: context.l10n.contactSupport,
-              onTap: () async {
-                await sendLogs(context, "support@ente.com", postShare: () {});
-              },
-            ),
-          ],
+        await showBottomSheetComponent(
+          context: context,
+          builder: (_) => BottomSheetComponent(
+            title: context.l10n.errorOpeningFile,
+            message: context.l10n.unableToExtractFileInformation,
+            illustration: LockerBottomSheetIllustration.warningGrey,
+            actions: [
+              ButtonComponent(
+                label: context.l10n.contactSupport,
+                onTap: () async {
+                  await sendLogs(context, "support@ente.com", postShare: () {});
+                },
+              ),
+            ],
+          ),
         );
         return;
       }
@@ -389,7 +394,7 @@ class FileUtil {
         context,
       ).push(MaterialPageRoute(builder: (context) => page));
     } catch (e) {
-      await showGenericErrorBottomSheet(context: context, error: e);
+      await showLockerErrorSheet(context, e);
     }
   }
 
@@ -508,20 +513,22 @@ class FileUtil {
     ResultType? resultType,
     EnteFile? lockerFile,
   }) async {
-    await showAlertBottomSheet(
-      context,
-      title: context.l10n.oops,
-      message: _openFileErrorMessage(context, error, resultType: resultType),
-      assetPath: "assets/warning-grey.png",
-      buttons: [
-        GradientButton(
-          text: context.l10n.download,
-          onTap: () async {
-            Navigator.of(context).pop();
-            await downloadFile(context, lockerFile!);
-          },
-        ),
-      ],
+    await showBottomSheetComponent(
+      context: context,
+      builder: (_) => BottomSheetComponent(
+        title: context.l10n.oops,
+        message: _openFileErrorMessage(context, error, resultType: resultType),
+        illustration: LockerBottomSheetIllustration.warningGrey,
+        actions: [
+          ButtonComponent(
+            label: context.l10n.download,
+            onTap: () async {
+              Navigator.of(context).pop();
+              await downloadFile(context, lockerFile!);
+            },
+          ),
+        ],
+      ),
     );
   }
 

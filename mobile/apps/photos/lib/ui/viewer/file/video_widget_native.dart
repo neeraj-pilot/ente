@@ -188,7 +188,7 @@ class _VideoWidgetNativeState extends State<VideoWidgetNative>
   }
 
   void loadOriginal({bool update = false}) async {
-    if (widget.file.isRemoteFile) {
+    if (widget.file.isRemoteOnlyFile) {
       _loadNetworkVideo(update);
       _setFileSizeIfNull();
     } else if (widget.file.isSharedMediaToAppSandbox) {

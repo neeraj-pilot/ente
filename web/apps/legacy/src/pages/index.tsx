@@ -130,7 +130,7 @@ const textFieldSx: SxProps<Theme> = {
         px: 2,
         py: "15px",
     },
-    "& .MuiInputBase-inputMultiline": { py: 0 },
+    "& .MuiInputBase-multiline > .MuiInputBase-input": { py: 0 },
     "& .MuiFormHelperText-root": { mx: 0, mt: 0.75 },
 };
 

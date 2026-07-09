@@ -234,7 +234,7 @@ class _ZoomableLiveImageNewState extends State<ZoomableLiveImageNew>
   }
 
   Future<File?> _getLivePhotoVideo() async {
-    if (_enteFile.isRemoteFile &&
+    if (_enteFile.isRemoteOnlyFile &&
         !(await isFileCached(_enteFile, liveVideo: true))) {
       showShortToast(context, AppLocalizations.of(context).downloading);
     }
@@ -262,7 +262,7 @@ class _ZoomableLiveImageNewState extends State<ZoomableLiveImageNew>
   }
 
   Future<File?> _getMotionPhotoVideo() async {
-    if (_enteFile.isRemoteFile && !(await isFileCached(_enteFile))) {
+    if (_enteFile.isRemoteOnlyFile && !(await isFileCached(_enteFile))) {
       showShortToast(context, AppLocalizations.of(context).downloading);
     }
 

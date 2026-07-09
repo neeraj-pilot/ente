@@ -186,7 +186,6 @@ class _SettingsSearchPageState extends State<SettingsSearchPage> {
     );
 
     return SingleChildScrollView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,7 +232,6 @@ class _SettingsSearchPageState extends State<SettingsSearchPage> {
 
     final rows = _buildResultRows();
     return ListView.builder(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: rows.length,
       itemBuilder: (context, index) {

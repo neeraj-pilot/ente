@@ -135,7 +135,6 @@
       }
     }
   },
-  "pleaseSelectAtLeastOneCollection": "Пожалуйста, выберите хотя бы одну коллекцию",
   "unknownItemType": "Неизвестный тип элемента",
   "fileDeletedSuccessfully": "Элемент успешно удалён",
   "failedToDeleteFile": "Не удалось удалить элемент: {error}",
@@ -257,7 +256,6 @@
   "optionalNote": "Необязательная заметка",
   "upload": "Загрузить",
   "documentsHint": "Документы",
-  "searchHint": "Поиск...",
   "searchEmptyTitle": "Совпадений не найдено",
   "searchEmptyDescription": "Попробуйте поискать что-то другое.",
   "searchEverywhereTitle": "Искать везде \"{query}\"",

@@ -7,9 +7,9 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
-	timeutil "github.com/ente-io/museum/pkg/utils/time"
-	spacerepo "github.com/ente-io/museum/space/repo"
-	"github.com/ente-io/stacktrace"
+	timeutil "github.com/ente/museum/pkg/utils/time"
+	spacerepo "github.com/ente/museum/space/repo"
+	"github.com/ente/stacktrace"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )

@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/ente-io/museum/space/models"
-	spacerepo "github.com/ente-io/museum/space/repo"
-	"github.com/ente-io/stacktrace"
+	"github.com/ente/museum/space/models"
+	spacerepo "github.com/ente/museum/space/repo"
+	"github.com/ente/stacktrace"
 	"github.com/gin-gonic/gin"
 )
 

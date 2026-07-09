@@ -25,11 +25,13 @@ Future<void> share(
   List<EnteFile> files, {
   GlobalKey? shareButtonKey,
 }) async {
-  final remoteFileCount = files.where((element) => element.isRemoteFile).length;
+  final remoteOnlyFileCount = files
+      .where((element) => element.isRemoteOnlyFile)
+      .length;
   final dialog = createProgressDialog(
     context,
     "Preparing...",
-    isDismissible: remoteFileCount > 2,
+    isDismissible: remoteOnlyFileCount > 2,
   );
   await dialog.show();
   try {
@@ -61,7 +63,7 @@ Future<void> share(
       if (path == null) {
         _logger.warning(
           "share missing local path for file $i/${files.length} "
-          "(remote: ${files[i].isRemoteFile})",
+          "(remoteOnly: ${files[i].isRemoteOnlyFile})",
         );
         continue;
       }
@@ -70,7 +72,7 @@ Future<void> share(
     if (resolvedPaths.isEmpty) {
       _logger.severe(
         "share aborted: unable to resolve any files "
-        "(requested: ${files.length}, remote: $remoteFileCount)",
+        "(requested: ${files.length}, remoteOnly: $remoteOnlyFileCount)",
       );
       throw ArgumentError("No files resolved for system share");
     }
@@ -84,7 +86,7 @@ Future<void> share(
   } catch (e, s) {
     _logger.severe(
       "failed to complete system share ${files.length} "
-      "(remote: $remoteFileCount)",
+      "(remoteOnly: $remoteOnlyFileCount)",
       e,
       s,
     );

@@ -22,6 +22,8 @@ import "package:locker/ui/pages/base_info_page.dart";
 import "package:locker/ui/pages/emergency_contact_page.dart";
 import "package:locker/ui/pages/personal_note_page.dart";
 import "package:locker/ui/pages/physical_records_page.dart";
+import "package:locker/utils/bottom_sheet_illustration.dart";
+import "package:locker/utils/error_sheet.dart";
 import "package:logging/logging.dart";
 
 /// Utility class for common file actions like edit, share, delete, and favorites
@@ -49,7 +51,7 @@ class FileActions {
     _logger.info('Opening edit dialog for file ${file.uploadedFileID}');
 
     final editableCollections = await CollectionService.instance
-        .getCollectionsForUI();
+        .getCollectionsForUI(includeUncategorized: true);
 
     final currentCollections = await CollectionService.instance
         .getCollectionsForFile(file);
@@ -199,7 +201,7 @@ class FileActions {
       if (!context.mounted) {
         return;
       }
-      await showGenericErrorBottomSheet(context: context, error: e);
+      await showLockerErrorSheet(context, e);
     }
   }
 
@@ -270,7 +272,7 @@ class FileActions {
         if (e is SharingNotPermittedForFreeAccountsError) {
           await showSubscriptionRequiredSheet(context);
         } else {
-          await showGenericErrorBottomSheet(context: context, error: e);
+          await showLockerErrorSheet(context, e);
         }
       }
     }
@@ -287,7 +289,7 @@ class FileActions {
       title: context.l10n.areYouSure,
       body: context.l10n.deleteMultipleFilesDialogBody(1),
       deleteButtonLabel: context.l10n.yesDeleteFiles(1),
-      assetPath: "assets/file_delete_icon.png",
+      illustration: LockerBottomSheetIllustration.fileDelete,
     );
 
     if (confirmation?.buttonResult.action != ButtonAction.first) {
@@ -320,7 +322,7 @@ class FileActions {
       await dialog.hide();
 
       if (context.mounted) {
-        await showGenericErrorBottomSheet(context: context, error: e);
+        await showLockerErrorSheet(context, e);
       }
     }
   }
@@ -340,7 +342,7 @@ class FileActions {
       title: context.l10n.areYouSure,
       body: context.l10n.deleteMultipleFilesDialogBody(files.length),
       deleteButtonLabel: context.l10n.yesDeleteFiles(files.length),
-      assetPath: "assets/file_delete_icon.png",
+      illustration: LockerBottomSheetIllustration.fileDelete,
     );
 
     if (confirmation?.buttonResult.action != ButtonAction.first) {
@@ -386,7 +388,7 @@ class FileActions {
       if (!context.mounted) {
         return;
       }
-      await showGenericErrorBottomSheet(context: context, error: e);
+      await showLockerErrorSheet(context, e);
     }
   }
 
@@ -436,7 +438,7 @@ class FileActions {
       await dialog.hide();
 
       if (context.mounted) {
-        await showGenericErrorBottomSheet(context: context, error: e);
+        await showLockerErrorSheet(context, e);
       }
     }
   }
@@ -493,7 +495,7 @@ class FileActions {
       await dialog.hide();
 
       if (context.mounted) {
-        await showGenericErrorBottomSheet(context: context, error: e);
+        await showLockerErrorSheet(context, e);
       }
     }
   }

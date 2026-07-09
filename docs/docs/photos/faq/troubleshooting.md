@@ -271,13 +271,9 @@ When photos are uploaded on the web app, the most common cause of thumbnails not
 
 **Firefox users:** If you have "block canvas fingerprinting" enabled (`privacy.resistFingerprinting` set to true in `about:config`), Firefox will prevent the app from generating thumbnails.
 
-**Brave users:** Brave Shields can block canvas access and prevent the app from generating thumbnails.
+**Brave users:** Brave Shields can block canvas access and prevent the app from generating thumbnails. To fix this, disable canvas fingerprinting for Ente's domain, or turn off Brave Shields for Ente's domain, or whitelist Ente in any browser extension that blocks canvas access.
 
-**Solution:**
-
-- Disable canvas fingerprinting for Ente's domain, OR
-- Turn off Brave Shields for Ente's domain, OR
-- Check if you're using browser extensions that block canvas access and whitelist Ente
+**Tor Browser users:** When the upload error appears, click the photo icon on the left side of the address bar and choose **Allow** so Ente can generate thumbnails.
 
 > [!IMPORTANT]
 >
@@ -422,6 +418,18 @@ Open device `Settings > Apps > Ente > Storage` and tap "Clear cache" (NOT "Clear
 > [!NOTE]
 >
 > This is a known issue being investigated by our team. If none of these solutions work, please contact [support@ente.com](mailto:support@ente.com) with your device model and Android version.
+
+### Why does Android ask me to confirm every photo when I delete from Ente? {#android-media-management-delete}
+
+When Ente deletes a photo or video that also exists in your device gallery, Android shows a system confirmation dialog for each item. This is an Android security measure for third-party apps. It is especially noticeable when using **Free up space**, where you may have to confirm a large number of files one by one.
+
+To stop these repeated prompts, grant Ente the **media management** special access:
+
+**On Android:**
+
+Open device `Settings > Apps > Special app access > Media management apps > Ente Photos` and enable "Allow app to manage media".
+
+Once granted, Ente can delete media that it manages without asking for confirmation each time.
 
 ### Why is the Linux desktop app still showing the old icon after updating? {#linux-icon-update}
 
@@ -652,6 +660,6 @@ Open `Settings > Support > Help` to download logs, then email the downloaded log
 1. **Check the FAQ sections** for answers to common questions
 2. **Join our [Discord community](https://ente.com/discord)** for community support
 3. **Email us at [support@ente.com](mailto:support@ente.com)** with details about your issue
-4. **Report bugs on [GitHub](https://github.com/ente-io/ente/issues)** if you've found a technical issue
+4. **Report bugs on [GitHub](https://github.com/ente/ente/issues)** if you've found a technical issue
 
 For security vulnerabilities, please email [security@ente.com](mailto:security@ente.com) directly.

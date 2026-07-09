@@ -14,11 +14,11 @@ import (
 	"sync/atomic"
 	gotime "time"
 
-	"github.com/ente-io/museum/ente"
-	"github.com/ente-io/museum/pkg/repo"
-	"github.com/ente-io/museum/pkg/utils/config"
-	"github.com/ente-io/museum/pkg/utils/time"
-	"github.com/ente-io/stacktrace"
+	"github.com/ente/museum/ente"
+	"github.com/ente/museum/pkg/repo"
+	"github.com/ente/museum/pkg/utils/config"
+	"github.com/ente/museum/pkg/utils/time"
+	"github.com/ente/stacktrace"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
@@ -90,7 +90,7 @@ func newFCMClient() (*fcmClient, error) {
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
-	creds, err := google.CredentialsFromJSON(context.Background(), data, fcmSendScope)
+	creds, err := google.CredentialsFromJSONWithType(context.Background(), data, google.ServiceAccount, fcmSendScope)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}

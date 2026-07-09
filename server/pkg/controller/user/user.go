@@ -5,30 +5,31 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	enteJWT "github.com/ente-io/museum/ente/jwt"
-	"github.com/ente-io/museum/pkg/controller/collections"
-	"github.com/ente-io/museum/pkg/repo/two_factor_recovery"
-	util "github.com/ente-io/museum/pkg/utils"
-	"github.com/ente-io/museum/pkg/utils/time"
+	enteJWT "github.com/ente/museum/ente/jwt"
+	"github.com/ente/museum/pkg/controller/collections"
+	"github.com/ente/museum/pkg/repo/two_factor_recovery"
+	util "github.com/ente/museum/pkg/utils"
+	"github.com/ente/museum/pkg/utils/time"
 	"github.com/ulule/limiter/v3"
 	"strings"
 
-	cache2 "github.com/ente-io/museum/ente/cache"
-	"github.com/ente-io/museum/pkg/controller/discord"
-	"github.com/ente-io/museum/pkg/controller/usercache"
+	cache2 "github.com/ente/museum/ente/cache"
+	"github.com/ente/museum/pkg/controller/discord"
+	"github.com/ente/museum/pkg/controller/usercache"
 
-	"github.com/ente-io/museum/ente"
-	"github.com/ente-io/museum/pkg/controller"
-	"github.com/ente-io/museum/pkg/controller/family"
-	"github.com/ente-io/museum/pkg/repo"
-	contactrepo "github.com/ente-io/museum/pkg/repo/contact"
-	"github.com/ente-io/museum/pkg/repo/datacleanup"
-	"github.com/ente-io/museum/pkg/repo/passkey"
-	storageBonusRepo "github.com/ente-io/museum/pkg/repo/storagebonus"
-	"github.com/ente-io/museum/pkg/utils/billing"
-	"github.com/ente-io/museum/pkg/utils/crypto"
-	"github.com/ente-io/museum/pkg/utils/email"
-	"github.com/ente-io/stacktrace"
+	"github.com/ente/museum/ente"
+	"github.com/ente/museum/pkg/controller"
+	"github.com/ente/museum/pkg/controller/family"
+	"github.com/ente/museum/pkg/repo"
+	authenticatorRepo "github.com/ente/museum/pkg/repo/authenticator"
+	contactrepo "github.com/ente/museum/pkg/repo/contact"
+	"github.com/ente/museum/pkg/repo/datacleanup"
+	"github.com/ente/museum/pkg/repo/passkey"
+	storageBonusRepo "github.com/ente/museum/pkg/repo/storagebonus"
+	"github.com/ente/museum/pkg/utils/billing"
+	"github.com/ente/museum/pkg/utils/crypto"
+	"github.com/ente/museum/pkg/utils/email"
+	"github.com/ente/stacktrace"
 	"github.com/gin-gonic/gin"
 	"github.com/patrickmn/go-cache"
 	"github.com/sirupsen/logrus"
@@ -51,6 +52,7 @@ type UserController struct {
 	TwoFactorRepo           *repo.TwoFactorRepository
 	PasskeyRepo             *passkey.Repository
 	StorageBonusRepo        *storageBonusRepo.Repository
+	AuthenticatorRepo       *authenticatorRepo.Repository
 	FileRepo                *repo.FileRepository
 	CollectionRepo          *repo.CollectionRepository
 	DataCleanupRepo         *datacleanup.Repository
@@ -73,6 +75,7 @@ type UserController struct {
 	UserCacheController     *usercache.Controller
 	SRPLimiter              *limiter.Limiter
 	OTTLimiter              *limiter.Limiter
+	OTTSendLimiter          *OTTSendLimiter
 }
 
 const (
@@ -122,6 +125,7 @@ func NewUserController(
 	twoFactorRepo *repo.TwoFactorRepository,
 	twoFactorRecoveryRepo *two_factor_recovery.Repository,
 	passkeyRepo *passkey.Repository,
+	authenticatorRepo *authenticatorRepo.Repository,
 	storageBonusRepo *storageBonusRepo.Repository,
 	fileRepo *repo.FileRepository,
 	collectionController *collections.CollectionController,
@@ -144,6 +148,7 @@ func NewUserController(
 ) *UserController {
 	srpLimiter := util.NewRateLimiter("100-H")
 	ottLimiter := util.NewRateLimiter("100-H")
+	ottSendLimiter := NewOTTSendLimiter()
 	return &UserController{
 		UserRepo:                userRepo,
 		UsageRepo:               usageRepo,
@@ -151,6 +156,7 @@ func NewUserController(
 		UserAuthRepo:            userAuthRepo,
 		StorageBonusRepo:        storageBonusRepo,
 		TwoFactorRepo:           twoFactorRepo,
+		AuthenticatorRepo:       authenticatorRepo,
 		PasskeyRepo:             passkeyRepo,
 		FileRepo:                fileRepo,
 		CollectionCtrl:          collectionController,
@@ -173,6 +179,7 @@ func NewUserController(
 		UserCacheController:     userCacheController,
 		SRPLimiter:              srpLimiter,
 		OTTLimiter:              ottLimiter,
+		OTTSendLimiter:          ottSendLimiter,
 	}
 }
 

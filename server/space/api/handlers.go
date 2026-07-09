@@ -1,6 +1,6 @@
 package api
 
-import "github.com/ente-io/museum/space/controller"
+import "github.com/ente/museum/space/controller"
 
 type Handlers struct {
 	Module *controller.Module

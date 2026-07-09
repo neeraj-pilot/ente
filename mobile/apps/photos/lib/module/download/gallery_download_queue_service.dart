@@ -184,7 +184,7 @@ class GalleryDownloadQueueService {
       if (uploadID == null || fileSize == null || fileSize <= 0) {
         continue;
       }
-      final queuedFile = file.isRemoteFile
+      final queuedFile = file.isRemoteOnlyFile
           ? file.copyWith()
           : (file.copyWith()..localID = null);
       _queuedFilesByID[uploadID] = queuedFile;
@@ -476,7 +476,7 @@ class GalleryDownloadQueueService {
       throw DownloadUnavailableError();
     }
     file.fileSize ??= _tasks[fileID]?.totalBytes;
-    final fileToDownload = file.isRemoteFile
+    final fileToDownload = file.isRemoteOnlyFile
         ? file.copyWith()
         : (file.copyWith()..localID = null);
     await downloadToGallery(

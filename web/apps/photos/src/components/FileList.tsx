@@ -1,5 +1,5 @@
 import Avatar from "@/components/Avatar";
-import { type SelectedState } from "@/utils/file";
+import type { SelectedState } from "@/utils/file";
 import {
     handleSelectCreator,
     handleSelectCreatorMulti,
@@ -738,7 +738,8 @@ export const FileList: React.FC<FileListProps> = ({
                         : {
                               mode: (mode ?? "albums") as
                                   | "albums"
-                                  | "hidden-albums",
+                                  | "hidden-albums"
+                                  | "archive-albums",
                               collectionID: activeCollectionID,
                           };
                 setSelected({

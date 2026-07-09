@@ -195,7 +195,7 @@ class _FullScreenMemoryDataUpdaterState
   }
 
   void _preloadThumbnailOwned(EnteFile file) {
-    if (!file.isRemoteFile) {
+    if (!file.isRemoteOnlyFile) {
       preloadThumbnail(file);
       return;
     }

@@ -24,6 +24,8 @@ import "package:photos/ui/viewer/location/pick_center_point_widget.dart";
 import "package:photos/utils/dialog_util.dart";
 import "package:photos/utils/share_util.dart";
 
+const _kSearchPreviewFallbackClusterSize = 3;
+
 enum ResultType {
   collection,
   deviceCollection,
@@ -256,6 +258,9 @@ extension SectionTypeExtensions on SectionType {
           minClusterSize: limit == null
               ? kMinimumClusterSizeAllFaces
               : kMinimumClusterSizeSearchResult,
+          fallbackMinClusterSize: limit == null
+              ? null
+              : _kSearchPreviewFallbackClusterSize,
         );
       case SectionType.magic:
         return SearchService.instance.getMagicSectionResults(

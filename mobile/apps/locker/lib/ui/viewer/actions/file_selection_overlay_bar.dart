@@ -1,8 +1,7 @@
+import 'package:ente_components/ente_components.dart';
 import "package:ente_events/event_bus.dart";
 import "package:ente_icons/ente_icons.dart";
 import "package:ente_ui/components/buttons/button_widget.dart";
-import "package:ente_ui/theme/colors.dart";
-import "package:ente_ui/theme/ente_theme.dart";
 import "package:ente_ui/utils/dialog_util.dart";
 import "package:ente_ui/utils/toast_util.dart";
 import "package:flutter/material.dart";
@@ -23,7 +22,9 @@ import "package:locker/services/trash/trash_service.dart";
 import "package:locker/ui/components/add_to_collection_sheet.dart";
 import "package:locker/ui/components/delete_confirmation_sheet.dart";
 import "package:locker/ui/components/selection_action_button_widget.dart";
+import "package:locker/utils/bottom_sheet_illustration.dart";
 import "package:locker/utils/collection_list_util.dart";
+import "package:locker/utils/error_sheet.dart";
 import "package:locker/utils/file_actions.dart";
 import "package:locker/utils/file_util.dart";
 import "package:logging/logging.dart";
@@ -131,8 +132,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final colorScheme = getEnteColorScheme(context);
-    final textTheme = getEnteTextTheme(context);
+    final colors = context.componentColors;
 
     return IgnorePointer(
       ignoring: !hasSelection,
@@ -160,13 +160,13 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
                     },
                     child: Container(
                       decoration: BoxDecoration(
-                        color: colorScheme.backdropBase.withValues(alpha: 1.0),
+                        color: colors.backgroundBase,
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(20),
                           topRight: Radius.circular(20),
                         ),
                         border: Border(
-                          top: BorderSide(color: colorScheme.strokeFaint),
+                          top: BorderSide(color: colors.strokeDark),
                         ),
                       ),
                       child: Padding(
@@ -205,8 +205,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
                                       },
                                       child: Container(
                                         decoration: BoxDecoration(
-                                          color:
-                                              colorScheme.backgroundElevated2,
+                                          color: colors.fillLight,
                                           borderRadius: BorderRadius.circular(
                                             50,
                                           ),
@@ -220,12 +219,12 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
                                           children: [
                                             Text(
                                               buttonText,
-                                              style: textTheme.small,
+                                              style: TextStyles.body,
                                             ),
                                             const SizedBox(width: 6),
                                             Icon(
                                               iconData,
-                                              color: colorScheme.textBase,
+                                              color: colors.textBase,
                                               size: 20,
                                             ),
                                           ],
@@ -248,8 +247,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
                                       },
                                       child: Container(
                                         decoration: BoxDecoration(
-                                          color:
-                                              colorScheme.backgroundElevated2,
+                                          color: colors.fillLight,
                                           borderRadius: BorderRadius.circular(
                                             50,
                                           ),
@@ -263,12 +261,12 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
                                           children: [
                                             Text(
                                               countText,
-                                              style: textTheme.small,
+                                              style: TextStyles.body,
                                             ),
                                             const SizedBox(width: 6),
                                             Icon(
                                               Icons.close,
-                                              color: colorScheme.textBase,
+                                              color: colors.textBase,
                                               semanticLabel: "close",
                                               size: 20,
                                             ),
@@ -332,10 +330,10 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
 
   Widget _buildPrimaryActionRow(Set<EnteFile> selectedFiles) {
     final files = selectedFiles.toList();
-    final colorScheme = getEnteColorScheme(context);
+    final colors = context.componentColors;
 
     if (widget.isTrashMode) {
-      return _buildTrashActionRow(files, colorScheme);
+      return _buildTrashActionRow(files, colors);
     }
 
     final isSingleSelection = selectedFiles.length == 1;
@@ -370,10 +368,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
                 : "assets/svg/keep_offline.svg",
             width: 22,
             height: 22,
-            colorFilter: ColorFilter.mode(
-              colorScheme.textBase,
-              BlendMode.srcIn,
-            ),
+            colorFilter: ColorFilter.mode(colors.textBase, BlendMode.srcIn),
           ),
           label: shouldRemoveOffline
               ? context.l10n.cloudOnly
@@ -395,7 +390,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
               ? null
               : HugeIcon(
                   icon: HugeIcons.strokeRoundedStar,
-                  color: colorScheme.textBase,
+                  color: colors.textBase,
                 ),
           label: isImportant
               ? context.l10n.unimportant
@@ -412,7 +407,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
         SelectionActionButton(
           hugeIcon: HugeIcon(
             icon: HugeIcons.strokeRoundedDelete02,
-            color: colorScheme.warning500,
+            color: colors.warning,
           ),
           label: context.l10n.delete,
           onTap: () => isSingleSelection
@@ -426,13 +421,10 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
     return Row(children: _buildActionRow(actions));
   }
 
-  Widget _buildTrashActionRow(
-    List<EnteFile> files,
-    EnteColorScheme colorScheme,
-  ) {
+  Widget _buildTrashActionRow(List<EnteFile> files, ColorTokens colors) {
     return Container(
       decoration: BoxDecoration(
-        color: colorScheme.backgroundElevated2,
+        color: colors.fillLight,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
@@ -445,7 +437,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
           SelectionActionButton(
             hugeIcon: HugeIcon(
               icon: HugeIcons.strokeRoundedDelete02,
-              color: colorScheme.warning500,
+              color: colors.warning,
             ),
             label: context.l10n.delete,
             onTap: () => _deleteFromTrash(context, files),
@@ -463,11 +455,11 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
       return const SizedBox.shrink();
     }
 
-    final colorScheme = getEnteColorScheme(context);
+    final colors = context.componentColors;
 
     return Container(
       decoration: BoxDecoration(
-        color: colorScheme.backgroundElevated2,
+        color: colors.fillLight,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(children: _buildActionRow(actions, spacing: 0)),
@@ -562,7 +554,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
     } catch (e, stackTrace) {
       _logger.severe("Failed to download file: $e", e, stackTrace);
       if (context.mounted) {
-        await showGenericErrorBottomSheet(context: context, error: e);
+        await showLockerErrorSheet(context, e);
       }
     }
   }
@@ -583,7 +575,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
     } catch (e, stackTrace) {
       _logger.severe("Failed to download files: $e", e, stackTrace);
       if (context.mounted) {
-        await showGenericErrorBottomSheet(context: context, error: e);
+        await showLockerErrorSheet(context, e);
       }
     }
   }
@@ -620,8 +612,9 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
       'Opening add-to dialog for ${ownedFiles.length} file(s); fetching collections.',
     );
 
-    final allCollections = await CollectionService.instance
-        .getCollectionsForUI();
+    final allCollections = await CollectionService.instance.getCollectionsForUI(
+      includeUncategorized: true,
+    );
     final dedupedCollections = uniqueCollectionsById(allCollections);
     _logger.info(
       'Presenting ${dedupedCollections.length} unique collection option(s) '
@@ -631,7 +624,6 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
     final result = await showAddToCollectionSheet(
       context,
       collections: dedupedCollections,
-      snackBarContext: context,
     );
 
     if (result != null && context.mounted) {
@@ -709,7 +701,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
         await dialog.hide();
         _logger.severe('Failed add-to operation: $e');
 
-        await showGenericErrorBottomSheet(context: context, error: e);
+        await showLockerErrorSheet(context, e);
       }
     }
   }
@@ -744,7 +736,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
       title: context.l10n.areYouSure,
       body: context.l10n.deleteMultipleFilesDialogBody(ownedFiles.length),
       deleteButtonLabel: context.l10n.yesDeleteFiles(ownedFiles.length),
-      assetPath: "assets/file_delete_icon.png",
+      illustration: LockerBottomSheetIllustration.fileDelete,
     );
 
     if (confirmation?.buttonResult.action != ButtonAction.first) {
@@ -785,7 +777,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
       if (!context.mounted) {
         return;
       }
-      await showGenericErrorBottomSheet(context: context, error: e);
+      await showLockerErrorSheet(context, e);
     }
   }
 
@@ -827,14 +819,14 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
   Future<void> _restoreFiles(BuildContext context, List<EnteFile> files) async {
     _logger.info('Opening restore dialog for ${files.length} file(s)');
 
-    final allCollections = await CollectionService.instance
-        .getCollectionsForUI();
+    final allCollections = await CollectionService.instance.getCollectionsForUI(
+      includeUncategorized: true,
+    );
     final dedupedCollections = uniqueCollectionsById(allCollections);
 
     final result = await showAddToCollectionSheet(
       context,
       collections: dedupedCollections,
-      snackBarContext: context,
     );
 
     if (result == null || result.selectedCollections.isEmpty) {
@@ -871,7 +863,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
       _logger.severe('Failed to restore files: $e', e, stackTrace);
 
       if (context.mounted) {
-        await showGenericErrorBottomSheet(context: context, error: e);
+        await showLockerErrorSheet(context, e);
       }
     }
   }
@@ -885,7 +877,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
       title: context.l10n.permanentlyDelete,
       body: context.l10n.permanentlyDeleteFilesBody(files.length),
       deleteButtonLabel: context.l10n.yesDelete,
-      assetPath: "assets/collection_delete_icon.png",
+      illustration: LockerBottomSheetIllustration.collectionDelete,
     );
 
     if (confirmation?.buttonResult.action != ButtonAction.first) {
@@ -917,7 +909,7 @@ class _FileSelectionOverlayBarState extends State<FileSelectionOverlayBar> {
       _logger.severe('Failed to delete files from trash: $e', e, stackTrace);
 
       if (context.mounted) {
-        await showGenericErrorBottomSheet(context: context, error: e);
+        await showLockerErrorSheet(context, e);
       }
     }
   }

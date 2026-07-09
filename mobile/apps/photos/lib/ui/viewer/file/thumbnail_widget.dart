@@ -113,7 +113,7 @@ class _ThumbnailWidgetState extends State<ThumbnailWidget> {
         }
       }
       // Cancel request only if the widget has been unmounted
-      if (!mounted && widget.file.isRemoteFile && !_hasLoadedThumbnail) {
+      if (!mounted && widget.file.isRemoteOnlyFile && !_hasLoadedThumbnail) {
         removePendingGetThumbnailRequestIfAny(widget.file);
       }
     });
@@ -179,7 +179,7 @@ class _ThumbnailWidgetState extends State<ThumbnailWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.file.isRemoteFile) {
+    if (widget.file.isRemoteOnlyFile) {
       _loadNetworkImage();
     } else {
       _loadLocalImage(context);

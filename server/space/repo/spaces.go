@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"strings"
 
-	"github.com/ente-io/museum/ente/base"
-	"github.com/ente-io/stacktrace"
+	"github.com/ente/museum/ente/base"
+	"github.com/ente/stacktrace"
 )
 
 func (r *SpacesRepository) CreateSpace(ctx context.Context, ownerID int64, spaceSlug string, rootWrappedSpaceKey, publicKey, encryptedSecretKey, encryptedProfile []byte, referredBySpaceID string) (*SpaceRecord, error) {

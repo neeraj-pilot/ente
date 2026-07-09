@@ -17,6 +17,7 @@ import "package:locker/l10n/l10n.dart";
 import "package:locker/services/configuration.dart";
 import "package:locker/ui/settings/components/settings_item.dart";
 import "package:locker/ui/settings/components/settings_page_scaffold.dart";
+import "package:locker/utils/bottom_sheet_illustration.dart";
 import "package:logging/logging.dart";
 
 class SecuritySettingsPage extends StatefulWidget {
@@ -154,7 +155,7 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
         builder: (sheetContext) => BottomSheetComponent(
           title: l10n.noSystemLockFound,
           message: l10n.toEnableAppLockPleaseSetupDevicePasscodeOrScreen,
-          illustration: Image.asset("assets/warning-grey.png"),
+          illustration: LockerBottomSheetIllustration.warningGrey,
           actions: [
             ButtonComponent(
               label: context.l10n.contactSupport,

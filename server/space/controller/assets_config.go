@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ente-io/museum/ente"
+	"github.com/ente/museum/ente"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )

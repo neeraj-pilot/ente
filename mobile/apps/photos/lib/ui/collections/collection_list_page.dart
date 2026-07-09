@@ -107,8 +107,6 @@ class _CollectionListPageState extends State<CollectionListPage> {
               child: CustomScrollView(
                 physics: const BouncingScrollPhysics(),
                 controller: _scrollController,
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
                 slivers: [
                   SearchableAppBar(
                     searchIconPadding: const EdgeInsets.only(right: 8),

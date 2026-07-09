@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ente-io/museum/ente/base"
-	"github.com/ente-io/stacktrace"
+	"github.com/ente/museum/ente/base"
+	"github.com/ente/stacktrace"
 )
 
 func postRecordSelectSQL(viewerLikedExpr string) string {

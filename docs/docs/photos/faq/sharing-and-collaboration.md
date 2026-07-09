@@ -509,7 +509,7 @@ When you add a shared photo to your own album, Ente creates a hard copy that you
 2. **Ownership is clear**: There's no ambiguity about who owns which version of the photo
 3. **No dependency**: Your organized albums don't break if someone stops sharing with you
 
-We understand this uses extra storage in some use cases (like family photo sharing). We're exploring reference-based solutions in the future where storage would only count if the original is deleted. See [this discussion](https://github.com/ente-io/ente/discussions/790) for more details.
+We understand this uses extra storage in some use cases (like family photo sharing). We're exploring reference-based solutions in the future where storage would only count if the original is deleted. See [this discussion](https://github.com/ente/ente/discussions/790) for more details.
 
 ### Why don't photos added via a shared link appear in my feed? {#shared-link-photos-not-in-feed}
 
@@ -530,6 +530,29 @@ Yes, if someone has shared an album with you, you can leave it at any time:
 3. Select "Leave album"
 
 After leaving, you'll no longer have access to the album. If you were a collaborator and uploaded photos, those photos will be removed from the album but remain in your own account.
+
+### What happens to the photos in a shared album if it's deleted or sharing stops? {#shared-album-deleted-content}
+
+It depends on who uploaded each photo:
+
+- **Photos you uploaded**: These always stay in your personal library, no matter what happens to the shared album. You don't lose anything you added yourself.
+- **Photos uploaded by others**: You lose access to these if the album is deleted, or if you leave or are removed from it. There is no automatic saving and no advance warning when this happens.
+
+When the album owner deletes a shared album, they see a dialog warning that the album will be deleted for everyone and that they will lose access to photos uploaded by others.
+
+**To save others' photos before that happens:**
+
+1. Open the shared album.
+2. Long-press to select photos, then tap **Select all**.
+3. Tap **Add to album** and choose one of your own albums.
+
+This creates copies that you fully own, so they remain in your library even if the shared album later goes away. Note that copies count towards your own storage. See [Why does adding shared photos to my albums count against my storage?](#shared-storage-count).
+
+### Why are there duplicate photos in a shared album we both add to? {#shared-album-duplicates}
+
+When two people add photos to a shared album, Ente does not detect or warn about duplicates across the different owners. If you and another member each add the same video or photo (for example, one received it through another sharing method and already had it), both copies appear in the album.
+
+Deduplication and the similar-images tool only work within albums you own, not across photos owned by different people in a shared album.
 
 ### How do I see all my shared albums? {#view-shared-albums}
 

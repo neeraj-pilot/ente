@@ -16,7 +16,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import { Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
 import { SpacedRow } from "ente-base/components/containers";
@@ -662,7 +662,7 @@ const SelectAllToggleButton: React.FC<SelectAllToggleButtonProps> = ({
                 isAllSelected ? (
                     <CheckCircleIcon fontSize="small" />
                 ) : (
-                    <CheckCircleOutlineIcon
+                    <CheckCircleOutlinedIcon
                         fontSize="small"
                         sx={{ color: "text.muted" }}
                     />

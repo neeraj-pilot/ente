@@ -79,6 +79,7 @@
   "downloadFailed": "Download failed",
   "failedToDownloadOrDecrypt": "Failed to download item",
   "errorOpeningFile": "Error opening item",
+  "unableToExtractFileInformation": "Unable to extract information from this file",
   "errorOpeningFileMessage": "Error opening item: {error}",
   "@errorOpeningFileMessage": {
     "description": "Error message when opening an item fails",
@@ -183,7 +184,6 @@
       }
     }
   },
-  "pleaseSelectAtLeastOneCollection": "Please select at least one collection",
   "unknownItemType": "Unknown item type",
   "fileDeletedSuccessfully": "Item deleted successfully",
   "failedToDeleteFile": "Failed to delete item: {error}",
@@ -315,7 +315,7 @@
   "optionalNote": "Optional note",
   "upload": "Upload",
   "documentsHint": "Documents",
-  "searchHint": "Search...",
+  "searchHint": "Search your documents",
   "searchEmptyTitle": "No matches found",
   "searchEmptyDescription": "Try searching for something else.",
   "searchEverywhereTitle": "Search everywhere for \"{query}\"",
@@ -379,6 +379,7 @@
   "authToChangeYourEmail": "Please authenticate to change your email",
   "changePasswordTitle": "Change password",
   "authToChangeYourPassword": "Please authenticate to change your password",
+  "authToInitiateAccountDeletion": "Unlock to delete your account",
   "recoveryKey": "Recovery key",
   "ok": "Ok",
   "logout": "Logout",
@@ -842,6 +843,8 @@
   },
   "locker": "Locker",
   "loginToEnteAccount": "Log in to your Ente account",
+  "createAnEnteAccount": "Create an Ente account",
+  "loginToExistingAccount": "Login to existing account",
   "unlockLockerNewUserTitle": "Join Ente to use Locker",
   "unlockLockerNewUserBody": "Locker is currently available only to existing Ente users. You can create an account on Ente Photos to use Locker.",
   "checkoutEntePhotos": "Checkout Ente Photos",

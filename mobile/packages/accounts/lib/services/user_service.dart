@@ -5,7 +5,6 @@ import "dart:math";
 
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:dio/dio.dart';
-import 'package:ente_accounts/models/delete_account.dart';
 import 'package:ente_accounts/models/errors.dart';
 import 'package:ente_accounts/models/sessions.dart';
 import 'package:ente_accounts/models/set_keys_request.dart';
@@ -21,6 +20,7 @@ import 'package:ente_accounts/pages/password_reentry_page.dart';
 import 'package:ente_accounts/pages/recovery_page.dart';
 import 'package:ente_accounts/pages/two_factor_authentication_page.dart';
 import 'package:ente_accounts/pages/two_factor_recovery_page.dart';
+import 'package:ente_accounts/services/install_source_handler.dart';
 import 'package:ente_base/models/key_attributes.dart';
 import 'package:ente_base/models/key_gen_result.dart';
 import 'package:ente_configuration/base_configuration.dart';
@@ -60,14 +60,20 @@ class UserService {
   late ValueNotifier<String?> emailValueNotifier;
   late BaseConfiguration _config;
   late BaseHomePage _homePage;
+  InstallSourceHandler? _installSourceHandler;
 
   UserService._privateConstructor();
 
   static final UserService instance = UserService._privateConstructor();
 
-  Future<void> init(BaseConfiguration config, BaseHomePage homePage) async {
+  Future<void> init(
+    BaseConfiguration config,
+    BaseHomePage homePage, {
+    InstallSourceHandler? installSourceHandler,
+  }) async {
     _config = config;
     _homePage = homePage;
+    _installSourceHandler = installSourceHandler;
     emailValueNotifier = ValueNotifier<String?>(config.getEmail());
     _preferences = await SharedPreferences.getInstance();
   }
@@ -310,46 +316,6 @@ class UserService {
     }
   }
 
-  Future<DeleteChallengeResponse?> getDeleteChallenge(
-    BuildContext context,
-  ) async {
-    try {
-      final response = await _enteDio.get("/users/delete-challenge");
-      if (response.statusCode == 200) {
-        return DeleteChallengeResponse(
-          encryptedChallenge: response.data["encryptedChallenge"],
-        );
-      } else {
-        throw Exception("delete action failed");
-      }
-    } catch (e) {
-      _logger.severe(e);
-      await showGenericErrorDialog(context: context, error: e);
-      return null;
-    }
-  }
-
-  Future<void> deleteAccount(
-    BuildContext context,
-    String challengeResponse,
-  ) async {
-    try {
-      final response = await _enteDio.delete(
-        "/users/delete",
-        data: {"challenge": challengeResponse},
-      );
-      if (response.statusCode == 200) {
-        // clear data
-        await _config.logout();
-      } else {
-        throw Exception("delete action failed");
-      }
-    } catch (e) {
-      _logger.severe(e);
-      rethrow;
-    }
-  }
-
   Future<dynamic> getTokenForPasskeySession(String sessionID) async {
     try {
       final response = await _dio.get(
@@ -409,6 +375,7 @@ class UserService {
             userPassword,
             _config.getKeyAttributes()!,
           );
+          unawaited(autoAttributePendingSource());
           _config.resetVolatilePassword();
           page = _homePage;
         } else {
@@ -800,6 +767,7 @@ class UserService {
             _config.getKeyAttributes()!,
             keyEncryptionKey: keyEncryptionKey,
           );
+          unawaited(autoAttributePendingSource());
           _config.resetVolatilePassword();
           page = _homePage;
         } else {
@@ -1114,6 +1082,20 @@ class UserService {
     } else {
       await _config.setToken(responseData["token"]);
     }
+    final isSignUp = responseData["encryptedToken"] == null;
+    unawaited(autoAttributeSource(isSignUp: isSignUp));
+  }
+
+  Future<bool> hasInstallSource() async {
+    return await _installSourceHandler?.hasInstallSource() ?? false;
+  }
+
+  Future<void> autoAttributeSource({required bool isSignUp}) async {
+    await _installSourceHandler?.autoAttributeSource(isSignUp: isSignUp);
+  }
+
+  Future<void> autoAttributePendingSource() async {
+    await _installSourceHandler?.autoAttributePendingSource();
   }
 
   bool? canDisableEmailMFA() {

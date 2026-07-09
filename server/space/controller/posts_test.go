@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"testing"
 
-	timeutil "github.com/ente-io/museum/pkg/utils/time"
-	"github.com/ente-io/museum/space/models"
-	spacerepo "github.com/ente-io/museum/space/repo"
+	timeutil "github.com/ente/museum/pkg/utils/time"
+	"github.com/ente/museum/space/models"
+	spacerepo "github.com/ente/museum/space/repo"
 	"github.com/stretchr/testify/require"
 )
 

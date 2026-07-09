@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/ente-io/stacktrace"
+	"github.com/ente/stacktrace"
 )
 
 func (r *AssetsRepository) GetAssetBucketID(ctx context.Context, spaceID, objectKey string) (string, error) {

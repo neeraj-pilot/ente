@@ -1,7 +1,7 @@
 import 'dart:io';
 
+import 'package:ente_components/ente_components.dart';
 import 'package:ente_events/event_bus.dart';
-import 'package:ente_ui/components/alert_bottom_sheet.dart';
 import 'package:ente_ui/pages/base_home_page.dart';
 import 'package:ente_ui/utils/dialog_util.dart';
 import "package:ente_utils/email_util.dart";
@@ -14,9 +14,9 @@ import 'package:locker/services/collections/collections_service.dart';
 import 'package:locker/services/collections/models/collection.dart';
 import 'package:locker/services/files/sync/metadata_updater_service.dart';
 import 'package:locker/services/files/upload/file_upload_service.dart';
-import 'package:locker/ui/components/file_upload_sheet.dart';
-import "package:locker/ui/components/gradient_button.dart";
 import 'package:locker/ui/pages/file_upload_screen.dart';
+import "package:locker/utils/bottom_sheet_illustration.dart";
+import "package:locker/utils/error_sheet.dart";
 import 'package:logging/logging.dart';
 
 /// Abstract base class that provides file upload functionality.
@@ -73,7 +73,7 @@ abstract class UploaderPageState<T extends UploaderPage> extends State<T> {
 
       // Navigate to upload screen to get collection selection
       final uploadResult = await Navigator.of(context)
-          .push<FileUploadSheetResult>(
+          .push<FileUploadScreenResult>(
             MaterialPageRoute(
               builder: (context) => FileUploadScreen(
                 files: files,
@@ -218,24 +218,27 @@ abstract class UploaderPageState<T extends UploaderPage> extends State<T> {
       );
       return;
     }
-    await showGenericErrorBottomSheet(context: context, error: error);
+    await showLockerErrorSheet(context, error);
   }
 
   Future<void> _showUploadErrorSheet(String title, String message) async {
-    await showAlertBottomSheet(
-      context,
-      title: title,
-      message: message,
-      assetPath: "assets/warning-grey.png",
+    await showBottomSheetComponent(
+      context: context,
       isDismissible: true,
-      buttons: [
-        GradientButton(
-          text: context.l10n.contactSupport,
-          onTap: () async {
-            await sendEmail(context, to: "support@ente.com", body: message);
-          },
-        ),
-      ],
+      enableDrag: true,
+      builder: (_) => BottomSheetComponent(
+        title: title,
+        message: message,
+        illustration: LockerBottomSheetIllustration.warningGrey,
+        actions: [
+          ButtonComponent(
+            label: context.l10n.contactSupport,
+            onTap: () async {
+              await sendEmail(context, to: "support@ente.com", body: message);
+            },
+          ),
+        ],
+      ),
     );
   }
 }

@@ -216,6 +216,7 @@ class _AllSearchSectionsState extends State<AllSearchSections> {
 
   @override
   Widget build(BuildContext context) {
+    const topPadding = 12.0;
     const bottomPadding = 124.0;
 
     return FutureBuilder<AllSectionsExamplesData>(
@@ -295,10 +296,11 @@ class _AllSearchSectionsState extends State<AllSearchSections> {
             FileTypeSection(hasAnySearchableFiles: hasAnySearchableFiles),
           ];
           return ListView.builder(
-                padding: const EdgeInsets.only(bottom: bottomPadding),
+                padding: const EdgeInsets.only(
+                  top: topPadding,
+                  bottom: bottomPadding,
+                ),
                 physics: const BouncingScrollPhysics(),
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
                 itemCount: sectionWidgets.length + 1,
                 itemBuilder: (context, index) {
                   if (index == 0) {

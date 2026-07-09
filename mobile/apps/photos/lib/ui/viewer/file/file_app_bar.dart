@@ -652,7 +652,7 @@ class FileAppBarState extends State<FileAppBar> {
       return;
     }
 
-    final fileToDownload = !file.isRemoteFile
+    final fileToDownload = !file.isRemoteOnlyFile
         ? (file.copyWith()..localID = null)
         : file;
     final persistToFilesDB =

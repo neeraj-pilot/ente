@@ -34,7 +34,7 @@ use crate::transport::{
 };
 use ente_core::{
     crypto::{decode_b64, encode_b64},
-    http::{HttpClient, HttpConfig},
+    http_legacy::{HttpClient, HttpConfig},
 };
 const SPACE_SESSION_TOKEN_HEADER: &str = "X-Space-Session-Token";
 const UPLOAD_PURPOSE_AVATAR: &str = "avatar";

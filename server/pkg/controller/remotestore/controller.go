@@ -7,16 +7,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ente-io/museum/pkg/controller"
-	"github.com/ente-io/museum/pkg/repo"
-	"github.com/ente-io/museum/pkg/utils/rollout"
+	"github.com/ente/museum/pkg/controller"
+	"github.com/ente/museum/pkg/repo"
+	"github.com/ente/museum/pkg/utils/rollout"
 	"github.com/spf13/viper"
 	"golang.org/x/net/idna"
 
-	"github.com/ente-io/museum/ente"
-	"github.com/ente-io/museum/pkg/repo/remotestore"
-	"github.com/ente-io/museum/pkg/utils/auth"
-	"github.com/ente-io/stacktrace"
+	"github.com/ente/museum/ente"
+	"github.com/ente/museum/pkg/repo/remotestore"
+	"github.com/ente/museum/pkg/utils/auth"
+	"github.com/ente/stacktrace"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -164,6 +164,9 @@ func (c *Controller) insertOrUpdateCustomDomain(ctx *gin.Context, userID int64, 
 	if strings.HasPrefix(value, "_") {
 		return stacktrace.Propagate(ente.NewBadRequestWithMessage("invalid custom domain"), "family pointer not allowed in request")
 	}
+	if isReservedCustomDomain(value, viper.GetString("apps.custom-domain.cname")) {
+		return stacktrace.Propagate(ente.NewBadRequestWithMessage("custom domain is reserved"), "reserved custom domain")
+	}
 	ownerID, err := c.DomainOwner(ctx, value)
 	if err == nil {
 		if ownerID != nil && *ownerID == userID {
@@ -196,6 +199,15 @@ func (c *Controller) insertOrUpdateCustomDomain(ctx *gin.Context, userID int64, 
 		return err
 	}
 	return c.updateFamilyCustomDomainsIfAdmin(ctx, userID, value)
+}
+
+func isReservedCustomDomain(value, configuredCNAME string) bool {
+	for _, domain := range []string{configuredCNAME, "my.ente.com", "my.ente.io"} {
+		if domain != "" && strings.EqualFold(value, domain) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Controller) updateFamilyCustomDomainsIfAdmin(ctx context.Context, userID int64, domain string) error {

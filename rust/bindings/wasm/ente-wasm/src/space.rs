@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use ente_core::{crypto::decode_b64, http::Error as HttpError};
+use ente_core::{crypto::decode_b64, http_legacy::Error as HttpError};
 use ente_space::{
     AccountSpaceCtx, CreatedSpace, DecryptedMessage, DecryptedPost, DecryptedSpaceProfile,
     MessageConversationActivity, MessageResponse, OpenAccountSpaceCtxInput, PostResponse,

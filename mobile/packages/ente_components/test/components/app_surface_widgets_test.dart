@@ -535,9 +535,9 @@ void main() {
     );
     expect(
       tester.getCenter(find.byKey(const ValueKey('header-leading'))).dy,
-      closeTo(81, 1),
+      closeTo(89, 1),
     );
-    expect(tester.getCenter(find.byIcon(Icons.add)).dy, closeTo(81, 1));
+    expect(tester.getCenter(find.byIcon(Icons.add)).dy, closeTo(89, 1));
 
     await tester.tap(find.byKey(const ValueKey('header-leading')));
     await tester.pump();

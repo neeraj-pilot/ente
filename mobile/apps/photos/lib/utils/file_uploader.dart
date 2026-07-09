@@ -647,6 +647,8 @@ class FileUploader {
           debugPrint(
             "File success mapped to existing uploaded ${file.toString()}",
           );
+          // treat as completed so _onUploadDone clears the source export
+          uploadCompleted = true;
           // return the mapped file
           return result.item2;
         }
@@ -958,7 +960,8 @@ class FileUploader {
       }
       if ((e is StorageLimitExceededError ||
           e is FileTooLargeForPlanError ||
-          e is NoActiveSubscriptionError)) {
+          e is NoActiveSubscriptionError ||
+          e is InvalidFileError)) {
         // file upload can not be retried in such cases without user intervention
         uploadHardFailure = true;
       }
@@ -1180,7 +1183,7 @@ class FileUploader {
       // succeeds.
       if ((Platform.isIOS && (uploadCompleted || uploadHardFailure)) ||
           (uploadCompleted && file.isSharedMediaToAppSandbox)) {
-        await mediaUploadData.sourceFile?.delete();
+        await deleteFileSystemEntityIfPresent(mediaUploadData.sourceFile!);
       }
     }
     if (File(encryptedFilePath).existsSync()) {

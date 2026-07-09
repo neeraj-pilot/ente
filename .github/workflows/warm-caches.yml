@@ -32,7 +32,7 @@ jobs:
             RUSTFLAGS: -D warnings
         steps:
             - name: Checkout
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
             - name: Install Linux dependencies
               run: |
@@ -49,15 +49,19 @@ jobs:
 
             - run: cargo test --locked --workspace --no-run
 
+            - run: cargo install cargo-audit --version 0.22.2 --locked
+
     rust-flutter:
         # For the cargo steps of mobile-lint.yml.
         runs-on: ubuntu-latest
         defaults:
             run:
                 working-directory: rust
+        env:
+            RUSTFLAGS: -D warnings
         steps:
             - name: Checkout code and submodules
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
               with:
                   submodules: recursive
 
@@ -72,9 +76,9 @@ jobs:
 
             - run: cargo codegen frb
 
-            - run: cargo clippy -p ente_photos_rust --features flutter --all-targets --locked -- -D warnings
+            - run: cargo clippy -p ente_photos_rust --features flutter --all-targets --locked
 
-            - run: cargo clippy -p ente_rust --features flutter --all-targets --locked -- -D warnings
+            - run: cargo clippy -p ente_rust --features flutter --all-targets --locked
 
     rust-wasm:
         # For web-lint.yml's npm run build:wasm.
@@ -84,7 +88,7 @@ jobs:
                 working-directory: web
         steps:
             - name: Checkout
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
             - name: Setup node
               uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -113,10 +117,10 @@ jobs:
             RUSTFLAGS: -D warnings
         steps:
             - name: Checkout
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
             - name: Setup go
-              uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+              uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
               with:
                   go-version-file: server/go.mod
                   cache: false
@@ -136,7 +140,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
             - name: Setup Rust cache
               uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
@@ -149,14 +153,14 @@ jobs:
 
             - name: Build Ensu
               working-directory: mobile/native/android/apps/ensu
-              run: ./gradlew :app-ui:assembleDebug
+              run: ./gradlew :app:assembleDebug
 
     ensu-ios:
         # For ensu-ios-build.yml.
         runs-on: macos-26
         steps:
             - name: Checkout
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
             - name: Setup Rust cache
               uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
@@ -169,7 +173,7 @@ jobs:
 
             # Compile the app and tests without running them.
             - name: Build Ensu
-              working-directory: mobile/native/darwin/Apps/Ensu
+              working-directory: mobile/native/apple/apps/ensu
               run: xcodebuild build-for-testing -scheme Ensu -destination 'platform=iOS Simulator,name=iPhone 17'
 
     go-server:
@@ -180,10 +184,10 @@ jobs:
                 working-directory: server
         steps:
             - name: Checkout
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
             - name: Setup go
-              uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+              uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
               with:
                   go-version-file: server/go.mod
                   cache-dependency-path: server/go.sum

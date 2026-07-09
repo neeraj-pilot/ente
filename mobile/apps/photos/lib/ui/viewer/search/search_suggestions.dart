@@ -155,8 +155,6 @@ class _SearchSuggestionsWidgetState extends State<SearchSuggestionsWidget> {
             Expanded(
               child: ListView(
                 physics: const BouncingScrollPhysics(),
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.only(bottom: bottomPadding),
                 children: sectionWidgets,
               ),

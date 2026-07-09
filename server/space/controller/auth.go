@@ -6,11 +6,11 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/ente-io/museum/ente"
-	baserepo "github.com/ente-io/museum/pkg/repo"
-	"github.com/ente-io/museum/pkg/utils/auth"
-	spacerepo "github.com/ente-io/museum/space/repo"
-	"github.com/ente-io/stacktrace"
+	"github.com/ente/museum/ente"
+	baserepo "github.com/ente/museum/pkg/repo"
+	"github.com/ente/museum/pkg/utils/auth"
+	spacerepo "github.com/ente/museum/space/repo"
+	"github.com/ente/stacktrace"
 	"github.com/gin-gonic/gin"
 )
 

@@ -1,8 +1,8 @@
 package api
 
 import (
-	"github.com/ente-io/museum/space/models"
-	spacerepo "github.com/ente-io/museum/space/repo"
+	"github.com/ente/museum/space/models"
+	spacerepo "github.com/ente/museum/space/repo"
 	"github.com/gin-gonic/gin"
 )
 

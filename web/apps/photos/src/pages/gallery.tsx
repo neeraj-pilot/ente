@@ -7,7 +7,6 @@ import { AlbumAddedNotification } from "@/components/AlbumAddedNotification";
 import { AuthenticateUser } from "@/components/AuthenticateUser";
 import { GalleryBarAndListHeader } from "@/components/Collections/GalleryBarAndListHeader";
 import { PickCoverPhotoDialog } from "@/components/Collections/PickCoverPhotoDialog";
-import { DownloadStatusNotifications } from "@/components/DownloadStatusNotifications";
 import type { FileListHeaderOrFooter } from "@/components/FileList";
 import { FileListWithViewer } from "@/components/FileListWithViewer";
 import { FixCreationTime } from "@/components/FixCreationTime";
@@ -52,12 +51,13 @@ import {
 import { savedAuthToken } from "ente-base/token";
 import type { Location } from "ente-base/types";
 import { ensureContactsReady } from "ente-contacts-web";
+import { DownloadStatusNotifications } from "ente-gallery/components/DownloadStatusNotifications";
 import { FullScreenDropZone } from "ente-gallery/components/FullScreenDropZone";
-import { type UploadTypeSelectorIntent } from "ente-gallery/components/Upload";
+import type { UploadTypeSelectorIntent } from "ente-gallery/components/Upload";
 import { useSaveGroups } from "ente-gallery/components/utils/save-groups";
-import { type FileViewerInitialSidebar } from "ente-gallery/components/viewer/FileViewer";
+import type { FileViewerInitialSidebar } from "ente-gallery/components/viewer/FileViewer";
 import { CollectionSubType, type Collection } from "ente-media/collection";
-import { type EnteFile } from "ente-media/file";
+import type { EnteFile } from "ente-media/file";
 import { ItemVisibility, metadataHash } from "ente-media/file-metadata";
 import { AssignPersonDialog } from "ente-new/photos/components/AssignPersonDialog";
 import {
@@ -136,7 +136,10 @@ import {
     performFileOp,
     type SelectedState,
 } from "@/utils/file";
-import { quickLinkNameForFiles, resolveQuickLinkURL } from "@/utils/quick-link";
+import {
+    quickLinkNameForFiles,
+    resolveQuickLinkURL,
+} from "ente-gallery/utils/quick-link";
 import {
     savedCollectionFiles,
     savedCollections,
@@ -151,9 +154,9 @@ import {
     filterSearchableFiles,
     updateSearchCollectionsAndFiles,
 } from "ente-new/photos/services/search";
-import {
-    type SearchOption,
-    type SidebarActionID,
+import type {
+    SearchOption,
+    SidebarActionID,
 } from "ente-new/photos/services/search/types";
 import { initSettings } from "ente-new/photos/services/settings";
 import {
@@ -447,7 +450,9 @@ const Page: React.FC = () => {
 
     const activeCollectionFiles = useMemo(() => {
         if (!activeCollection) return [];
-        if (barMode == "hidden-albums") return filteredFiles;
+        if (barMode == "hidden-albums" || barMode == "archive-albums") {
+            return filteredFiles;
+        }
 
         return filteredFiles.filter(({ id, magicMetadata }) => {
             const visibility = magicMetadata?.data.visibility;
@@ -496,18 +501,14 @@ const Page: React.FC = () => {
         filteredFiles.length > 0 &&
         selectedFilesInView.length === filteredFiles.length;
 
-    // TODO: Move into reducer
-    const barCollectionSummaries = useMemo(
-        () =>
-            barMode == "hidden-albums"
-                ? state.hiddenCollectionSummaries
-                : state.normalCollectionSummaries,
-        [
-            barMode,
-            state.hiddenCollectionSummaries,
-            state.normalCollectionSummaries,
-        ],
-    );
+    const isInArchiveSection = barMode == "archive-albums";
+
+    const barCollectionSummaries =
+        barMode == "hidden-albums"
+            ? state.hiddenCollectionSummaries
+            : barMode == "archive-albums"
+              ? state.archivedCollectionSummaries
+              : state.normalCollectionSummaries;
 
     const router = useRouter();
 
@@ -760,7 +761,10 @@ const Page: React.FC = () => {
                 barMode == "people" && activePersonID
                     ? { mode: "people" as const, personID: activePersonID }
                     : {
-                          mode: barMode as "albums" | "hidden-albums",
+                          mode: barMode as
+                              | "albums"
+                              | "hidden-albums"
+                              | "archive-albums",
                           collectionID: activeCollectionID!,
                       },
         };
@@ -787,7 +791,10 @@ const Page: React.FC = () => {
                 barMode == "people" && activePersonID
                     ? { mode: "people" as const, personID: activePersonID }
                     : {
-                          mode: barMode as "albums" | "hidden-albums",
+                          mode: barMode as
+                              | "albums"
+                              | "hidden-albums"
+                              | "archive-albums",
                           collectionID: activeCollectionID!,
                       },
         };
@@ -2047,7 +2054,14 @@ const Page: React.FC = () => {
                         onEditLocation={showEditLocation}
                     />
                 ) : barMode == "hidden-albums" ? (
-                    <HiddenSectionNavbarContents
+                    <SectionNavbarContents
+                        title={t("section_hidden")}
+                        onBack={() => dispatch({ type: "showAlbums" })}
+                        onUpload={openUploader}
+                    />
+                ) : !isInSearchMode && isInArchiveSection ? (
+                    <SectionNavbarContents
+                        title={t("section_archive")}
                         onBack={() => dispatch({ type: "showAlbums" })}
                         onUpload={openUploader}
                     />
@@ -2082,6 +2096,7 @@ const Page: React.FC = () => {
                     activePerson,
                     setFileListHeader,
                     saveGroups,
+                    canCreateAlbum: !isInArchiveSection,
                     onAddSaveGroup,
                     onMarkTempDeleted: handleMarkTempDeleted,
                     onAddFileToCollection: handleAddSingleFileToCollection,
@@ -2378,14 +2393,17 @@ const UploadButton: React.FC<ButtonishProps> = ({ onClick }) => {
     );
 };
 
-interface HiddenSectionNavbarContentsProps {
+interface SectionNavbarContentsProps {
+    title: string;
     onBack: () => void;
     onUpload: () => void;
 }
 
-const HiddenSectionNavbarContents: React.FC<
-    HiddenSectionNavbarContentsProps
-> = ({ onBack, onUpload }) => (
+const SectionNavbarContents: React.FC<SectionNavbarContentsProps> = ({
+    title,
+    onBack,
+    onUpload,
+}) => (
     <Stack
         direction="row"
         sx={(theme) => ({
@@ -2398,7 +2416,7 @@ const HiddenSectionNavbarContents: React.FC<
         <IconButton onClick={onBack}>
             <ArrowBackIcon />
         </IconButton>
-        <Typography sx={{ flex: 1 }}>{t("section_hidden")}</Typography>
+        <Typography sx={{ flex: 1 }}>{title}</Typography>
         <UploadButton onClick={onUpload} />
     </Stack>
 );

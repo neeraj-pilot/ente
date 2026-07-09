@@ -49,7 +49,7 @@ Future<Map<String, IfdTag>> getExif(EnteFile file) async {
       throw Exception("Failed to fetch origin file");
     }
     final exif = await readExifAsync(originFile);
-    if (!file.isRemoteFile && Platform.isIOS) {
+    if (!file.isRemoteOnlyFile && Platform.isIOS) {
       await originFile.delete();
     }
     return exif;

@@ -10,7 +10,6 @@ import {
     getStoredAnonIdentity,
 } from "@/public-album/social/api/public-reaction";
 import { useBrowserBackClose } from "@/shared/hooks/useBrowserBackClose";
-import { getAvatarColor } from "@/shared/utils/avatar-colors";
 import CloseIcon from "@mui/icons-material/Close";
 import {
     Avatar,
@@ -25,10 +24,11 @@ import {
     TextField,
     Typography,
 } from "@mui/material";
-import { type ModalVisibilityProps } from "ente-base/components/utils/modal";
+import type { ModalVisibilityProps } from "ente-base/components/utils/modal";
 import { formatTimeAgo } from "ente-base/date";
 import type { PublicAlbumsCredentials } from "ente-base/http";
 import log from "ente-base/log";
+import { getAvatarColor } from "ente-gallery/utils/avatar-colors";
 import type { EnteFile } from "ente-media/file";
 import { t } from "i18next";
 import React, {
@@ -38,7 +38,7 @@ import React, {
     useRef,
     useState,
 } from "react";
-import { type Comment, type UnifiedReaction } from "../lib/social-types";
+import type { Comment, UnifiedReaction } from "../lib/social-types";
 import { AddNameModal } from "./AddNameModal";
 import { PublicCommentModal } from "./PublicCommentModal";
 import { PublicLikeModal } from "./PublicLikeModal";

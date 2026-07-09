@@ -25,7 +25,7 @@ import { EnteLogo } from "ente-base/components/EnteLogo";
 import { FocusVisibleButton } from "ente-base/components/mui/FocusVisibleButton";
 import { OverflowMenuOption } from "ente-base/components/OverflowMenu";
 import { useModalVisibility } from "ente-base/components/utils/modal";
-import { type UploadTypeSelectorIntent } from "ente-gallery/components/Upload";
+import type { UploadTypeSelectorIntent } from "ente-gallery/components/Upload";
 import type { SearchSuggestion } from "ente-new/photos/services/search/types";
 import { t } from "i18next";
 import React, { useRef, useState } from "react";
@@ -59,7 +59,10 @@ export interface RemotePullOpts {
  * and starts a new selection.
  * */
 export type SelectionContext =
-    | { mode: "albums" | "hidden-albums"; collectionID: number }
+    | {
+          mode: "albums" | "hidden-albums" | "archive-albums";
+          collectionID: number;
+      }
     | { mode: "people"; personID: string };
 
 interface SearchResultsHeaderProps {

@@ -13,38 +13,23 @@ import {
     FeedIcon,
     ShareIcon,
 } from "@/public-album/components/ActionIcons";
-import { type FileListHeaderOrFooter } from "@/public-album/components/FileList";
+import type { FileListHeaderOrFooter } from "@/public-album/components/FileList";
 import { FileListWithViewer } from "@/public-album/components/FileListWithViewer";
 import type { TripLayoutProps } from "@/public-album/components/TripLayout";
 import { setPublicAlbumsCredentials } from "@/public-album/data/auth/public-link-credentials";
-import { quickLinkDateRangeForFiles } from "@/public-album/data/utils/quick-link";
 import { ActiveDownloadStatusNotifications } from "@/public-album/download/components/ActiveDownloadStatusNotifications";
 import { downloadManager } from "@/public-album/download/services/download-manager";
 import { thumbnailManager } from "@/public-album/media/thumbnails/thumbnail-manager";
 import { sortFiles } from "@/public-album/media/utils/sort-files";
-import type { FullScreenDropZoneProps } from "@/public-album/upload/components/CollectDropZone";
 import type { UploadProps } from "@/public-album/upload/components/Upload";
 import {
     getSelectedFiles,
     type SelectedState,
 } from "@/public-album/utils/file";
-import { type FileViewerInitialSidebar } from "@/public-album/viewer/components/FileViewer";
+import type { FileViewerInitialSidebar } from "@/public-album/viewer/components/FileViewer";
 import type { PublicAlbumSingleFileViewerProps } from "@/public-album/viewer/components/PublicAlbumSingleFileViewer";
-import { type PublicFeedItemClickInfo } from "@/public-album/viewer/components/PublicFeedSidebar";
+import type { PublicFeedItemClickInfo } from "@/public-album/viewer/components/PublicFeedSidebar";
 import { LazyPublicFeedSidebar } from "@/public-album/viewer/lib/lazy";
-import {
-    useSaveGroupsActions,
-    type AddSaveGroup,
-} from "@/shared/state/save-groups";
-import {
-    GalleryItemsHeaderAdapter,
-    GalleryItemsSummary,
-} from "@/shared/ui/gallery/GalleryItemsHeader";
-import {
-    LoadingThumbnail,
-    StaticThumbnail,
-} from "@/shared/ui/media/PlaceholderThumbnails";
-import { thumbnailGap } from "@/shared/utils/thumbnail-grid-layout";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import {
@@ -75,10 +60,25 @@ import {
 } from "ente-base/http";
 import log from "ente-base/log";
 import { apiOrigin, isCustomAPIOrigin } from "ente-base/origins";
+import type { FullScreenDropZoneProps } from "ente-gallery/components/FullScreenDropZone";
+import {
+    useSaveGroupsActions,
+    type AddSaveGroup,
+} from "ente-gallery/components/utils/save-groups";
+import { quickLinkDateRangeForFiles } from "ente-gallery/utils/quick-link";
 import type { Collection } from "ente-media/collection";
-import { type EnteFile } from "ente-media/file";
+import type { EnteFile } from "ente-media/file";
 import { fileFileName } from "ente-media/file-metadata";
 import { FileType } from "ente-media/file-type";
+import {
+    GalleryItemsHeaderAdapter,
+    GalleryItemsSummary,
+} from "ente-new/photos/components/gallery/ListHeader";
+import {
+    LoadingThumbnail,
+    StaticThumbnail,
+} from "ente-new/photos/components/PlaceholderThumbnails";
+import { thumbnailGap } from "ente-new/photos/components/utils/thumbnail-grid-layout";
 import { t } from "i18next";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
@@ -91,7 +91,7 @@ import {
     type ComponentType,
     type PropsWithChildren,
 } from "react";
-import { type FileWithPath } from "react-dropzone";
+import type { FileWithPath } from "react-dropzone";
 
 const LazyPublicAlbumSingleFileViewer =
     dynamic<PublicAlbumSingleFileViewerProps>(
@@ -999,7 +999,7 @@ const LazyCollectDropZone: React.FC<LazyCollectDropZoneProps> = ({
         if (!enabled || DropZoneComponent) return;
 
         let isCancelled = false;
-        void import("@/public-album/upload/components/CollectDropZone").then(
+        void import("ente-gallery/components/FullScreenDropZone").then(
             ({ FullScreenDropZone }) => {
                 if (isCancelled) return;
                 setDropZoneComponent(() => FullScreenDropZone);

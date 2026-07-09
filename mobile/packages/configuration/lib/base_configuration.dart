@@ -68,8 +68,10 @@ abstract class BaseConfiguration {
         accessibility: KeychainAccessibility.first_unlock_this_device,
       ),
     );
-    await _setupKeys();
+    // Set up folders before keys so the cache directory is initialized before
+    // _setupKeys() can trigger an auto-logout whose cleanup needs it.
     await _setupFolders();
+    await _setupKeys();
     _logger.info("User ID: ${getUserID()}");
   }
 
@@ -367,6 +369,15 @@ abstract class BaseConfiguration {
 
   Uint8List? getSecretKey() {
     return _secretKey == null ? null : CryptoUtil.base642bin(_secretKey!);
+  }
+
+  String decryptDeleteChallenge(String encryptedChallenge) {
+    final challenge = CryptoUtil.openSealSync(
+      CryptoUtil.base642bin(encryptedChallenge),
+      CryptoUtil.base642bin(getKeyAttributes()!.publicKey),
+      getSecretKey()!,
+    );
+    return utf8.decode(challenge);
   }
 
   Uint8List getRecoveryKey() {

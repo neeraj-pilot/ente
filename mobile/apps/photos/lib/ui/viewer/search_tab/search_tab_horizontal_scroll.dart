@@ -19,7 +19,6 @@ class SearchTabHorizontalRow extends StatelessWidget {
         horizontal: searchTabSectionHorizontalPadding,
       ),
       physics: const BouncingScrollPhysics(),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       scrollDirection: Axis.horizontal,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -57,7 +56,6 @@ class SearchTabHorizontalScrollView extends StatelessWidget {
           horizontal: searchTabSectionHorizontalPadding,
         ),
         physics: const BouncingScrollPhysics(),
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         scrollDirection: Axis.horizontal,
         child: child,
       ),

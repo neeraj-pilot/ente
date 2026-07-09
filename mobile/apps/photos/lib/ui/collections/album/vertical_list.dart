@@ -122,7 +122,6 @@ class _AlbumVerticalListWidgetState extends State<AlbumVerticalListWidget> {
 
     return ListView.separated(
       controller: widget.scrollController,
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemBuilder: (context, index) {
         // Create new album button
         if (index == 0 && widget.shouldShowCreateAlbum) {

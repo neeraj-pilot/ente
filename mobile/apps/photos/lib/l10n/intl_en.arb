@@ -1,5 +1,7 @@
 {
   "@@locale ": "en",
+  "onboardingTitle": "For everything you don't want to forget",
+  "onboardingDesc": "Save your photos and videos. Every memory, in one place.",
   "enterYourEmailAddress": "Enter your email address",
   "enterYourNewEmailAddress": "Enter your new email address",
   "accountWelcomeBack": "Welcome back!",
@@ -9,27 +11,14 @@
   "email": "Email",
   "cancel": "Cancel",
   "cast": "Cast",
+  "castSessions": "Cast sessions",
+  "noSessionsFound": "No sessions found!",
   "verify": "Verify",
   "invalidEmailAddress": "Invalid email address",
   "validEmailAddress": "Valid email address",
   "enterValidEmail": "Please enter a valid email address.",
   "deleteAccount": "Delete account",
-  "deleteAccountWarning": "This will delete your Ente Auth, Ente Photos and Ente Locker account.",
-  "askDeleteReason": "What is the main reason you are deleting your account?",
-  "deleteAccountFeedbackPrompt": "We are sorry to see you go. Please share your feedback to help us improve.",
-  "feedback": "Feedback",
-  "kindlyHelpUsWithThisInformation": "Kindly help us with this information",
-  "confirmDeletePrompt": "Yes, I want to permanently delete this account and its data across all apps.",
-  "confirmAccountDeletion": "Confirm Account Deletion",
-  "deleteAccountPermanentlyButton": "Delete Account Permanently",
-  "yourAccountHasBeenDeleted": "Your account has been deleted",
-  "selectReason": "Select reason",
-  "deleteReason1": "It’s missing a key feature that I need",
-  "deleteReason2": "The app or a certain feature does not behave as I think it should",
-  "deleteReason3": "I found another service that I like better",
-  "deleteReason4": "My reason isn’t listed",
   "sendEmail": "Send email",
-  "deleteRequestSLAText": "Your request will be processed within 72 hours.",
   "entePhotosPerm": "Ente <i>needs permission to</i> preserve your photos",
   "ok": "Ok",
   "createAccount": "Create account",
@@ -443,15 +432,53 @@
   "videoSmallCase": "video",
   "photoSmallCase": "photo",
   "singleFileDeleteHighlight": "It will be deleted from all albums.",
-  "singleFileInBothLocalAndRemote": "This {fileType} is in both Ente and your device.",
-  "singleFileInRemoteOnly": "This {fileType} will be deleted from Ente.",
-  "singleFileDeleteFromDevice": "This {fileType} will be deleted from your device.",
+  "singleFileInBothLocalAndRemote": "This item is available on your device and Ente.",
+  "@singleFileInBothLocalAndRemote": {
+    "description": "Delete confirmation message for a single item that exists both on the device and in Ente."
+  },
+  "singleFileInRemoteOnly": "This item will be deleted from all albums. You can recover it from Trash.",
+  "@singleFileInRemoteOnly": {
+    "description": "Delete confirmation message for a single item that exists only in Ente."
+  },
+  "singleFileDeleteFromDevice": "Item not backed up. Permanently delete from device?",
+  "@singleFileDeleteFromDevice": {
+    "description": "Delete confirmation message for a single item that exists only on the device."
+  },
+  "deleteItemsQuestion": "{count, plural, one {Delete item?} other {Delete {count} items?}}",
+  "@deleteItemsQuestion": {
+    "description": "Delete confirmation title for one or more selected items.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "selectedFilesSavedOnDeviceOnly": "Items not backed up. Permanently delete from device?",
+  "@selectedFilesSavedOnDeviceOnly": {
+    "description": "Delete confirmation message for selected items that exist only on the device."
+  },
+  "selectedFilesBackedUpToEnte": "These items will be deleted from all albums. You can recover them from Trash.",
+  "@selectedFilesBackedUpToEnte": {
+    "description": "Delete confirmation message for selected items that are backed up to Ente."
+  },
+  "someSelectedFilesBackedUpToEnte": "These items are available on device and Ente.",
+  "@someSelectedFilesBackedUpToEnte": {
+    "description": "Delete confirmation message for selected items that exist both on the device and in Ente."
+  },
   "deleteFromEnte": "Delete from Ente",
   "yesDelete": "Yes, delete",
   "movedToTrash": "Moved to trash",
   "deleteFromDeviceQuestion": "Delete from device?",
   "deleteFromDevice": "Delete from device",
   "deleteFromBoth": "Delete from both",
+  "moreOptions": "More options",
+  "@moreOptions": {
+    "description": "Button label for showing additional delete options."
+  },
+  "setAsMyDefaultChoice": "Set as my default choice",
+  "@setAsMyDefaultChoice": {
+    "description": "Checkbox label for saving the selected delete action as the default choice."
+  },
   "newAlbum": "New album",
   "albums": "Albums",
   "ente": "Ente",
@@ -607,11 +634,11 @@
   "authToChangeYourEmail": "Please authenticate to change your email",
   "changePassword": "Change password",
   "authToChangeYourPassword": "Please authenticate to change your password",
+  "authToInitiateAccountDeletion": "Unlock to delete your account",
   "emailVerificationToggle": "Email verification",
   "authToChangeEmailVerificationSetting": "Please authenticate to change email verification",
   "exportYourData": "Export your data",
   "logout": "Logout",
-  "authToInitiateAccountDeletion": "Please authenticate to initiate account deletion",
   "areYouSureYouWantToLogout": "Are you sure you want to logout?",
   "yesLogout": "Yes, logout",
   "aNewVersionOfEnteIsAvailable": "A new version of Ente is available.",
@@ -628,6 +655,7 @@
   "backup": "Backup",
   "freeUpDeviceSpace": "Free up device space",
   "freeUpDeviceSpaceDesc": "Save space on your device by clearing files that have already been backed up.",
+  "freeUpDeviceSpaceConfirmDesc": "{count, plural, one{{count} backed-up file} other{{count} backed-up files}} will be permanently deleted from this device.",
   "freeUpDeviceSpaceDescICloud": "Files in iCloud shared albums cannot be cleared.",
   "@freeUpDeviceSpaceDescICloud": {
     "description": "Here 'cleared' means 'deleted' from the device"
@@ -636,6 +664,14 @@
   "noDeviceThatCanBeDeleted": "You've no files on this device that can be deleted",
   "removeDuplicates": "Remove duplicates",
   "removeDuplicatesDesc": "Review and remove files that are exact duplicates.",
+  "mediaManagementHintTitle": "Tired of confirming every delete?",
+  "@mediaManagementHintTitle": {
+    "description": "Title of a sheet prompting Android users to enable media management permission."
+  },
+  "mediaManagementHintMessage": "Turn on media management for Ente in settings, and the prompts stop.",
+  "@mediaManagementHintMessage": {
+    "description": "Message explaining that enabling Android media management permission avoids repeated delete confirmations."
+  },
   "viewLargeFiles": "Large files",
   "viewLargeFilesDesc": "View files that are consuming the most amount of storage.",
   "deleteSuggestions": "Delete suggestions",
@@ -1730,7 +1766,6 @@
   "addToHiddenAlbum": "Add to hidden album",
   "moveToHiddenAlbum": "Move to hidden album",
   "fileTypes": "File types",
-  "deleteConfirmDialogBody": "This account is linked to other Ente apps, if you use any. Your uploaded data, across all Ente apps, will be scheduled for deletion, and your account will be permanently deleted.",
   "hearUsWhereTitle": "How did you hear about Ente?",
   "hearUsExplanation": "We don't track app installs. It'd help if you told us where you found us!",
   "viewAddOnButton": "View add-ons",
@@ -1792,7 +1827,7 @@
   "playOnTv": "Play album on TV",
   "pair": "Pair",
   "deviceNotFound": "Device not found",
-  "castInstruction": "Visit {castUrl} on the device you want to pair.\n\nEnter the code below to play the album on your TV.",
+  "castInstruction": "Visit {castUrl} on the device you want to pair.",
   "@castInstruction": {
     "description": "Instructions shown when pairing a device to play an album on TV.",
     "placeholders": {
@@ -1842,8 +1877,8 @@
   "removePersonLabel": "Remove person label",
   "removePersonTag": "Remove person tag",
   "areYouSureRemoveThisPersonTag": "Are you sure you want to remove this person tag?",
-  "autoPairDesc": "Auto pair works only with devices that support Chromecast.",
-  "manualPairDesc": "Pair with PIN works with any screen you wish to view your album on.",
+  "pairWithAutoDesc": "Auto pair works only with devices that support Cast.",
+  "pairWithCodeDesc": "Pair with PIN works with any screen you wish to view your album on.",
   "connectToDevice": "Connect to device",
   "autoCastDialogBody": "You'll see available Cast devices here.",
   "autoCastiOSPermission": "Make sure Local Network permissions are turned on for the Ente Photos app, in Settings.",
@@ -1855,7 +1890,7 @@
   "pairingComplete": "Pairing complete",
   "savingEdits": "Saving edits...",
   "autoPair": "Auto pair",
-  "pairWithPin": "Pair with PIN",
+  "pairUsingCode": "Pair using code",
   "faceRecognition": "Face recognition",
   "foundFaces": "Found faces",
   "clusteringProgress": "Clustering progress",
@@ -3148,7 +3183,7 @@
   "deleteHiddenFilesFromDeviceDescription": "Delete local copies of hidden files from your device",
   "deleteOnDeviceFiles": "Delete on device files",
   "noHiddenFilesOnDevice": "No hidden files on device",
-  "welcome": "Welcome",
+  "grantGalleryPermissionTitle": "Let's find your favourites",
   "grantGalleryPermissionDesc": "Grant permission to access and organize photos with face recognition. All processing happens on your device.",
   "grantPermission": "Grant permission",
   "privateAI": "Private AI",
@@ -3180,12 +3215,6 @@
   "alreadyHaveAnAccount": "Already have an account?",
   "dontHaveAnAccount": "Don't have an account?",
   "loginToEnte": "Login to Ente",
-  "searchAndDiscover": "Search and Discover",
-  "searchAndDiscoverDesc": "Search photos and discover memories with on-device machine learning",
-  "shareYourMemories": "Share your Memories",
-  "shareYourMemoriesDesc": "Share albums, collect photos and gather comments with public links",
-  "privateAndSecureBackups": "Backup with Privacy",
-  "privateAndSecureBackupsDesc": "End-to-end encrypted, independently audited and fully open source",
   "mlProgressBannerTitle": "Hang tight!",
   "mlProgressBannerDescription": "Your photos are getting processed on device to detect faces, objects and more.",
   "mlProgressBannerStatus": "{indexed} out of {total} photos processed",

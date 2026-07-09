@@ -81,7 +81,6 @@ class _NoResultWidgetState extends State<NoResultWidget> {
     return Scaffold(
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.fromLTRB(12, 0, 12, bottomPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

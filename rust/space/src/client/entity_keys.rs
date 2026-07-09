@@ -10,7 +10,7 @@ use super::AccountSpaceCtx;
 use crate::error::{Result, SpaceError};
 use crate::transport::{CreateEntityKeyRequest, EntityKeyPayload, EntityKeyResponse};
 use ente_core::crypto::{decode_b64, encode_b64};
-use ente_core::http::Error as HttpError;
+use ente_core::http_legacy::Error as HttpError;
 
 const SPACE_ENTITY_KEY_HEADER_BYTES: usize = 24;
 

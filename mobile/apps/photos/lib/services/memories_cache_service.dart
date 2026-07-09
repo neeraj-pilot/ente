@@ -1305,8 +1305,7 @@ class MemoriesCacheService {
     }
     await _routeToPage(
       AllMemoriesPage(
-        allMemories: _cachedMemories!.map((e) => e.memories).toList(),
-        allTitles: _cachedMemories!.map((e) => e.title).toList(),
+        allMemories: _cachedMemories!,
         initialPageIndex: memoryIdx,
         inititalFileIndex: fileIdx,
         isFromWidgetOrNotifications: true,
@@ -1335,8 +1334,7 @@ class MemoriesCacheService {
     }
     await _routeToPage(
       AllMemoriesPage(
-        allMemories: allMemories.map((e) => e.memories).toList(),
-        allTitles: allMemories.map((e) => e.title).toList(),
+        allMemories: allMemories,
         initialPageIndex: memoryIdx,
         inititalFileIndex: 0,
         isFromWidgetOrNotifications: true,

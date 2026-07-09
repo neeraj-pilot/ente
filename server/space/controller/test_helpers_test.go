@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/ente-io/museum/internal/testutil"
-	timeutil "github.com/ente-io/museum/pkg/utils/time"
-	spacerepo "github.com/ente-io/museum/space/repo"
+	"github.com/ente/museum/internal/testutil"
+	timeutil "github.com/ente/museum/pkg/utils/time"
+	spacerepo "github.com/ente/museum/space/repo"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

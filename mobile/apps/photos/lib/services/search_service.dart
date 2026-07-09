@@ -1074,6 +1074,7 @@ class SearchService {
   Future<List<GenericSearchResult>> getAllFace(
     int? limit, {
     required int minClusterSize,
+    int? fallbackMinClusterSize,
     bool showIgnoredOnly = false,
   }) async {
     try {
@@ -1383,7 +1384,18 @@ class SearchService {
           );
         }
       }
-      if (facesResult.isEmpty) return [];
+      if (facesResult.isEmpty) {
+        if (fallbackMinClusterSize != null &&
+            fallbackMinClusterSize < minClusterSize) {
+          return getAllFace(
+            limit,
+            minClusterSize: fallbackMinClusterSize,
+            showIgnoredOnly: showIgnoredOnly,
+          );
+        } else {
+          return [];
+        }
+      }
       sortPeopleFaces(
         facesResult,
         PeopleSortConfig(

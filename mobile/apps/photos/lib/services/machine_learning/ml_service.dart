@@ -1,6 +1,6 @@
 import "dart:async";
 import "dart:convert" show jsonEncode;
-import "dart:io" show Platform;
+import "dart:io" show File, Platform;
 import "dart:math" show min;
 import "dart:typed_data" show Uint8List;
 
@@ -14,6 +14,8 @@ import "package:photos/db/offline_files_db.dart";
 import "package:photos/events/compute_control_event.dart";
 import "package:photos/events/people_changed_event.dart";
 import "package:photos/main.dart";
+import "package:photos/models/file/file.dart";
+import "package:photos/models/file/file_type.dart";
 import "package:photos/models/ml/clip.dart";
 import "package:photos/models/ml/face/face.dart";
 import "package:photos/models/ml/ml_versions.dart";
@@ -749,8 +751,12 @@ class MLService {
     bool actuallyRanML = false;
 
     final mlDataDB = _dbForMode(instruction.mode);
+    String? pathToDeleteAfterMLProcessing;
     try {
       final String filePath = await getImagePathForML(instruction.file);
+      if (_shouldDeleteAfterMLProcessing(instruction.file)) {
+        pathToDeleteAfterMLProcessing = filePath;
+      }
 
       final MLResult? result = await MLIndexingIsolate.instance.analyzeImage(
         instruction,
@@ -962,7 +968,25 @@ class MLService {
         await mlDataDB.deletePetDataForFiles([instruction.fileKey]);
       }
       return false;
+    } finally {
+      if (pathToDeleteAfterMLProcessing != null) {
+        try {
+          await File(pathToDeleteAfterMLProcessing).delete();
+        } catch (e, s) {
+          _logger.warning(
+            "Failed to delete origin file exported for ML at $pathToDeleteAfterMLProcessing",
+            e,
+            s,
+          );
+        }
+      }
     }
+  }
+
+  bool _shouldDeleteAfterMLProcessing(EnteFile file) {
+    return Platform.isIOS &&
+        file.fileType != FileType.video &&
+        !file.isRemoteOnlyFile;
   }
 
   bool _canRunMLFunction({required String function}) {

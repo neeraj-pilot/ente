@@ -5,7 +5,6 @@ import { t } from "i18next";
 export const LockPage = () => (
     <Modal
         open
-        disableEscapeKeyDown
         aria-label={t("app_lock")}
         slotProps={{
             backdrop: {

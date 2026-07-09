@@ -149,7 +149,7 @@ class _VideoWidgetMediaKitState extends State<VideoWidgetMediaKit>
   }
 
   void loadOriginal() {
-    if (widget.file.isRemoteFile) {
+    if (widget.file.isRemoteOnlyFile) {
       _loadNetworkVideo();
       _setFileSizeIfNull();
     } else if (widget.file.isSharedMediaToAppSandbox) {

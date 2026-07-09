@@ -58,7 +58,7 @@ class MemoryVideoPrefetcher {
   }
 
   void _enqueue(EnteFile file, bool Function()? stillActive) {
-    if (file.fileType != FileType.video || !file.isRemoteFile) return;
+    if (file.fileType != FileType.video || !file.isRemoteOnlyFile) return;
     final uploadedFileID = file.uploadedFileID;
     if (uploadedFileID == null) return;
     if (_attemptedIDs.contains(uploadedFileID) ||

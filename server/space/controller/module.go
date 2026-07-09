@@ -1,8 +1,8 @@
 package controller
 
 import (
-	baserepo "github.com/ente-io/museum/pkg/repo"
-	"github.com/ente-io/museum/space/repo"
+	baserepo "github.com/ente/museum/pkg/repo"
+	"github.com/ente/museum/space/repo"
 	"github.com/gin-gonic/gin"
 )
 

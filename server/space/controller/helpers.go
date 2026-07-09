@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/ente-io/museum/space/models"
-	spacerepo "github.com/ente-io/museum/space/repo"
+	"github.com/ente/museum/space/models"
+	spacerepo "github.com/ente/museum/space/repo"
 )
 
 func formatMicros(value int64) string {

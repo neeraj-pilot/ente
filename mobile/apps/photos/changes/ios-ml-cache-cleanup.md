@@ -1,0 +1,1 @@
+- Reduced app storage growth on iOS by clearing temporary copies of on-device photos right after they are processed for machine learning.

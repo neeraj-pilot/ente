@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	baserepo "github.com/ente-io/museum/pkg/repo"
-	emailutil "github.com/ente-io/museum/pkg/utils/email"
+	baserepo "github.com/ente/museum/pkg/repo"
+	emailutil "github.com/ente/museum/pkg/utils/email"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )

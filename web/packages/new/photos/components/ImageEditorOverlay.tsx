@@ -55,6 +55,7 @@ import React, {
     forwardRef,
     Fragment,
     useEffect,
+    useId,
     useRef,
     useState,
     type Ref,
@@ -107,6 +108,7 @@ export const ImageEditorOverlay: React.FC<ImageEditorOverlayProps> = ({
     onSaveEditedCopy,
 }) => {
     const { showMiniDialog } = useBaseContext();
+    const titleID = useId();
 
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const originalSizeCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -523,6 +525,14 @@ export const ImageEditorOverlay: React.FC<ImageEditorOverlayProps> = ({
 
     return (
         <Backdrop
+            slotProps={{
+                root: {
+                    "aria-hidden": false,
+                    "aria-labelledby": titleID,
+                    "aria-modal": true,
+                    role: "dialog",
+                },
+            }}
             sx={{
                 backgroundColor: "background.default" /* Opaque */,
                 width: "100%",
@@ -538,7 +548,11 @@ export const ImageEditorOverlay: React.FC<ImageEditorOverlayProps> = ({
                         alignItems: "center",
                     }}
                 >
-                    <Typography variant="h2" sx={{ fontWeight: "medium" }}>
+                    <Typography
+                        id={titleID}
+                        variant="h2"
+                        sx={{ fontWeight: "medium" }}
+                    >
                         {t("photo_editor")}
                     </Typography>
                     <IconButton

@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ente-io/museum/ente"
-	"github.com/ente-io/museum/pkg/utils/auth"
-	"github.com/ente-io/museum/space/controller"
-	"github.com/ente-io/museum/space/models"
+	"github.com/ente/museum/ente"
+	"github.com/ente/museum/pkg/utils/auth"
+	"github.com/ente/museum/space/controller"
+	"github.com/ente/museum/space/models"
 	"github.com/gin-gonic/gin"
 )
 

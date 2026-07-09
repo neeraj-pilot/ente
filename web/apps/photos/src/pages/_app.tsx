@@ -1,4 +1,3 @@
-import { useNotification } from "@/components/utils/hooks-app";
 import { useDesktopAppLockRoute } from "@/components/utils/use-app-lock-route";
 import { photosLogout } from "@/services/logout";
 import "@fontsource-variable/inter";
@@ -18,13 +17,17 @@ import {
     TranslucentLoadingOverlay,
 } from "ente-base/components/loaders";
 import { AttributedMiniDialog } from "ente-base/components/MiniDialog";
+import { Notification } from "ente-base/components/Notification";
+import { ThemedLoadingBar } from "ente-base/components/ThemedLoadingBar";
 import { useAttributedMiniDialog } from "ente-base/components/utils/dialog";
 import {
     useIsRouteChangeInProgress,
+    useNotification,
     useSetupI18n,
     useSetupLogs,
 } from "ente-base/components/utils/hooks-app";
 import { photosTheme } from "ente-base/components/utils/theme";
+import { useLoadingBar } from "ente-base/components/utils/use-loading-bar";
 import { BaseContext, deriveBaseContext } from "ente-base/context";
 import log from "ente-base/log";
 import { logStartupBanner } from "ente-base/log-web";
@@ -34,8 +37,6 @@ import {
     isHLSGenerationSupported,
 } from "ente-gallery/services/video";
 import { AppLockReauthenticationDialog } from "ente-new/photos/components/app-lock/AppLockReauthenticationDialog";
-import { Notification } from "ente-new/photos/components/Notification";
-import { ThemedLoadingBar } from "ente-new/photos/components/ThemedLoadingBar";
 import {
     updateAvailableForDownloadDialogAttributes,
     updateReadyToInstallDialogAttributes,
@@ -44,7 +45,6 @@ import {
     useAutoLockWhenBackgrounded,
     useSetupAppLock,
 } from "ente-new/photos/components/utils/use-app-lock";
-import { useLoadingBar } from "ente-new/photos/components/utils/use-loading-bar";
 import { useAppLockSnapshot } from "ente-new/photos/components/utils/use-snapshot";
 import { resumeExportsIfNeeded } from "ente-new/photos/services/export";
 import { runMigrations } from "ente-new/photos/services/migration";
@@ -56,9 +56,8 @@ import type { AppProps } from "next/app";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import "photoswipe/dist/photoswipe.css";
+import "ente-gallery/styles/photoswipe.css";
 import "../styles/global.css";
-import "../styles/photoswipe.css";
 
 type PhotosAppProps = AppProps<Record<string, unknown>>;
 

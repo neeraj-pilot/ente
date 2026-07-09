@@ -158,7 +158,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
         .on<RetryFailedImageLoadEvent>()
         .listen((_) {
           if (!mounted || _loadedFinalImage) return;
-          if (!_loadedSmallThumbnail && _photo.isRemoteFile) {
+          if (!_loadedSmallThumbnail && _photo.isRemoteOnlyFile) {
             // Evict the stale in-flight thumbnail so the rebuild's
             // getThumbnailFromServer doesn't dedupe against the dead completer.
             removePendingGetThumbnailRequestIfAny(_photo);
@@ -202,7 +202,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_photo.isRemoteFile) {
+    if (_photo.isRemoteOnlyFile) {
       _loadNetworkImage();
     } else {
       _loadLocalImage(context);

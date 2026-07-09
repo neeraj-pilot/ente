@@ -228,7 +228,6 @@ class _AppBarComponentState extends State<AppBarComponent> {
         controller: _controller,
         physics: widget.physics,
         cacheExtent: widget.cacheExtent,
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
           SliverAppBarComponent(
             title: widget.title,
@@ -476,11 +475,15 @@ class _HeaderAppBarDelegate extends SliverPersistentHeaderDelegate {
     );
     final expandedTextBlockHeight =
         expandedTitleHeight +
-        (subtitle == null
-            ? 0
-            : _subtitleGap + subtitleLineHeight * _subtitleMaxLines);
-    final leadingTop =
+        (subtitle == null ? 0 : _subtitleGap + subtitleLineHeight);
+    final expandedContentTop =
         _expandedContentTop +
+        math.min(
+          subtitle == null ? 0.0 : subtitleLineHeight,
+          math.max(0.0, collapsedHeight - expandedTitleHeight),
+        );
+    final leadingTop =
+        expandedContentTop +
         _centerOffset(expandedTextBlockHeight, _headerControlSize);
     final actionsTop = lerpDouble(
       leadingTop,
@@ -494,7 +497,7 @@ class _HeaderAppBarDelegate extends SliverPersistentHeaderDelegate {
       titleProgress,
     )!;
     final titleTop = lerpDouble(
-      _expandedContentTop,
+      expandedContentTop,
       collapsedTitleTop,
       titleProgress,
     )!;
@@ -557,7 +560,7 @@ class _HeaderAppBarDelegate extends SliverPersistentHeaderDelegate {
                         left: titleLeft,
                         right: titleRight,
                         top:
-                            _expandedContentTop +
+                            expandedContentTop +
                             expandedTitleHeight +
                             _subtitleGap,
                         child: IgnorePointer(

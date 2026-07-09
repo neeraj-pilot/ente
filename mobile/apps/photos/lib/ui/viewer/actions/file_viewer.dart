@@ -253,7 +253,6 @@ class FileViewerState extends State<FileViewer> {
         fileSelectedIndex,
         "external_review_gallery",
         isLocalOnlyContext: true,
-        showEditAction: false,
         galleryType: GalleryType.localFolder,
         onBackPressed: (_) => _closeViewer(),
       );

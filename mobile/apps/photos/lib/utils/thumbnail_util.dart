@@ -36,7 +36,7 @@ class FileDownloadItem {
 }
 
 Future<Uint8List?> getThumbnail(EnteFile file) async {
-  if (file.isRemoteFile) {
+  if (file.isRemoteOnlyFile) {
     return getThumbnailFromServer(file);
   } else {
     return getThumbnailFromLocal(file, size: thumbnailLargeSize);
@@ -45,7 +45,7 @@ Future<Uint8List?> getThumbnail(EnteFile file) async {
 
 Future<({bool acquiredPendingRequestRef, Future<void> pendingRequest})>
 preloadThumbnailWithPendingRequestRef(EnteFile file) async {
-  if (!file.isRemoteFile) {
+  if (!file.isRemoteOnlyFile) {
     unawaited(getThumbnailFromLocal(file));
     return (
       acquiredPendingRequestRef: false,

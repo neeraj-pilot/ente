@@ -1,0 +1,1 @@
+- Show smaller detected people groups in Search when no larger groups are available.

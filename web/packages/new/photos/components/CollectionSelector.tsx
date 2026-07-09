@@ -300,7 +300,7 @@ export const CollectionSelector: React.FC<CollectionSelectorProps> = ({
             <Divider />
             {searchFilteredCollections.length === 0 && !showCreateButton ? (
                 <NoResultsContent>
-                    <Typography color="text.muted">
+                    <Typography sx={{ color: "text.muted" }}>
                         {t("no_results")}
                     </Typography>
                 </NoResultsContent>

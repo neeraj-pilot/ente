@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ente-io/museum/space/models"
+	"github.com/ente/museum/space/models"
 	"github.com/stretchr/testify/require"
 )
 

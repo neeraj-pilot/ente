@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:adaptive_theme/adaptive_theme.dart';
+import 'package:ente_account_deletion/account_deletion.dart';
+import 'package:ente_accounts/services/install_source_handler.dart';
 import 'package:ente_accounts/services/user_service.dart';
 import 'package:ente_components/ente_components.dart' as components;
 import 'package:ente_crypto_api/ente_crypto_api.dart';
 import 'package:ente_crypto_dart_adapter/ente_crypto_dart_adapter.dart';
+import 'package:ente_install_source/ente_install_source.dart';
 import "package:ente_legacy/services/emergency_service.dart";
 import "package:ente_legacy/services/legacy_kit_service.dart";
 import 'package:ente_lock_screen/lock_screen_settings.dart';
@@ -16,7 +19,6 @@ import 'package:ente_network/network.dart';
 import 'package:ente_pure_utils/ente_pure_utils.dart';
 import 'package:ente_rust/ente_rust.dart';
 import "package:ente_strings/l10n/strings_localizations.dart";
-import "package:ente_ui/theme/ente_theme_data.dart";
 import "package:ente_ui/theme/theme_config.dart";
 import 'package:ente_ui/utils/window_listener_service.dart';
 import "package:flutter/material.dart";
@@ -118,8 +120,14 @@ Future<void> _runInForeground() async {
         lockScreen: LockScreen(Configuration.instance),
         enabled: await LockScreenSettings.instance.shouldShowLockScreen(),
         locale: locale,
-        lightTheme: lightThemeData,
-        darkTheme: darkThemeData,
+        lightTheme: components.ComponentTheme.themeForApp(
+          components.ComponentApp.locker,
+          brightness: Brightness.light,
+        ),
+        darkTheme: components.ComponentTheme.themeForApp(
+          components.ComponentApp.locker,
+          brightness: Brightness.dark,
+        ),
         savedThemeMode: savedThemeMode,
         supportedLocales: appSupportedLocales,
         localizationsDelegates: const [
@@ -186,10 +194,28 @@ Future<void> _init(bool bool, {String? via}) async {
     await Configuration.instance.init([LockerDB.instance]);
 
     await Network.instance.init(Configuration.instance);
-    await UserService.instance.init(Configuration.instance, const HomePage());
+    final installSourceService = InstallSourceService(
+      Network.instance.enteDio,
+      app: Configuration.instance.appIdentity.app,
+      getToken: Configuration.instance.getToken,
+    );
+    await UserService.instance.init(
+      Configuration.instance,
+      const HomePage(),
+      installSourceHandler: InstallSourceHandler(
+        hasInstallSource: installSourceService.hasInstallSource,
+        autoAttributeSource: installSourceService.autoAttributeSource,
+        autoAttributePendingSource:
+            installSourceService.autoAttributePendingSource,
+      ),
+    );
     await LockScreenSettings.instance.init(
       Configuration.instance,
       hideAppContentDefault: true,
+    );
+    AccountDeletionSettings.instance.init(
+      host: Configuration.instance,
+      enteDio: Network.instance.enteDio,
     );
     await CollectionApiClient.instance.init();
     await CollectionService.instance.init(preferences);
@@ -216,6 +242,12 @@ Future<void> _init(bool bool, {String? via}) async {
     await LegacyKitService.instance.init(
       config: Configuration.instance,
       sessionProvider: LockerContactsDisplayService.buildSession,
+    );
+    unawaited(
+      Future.delayed(
+        const Duration(seconds: 5),
+        installSourceService.autoAttributePendingSource,
+      ),
     );
   } catch (e) {
     _logger.severe("Error during initialization", e);

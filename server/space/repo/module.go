@@ -3,7 +3,7 @@ package repo
 import (
 	"database/sql"
 
-	"github.com/ente-io/museum/pkg/utils/s3config"
+	"github.com/ente/museum/pkg/utils/s3config"
 )
 
 type Module struct {

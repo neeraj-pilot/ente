@@ -13,11 +13,11 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/ente-io/museum/ente"
-	"github.com/ente-io/museum/ente/base"
-	timeutil "github.com/ente-io/museum/pkg/utils/time"
-	"github.com/ente-io/museum/space/models"
-	spacerepo "github.com/ente-io/museum/space/repo"
+	"github.com/ente/museum/ente"
+	"github.com/ente/museum/ente/base"
+	timeutil "github.com/ente/museum/pkg/utils/time"
+	"github.com/ente/museum/space/models"
+	spacerepo "github.com/ente/museum/space/repo"
 	"github.com/gin-gonic/gin"
 )
 

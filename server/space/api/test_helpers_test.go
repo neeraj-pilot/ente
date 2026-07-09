@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	spacerepo "github.com/ente-io/museum/space/repo"
+	spacerepo "github.com/ente/museum/space/repo"
 )
 
 func testSpaceBytes(value string) []byte {

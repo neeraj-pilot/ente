@@ -33,7 +33,7 @@ import UploadService, {
 } from "ente-gallery/services/upload/upload-service";
 import { processVideoNewUpload } from "ente-gallery/services/video";
 import type { Collection } from "ente-media/collection";
-import { type EnteFile } from "ente-media/file";
+import type { EnteFile } from "ente-media/file";
 import {
     fileCreationTime,
     fileLocation,
