@@ -304,6 +304,13 @@ Future<bool> _writeCachedThumbnail(
     await cachedThumbnail.writeAsBytes(data, flush: flush);
     return true;
   } on FileSystemException catch (e) {
+    if (_isNoSpaceError(e)) {
+      _logger.warning(
+        "Thumbnail cache write skipped because device storage is full: "
+        "${cachedThumbnail.path}: $e",
+      );
+      return false;
+    }
     if (!isFileSystemPathMissing(e)) {
       rethrow;
     }
@@ -311,11 +318,29 @@ Future<bool> _writeCachedThumbnail(
       "Thumbnail cache directory missing during write; recreating: "
       "${cachedThumbnail.parent.path}",
     );
-    await cachedThumbnail.parent.create(recursive: true);
+    try {
+      await cachedThumbnail.parent.create(recursive: true);
+    } on FileSystemException catch (createError) {
+      if (_isNoSpaceError(createError)) {
+        _logger.warning(
+          "Thumbnail cache directory recreate skipped because device storage "
+          "is full: ${cachedThumbnail.parent.path}: $createError",
+        );
+        return false;
+      }
+      rethrow;
+    }
     try {
       await cachedThumbnail.writeAsBytes(data, flush: flush);
       return true;
     } on FileSystemException catch (retryError) {
+      if (_isNoSpaceError(retryError)) {
+        _logger.warning(
+          "Thumbnail cache write skipped because device storage is full: "
+          "${cachedThumbnail.path}: $retryError",
+        );
+        return false;
+      }
       if (isFileSystemPathMissing(retryError)) {
         _logger.info(
           "Thumbnail cache path still missing after recreate; skipping write: "
@@ -326,6 +351,11 @@ Future<bool> _writeCachedThumbnail(
       rethrow;
     }
   }
+}
+
+bool _isNoSpaceError(FileSystemException error) {
+  final code = error.osError?.errorCode;
+  return code == 28 || code == 112;
 }
 
 File cachedThumbnailPath(EnteFile file) {

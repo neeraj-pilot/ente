@@ -283,13 +283,19 @@ Future<File?> downloadAndDecrypt(
     await encryptedFile.delete();
     return File(decryptedFilePath);
   } catch (e, s) {
+    if (e is DownloadNotEnoughStorageError || _isStorageError(e)) {
+      _logger.warning(
+        "$logPrefix failed to download because device storage is full: $e",
+      );
+      if (throwOnFailure) {
+        throw DownloadNotEnoughStorageError();
+      }
+      return null;
+    }
     _logger.severe("$logPrefix failed to download or decrypt", e, s);
     if (throwOnFailure) {
       if (e is DownloadFailedError) {
         rethrow;
-      }
-      if (_isStorageError(e)) {
-        throw DownloadNotEnoughStorageError();
       }
       throw DownloadFailedError(e.toString());
     }
