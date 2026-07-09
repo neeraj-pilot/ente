@@ -447,7 +447,7 @@ class Configuration implements LockScreenHost, AccountDeletionHost {
         CryptoUtil.base642bin(attributes.keyDecryptionNonce),
       );
     } catch (e) {
-      _logger.severe('master-key decryption failed', e);
+      _logger.warning('master-key decryption failed: $e');
       throw Exception("Incorrect password");
     }
     await setKey(CryptoUtil.bin2base64(key));
