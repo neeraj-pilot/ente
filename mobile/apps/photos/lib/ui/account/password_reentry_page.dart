@@ -130,8 +130,8 @@ class _PasswordReentryPageState extends State<PasswordReentryPage> {
         );
       }
       return;
-    } catch (e, s) {
-      _logger.severe("Password verification failed", e, s);
+    } catch (e) {
+      _logger.warning("Password verification failed: $e");
       await dialog.hide();
       final dialogChoice = await showChoiceDialog(
         context,
