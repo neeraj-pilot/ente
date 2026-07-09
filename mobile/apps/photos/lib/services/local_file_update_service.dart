@@ -3,7 +3,7 @@ import 'dart:core';
 import 'dart:io';
 
 import 'package:ente_pure_utils/ente_pure_utils.dart'
-    show deleteFileSystemEntityIfPresent;
+    show deleteFileSystemEntityIfPresent, isFileSystemPathMissing;
 import 'package:logging/logging.dart';
 import "package:photos/core/configuration.dart";
 import 'package:photos/core/errors.dart';
@@ -204,6 +204,11 @@ class LocalFileUpdateService {
         }
         processedIDs.add(file.localID!);
       } catch (e, s) {
+        if (_isMissingSourceFileDuringHash(e)) {
+          _logger.info("Source file missing during hash check ${file.tag}: $e");
+          processedIDs.add(file.localID!);
+          continue;
+        }
         _logger.severe("Failed to check hash", e, s);
       } finally {}
     }
@@ -244,5 +249,12 @@ class LocalFileUpdateService {
         "Copied upload temp file already missing: ${sourceFile.path}",
       );
     }
+  }
+
+  bool _isMissingSourceFileDuringHash(Object error) {
+    if (error is FileSystemException && isFileSystemPathMissing(error)) {
+      return true;
+    }
+    return error.toString().contains("PathNotFoundException");
   }
 }
