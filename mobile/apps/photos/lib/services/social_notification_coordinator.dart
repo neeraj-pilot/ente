@@ -273,7 +273,8 @@ class SocialNotificationCoordinator {
           FeedItemType.sharedCollection => false,
         };
         final title = await _getSocialNotificationTitle(candidate);
-        await NotificationService.instance.showNotification(
+        final notificationService = NotificationService.instance;
+        final notificationShown = await notificationService.showNotification(
           title,
           _getSocialNotificationBody(candidate, s, fileType, isOwn),
           channelID: 'social_activity',
@@ -286,7 +287,9 @@ class SocialNotificationCoordinator {
             _notificationGroupForType(candidate.type),
           ),
         );
-        latestSentNotificationTime ??= candidate.createdAt;
+        if (notificationShown) {
+          latestSentNotificationTime ??= candidate.createdAt;
+        }
       } catch (e, stackTrace) {
         _logger.severe('Failed to prepare social notification', e, stackTrace);
       }

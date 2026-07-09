@@ -189,6 +189,30 @@ class NotificationService {
     return result ?? false;
   }
 
+  Future<bool> canShowNotifications() async {
+    await _ensurePluginInitialized();
+    bool? result;
+    if (Platform.isIOS) {
+      final permissions = await _notificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.checkPermissions();
+      result = permissions?.isEnabled;
+    } else if (Platform.isAndroid) {
+      result = await _notificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.areNotificationsEnabled();
+    }
+    if (result != null) {
+      await _preferences.setBool(keyGrantedNotificationPermission, result);
+      return result;
+    }
+    return hasGrantedPermissions();
+  }
+
   bool shouldShowNotificationsForSharedPhotosAndAlbums() {
     final result = _preferences.getBool(
       keyShouldShowNotificationsForSharedPhotos,
@@ -212,7 +236,7 @@ class NotificationService {
     return _preferences.setBool(keyShouldShowSocialNotifications, value);
   }
 
-  Future<void> showNotification(
+  Future<bool> showNotification(
     String title,
     String message, {
     int? id,
@@ -220,7 +244,10 @@ class NotificationService {
     String channelName = "ente",
     String payload = "ente://home",
   }) async {
-    await _ensurePluginInitialized();
+    if (!await canShowNotifications()) {
+      _logger.warning("Notification permissions not granted");
+      return false;
+    }
     _logger.info(
       "Showing notification with: $title, $message, $channelID, $channelName, $payload",
     );
@@ -245,6 +272,7 @@ class NotificationService {
       platformChannelSpecs,
       payload: payload,
     );
+    return true;
   }
 
   Future<void> scheduleNotification(
@@ -266,13 +294,9 @@ class NotificationService {
         );
       }
       await initTimezones();
-      if (!hasGrantedPermissions()) {
+      if (!await canShowNotifications()) {
         _logger.warning("Notification permissions not granted");
-        await requestPermissions();
-        if (!hasGrantedPermissions()) {
-          _logger.severe("Failed to get notification permissions");
-          return;
-        }
+        return;
       } else {
         if (logSchedule) {
           _logger.info("Notification permissions already granted");
