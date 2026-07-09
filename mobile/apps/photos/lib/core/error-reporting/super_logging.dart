@@ -453,16 +453,35 @@ class SuperLogging {
   static bool isFlushing = false;
 
   static void flushQueue() async {
-    if (isFlushing || logFile == null) {
+    if (isFlushing || logFile == null || fileQueueEntries.isEmpty) {
       return;
     }
     isFlushing = true;
     final entry = fileQueueEntries.removeFirst();
-    await logFile!.writeAsString(entry, mode: FileMode.append, flush: true);
-    isFlushing = false;
+    try {
+      await logFile!.writeAsString(entry, mode: FileMode.append, flush: true);
+    } on FileSystemException catch (e) {
+      printLog("Failed to write log file: $e");
+      if (_isNoSpaceFileSystemException(e)) {
+        fileQueueEntries.clear();
+        fileIsEnabled = false;
+      } else {
+        rethrow;
+      }
+    } finally {
+      isFlushing = false;
+    }
     if (fileQueueEntries.isNotEmpty) {
       flushQueue();
     }
+  }
+
+  static bool _isNoSpaceFileSystemException(FileSystemException e) {
+    final message = e.message.toLowerCase();
+    final osMessage = e.osError?.message.toLowerCase() ?? "";
+    return e.osError?.errorCode == 28 ||
+        message.contains("no space left on device") ||
+        osMessage.contains("no space left on device");
   }
 
   // Logs on must be chunked or they get truncated otherwise
