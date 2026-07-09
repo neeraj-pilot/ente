@@ -76,7 +76,27 @@ class CollectionsDB {
     final Directory documentsDirectory =
         await getApplicationDocumentsDirectory();
     final String path = join(documentsDirectory.path, _databaseName);
-    return await openDatabaseWithMigration(path, dbConfig);
+    final db = await openDatabaseWithMigration(path, dbConfig);
+    await _ensureSharedAtColumn(db);
+    return db;
+  }
+
+  Future<void> _ensureSharedAtColumn(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    final hasSharedAt = columns.any(
+      (column) => column['name'] == columnSharedAt,
+    );
+    if (hasSharedAt) {
+      return;
+    }
+    try {
+      await db.execute('ALTER TABLE $table ADD COLUMN $columnSharedAt INTEGER');
+    } on DatabaseException catch (e) {
+      // Foreground and background isolates can repair the same DB concurrently.
+      if (!e.isDuplicateColumnError(columnSharedAt)) {
+        rethrow;
+      }
+    }
   }
 
   Future<void> clearTable() async {
