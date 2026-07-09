@@ -159,8 +159,9 @@ class _BodyState extends State<_Body> {
     super.initState();
     _files = widget.config.files;
 
-    _selectedIndexNotifier.value = _initialSelectedIndex() ?? 0;
-    _pageController = PageController(initialPage: _selectedIndexNotifier.value);
+    final selectedIndex = _initialSelectedIndex();
+    _selectedIndexNotifier.value = selectedIndex ?? -1;
+    _pageController = PageController(initialPage: selectedIndex ?? 0);
     _guestViewEventSubscription = Bus.instance.on<GuestViewEvent>().listen((
       event,
     ) {
@@ -610,7 +611,11 @@ class _BodyState extends State<_Body> {
     if (files == null || files.isEmpty) {
       return null;
     }
-    return min(max(widget.config.selectedIndex, 0), files.length - 1);
+    final selectedIndex = widget.config.selectedIndex;
+    if (selectedIndex < 0 || selectedIndex >= files.length) {
+      return null;
+    }
+    return selectedIndex;
   }
 
   EnteFile? get _selectedFile => _fileAt(_selectedIndexNotifier.value);

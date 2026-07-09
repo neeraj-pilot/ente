@@ -286,6 +286,10 @@ class _GalleryFileWidgetState extends State<GalleryFileWidget> {
 
   void _routeToDetailPage(EnteFile file, BuildContext context) {
     final galleryFiles = GalleryFilesState.of(context).galleryFiles;
+    final selectedIndex = galleryFiles.indexOf(file);
+    if (selectedIndex < 0) {
+      return;
+    }
     // Device folders (local-only contexts) should keep files visible
     // even after deleting from Ente (remote) since they still exist locally
     final galleryType = GalleryContextState.of(context)?.galleryType;
@@ -293,7 +297,7 @@ class _GalleryFileWidgetState extends State<GalleryFileWidget> {
     final page = DetailPage(
       DetailPageConfiguration(
         galleryFiles,
-        galleryFiles.indexOf(file),
+        selectedIndex,
         widget.tag,
         isLocalOnlyContext: isLocalOnlyContext,
         galleryType: galleryType,
