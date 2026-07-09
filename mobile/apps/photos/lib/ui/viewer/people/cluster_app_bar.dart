@@ -225,13 +225,6 @@ class _AppBarWidgetState extends State<ClusterAppBar> {
           final Map<String, String> newFaceIdToClusterID =
               breakupResult.newFaceIdToCluster;
 
-          // Update to delete the old clusters and save the new clusters
-          await mlDataDB.deleteClusterSummary(widget.clusterID);
-          await MLDataDB.instance.clusterSummaryUpdate(
-            breakupResult.newClusterSummaries,
-          );
-          await mlDataDB.updateFaceIdToClusterId(newFaceIdToClusterID);
-
           // Find the biggest cluster
           biggestClusterID = '';
           int biggestClusterSize = 0;
@@ -242,6 +235,18 @@ class _AppBarWidgetState extends State<ClusterAppBar> {
               biggestClusterID = clusterToFaces.key;
             }
           }
+          if (biggestClusterID.isEmpty) {
+            _logger.warning("Breakup cluster returned no non-empty clusters");
+            return;
+          }
+
+          // Update to delete the old clusters and save the new clusters
+          await mlDataDB.deleteClusterSummary(widget.clusterID);
+          await MLDataDB.instance.clusterSummaryUpdate(
+            breakupResult.newClusterSummaries,
+          );
+          await mlDataDB.updateFaceIdToClusterId(newFaceIdToClusterID);
+
           // Get the files for the biggest new cluster
           final biggestClusterFileIDs = newClusterIDToFaceIDs[biggestClusterID]!
               .map((e) => getFileIdFromFaceId<int>(e))
@@ -251,7 +256,7 @@ class _AppBarWidgetState extends State<ClusterAppBar> {
               .then((mapping) => mapping.values.toList());
           // Sort the files to prevent issues with the order of the files in gallery
           biggestClusterFiles.sort(
-            (a, b) => b.creationTime!.compareTo(a.creationTime!),
+            (a, b) => (b.creationTime ?? 0).compareTo(a.creationTime ?? 0),
           );
 
           userConfirmed = true;
