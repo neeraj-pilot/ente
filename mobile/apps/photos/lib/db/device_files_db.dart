@@ -234,20 +234,29 @@ extension DeviceFiles on FilesDB {
           }
         } else {
           hasUpdated = true;
-          await db.execute(
-            '''
-            INSERT INTO device_collections (id, name, count, cover_id, modified_at, should_backup)
-            VALUES (?, ?, ?, ?, ?, ?);
-          ''',
-            [
-              pathEntity.id,
-              pathEntity.name,
-              assetCount,
-              localID,
-              modifiedAt,
-              shouldBackup ? _sqlBoolTrue : _sqlBoolFalse,
-            ],
-          );
+          await db.writeTransaction((tx) async {
+            await tx.execute(
+              '''
+              INSERT OR IGNORE INTO device_collections (id, name, count, cover_id, modified_at, should_backup)
+              VALUES (?, ?, ?, ?, ?, ?);
+            ''',
+              [
+                pathEntity.id,
+                pathEntity.name,
+                assetCount,
+                localID,
+                modifiedAt,
+                shouldBackup ? _sqlBoolTrue : _sqlBoolFalse,
+              ],
+            );
+            await tx.execute(
+              '''
+              UPDATE device_collections SET name = ?, cover_id = ?, count = ?, modified_at = ? WHERE id = ?;
+            ''',
+              [pathEntity.name, localID, assetCount, modifiedAt, pathEntity.id],
+            );
+          });
+          existingPathIds.add(pathEntity.id);
         }
       }
       // delete existing pathIDs which are missing on device
