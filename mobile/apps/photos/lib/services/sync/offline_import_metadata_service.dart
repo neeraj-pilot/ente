@@ -131,6 +131,9 @@ class OfflineImportMetadataService {
       file.fileSize = fileSize;
       file.metadataVersion = kProcessingVersion;
       return true;
+    } on PathNotFoundException {
+      _logger.info("Skipping missing local file while processing ${file.tag}");
+      return false;
     } catch (e, s) {
       _logger.warning("Failed to process ${file.tag}", e, s);
       return false;
