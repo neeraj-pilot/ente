@@ -101,8 +101,8 @@ void showCollectionActionSheet(
 
   showBottomSheetComponent<void>(
     context: context,
-    builder: (_) => BottomSheetComponent(
-      title: _actionName(context, actionType, filesCount),
+    builder: (sheetContext) => BottomSheetComponent(
+      title: _actionName(sheetContext, actionType, filesCount),
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       content: SizedBox(
         height: height,
