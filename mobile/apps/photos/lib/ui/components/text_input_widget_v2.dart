@@ -544,6 +544,7 @@ class _TextInputWidgetV2State extends State<TextInputWidgetV2>
       if (e.toString().contains('Incorrect password')) {
         _logger.warning('Incorrect password');
         _surfaceWrongPasswordState();
+        return;
       }
       if (!widget.popNavAfterSubmission) {
         rethrow;
