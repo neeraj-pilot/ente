@@ -27,6 +27,7 @@ import 'package:photos/ui/notification/toast.dart';
 import 'package:photos/ui/tools/debug/log_file_viewer.dart';
 import 'package:photos/utils/dialog_util.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final Logger _logger = Logger('email_util');
@@ -174,10 +175,7 @@ Future<String> getZippedLogsFile(BuildContext? context) async {
   final logsPath = (await getApplicationSupportDirectory()).path;
   final logsDirectory = Directory(logsPath + "/logs");
   final tempPath = (await getTemporaryDirectory()).path;
-  int userID = 0;
-  try {
-    userID = Configuration.instance.getUserID() ?? 0;
-  } catch (_) {}
+  final userID = await _getLogZipUserID();
   final zipFilePath = tempPath + "/logs-$userID.zip";
   final encoder = ZipFileEncoder();
   encoder.create(zipFilePath);
@@ -187,6 +185,16 @@ Future<String> getZippedLogsFile(BuildContext? context) async {
     await dialog.hide();
   }
   return zipFilePath;
+}
+
+Future<int> _getLogZipUserID() async {
+  try {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getInt(Configuration.userIDKey) ?? 0;
+  } catch (e, s) {
+    _logger.warning('Failed to read user ID for log zip file name', e, s);
+    return 0;
+  }
 }
 
 Future<void> shareLogs(
