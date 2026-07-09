@@ -18,6 +18,7 @@ import 'package:photos/core/constants.dart';
 import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
+import "package:photos/utils/apple_photos_errors.dart";
 import 'package:photos/utils/file_download_util.dart';
 import 'package:photos/utils/thumbnail_util.dart';
 
@@ -89,6 +90,25 @@ Future<File?> getFile(
       return cachedFile;
     }
   } catch (e, s) {
+    if (isApplePhotosResourceUnavailableError(e)) {
+      if (file.isUploaded) {
+        _logger.info(
+          "Local Apple Photos resource unavailable for ${file.localID}; fetching uploaded file ${file.uploadedFileID}",
+        );
+        return getFileFromServer(
+          file,
+          liveVideo: liveVideo,
+          forGalleryDownload: forGalleryDownload,
+        );
+      }
+      _logger.info(
+        "Local Apple Photos resource unavailable for ${file.localID}; no uploaded file copy",
+      );
+      if (forGalleryDownload) {
+        rethrow;
+      }
+      return null;
+    }
     _logger.warning("Failed to get file", e, s);
     if (forGalleryDownload) {
       rethrow;
