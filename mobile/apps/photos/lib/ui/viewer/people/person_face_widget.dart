@@ -229,6 +229,10 @@ class _PersonFaceWidgetState extends State<PersonFaceWidget>
       fixedFaceID ??= await checkUsedFaceIDForPersonOrClusterId(
         personOrClusterId,
       );
+      if (fixedFaceID != null && tryGetFileIdFromFaceId(fixedFaceID) == null) {
+        await checkRemoveCachedFaceIDForPersonOrClusterId(personOrClusterId);
+        fixedFaceID = null;
+      }
 
       EnteFile? fileForFaceCrop;
       if (isLocalGalleryMode) {
@@ -267,13 +271,17 @@ class _PersonFaceWidgetState extends State<PersonFaceWidget>
                   widget.clusterID!,
                 );
           final localIntIds = allFaces
-              .map((faceID) => getFileIdFromFaceId<int>(faceID))
+              .map(tryGetFileIdFromFaceId)
+              .whereType<int>()
               .toSet();
           final localIdMap = await OfflineFilesDB.instance.getLocalIdsForIntIds(
             localIntIds,
           );
           for (final faceID in allFaces) {
-            final localIntId = getFileIdFromFaceId<int>(faceID);
+            final localIntId = tryGetFileIdFromFaceId(faceID);
+            if (localIntId == null) {
+              continue;
+            }
             final localId = localIdMap[localIntId];
             final candidate = localId != null ? localIdToFile[localId] : null;
             if (candidate != null) {
@@ -323,7 +331,10 @@ class _PersonFaceWidgetState extends State<PersonFaceWidget>
                   widget.clusterID!,
                 );
           for (final faceID in allFaces) {
-            final fileID = getFileIdFromFaceId<int>(faceID);
+            final fileID = tryGetFileIdFromFaceId(faceID);
+            if (fileID == null) {
+              continue;
+            }
             if (hiddenFileIDs.contains(fileID)) {
               _logger.info(
                 "File with ID $fileID is hidden, skipping it for face crop.",
