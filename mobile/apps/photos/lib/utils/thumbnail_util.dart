@@ -318,7 +318,18 @@ Future<bool> _writeCachedThumbnail(
       "Thumbnail cache directory missing during write; recreating: "
       "${cachedThumbnail.parent.path}",
     );
-    await cachedThumbnail.parent.create(recursive: true);
+    try {
+      await cachedThumbnail.parent.create(recursive: true);
+    } on FileSystemException catch (createError) {
+      if (_isNoSpaceError(createError)) {
+        _logger.warning(
+          "Thumbnail cache directory recreate skipped because device storage "
+          "is full: ${cachedThumbnail.parent.path}: $createError",
+        );
+        return false;
+      }
+      rethrow;
+    }
     try {
       await cachedThumbnail.writeAsBytes(data, flush: flush);
       return true;
