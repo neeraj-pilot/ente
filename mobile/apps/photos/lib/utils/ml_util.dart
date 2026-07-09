@@ -706,10 +706,8 @@ Future<String> getImagePathForML(EnteFile enteFile) async {
     try {
       file = await getThumbnailForUploadedFile(enteFile);
     } on PlatformException catch (e, s) {
-      _logger.severe(
-        "Could not get thumbnail for $enteFile due to PlatformException",
-        e,
-        s,
+      _logger.warning(
+        "Could not get thumbnail for $enteFile due to PlatformException: $e",
       );
       throw ThumbnailRetrievalException(e.toString(), s);
     }
@@ -843,6 +841,9 @@ Future<MLResult> analyzeImageStatic(Map args) async {
 
     return result;
   } catch (e, s) {
+    if (isExpectedMlSkipError(e)) {
+      rethrow;
+    }
     _logger.severe("Could not analyze image", e, s);
     rethrow;
   }

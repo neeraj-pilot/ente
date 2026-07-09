@@ -82,12 +82,10 @@ Future<DecodedImage> decodeImageFromPath(
   late Image image;
   try {
     image = await decodeImageFromData(imageData);
-  } catch (e, s) {
+  } catch (e) {
     if (isRawImageExtension(format)) {
       _logger.warning(
-        "Skipping JPEG conversion for RAW image format $format because flutter_image_compress is known to crash on unsupported RAW input",
-        e,
-        s,
+        "Skipping JPEG conversion for RAW image format $format because flutter_image_compress is known to crash on unsupported RAW input: $e",
       );
       throw Exception(
         'InvalidImageFormatException: Error decoding image of format $format',
@@ -114,10 +112,8 @@ Future<DecodedImage> decodeImageFromPath(
         throw Exception('Res too high W:${image.width} H:${image.height}');
       }
     } catch (e) {
-      _logger.severe(
-        'Error decoding image of format $format on ${Platform.isAndroid ? "Android" : "iOS"}',
-        e,
-        s,
+      _logger.warning(
+        'Error decoding image of format $format on ${Platform.isAndroid ? "Android" : "iOS"}: $e',
       );
       throw Exception(
         'InvalidImageFormatException: Error decoding image of format $format',
