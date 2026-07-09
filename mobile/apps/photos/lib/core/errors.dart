@@ -62,7 +62,8 @@ bool isHandledSyncError(Object errObj) {
       errObj is NoActiveSubscriptionError ||
       errObj is WiFiUnavailableError ||
       errObj is StorageLimitExceededError ||
-      errObj is SyncStopRequestedError) {
+      errObj is SyncStopRequestedError ||
+      errObj is NoMediaLocationAccessError) {
     return true;
   }
   return false;
@@ -92,7 +93,7 @@ class SharingNotPermittedForFreeAccountsError extends Error {}
 
 class LinkEditNotAllowedError extends Error {}
 
-class NoMediaLocationAccessError extends Error {}
+class NoMediaLocationAccessError extends Error implements LocallyHandledError {}
 
 class PassKeySessionNotVerifiedError extends Error {}
 

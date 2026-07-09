@@ -142,7 +142,7 @@ class SyncService {
       _logger.info("Logging user out");
       Bus.instance.fire(TriggerLogoutEvent());
     } on NoMediaLocationAccessError {
-      _logger.severe("Not uploading due to no media location access");
+      _logger.warning("Not uploading due to no media location access");
       Bus.instance.fire(
         SyncStatusUpdate(SyncStatus.error, error: NoMediaLocationAccessError()),
       );
