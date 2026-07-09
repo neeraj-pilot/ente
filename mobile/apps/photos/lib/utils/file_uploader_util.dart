@@ -383,7 +383,7 @@ Future<void> _decorateEnteFileData(
     }
   }
   if (Platform.isIOS) {
-    final originalTitle = await asset.titleAsync;
+    final originalTitle = await _getAssetTitle(asset);
     if (originalTitle.isNotEmpty) {
       file.title = originalTitle;
       return;
@@ -391,7 +391,16 @@ Future<void> _decorateEnteFileData(
   }
   if (file.title == null || file.title!.isEmpty) {
     _logger.warning("Title was missing ${file.tag}");
-    file.title = await asset.titleAsync;
+    file.title = await _getAssetTitle(asset);
+  }
+}
+
+Future<String> _getAssetTitle(AssetEntity asset) async {
+  try {
+    return await asset.titleAsync;
+  } catch (e, s) {
+    _logger.warning("Failed to get asset title for ${asset.id}", e, s);
+    return "";
   }
 }
 
