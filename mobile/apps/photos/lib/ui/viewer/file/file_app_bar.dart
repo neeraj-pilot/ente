@@ -652,9 +652,9 @@ class FileAppBarState extends State<FileAppBar> {
       return;
     }
 
-    final fileToDownload = !file.isRemoteOnlyFile
+    final fileToDownload = file.isUploaded && !file.isRemoteOnlyFile
         ? (file.copyWith()..localID = null)
-        : file;
+        : file.copyWith();
     final persistToFilesDB =
         widget.galleryType != GalleryType.sharedPublicCollection;
     if (flagService.internalUser) {

@@ -1126,9 +1126,9 @@ class _FileSelectionActionsWidgetState
         continue;
       }
       filesToDownload.add(
-        file.isRemoteOnlyFile
-            ? file.copyWith()
-            : (file.copyWith()..localID = null),
+        file.isUploaded && !file.isRemoteOnlyFile
+            ? (file.copyWith()..localID = null)
+            : file.copyWith(),
       );
     }
     final skippedFilesCount = skippedFiles.length;

@@ -476,9 +476,9 @@ class GalleryDownloadQueueService {
       throw DownloadUnavailableError();
     }
     file.fileSize ??= _tasks[fileID]?.totalBytes;
-    final fileToDownload = file.isRemoteOnlyFile
-        ? file.copyWith()
-        : (file.copyWith()..localID = null);
+    final fileToDownload = file.isUploaded && !file.isRemoteOnlyFile
+        ? (file.copyWith()..localID = null)
+        : file.copyWith();
     await downloadToGallery(
       fileToDownload,
       forceResumableDownload: true,
