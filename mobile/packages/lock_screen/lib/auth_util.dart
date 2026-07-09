@@ -328,7 +328,7 @@ Future<bool> requestAuthentication(
     final unavailableException =
         localAuthenticationUnavailableExceptionForError(e);
     if (unavailableException != null) {
-      _logger.warning("System local authentication unavailable", e, s);
+      _logger.warning("System local authentication unavailable: $e");
       throw unavailableException;
     }
     if (isExpectedLocalAuthFailure(e)) {

@@ -55,9 +55,9 @@ class LocalAuthenticationService {
       } on WindowsLocalAuthenticationException catch (e, s) {
         windowsLocalAuthException = e;
         logger.warning("Windows local authentication failed", e, s);
-      } on LocalAuthenticationUnavailableException catch (e, s) {
+      } on LocalAuthenticationUnavailableException catch (e) {
         localAuthUnavailableException = e;
-        logger.warning("System local authentication unavailable", e, s);
+        logger.warning("System local authentication unavailable: $e");
       } finally {
         AppLock.of(
           context,
@@ -167,8 +167,8 @@ class LocalAuthenticationService {
         if (context.mounted) {
           showToast(context, e.userMessage);
         }
-      } on LocalAuthenticationUnavailableException catch (e, s) {
-        logger.warning("System local authentication unavailable", e, s);
+      } on LocalAuthenticationUnavailableException catch (e) {
+        logger.warning("System local authentication unavailable: $e");
         if (context.mounted) {
           await showLocalAuthenticationUnavailableMessage(context, e);
         }

@@ -380,9 +380,9 @@ class _LockScreenState extends State<LockScreen> with WidgetsBindingObserver {
       if (mounted) {
         showToast(context, e.userMessage);
       }
-    } on LocalAuthenticationUnavailableException catch (e, s) {
+    } on LocalAuthenticationUnavailableException catch (e) {
       _isShowingLockScreen = false;
-      _logger.warning("System local authentication unavailable", e, s);
+      _logger.warning("System local authentication unavailable: $e");
       if (mounted) {
         await showLocalAuthenticationUnavailableMessage(
           context,
