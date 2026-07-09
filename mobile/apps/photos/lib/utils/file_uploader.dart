@@ -1062,12 +1062,16 @@ class FileUploader {
       return Tuple2(false, fileToUpload);
     }
     final bool isSandBoxFile = fileToUpload.isSharedMediaToAppSandbox;
+    final userID = Configuration.instance.getUserID();
+    if (userID == null) {
+      return Tuple2(false, fileToUpload);
+    }
 
     final List<EnteFile> existingUploadedFiles = await FilesDB.instance
         .getUploadedFilesWithHashes(
           mediaUploadData.hashData!,
           fileToUpload.fileType,
-          Configuration.instance.getUserID()!,
+          userID,
         );
     if (existingUploadedFiles.isEmpty) {
       // continueUploading this file
