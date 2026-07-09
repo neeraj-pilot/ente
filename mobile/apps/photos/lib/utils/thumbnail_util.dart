@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:ente_crypto/ente_crypto.dart';
 import 'package:ente_pure_utils/ente_pure_utils.dart'
     show isFileSystemPathMissing;
+import "package:flutter/services.dart" show PlatformException;
 import 'package:logging/logging.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photos/core/cache/thumbnail_in_memory_cache.dart';
@@ -168,14 +169,28 @@ Future<Uint8List?> getThumbnailFromLocal(
       if (asset == null || !(await asset.exists)) {
         return null;
       }
-      return asset
-          .thumbnailDataWithSize(ThumbnailSize(size, size), quality: quality)
-          .then((data) {
-            ThumbnailInMemoryLruCache.put(file, data, size);
-            return data;
-          });
+      try {
+        final data = await asset.thumbnailDataWithSize(
+          ThumbnailSize(size, size),
+          quality: quality,
+        );
+        if (data != null) {
+          ThumbnailInMemoryLruCache.put(file, data, size);
+        }
+        return data;
+      } on PlatformException catch (e) {
+        if (_isThumbnailRequestError(e)) {
+          _logger.info("Local thumbnail request failed for ${file.tag}: $e");
+          return null;
+        }
+        rethrow;
+      }
     });
   }
+}
+
+bool _isThumbnailRequestError(PlatformException error) {
+  return error.code == "Thumbnail request error";
 }
 
 void removePendingGetThumbnailRequestIfAny(EnteFile file) {
