@@ -225,13 +225,6 @@ class _AppBarWidgetState extends State<ClusterAppBar> {
           final Map<String, String> newFaceIdToClusterID =
               breakupResult.newFaceIdToCluster;
 
-          // Update to delete the old clusters and save the new clusters
-          await mlDataDB.deleteClusterSummary(widget.clusterID);
-          await MLDataDB.instance.clusterSummaryUpdate(
-            breakupResult.newClusterSummaries,
-          );
-          await mlDataDB.updateFaceIdToClusterId(newFaceIdToClusterID);
-
           // Find the biggest cluster
           biggestClusterID = '';
           int biggestClusterSize = 0;
@@ -246,6 +239,14 @@ class _AppBarWidgetState extends State<ClusterAppBar> {
             _logger.warning("Breakup cluster returned no non-empty clusters");
             return;
           }
+
+          // Update to delete the old clusters and save the new clusters
+          await mlDataDB.deleteClusterSummary(widget.clusterID);
+          await MLDataDB.instance.clusterSummaryUpdate(
+            breakupResult.newClusterSummaries,
+          );
+          await mlDataDB.updateFaceIdToClusterId(newFaceIdToClusterID);
+
           // Get the files for the biggest new cluster
           final biggestClusterFileIDs = newClusterIDToFaceIDs[biggestClusterID]!
               .map((e) => getFileIdFromFaceId<int>(e))
