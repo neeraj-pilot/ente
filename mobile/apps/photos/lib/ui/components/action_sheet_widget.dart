@@ -37,7 +37,7 @@ Future<ButtonResult?> showActionSheet({
     useRootNavigator: Platform.isIOS,
     context: context,
     isDismissible: isDismissible,
-    enableDrag: enableDrag,
+    enableDrag: enableDrag && isDismissible,
     builder: (_) {
       return LegacyActionSheetWidget(
         title: title,
