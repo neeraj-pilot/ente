@@ -1373,10 +1373,14 @@ class FilesDB with SqlDbBase {
 
   Future<void> updateUploadedFileAcrossCollections(EnteFile file) async {
     final db = await instance.sqliteAsyncDB;
-    final parameterSet = _getParameterSetForFile(file, omitCollectionId: true)
-      ..add(file.uploadedFileID);
+    final parameterSet = _getParameterSetForFile(
+      file,
+      omitGeneratedId: true,
+      omitCollectionId: true,
+    )..add(file.uploadedFileID);
     final updateAssignments = _generateUpdateAssignmentsWithPlaceholders(
       fileGenId: file.generatedID,
+      omitGeneratedId: true,
       omitCollectionId: true,
     );
     await db.execute(
@@ -2137,12 +2141,14 @@ class FilesDB with SqlDbBase {
   ///Returns "columnName1 = ?, columnName2 = ?, ..."
   String _generateUpdateAssignmentsWithPlaceholders({
     required int? fileGenId,
+    bool omitGeneratedId = false,
     bool omitCollectionId = false,
   }) {
     final assignments = <String>[];
 
     for (String columnName in _columnNames) {
-      if (columnName == columnGeneratedID && fileGenId == null) {
+      if (columnName == columnGeneratedID &&
+          (fileGenId == null || omitGeneratedId)) {
         continue;
       }
       if (columnName == columnCollectionID && omitCollectionId) {
@@ -2175,6 +2181,7 @@ class FilesDB with SqlDbBase {
 
   List<Object?> _getParameterSetForFile(
     EnteFile file, {
+    bool omitGeneratedId = false,
     bool omitCollectionId = false,
   }) {
     final values = <Object?>[];
@@ -2194,43 +2201,48 @@ class FilesDB with SqlDbBase {
       }
     }
 
-    if (file.generatedID != null) {
-      values.add(file.generatedID);
-    }
-    values.addAll([
-      file.localID,
-      file.uploadedFileID ?? -1,
-      file.ownerID,
-      file.collectionID ?? -1,
-      file.title,
-      file.deviceFolder,
-      latitude,
-      longitude,
-      getInt(file.fileType),
-      file.modificationTime,
-      file.encryptedKey,
-      file.keyDecryptionNonce,
-      file.fileDecryptionHeader,
-      file.thumbnailDecryptionHeader,
-      file.metadataDecryptionHeader,
-      creationTime,
-      file.updationTime,
-      file.fileSubType ?? -1,
-      file.duration ?? 0,
-      file.exif,
-      file.hash,
-      file.metadataVersion,
-      file.mMdEncodedJson ?? '{}',
-      file.mMdVersion,
-      file.magicMetadata.visibility,
-      file.pubMmdEncodedJson ?? '{}',
-      file.pubMmdVersion,
-      file.fileSize,
-      file.addedTime ?? -1,
-    ]);
+    final valuesByColumn = <String, Object?>{
+      columnGeneratedID: file.generatedID,
+      columnLocalID: file.localID,
+      columnUploadedFileID: file.uploadedFileID ?? -1,
+      columnOwnerID: file.ownerID,
+      columnCollectionID: file.collectionID ?? -1,
+      columnTitle: file.title,
+      columnDeviceFolder: file.deviceFolder,
+      columnLatitude: latitude,
+      columnLongitude: longitude,
+      columnFileType: getInt(file.fileType),
+      columnModificationTime: file.modificationTime,
+      columnEncryptedKey: file.encryptedKey,
+      columnKeyDecryptionNonce: file.keyDecryptionNonce,
+      columnFileDecryptionHeader: file.fileDecryptionHeader,
+      columnThumbnailDecryptionHeader: file.thumbnailDecryptionHeader,
+      columnMetadataDecryptionHeader: file.metadataDecryptionHeader,
+      columnCreationTime: creationTime,
+      columnUpdationTime: file.updationTime,
+      columnFileSubType: file.fileSubType ?? -1,
+      columnDuration: file.duration ?? 0,
+      columnExif: file.exif,
+      columnHash: file.hash,
+      columnMetadataVersion: file.metadataVersion,
+      columnMMdEncodedJson: file.mMdEncodedJson ?? '{}',
+      columnMMdVersion: file.mMdVersion,
+      columnMMdVisibility: file.magicMetadata.visibility,
+      columnPubMMdEncodedJson: file.pubMmdEncodedJson ?? '{}',
+      columnPubMMdVersion: file.pubMmdVersion,
+      columnFileSize: file.fileSize,
+      columnAddedTime: file.addedTime ?? -1,
+    };
 
-    if (omitCollectionId) {
-      values.removeAt(3);
+    for (final columnName in _columnNames) {
+      if (columnName == columnGeneratedID &&
+          (file.generatedID == null || omitGeneratedId)) {
+        continue;
+      }
+      if (columnName == columnCollectionID && omitCollectionId) {
+        continue;
+      }
+      values.add(valuesByColumn[columnName]);
     }
 
     return values;
