@@ -199,7 +199,7 @@ Future<MediaUploadData> _getMediaUploadDataFromAssetFile(
       );
       // delete the temporary video and image copy (only in IOS)
       if (Platform.isIOS) {
-        await sourceFile.delete();
+        await deleteFileSystemEntityIfPresent(sourceFile);
       }
       // new sourceFile which needs to be uploaded
       sourceFile = File(livePhotoPath);
