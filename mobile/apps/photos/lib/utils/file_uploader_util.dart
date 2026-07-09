@@ -197,7 +197,8 @@ Future<MediaUploadData> _getMediaUploadDataFromAssetFile(
         imagePath: sourceFile.path,
         videoPath: videoUrl.path,
       );
-      // delete the temporary video and image copy (only in IOS)
+      // Safe delete: photo_manager can return the same iOS temp copy to
+      // upload/hash-check paths, where cleanup may have already run.
       if (Platform.isIOS) {
         await deleteFileSystemEntityIfPresent(sourceFile);
       }
