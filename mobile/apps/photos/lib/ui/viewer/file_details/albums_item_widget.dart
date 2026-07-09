@@ -33,6 +33,7 @@ class AlbumsItemWidget extends StatelessWidget {
         file.uploadedFileID!,
       );
     }
+    final hiddenAlbumName = AppLocalizations.of(context).hidden;
     return InfoItemWidget(
       key: const ValueKey("Albums"),
       leadingIcon: Icons.folder_outlined,
@@ -42,6 +43,7 @@ class AlbumsItemWidget extends StatelessWidget {
               context,
               allCollectionIDsOfFile,
               currentUserID,
+              hiddenAlbumName,
             )
           : _deviceFoldersListOfFile(allDeviceFoldersOfFile),
       hasChipButtons: true,
@@ -71,6 +73,7 @@ class AlbumsItemWidget extends StatelessWidget {
     BuildContext context,
     Future<Set<int>> allCollectionIDsOfFile,
     int currentUserID,
+    String hiddenAlbumName,
   ) async {
     try {
       final chipButtons = <ChipButtonWidget>[];
@@ -81,7 +84,7 @@ class AlbumsItemWidget extends StatelessWidget {
         collections.add(c!);
         chipButtons.add(
           ChipButtonWidget(
-            c.isHidden() ? AppLocalizations.of(context).hidden : c.displayName,
+            c.isHidden() ? hiddenAlbumName : c.displayName,
             onTap: () {
               if (c.isHidden()) {
                 return;
