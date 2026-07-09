@@ -171,6 +171,7 @@ Future<File?> downloadAndDecrypt(
   ProgressCallback? progressCallback,
   bool forceResumableDownload = false,
   bool throwOnFailure = false,
+  bool retryOnStreamPull = true,
 }) async {
   if (CollectionsService.instance.isSharedPublicLink(file.collectionID!)) {
     return await downloadAndDecryptPublicFile(
@@ -188,10 +189,12 @@ Future<File?> downloadAndDecrypt(
   File encryptedFile = File(encryptedFilePath);
 
   final startTime = DateTime.now().millisecondsSinceEpoch;
+  final bool useDownloadManager =
+      forceResumableDownload ||
+      downloadManager.enableResumableDownload(file.fileSize);
 
   try {
-    if (forceResumableDownload ||
-        downloadManager.enableResumableDownload(file.fileSize)) {
+    if (useDownloadManager) {
       final DownloadResult result = await downloadManager.download(
         file.uploadedFileID!,
         file.displayName,
@@ -274,6 +277,19 @@ Future<File?> downloadAndDecrypt(
         file,
         encryptedFilePath,
       );
+      if (retryOnStreamPull && useDownloadManager && e is StreamPullErr) {
+        _logger.warning(
+          "Retrying $logPrefix after decrypt stream pull failure, $metadata",
+        );
+        await downloadManager.discard(file.uploadedFileID!);
+        return downloadAndDecrypt(
+          file,
+          progressCallback: progressCallback,
+          forceResumableDownload: forceResumableDownload,
+          throwOnFailure: throwOnFailure,
+          retryOnStreamPull: false,
+        );
+      }
       _logger.severe("Critical: $logPrefix failed to decrypt, $metadata", e, s);
       if (throwOnFailure) {
         throw DownloadFailedError("Failed to decrypt downloaded file");

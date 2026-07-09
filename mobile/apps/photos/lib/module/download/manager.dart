@@ -143,6 +143,26 @@ class DownloadManager {
     _cleanup(fileId);
   }
 
+  Future<void> discard(int fileId) async {
+    try {
+      final task = _tasks.remove(fileId);
+      if (task != null) {
+        await _deleteFiles(task);
+        return;
+      }
+
+      final directory = Configuration.instance.getTempDirectory();
+      final finalFile = File('$directory$fileId.encrypted');
+      if (await finalFile.exists()) {
+        await finalFile.delete();
+      }
+    } catch (e) {
+      _logger.warning('Error discarding download $fileId: $e');
+    } finally {
+      _cleanup(fileId);
+    }
+  }
+
   /// Get current download status
   Future<DownloadTask?> getDownload(int fileId) async => _tasks[fileId];
 
