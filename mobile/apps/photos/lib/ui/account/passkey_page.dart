@@ -68,22 +68,27 @@ class _PasskeyPageState extends State<PasskeyPage> {
         widget.sessionID,
       );
     } on PassKeySessionNotVerifiedError {
+      if (!mounted) return;
       showToast(context, context.l10n.passKeyPendingVerification);
       return;
     } on PassKeySessionExpiredError {
+      if (!mounted) return;
       await showAlertBottomSheet(
         context,
         title: context.l10n.loginSessionExpired,
         message: context.l10n.loginSessionExpiredDetails,
         assetPath: 'assets/warning-grey.png',
       );
+      if (!mounted) return;
       Navigator.of(context).pop();
       return;
     } catch (e, s) {
       _logger.severe("failed to check status", e, s);
+      if (!mounted) return;
       showGenericErrorBottomSheet(context: context, error: e).ignore();
       return;
     }
+    if (!mounted) return;
     await UserService.instance.onPassKeyVerified(context, response);
   }
 
