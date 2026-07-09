@@ -236,7 +236,7 @@ class NotificationService {
     return _preferences.setBool(keyShouldShowSocialNotifications, value);
   }
 
-  Future<void> showNotification(
+  Future<bool> showNotification(
     String title,
     String message, {
     int? id,
@@ -246,7 +246,7 @@ class NotificationService {
   }) async {
     if (!await canShowNotifications()) {
       _logger.warning("Notification permissions not granted");
-      return;
+      return false;
     }
     _logger.info(
       "Showing notification with: $title, $message, $channelID, $channelName, $payload",
@@ -272,6 +272,7 @@ class NotificationService {
       platformChannelSpecs,
       payload: payload,
     );
+    return true;
   }
 
   Future<void> scheduleNotification(
@@ -295,11 +296,7 @@ class NotificationService {
       await initTimezones();
       if (!await canShowNotifications()) {
         _logger.warning("Notification permissions not granted");
-        await requestPermissions();
-        if (!await canShowNotifications()) {
-          _logger.warning("Failed to get notification permissions");
-          return;
-        }
+        return;
       } else {
         if (logSchedule) {
           _logger.info("Notification permissions already granted");
