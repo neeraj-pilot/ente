@@ -70,11 +70,15 @@ Future<void> share(
       resolvedPaths.add(path);
     }
     if (resolvedPaths.isEmpty) {
-      _logger.severe(
+      final error = ArgumentError("No files resolved for system share");
+      _logger.warning(
         "share aborted: unable to resolve any files "
         "(requested: ${files.length}, remoteOnly: $remoteOnlyFileCount)",
       );
-      throw ArgumentError("No files resolved for system share");
+      if (context.mounted) {
+        await showGenericErrorDialog(context: context, error: error);
+      }
+      return;
     }
     final xFiles = resolvedPaths.map((path) => XFile(path)).toList();
     await SharePlus.instance.share(
