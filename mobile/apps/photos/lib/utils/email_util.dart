@@ -157,8 +157,8 @@ Future<void> triggerSendLogs(
   );
   try {
     await FlutterEmailSender.send(email);
-  } catch (e, s) {
-    _logger.severe('email sender failed', e, s);
+  } catch (e) {
+    _logger.warning('email sender failed: $e');
   }
 }
 
