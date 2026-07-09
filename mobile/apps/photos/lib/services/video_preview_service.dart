@@ -1221,7 +1221,7 @@ class VideoPreviewService {
           final videoData = List.from(
             props?.propData?["streams"] ?? [],
           ).firstWhereOrNull((e) => e["type"] == "video");
-          final codec = videoData["codec_name"]?.toString().toLowerCase();
+          final codec = videoData?["codec_name"]?.toString().toLowerCase();
           skipFile = codec?.contains("h264") ?? false;
 
           if (skipFile) {
