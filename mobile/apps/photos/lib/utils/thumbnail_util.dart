@@ -304,6 +304,13 @@ Future<bool> _writeCachedThumbnail(
     await cachedThumbnail.writeAsBytes(data, flush: flush);
     return true;
   } on FileSystemException catch (e) {
+    if (_isNoSpaceError(e)) {
+      _logger.warning(
+        "Thumbnail cache write skipped because device storage is full: "
+        "${cachedThumbnail.path}: $e",
+      );
+      return false;
+    }
     if (!isFileSystemPathMissing(e)) {
       rethrow;
     }
@@ -316,6 +323,13 @@ Future<bool> _writeCachedThumbnail(
       await cachedThumbnail.writeAsBytes(data, flush: flush);
       return true;
     } on FileSystemException catch (retryError) {
+      if (_isNoSpaceError(retryError)) {
+        _logger.warning(
+          "Thumbnail cache write skipped because device storage is full: "
+          "${cachedThumbnail.path}: $retryError",
+        );
+        return false;
+      }
       if (isFileSystemPathMissing(retryError)) {
         _logger.info(
           "Thumbnail cache path still missing after recreate; skipping write: "
@@ -326,6 +340,11 @@ Future<bool> _writeCachedThumbnail(
       rethrow;
     }
   }
+}
+
+bool _isNoSpaceError(FileSystemException error) {
+  final code = error.osError?.errorCode;
+  return code == 28 || code == 112;
 }
 
 File cachedThumbnailPath(EnteFile file) {
