@@ -311,7 +311,10 @@ Future<_LivePhoto?> _downloadLivePhoto(
                     );
                 await imageFile.delete();
                 if (compressResult == null) {
-                  throw Exception("Failed to compress file");
+                  _logger.warning(
+                    "Failed to compress live photo image for ${file.tag}",
+                  );
+                  continue;
                 } else {
                   imageConvertedFile = File(compressResult.path);
                 }
