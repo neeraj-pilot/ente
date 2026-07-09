@@ -98,7 +98,7 @@ class PassKeySessionNotVerifiedError extends Error {}
 
 class PassKeySessionExpiredError extends Error {}
 
-class MultiPartFileMissingError implements Exception {
+class MultiPartFileMissingError implements Exception, LocallyHandledError {
   final String message;
   MultiPartFileMissingError(this.message);
 
