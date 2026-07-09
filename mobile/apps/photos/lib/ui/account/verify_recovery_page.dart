@@ -77,7 +77,11 @@ class _VerifyRecoveryPageState extends State<VerifyRecoveryPage> {
         throw Exception("recovery key didn't match");
       }
     } catch (e, s) {
-      _logger.severe("failed to verify recovery key", e, s);
+      if (e.toString().contains("recovery key didn't match")) {
+        _logger.warning("Recovery key mismatch");
+      } else {
+        _logger.severe("failed to verify recovery key", e, s);
+      }
       await dialog.hide();
       final String errMessage = AppLocalizations.of(context).invalidRecoveryKey;
       final result = await showChoiceDialog(
