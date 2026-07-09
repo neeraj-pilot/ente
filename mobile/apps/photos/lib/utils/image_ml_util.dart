@@ -1,9 +1,11 @@
 import "dart:async";
-import "dart:io" show File, Platform;
+import "dart:io" show File, FileSystemException, Platform;
 import "dart:math" show exp, max, min, pi;
 import "dart:typed_data" show Float32List, Uint8List;
 import "dart:ui";
 
+import "package:ente_pure_utils/ente_pure_utils.dart"
+    show isFileSystemPathMissing;
 import "package:exif_reader/exif_reader.dart";
 import 'package:flutter/painting.dart' as paint show decodeImageFromList;
 import "package:flutter_image_compress/flutter_image_compress.dart";
@@ -54,8 +56,19 @@ Future<DecodedImage> decodeImageFromPath(
   required bool includeRgbaBytes,
   required bool includeDartUiImage,
 }) async {
-  final imageData = await File(imagePath).readAsBytes();
   final format = imagePath.split('.').last.toLowerCase();
+  late final Uint8List imageData;
+  try {
+    imageData = await File(imagePath).readAsBytes();
+  } on FileSystemException catch (e) {
+    if (isFileSystemPathMissing(e)) {
+      _logger.warning("Skipping ML decode because image file is missing: $e");
+      throw Exception(
+        'InvalidImageFormatException: Error reading image of format $format',
+      );
+    }
+    rethrow;
+  }
   final bool skipExifRead =
       Platform.isIOS &&
       format == 'jxl'; // JXL on iOS has issues with EXIF reading
@@ -82,12 +95,10 @@ Future<DecodedImage> decodeImageFromPath(
   late Image image;
   try {
     image = await decodeImageFromData(imageData);
-  } catch (e, s) {
+  } catch (e) {
     if (isRawImageExtension(format)) {
       _logger.warning(
-        "Skipping JPEG conversion for RAW image format $format because flutter_image_compress is known to crash on unsupported RAW input",
-        e,
-        s,
+        "Skipping JPEG conversion for RAW image format $format because flutter_image_compress is known to crash on unsupported RAW input: $e",
       );
       throw Exception(
         'InvalidImageFormatException: Error decoding image of format $format',
@@ -114,10 +125,8 @@ Future<DecodedImage> decodeImageFromPath(
         throw Exception('Res too high W:${image.width} H:${image.height}');
       }
     } catch (e) {
-      _logger.severe(
-        'Error decoding image of format $format on ${Platform.isAndroid ? "Android" : "iOS"}',
-        e,
-        s,
+      _logger.warning(
+        'Error decoding image of format $format on ${Platform.isAndroid ? "Android" : "iOS"}: $e',
       );
       throw Exception(
         'InvalidImageFormatException: Error decoding image of format $format',
