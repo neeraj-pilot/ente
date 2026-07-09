@@ -167,20 +167,34 @@ Future<List<EnteFile>> convertIncomingSharedMediaToFile(
         Configuration.instance.getSharedMediaDirectory() + "/" + sharedLocalId,
       );
     } catch (e) {
+      if (e is PathNotFoundException) {
+        _logger.info("Skipping missing shared media ${media.path}");
+        continue;
+      }
       if (e is FileSystemException) {
         //from renameSync docs:
         //On some platforms, a rename operation cannot move a file between
         //different file systems. If that is the case, instead copySync the
         //file to the new location and then deleteSync the original.
         _logger.info("Creating new copy of file in path ${ioFile.path}");
-        final newIoFile = ioFile.copySync(
-          Configuration.instance.getSharedMediaDirectory() +
-              "/" +
-              sharedLocalId,
-        );
+        final File newIoFile;
+        try {
+          newIoFile = ioFile.copySync(
+            Configuration.instance.getSharedMediaDirectory() +
+                "/" +
+                sharedLocalId,
+          );
+        } on PathNotFoundException {
+          _logger.info("Skipping missing shared media ${media.path}");
+          continue;
+        }
         if (media.path.contains("io.ente.photos")) {
           _logger.info("delete original file in path ${ioFile.path}");
-          ioFile.deleteSync();
+          try {
+            ioFile.deleteSync();
+          } on PathNotFoundException {
+            _logger.info("Shared media source already deleted ${media.path}");
+          }
         }
         ioFile = newIoFile;
       } else {
