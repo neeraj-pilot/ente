@@ -425,7 +425,11 @@ class FileUploader {
         final sharedFiles = await Directory(sharedMediaDir).list().toList();
         if (sharedFiles.isNotEmpty) {
           _logger.info('Shared media directory cleanup ${sharedFiles.length}');
-          final int ownerID = Configuration.instance.getUserID()!;
+          final int? ownerID = Configuration.instance.getUserID();
+          if (ownerID == null) {
+            _logger.info('Skipping shared media cleanup without user ID');
+            return;
+          }
           final existingLocalFileIDs = await FilesDB.instance
               .getExistingLocalFileIDs(ownerID);
           final Set<String> trackedSharedFilePaths = {};
