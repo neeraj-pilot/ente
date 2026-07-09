@@ -76,7 +76,19 @@ class CollectionsDB {
     final Directory documentsDirectory =
         await getApplicationDocumentsDirectory();
     final String path = join(documentsDirectory.path, _databaseName);
-    return await openDatabaseWithMigration(path, dbConfig);
+    final db = await openDatabaseWithMigration(path, dbConfig);
+    await _ensureSharedAtColumn(db);
+    return db;
+  }
+
+  Future<void> _ensureSharedAtColumn(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    final hasSharedAt = columns.any(
+      (column) => column['name'] == columnSharedAt,
+    );
+    if (!hasSharedAt) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $columnSharedAt INTEGER');
+    }
   }
 
   Future<void> clearTable() async {
