@@ -314,7 +314,8 @@ class _FileInfoFaceWidgetState extends State<FileInfoFaceWidget> {
   }
 
   Future<void> _onMinusIconTap() async {
-    if (widget.person == null) return;
+    final person = widget.person;
+    if (person == null) return;
     final result = await showChoiceActionSheet(
       context,
       title: AppLocalizations.of(context).removePersonLabel,
@@ -328,7 +329,7 @@ class _FileInfoFaceWidgetState extends State<FileInfoFaceWidget> {
       try {
         await ClusterFeedbackService.instance.removeFaceFromPerson(
           widget.face.faceID,
-          widget.person!,
+          person,
         );
         await widget.reloadAllFaces();
       } catch (e, s) {
