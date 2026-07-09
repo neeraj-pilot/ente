@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:ente_crypto/ente_crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:photos/core/configuration.dart';
+import 'package:photos/core/errors.dart';
 import 'package:photos/core/event_bus.dart';
 import 'package:photos/db/files_db.dart';
 import 'package:photos/events/collection_updated_event.dart';
@@ -301,10 +302,14 @@ class FavoritesService {
     if (_cachedFavoritesCollectionID != null) {
       return _cachedFavoritesCollectionID!;
     }
+    final masterKey = _config.getKey();
+    if (masterKey == null) {
+      throw MissingMasterKeyError();
+    }
     final favoriteCollectionKey = CryptoUtil.generateKey();
     final encryptedKeyResult = CryptoUtil.encryptSync(
       favoriteCollectionKey,
-      _config.getKey()!,
+      masterKey,
     );
     final encName = CryptoUtil.encryptSync(
       utf8.encode("Favorites"),
