@@ -206,7 +206,7 @@ const PublicFriendRequestScreen: React.FC<PublicFriendRequestScreenProps> = ({
                         maxWidth: 260,
                     }}
                 >
-                    {`Add @${identity.username} as a friend to see what they're up to on Ente Space`}
+                    {`See everyday moments from @${identity.username} on Ente Space.`}
                 </Box>
             </Box>
             <Box
@@ -252,7 +252,7 @@ const PublicFriendRequestScreen: React.FC<PublicFriendRequestScreenProps> = ({
                         },
                     }}
                 >
-                    Add friend
+                    Accept Invite
                 </Box>
             </Box>
         </Box>
