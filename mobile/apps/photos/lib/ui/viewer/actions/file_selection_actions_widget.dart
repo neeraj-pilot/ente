@@ -1167,6 +1167,7 @@ class _FileSelectionActionsWidgetState
                 await downloadToGallery(
                   file,
                   persistToFilesDB:
+                      file.isUploaded &&
                       widget.type != GalleryType.sharedPublicCollection,
                 );
                 downloadedFiles++;

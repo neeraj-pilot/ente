@@ -680,7 +680,7 @@ class FileAppBarState extends State<FileAppBar> {
     try {
       await downloadToGallery(
         fileToDownload,
-        persistToFilesDB: persistToFilesDB,
+        persistToFilesDB: persistToFilesDB && fileToDownload.isUploaded,
       );
       if (!mounted) {
         await dialog.hide();
