@@ -428,11 +428,19 @@ class SemanticSearchService {
         );
         return queryResults;
       } catch (e, s) {
-        _logger.severe(
-          "VectorDB similarity search failed, falling back to in-memory dot-product",
-          e,
-          s,
-        );
+        if (e is StateError &&
+            e.message ==
+                "ClipVectorDB migration is not done, cannot run approximate search") {
+          _logger.info(
+            "VectorDB migration is not done, falling back to in-memory dot-product",
+          );
+        } else {
+          _logger.severe(
+            "VectorDB similarity search failed, falling back to in-memory dot-product",
+            e,
+            s,
+          );
+        }
       }
     }
 
