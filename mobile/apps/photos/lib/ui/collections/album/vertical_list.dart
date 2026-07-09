@@ -514,6 +514,7 @@ class _AlbumVerticalListWidgetState extends State<AlbumVerticalListWidget> {
     BuildContext context,
     int toCollectionID,
   ) async {
+    if (widget.selectedFiles?.files.isEmpty ?? true) return false;
     late final String message;
     if (widget.actionType == CollectionActionType.moveFiles ||
         widget.actionType == CollectionActionType.moveToHiddenCollection) {

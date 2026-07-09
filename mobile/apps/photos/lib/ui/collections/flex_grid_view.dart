@@ -98,6 +98,7 @@ class _CollectionsFlexiGridViewWidgetState
 
   Future<void> _toggleAlbumSelection(Collection c) async {
     await HapticFeedback.lightImpact();
+    if (!mounted) return;
     widget.selectedAlbums!.toggleSelection(c);
     setState(() {
       isAnyAlbumSelected = widget.selectedAlbums!.albums.isNotEmpty;
