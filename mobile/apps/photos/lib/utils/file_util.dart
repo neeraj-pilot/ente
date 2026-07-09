@@ -18,6 +18,7 @@ import 'package:photos/core/constants.dart';
 import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
+import "package:photos/utils/apple_photos_errors.dart";
 import 'package:photos/utils/file_download_util.dart';
 import 'package:photos/utils/thumbnail_util.dart';
 
@@ -89,12 +90,54 @@ Future<File?> getFile(
       return cachedFile;
     }
   } catch (e, s) {
+    if (isApplePhotosResourceUnavailableError(e)) {
+      if (file.isUploaded) {
+        _logger.info(
+          "Local Apple Photos resource unavailable for ${file.localID}; fetching uploaded file ${file.uploadedFileID}",
+        );
+        return _getServerFallbackForApplePhotosResource(
+          file,
+          liveVideo: liveVideo,
+          isOrigin: isOrigin,
+          forGalleryDownload: forGalleryDownload,
+        );
+      }
+      _logger.info(
+        "Local Apple Photos resource unavailable for ${file.localID}; no uploaded file copy",
+      );
+      if (forGalleryDownload) {
+        rethrow;
+      }
+      return null;
+    }
     _logger.warning("Failed to get file", e, s);
     if (forGalleryDownload) {
       rethrow;
     }
     return null;
   }
+}
+
+Future<File?> _getServerFallbackForApplePhotosResource(
+  EnteFile file, {
+  required bool liveVideo,
+  required bool isOrigin,
+  required bool forGalleryDownload,
+}) async {
+  final serverFile = await getFileFromServer(
+    file,
+    liveVideo: liveVideo,
+    forGalleryDownload: forGalleryDownload,
+  );
+  if (serverFile == null || !isOrigin || !Platform.isIOS) {
+    return serverFile;
+  }
+
+  final tempPath =
+      "${Configuration.instance.getTempDirectory()}"
+      "apple_photos_fallback_${file.uploadedFileID}_${liveVideo}_"
+      "${DateTime.now().microsecondsSinceEpoch}_${basename(serverFile.path)}";
+  return serverFile.copy(tempPath);
 }
 
 Future<bool> doesLocalFileExist(EnteFile file) async {
