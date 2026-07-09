@@ -100,9 +100,15 @@ class NetworkClient {
   }
 
   HttpClientAdapter _newDownloadHttpClientAdapter(Duration connectTimeout) {
+    final fallbackAdapter = _newAdaptiveHttpClientAdapter(connectTimeout);
+    if (Platform.isIOS || Platform.isMacOS) {
+      // Avoid CupertinoClient URLSession redirect callbacks that can arrive
+      // after the package has removed its task tracker.
+      return fallbackAdapter;
+    }
     return _HttpSchemeFallbackAdapter(
       primaryAdapter: NativeAdapter(),
-      fallbackAdapter: _newAdaptiveHttpClientAdapter(connectTimeout),
+      fallbackAdapter: fallbackAdapter,
     );
   }
 
