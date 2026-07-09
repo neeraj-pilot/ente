@@ -2506,7 +2506,8 @@ class CollectionsService {
   Collection _cacheCollectionAttributes(Collection collection) {
     final String decryptedName = _getDecryptedCollectionName(collection);
     collection.setName(decryptedName);
-    if (collection.canLinkToDevicePath(_config.getUserID()!)) {
+    final userID = _config.getUserID();
+    if (userID != null && collection.canLinkToDevicePath(userID)) {
       _localPathToCollectionID[_decryptCollectionPath(collection)] =
           collection.id;
     }
@@ -2519,7 +2520,9 @@ class CollectionsService {
       collection.decryptedName != null,
       "decryptedName should be already set",
     );
-    if (collection.canLinkToDevicePath(_config.getUserID()!) &&
+    final userID = _config.getUserID();
+    if (userID != null &&
+        collection.canLinkToDevicePath(userID) &&
         (collection.decryptedPath ?? '').isNotEmpty) {
       _localPathToCollectionID[collection.decryptedPath!] = collection.id;
     }
