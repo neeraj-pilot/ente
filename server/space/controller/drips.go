@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	lockctrl "github.com/ente-io/museum/pkg/controller/lock"
-	baserepo "github.com/ente-io/museum/pkg/repo"
-	emailutil "github.com/ente-io/museum/pkg/utils/email"
-	timeutil "github.com/ente-io/museum/pkg/utils/time"
-	spacerepo "github.com/ente-io/museum/space/repo"
+	lockctrl "github.com/ente/museum/pkg/controller/lock"
+	baserepo "github.com/ente/museum/pkg/repo"
+	emailutil "github.com/ente/museum/pkg/utils/email"
+	timeutil "github.com/ente/museum/pkg/utils/time"
+	spacerepo "github.com/ente/museum/space/repo"
 	log "github.com/sirupsen/logrus"
 )
 
