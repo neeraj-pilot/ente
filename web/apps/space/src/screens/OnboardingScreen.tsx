@@ -6,7 +6,13 @@ export const onboardingGreen = "#08C225";
 export const onboardingTitle = "Share everyday moments";
 export const onboardingDescription =
     "A private space for sharing everyday moments with friends and family. No ads. No algorithms.";
-export const addFriendOnboardingTitle = "Share everyday moments";
+export const addFriendOnboardingTitle = (username: string) => (
+    <>
+        {`See @${username}'s`}
+        <br />
+        everyday moments
+    </>
+);
 
 const softGreen = "#E7F6E9";
 const copyGreen = "#AAFFB8";
@@ -60,7 +66,7 @@ interface OnboardingScreenProps {
     description?: string;
     onCreateAccount: () => void;
     onLogin?: () => void;
-    title?: string;
+    title?: React.ReactNode;
 }
 
 export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
@@ -188,7 +194,8 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
                                     letterSpacing: 0,
                                     lineHeight: "29px",
                                     m: 0,
-                                    whiteSpace: "nowrap",
+                                    maxWidth: 320,
+                                    overflowWrap: "anywhere",
                                 }}
                             >
                                 {title}

@@ -1,4 +1,5 @@
 export interface PendingSpaceInvite {
+    spaceId?: string;
     spaceUsername: string;
 }
 
@@ -14,9 +15,14 @@ let sentSpaceInviteFriend: SpaceInviteFriendSummary | undefined;
 const isPendingSpaceInvite = (value: unknown): value is PendingSpaceInvite => {
     if (!value || typeof value != "object") return false;
     const candidate = value as Record<string, unknown>;
+    if (
+        typeof candidate.spaceUsername != "string" ||
+        candidate.spaceUsername.trim().length == 0
+    ) {
+        return false;
+    }
     return (
-        typeof candidate.spaceUsername == "string" &&
-        candidate.spaceUsername.trim().length > 0
+        candidate.spaceId == undefined || typeof candidate.spaceId == "string"
     );
 };
 

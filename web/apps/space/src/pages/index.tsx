@@ -76,8 +76,9 @@ const PublicProfileUnavailable: React.FC = () => (
     </Box>
 );
 
-const onboardingEntrySourceFromPendingInvite = (): OnboardingEntrySource =>
-    savedPendingSpaceInvite() ? "add-friend-link" : "direct";
+const onboardingEntrySourceFromPendingInvite = (
+    pendingInvite?: PendingSpaceInvite,
+): OnboardingEntrySource => (pendingInvite ? "add-friend-link" : "direct");
 
 interface PublicFriendRequestScreenProps {
     identity: PublicSpaceIdentity;
@@ -206,7 +207,7 @@ const PublicFriendRequestScreen: React.FC<PublicFriendRequestScreenProps> = ({
                         maxWidth: 260,
                     }}
                 >
-                    {`See everyday moments from @${identity.username} on Ente Space.`}
+                    {`See @${identity.username}'s everyday moments on Ente Space.`}
                 </Box>
             </Box>
             <Box
@@ -273,11 +274,18 @@ export const Page: React.FC<PageProps> = ({ invitePreview }) => {
     const [publicIdentity, setPublicIdentity] =
         useState<PublicSpaceIdentity | null>(null);
     const [publicError, setPublicError] = useState<string>();
+    const [pendingInviteUsername, setPendingInviteUsername] = useState("");
 
     useEffect(() => {
         const publicInvite = spaceInviteFromLocation();
         if (!publicInvite) {
-            setOnboardingEntrySource(onboardingEntrySourceFromPendingInvite());
+            const pendingInvite = savedPendingSpaceInvite();
+            setOnboardingEntrySource(
+                onboardingEntrySourceFromPendingInvite(pendingInvite),
+            );
+            if (pendingInvite) {
+                setPendingInviteUsername(pendingInvite.spaceUsername);
+            }
         }
         setRouteMode(
             publicInvite
@@ -362,7 +370,10 @@ export const Page: React.FC<PageProps> = ({ invitePreview }) => {
             username: publicIdentity.username,
         };
         const addFriend = () => {
-            const invite = { spaceUsername: publicIdentity.username };
+            const invite = {
+                spaceId: publicIdentity.spaceId,
+                spaceUsername: publicIdentity.username,
+            };
             savePendingSpaceInvite(invite);
             savePendingSpaceInviteFriend(inviteFriend);
             setOnboardingEntrySource("add-friend-link");
@@ -409,7 +420,7 @@ export const Page: React.FC<PageProps> = ({ invitePreview }) => {
                 onLogin={() => void router.push(spaceRoutes.login)}
                 title={
                     isAddFriendLinkOnboarding
-                        ? addFriendOnboardingTitle
+                        ? addFriendOnboardingTitle(pendingInviteUsername)
                         : undefined
                 }
             />

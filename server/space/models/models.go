@@ -164,6 +164,7 @@ type CreateSpaceRequest struct {
 	PublicKey           string `json:"publicKey" binding:"required"`
 	EncryptedSecretKey  string `json:"encryptedSecretKey" binding:"required"`
 	EncryptedProfile    string `json:"encryptedProfile"`
+	ReferredBySpaceID   string `json:"referredBySpaceId,omitempty"`
 }
 
 type SpaceProfileResponse struct {

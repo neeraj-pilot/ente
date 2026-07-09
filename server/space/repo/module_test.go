@@ -114,7 +114,7 @@ func testSpaceBytes(value string) []byte {
 }
 
 func testCreateSpace(ctx context.Context, module *Module, ownerID int64, spaceSlug string, rootWrappedSpaceKey string, publicKey string, encryptedSecretKey string, _ string, encryptedProfile string) (*SpaceRecord, error) {
-	return module.Spaces.CreateSpace(ctx, ownerID, spaceSlug, testSpaceBytes(rootWrappedSpaceKey), testSpaceBytes(publicKey), testSpaceBytes(encryptedSecretKey), testSpaceBytes(encryptedProfile))
+	return module.Spaces.CreateSpace(ctx, ownerID, spaceSlug, testSpaceBytes(rootWrappedSpaceKey), testSpaceBytes(publicKey), testSpaceBytes(encryptedSecretKey), testSpaceBytes(encryptedProfile), "")
 }
 
 func testUpdateProfile(ctx context.Context, module *Module, _ int64, spaceID string, keyVersion int, encryptedProfile string, avatar *ProfileAssetUpdate, cover *ProfileAssetUpdate, removeAvatar bool, removeCover bool) (*SpaceRecord, error) {

@@ -9,9 +9,10 @@ import (
 	"github.com/ente-io/stacktrace"
 )
 
-func (r *SpacesRepository) CreateSpace(ctx context.Context, ownerID int64, spaceSlug string, rootWrappedSpaceKey, publicKey, encryptedSecretKey, encryptedProfile []byte) (*SpaceRecord, error) {
+func (r *SpacesRepository) CreateSpace(ctx context.Context, ownerID int64, spaceSlug string, rootWrappedSpaceKey, publicKey, encryptedSecretKey, encryptedProfile []byte, referredBySpaceID string) (*SpaceRecord, error) {
 	normalizedSpaceSlug := normalizeSlug(spaceSlug)
 	spaceID := base.MustNewID("space")
+	referredBySpaceID = strings.TrimSpace(referredBySpaceID)
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
@@ -19,9 +20,19 @@ func (r *SpacesRepository) CreateSpace(ctx context.Context, ownerID int64, space
 	defer tx.Rollback()
 
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO spaces (space_id, owner_id, space_slug, root_wrapped_space_key, public_key, encrypted_secret_key, encrypted_profile, current_version)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 1)
-	`, spaceID, ownerID, normalizedSpaceSlug, rootWrappedSpaceKey, publicKey, encryptedSecretKey, encryptedProfile); err != nil {
+		INSERT INTO spaces (
+			space_id,
+			owner_id,
+			space_slug,
+			root_wrapped_space_key,
+			public_key,
+			encrypted_secret_key,
+			encrypted_profile,
+			current_version,
+			referred_by_space_id
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 1, NULLIF($8, ''))
+	`, spaceID, ownerID, normalizedSpaceSlug, rootWrappedSpaceKey, publicKey, encryptedSecretKey, encryptedProfile, referredBySpaceID); err != nil {
 		return nil, wrapUnique(err, "space already exists")
 	}
 	if _, err := tx.ExecContext(ctx, `
@@ -284,6 +295,7 @@ func scanSpaceRecord(scanner interface{ Scan(dest ...any) error }) (*SpaceRecord
 		&rec.CurrentVersion,
 		&rec.PublicKey,
 		&rec.EncryptedSecretKey,
+		&rec.ReferredBySpaceID,
 		&rec.AvatarObjectID,
 		&rec.AvatarSize,
 		&rec.CoverObjectID,

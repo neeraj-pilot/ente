@@ -36,6 +36,8 @@ pub struct CreateSpaceRequest {
     pub public_key: String,
     pub encrypted_secret_key: String,
     pub encrypted_profile: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub referred_by_space_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -491,10 +491,15 @@ impl SpaceAccountCtxHandle {
         &self,
         space_slug: String,
         profile: String,
+        referred_by_space_id: Option<String>,
     ) -> Result<JsValue, WasmSpaceError> {
         swb::to_value(&created_space_to_js(
             self.inner
-                .create_space(&space_slug, profile.as_bytes())
+                .create_space_with_referrer(
+                    &space_slug,
+                    profile.as_bytes(),
+                    referred_by_space_id.as_deref(),
+                )
                 .await?,
         ))
         .map_err(Into::into)

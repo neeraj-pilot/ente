@@ -63,6 +63,34 @@ func TestGetProfileIncludesFriendsCount(t *testing.T) {
 	require.EqualValues(t, 1, resp.Friends)
 }
 
+func TestCreateStoresReferralAttribution(t *testing.T) {
+	module, repos, _, ctx := setupSpaceAuthControllerTest(t)
+	aliceID := insertSpaceControllerUser(t, repos, "alice-referrer@example.com", "alice-public")
+	bobID := insertSpaceControllerUser(t, repos, "bob-referred@example.com", "bob-public")
+	aliceSpace, err := testCreateSpace(ctx, repos, aliceID, "alice_referrer", "alice-space-key", "alice-referrer-public", "alice-secret", "alice-secret-nonce", "alice-profile")
+	require.NoError(t, err)
+	ginCtx := newSpaceControllerContext(bobID)
+
+	resp, err := module.Spaces.Create(ginCtx, models.CreateSpaceRequest{
+		SpaceSlug:           "bob_referred",
+		RootWrappedSpaceKey: base64.StdEncoding.EncodeToString([]byte("bob-space-key")),
+		PublicKey:           base64.StdEncoding.EncodeToString([]byte("bob-public")),
+		EncryptedSecretKey:  base64.StdEncoding.EncodeToString([]byte("bob-secret")),
+		EncryptedProfile:    base64.StdEncoding.EncodeToString([]byte("bob-profile")),
+		ReferredBySpaceID:   aliceSpace.SpaceID,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	var referredBySpaceID sql.NullString
+	require.NoError(t, repos.Spaces.DB.QueryRow(`
+		SELECT referred_by_space_id
+		FROM spaces
+		WHERE space_id = $1
+	`, resp.SpaceID).Scan(&referredBySpaceID))
+	require.Equal(t, sql.NullString{String: aliceSpace.SpaceID, Valid: true}, referredBySpaceID)
+}
+
 func TestGetProfileReturnsProfileAssetObjectIDs(t *testing.T) {
 	module, repos, _, ctx := setupSpaceAuthControllerTest(t)
 	aliceID := insertSpaceControllerUser(t, repos, "alice-assets-profile@example.com", "alice-assets-public")

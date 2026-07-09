@@ -11,5 +11,5 @@ func testSpaceBytes(value string) []byte {
 }
 
 func testCreateSpace(ctx context.Context, module *spacerepo.Module, ownerID int64, spaceSlug string, rootWrappedSpaceKey string, publicKey string, encryptedSecretKey string, _ string, encryptedProfile string) (*spacerepo.SpaceRecord, error) {
-	return module.Spaces.CreateSpace(ctx, ownerID, spaceSlug, testSpaceBytes(rootWrappedSpaceKey), testSpaceBytes(publicKey), testSpaceBytes(encryptedSecretKey), testSpaceBytes(encryptedProfile))
+	return module.Spaces.CreateSpace(ctx, ownerID, spaceSlug, testSpaceBytes(rootWrappedSpaceKey), testSpaceBytes(publicKey), testSpaceBytes(encryptedSecretKey), testSpaceBytes(encryptedProfile), "")
 }

@@ -554,6 +554,7 @@ async fn create_space_with_key_sends_encrypted_space_and_profile_payloads() {
             Matcher::Regex("\"publicKey\":\"[^\"]+\"".into()),
             Matcher::Regex("\"encryptedSecretKey\":\"[^\"]+\"".into()),
             Matcher::Regex("\"encryptedProfile\":\"[^\"]+\"".into()),
+            Matcher::Regex("\"referredBySpaceId\":\"space_source_owner\"".into()),
         ]))
         .with_status(200)
         .with_body(
@@ -570,7 +571,12 @@ async fn create_space_with_key_sends_encrypted_space_and_profile_payloads() {
         .await;
 
     let created = ctx
-        .create_space_with_key("owner-main", &space_key, b"profile-json")
+        .create_space_with_key_and_referrer(
+            "owner-main",
+            &space_key,
+            b"profile-json",
+            Some("space_source_owner"),
+        )
         .await
         .expect("space should be created");
 

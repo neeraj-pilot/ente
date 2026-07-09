@@ -63,11 +63,40 @@ func (c *SpacesController) Create(ctx *gin.Context, req models.CreateSpaceReques
 	if err != nil {
 		return nil, err
 	}
-	space, err := c.SpacesRepo.CreateSpace(ctx, userID, normalizedSlug, rootWrappedSpaceKey, publicKey, encryptedSecretKey, encryptedProfile)
+	referredBySpaceID, err := c.referredBySpaceID(ctx, userID, req.ReferredBySpaceID)
+	if err != nil {
+		return nil, err
+	}
+	space, err := c.SpacesRepo.CreateSpace(ctx, userID, normalizedSlug, rootWrappedSpaceKey, publicKey, encryptedSecretKey, encryptedProfile, referredBySpaceID)
 	if err != nil {
 		return nil, err
 	}
 	return toSpaceKeyResponse(space), nil
+}
+
+func (c *SpacesController) referredBySpaceID(ctx context.Context, userID int64, spaceID string) (string, error) {
+	spaceID = strings.TrimSpace(spaceID)
+	if spaceID == "" {
+		return "", nil
+	}
+	space, err := c.SpacesRepo.GetSpaceByID(ctx, spaceID)
+	if err != nil {
+		if errors.Is(stacktrace.RootCause(err), sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	if space.OwnerID == userID {
+		return "", nil
+	}
+	active, err := c.SpacesRepo.IsOwnerActive(ctx, space.OwnerID)
+	if err != nil {
+		return "", err
+	}
+	if !active {
+		return "", nil
+	}
+	return space.SpaceID, nil
 }
 
 func (c *SpacesController) GetProfile(ctx *gin.Context, req models.GetSpaceProfileRequest) (*models.SpaceProfileResponse, error) {

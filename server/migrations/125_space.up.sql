@@ -7,10 +7,12 @@ CREATE TABLE IF NOT EXISTS spaces (
     encrypted_secret_key  BYTEA  NOT NULL,
     encrypted_profile    BYTEA  NOT NULL DEFAULT '\x'::bytea,
     current_version      INTEGER NOT NULL DEFAULT 1,
+    referred_by_space_id TEXT REFERENCES spaces (space_id) ON DELETE SET NULL,
     created_at           BIGINT NOT NULL DEFAULT now_utc_micro_seconds(),
     updated_at           BIGINT NOT NULL DEFAULT now_utc_micro_seconds(),
     CONSTRAINT uq_spaces_owner UNIQUE (owner_id),
-    CONSTRAINT uq_spaces_slug UNIQUE (space_slug)
+    CONSTRAINT uq_spaces_slug UNIQUE (space_slug),
+    CONSTRAINT chk_spaces_referral_self CHECK (referred_by_space_id IS NULL OR referred_by_space_id <> space_id)
 );
 
 CREATE TRIGGER update_spaces_updated_at

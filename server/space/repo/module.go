@@ -59,6 +59,7 @@ type SpaceRecord struct {
 	EncryptedSecretKey  []byte
 	EncryptedProfile    []byte
 	CurrentVersion      int
+	ReferredBySpaceID   sql.NullString
 	AvatarObjectID      sql.NullString
 	AvatarSize          sql.NullInt64
 	CoverObjectID       sql.NullString

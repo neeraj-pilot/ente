@@ -5,6 +5,7 @@ import {
     SetupProfileScreen,
     setupProfileBackground,
 } from "screens/SetupProfileScreen";
+import { savedPendingSpaceInvite } from "services/spaceInvite";
 import {
     saveSpaceProfile,
     spaceProfileErrorMessage,
@@ -125,8 +126,10 @@ const Page: React.FC = () => {
                     setIsSubmitting(true);
                     setSetupError(undefined);
                     try {
-                        const savedProfile =
-                            await saveSpaceProfile(nextProfile);
+                        const savedProfile = await saveSpaceProfile(
+                            nextProfile,
+                            savedPendingSpaceInvite()?.spaceId,
+                        );
                         const acceptedInvite = await acceptPendingSpaceInvite();
                         setProfile(savedProfile);
                         if (!acceptedInvite) {

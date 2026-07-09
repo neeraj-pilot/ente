@@ -248,9 +248,24 @@ impl AccountSpaceCtx {
     }
 
     pub async fn create_space(&self, space_slug: &str, profile: &[u8]) -> Result<CreatedSpace> {
-        let space_key = generate_key();
-        self.create_space_with_key(space_slug, &space_key, profile)
+        self.create_space_with_referrer(space_slug, profile, None)
             .await
+    }
+
+    pub async fn create_space_with_referrer(
+        &self,
+        space_slug: &str,
+        profile: &[u8],
+        referred_by_space_id: Option<&str>,
+    ) -> Result<CreatedSpace> {
+        let space_key = generate_key();
+        self.create_space_with_key_and_referrer(
+            space_slug,
+            &space_key,
+            profile,
+            referred_by_space_id,
+        )
+        .await
     }
 
     pub async fn create_space_with_key(
@@ -258,6 +273,17 @@ impl AccountSpaceCtx {
         space_slug: &str,
         space_key: &[u8],
         profile: &[u8],
+    ) -> Result<CreatedSpace> {
+        self.create_space_with_key_and_referrer(space_slug, space_key, profile, None)
+            .await
+    }
+
+    pub async fn create_space_with_key_and_referrer(
+        &self,
+        space_slug: &str,
+        space_key: &[u8],
+        profile: &[u8],
+        referred_by_space_id: Option<&str>,
     ) -> Result<CreatedSpace> {
         let space_root_key = self.get_or_create_space_root_key().await?;
         let root_wrapped_space_key =
@@ -271,6 +297,7 @@ impl AccountSpaceCtx {
             public_key: encode_b64(&public_key),
             encrypted_secret_key: encode_b64(&encrypted_secret_key),
             encrypted_profile: encrypted_profile.clone(),
+            referred_by_space_id: referred_by_space_id.map(str::to_owned),
         };
         let response = self
             .client

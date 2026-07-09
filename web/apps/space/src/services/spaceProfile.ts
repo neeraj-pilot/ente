@@ -354,6 +354,7 @@ export const spaceUsernameAvailability = async (
 
 export const saveSpaceProfile = async (
     profile: SetupProfileInput,
+    referredBySpaceId?: string,
 ): Promise<SetupProfile> => {
     const username = normalizeSpaceUsername(profile.username);
 
@@ -390,6 +391,7 @@ export const saveSpaceProfile = async (
             const created = (await ctx.create_space(
                 username,
                 profilePayload,
+                referredBySpaceId?.trim() || undefined,
             )) as CreatedSpace;
             spaceId = created.spaceId;
             spaceSlug = created.spaceSlug;
