@@ -318,7 +318,7 @@ Future<Uint8List?> _getThumbnailForUpload(
   } catch (e) {
     final String errMessage =
         "thumbErr for ${file.fileType}, ${extension(file.displayName)} ${file.tag}";
-    _logger.warning(errMessage, e);
+    _logger.warning("$errMessage: $e");
     // allow videos to be uploaded without thumbnails
     if (asset.type == AssetType.video) {
       return null;
@@ -542,7 +542,7 @@ Future<Uint8List?> getThumbnailFromInAppCacheFile(EnteFile file) async {
       );
       localFile = File(thumbnailFilePath!);
     } catch (e) {
-      _logger.warning('Failed to generate video thumbnail', e);
+      _logger.warning('Failed to generate video thumbnail: $e');
       return null;
     }
   }
