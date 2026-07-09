@@ -86,8 +86,16 @@ class CollectionsDB {
     final hasSharedAt = columns.any(
       (column) => column['name'] == columnSharedAt,
     );
-    if (!hasSharedAt) {
+    if (hasSharedAt) {
+      return;
+    }
+    try {
       await db.execute('ALTER TABLE $table ADD COLUMN $columnSharedAt INTEGER');
+    } on DatabaseException catch (e) {
+      // Foreground and background isolates can repair the same DB concurrently.
+      if (!e.isDuplicateColumnError(columnSharedAt)) {
+        rethrow;
+      }
     }
   }
 
