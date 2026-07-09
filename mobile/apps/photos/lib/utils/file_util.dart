@@ -95,9 +95,10 @@ Future<File?> getFile(
         _logger.info(
           "Local Apple Photos resource unavailable for ${file.localID}; fetching uploaded file ${file.uploadedFileID}",
         );
-        return getFileFromServer(
+        return _getServerFallbackForApplePhotosResource(
           file,
           liveVideo: liveVideo,
+          isOrigin: isOrigin,
           forGalleryDownload: forGalleryDownload,
         );
       }
@@ -115,6 +116,28 @@ Future<File?> getFile(
     }
     return null;
   }
+}
+
+Future<File?> _getServerFallbackForApplePhotosResource(
+  EnteFile file, {
+  required bool liveVideo,
+  required bool isOrigin,
+  required bool forGalleryDownload,
+}) async {
+  final serverFile = await getFileFromServer(
+    file,
+    liveVideo: liveVideo,
+    forGalleryDownload: forGalleryDownload,
+  );
+  if (serverFile == null || !isOrigin || !Platform.isIOS) {
+    return serverFile;
+  }
+
+  final tempPath =
+      "${Configuration.instance.getTempDirectory()}"
+      "apple_photos_fallback_${file.uploadedFileID}_${liveVideo}_"
+      "${DateTime.now().microsecondsSinceEpoch}_${basename(serverFile.path)}";
+  return serverFile.copy(tempPath);
 }
 
 Future<bool> doesLocalFileExist(EnteFile file) async {
