@@ -596,8 +596,8 @@ Future<List<String>> _deleteLocalFilesInOneShot(
   await dialog.show();
   try {
     deletedIDs.addAll(await PhotoManager.editor.deleteWithIds(localIDs));
-  } catch (e, s) {
-    _logger.severe("Could not delete files ", e, s);
+  } catch (e) {
+    _logger.warning("Could not delete files: $e");
   }
   _logger.info(
     '_deleteLocalFilesInOneShot deleted ${deletedIDs.length} out '
@@ -648,14 +648,14 @@ Future<List<String>> deleteLocalFilesInBatches(
       _logger.info(
         "Deleted ${deletedIDs.length - countBefore} of ${ids.length} files",
       );
-    } catch (e, s) {
-      _logger.severe("Could not delete batch of ${ids.length} files", e, s);
+    } catch (e) {
+      _logger.warning("Could not delete batch of ${ids.length} files: $e");
       for (final id in ids) {
         try {
           deletedIDs.addAll(await PhotoManager.editor.deleteWithIds([id]));
           _logger.info("Deleted " + id);
-        } catch (e, s) {
-          _logger.severe("Could not delete file " + id, e, s);
+        } catch (e) {
+          _logger.warning("Could not delete file $id: $e");
         }
       }
     }
