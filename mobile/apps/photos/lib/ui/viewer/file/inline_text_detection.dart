@@ -160,8 +160,8 @@ class _InlineTextDetectionState extends State<InlineTextDetection> {
     } on TimeoutException {
       _logger.info("hasText timed out");
       return null;
-    } catch (error, stackTrace) {
-      _logger.warning("hasText failed", error, stackTrace);
+    } catch (error) {
+      _logger.warning("hasText failed: $error");
       return null;
     }
   }

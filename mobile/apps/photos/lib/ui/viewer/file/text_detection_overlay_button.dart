@@ -123,8 +123,8 @@ class _TextDetectionOverlayButtonState
       bool hasText = false;
       try {
         hasText = await _mobileOcr.hasText(imagePath: localFile.path);
-      } catch (error, stackTrace) {
-        _logger.severe("Failed to run hasText", error, stackTrace);
+      } catch (error) {
+        _logger.warning("Failed to run hasText: $error");
       }
 
       if (!mounted || requestId != _requestId) {
