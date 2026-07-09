@@ -189,6 +189,30 @@ class NotificationService {
     return result ?? false;
   }
 
+  Future<bool> canShowNotifications() async {
+    await _ensurePluginInitialized();
+    bool? result;
+    if (Platform.isIOS) {
+      final permissions = await _notificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.checkPermissions();
+      result = permissions?.isEnabled;
+    } else if (Platform.isAndroid) {
+      result = await _notificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.areNotificationsEnabled();
+    }
+    if (result != null) {
+      await _preferences.setBool(keyGrantedNotificationPermission, result);
+      return result;
+    }
+    return hasGrantedPermissions();
+  }
+
   bool shouldShowNotificationsForSharedPhotosAndAlbums() {
     final result = _preferences.getBool(
       keyShouldShowNotificationsForSharedPhotos,
@@ -220,7 +244,10 @@ class NotificationService {
     String channelName = "ente",
     String payload = "ente://home",
   }) async {
-    await _ensurePluginInitialized();
+    if (!await canShowNotifications()) {
+      _logger.warning("Notification permissions not granted");
+      return;
+    }
     _logger.info(
       "Showing notification with: $title, $message, $channelID, $channelName, $payload",
     );
@@ -266,11 +293,11 @@ class NotificationService {
         );
       }
       await initTimezones();
-      if (!hasGrantedPermissions()) {
+      if (!await canShowNotifications()) {
         _logger.warning("Notification permissions not granted");
         await requestPermissions();
-        if (!hasGrantedPermissions()) {
-          _logger.severe("Failed to get notification permissions");
+        if (!await canShowNotifications()) {
+          _logger.warning("Failed to get notification permissions");
           return;
         }
       } else {
