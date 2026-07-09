@@ -476,7 +476,7 @@ class FileUploader {
         // In background isolate, we can't request permissions (no UI available)
         // Throw an error to properly handle this scenario
         if (isProcessBg) {
-          _logger.severe(
+          _logger.warning(
             "Media location access not granted in background isolate - cannot request permission",
           );
           throw NoMediaLocationAccessError();
@@ -484,7 +484,7 @@ class FileUploader {
         // Only request permission in foreground
         final permissionStatus = await Permission.accessMediaLocation.request();
         if (!permissionStatus.isGranted) {
-          _logger.severe(
+          _logger.warning(
             "Media location access denied with permission status: ${permissionStatus.name}",
           );
           throw NoMediaLocationAccessError();
