@@ -652,9 +652,9 @@ class FileAppBarState extends State<FileAppBar> {
       return;
     }
 
-    final fileToDownload = !file.isRemoteOnlyFile
+    final fileToDownload = file.isUploaded && !file.isRemoteOnlyFile
         ? (file.copyWith()..localID = null)
-        : file;
+        : file.copyWith();
     final persistToFilesDB =
         widget.galleryType != GalleryType.sharedPublicCollection;
     if (flagService.internalUser) {
@@ -680,7 +680,7 @@ class FileAppBarState extends State<FileAppBar> {
     try {
       await downloadToGallery(
         fileToDownload,
-        persistToFilesDB: persistToFilesDB,
+        persistToFilesDB: persistToFilesDB && fileToDownload.isUploaded,
       );
       if (!mounted) {
         await dialog.hide();
