@@ -96,7 +96,7 @@ class _DeveloperSettingsPageState extends State<DeveloperSettingsPage> {
                       throw const FormatException();
                     }
                   } catch (e) {
-                    _logger.severe("Failed to update developer endpoint", e);
+                    _logger.warning("Failed to update developer endpoint: $e");
                     await showAlertBottomSheet(
                       context,
                       title: AppLocalizations.of(context).invalidEndpoint,
