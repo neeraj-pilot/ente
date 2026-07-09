@@ -951,7 +951,8 @@ class FileUploader {
           e is WiFiUnavailableError ||
           e is SilentlyCancelUploadsError ||
           e is InvalidFileError ||
-          e is FileTooLargeForPlanError)) {
+          e is FileTooLargeForPlanError ||
+          e is MultiPartFileMissingError)) {
         _logger.severe("File upload failed for " + file.toString(), e, s);
       }
       if (e is InvalidFileError) {

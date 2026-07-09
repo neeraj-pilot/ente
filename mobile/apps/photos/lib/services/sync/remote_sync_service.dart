@@ -768,6 +768,9 @@ class RemoteSyncService {
       // Do nothing since it's caused mostly due to concurrency issues
       // when the foreground app deletes temporary files, interrupting a background
       // upload
+    } on MultiPartFileMissingError {
+      // The uploader clears the stale multipart row; a later upload attempt will
+      // re-encrypt the source file.
     } on LockAlreadyAcquiredError {
       // Do nothing
     } on SilentlyCancelUploadsError {
