@@ -119,12 +119,16 @@ class IgnoredFilesDB {
       // on Android, we track device folder and title to track files to ignore.
       // See IgnoredFileService#_getIgnoreID method for more detail
       if (Platform.isAndroid) {
-        batch.rawDelete(
-          "DELETE from $tableName WHERE  $columnDeviceFolder = '${file.deviceFolder}' AND $columnTitle = '${file.title}' ",
+        batch.delete(
+          tableName,
+          where: "$columnDeviceFolder = ? AND $columnTitle = ?",
+          whereArgs: [file.deviceFolder, file.title],
         );
       } else {
-        batch.rawDelete(
-          "DELETE from $tableName WHERE $columnLocalID = '${file.localID}' ",
+        batch.delete(
+          tableName,
+          where: "$columnLocalID = ?",
+          whereArgs: [file.localID],
         );
       }
       batchCounter++;
