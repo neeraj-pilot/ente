@@ -203,7 +203,43 @@ func testCreatePost(ctx context.Context, module *Module, _ int64, spaceID string
 	if captionCipher != nil {
 		caption = testSpaceBytes(*captionCipher)
 	}
-	return module.Posts.CreatePost(ctx, spaceID, testSpaceBytes(encryptedPostKey), caption, keyVersion, objects)
+	postID, _, err := module.Posts.CreatePost(ctx, spaceID, testSpaceBytes(encryptedPostKey), caption, keyVersion, objects)
+	return postID, err
+}
+
+func TestCreatePostEnforcesSpacePostLimit(t *testing.T) {
+	module := newSpaceTestModule(t)
+	ctx := context.Background()
+	userID := insertSpaceUser(t, module, "post-limit@example.com", "post-limit-public")
+	space, err := testCreateSpace(ctx, module, userID, "post_limit", "root", "public", "secret", "nonce", "profile")
+	require.NoError(t, err)
+
+	_, err = module.Posts.DB.ExecContext(ctx, `
+		INSERT INTO space_posts (space_id, encrypted_post_key, key_version)
+		SELECT $1, 'post-key', $2
+		FROM generate_series(1, $3)
+	`, space.SpaceID, space.CurrentVersion, MaxPostsPerSpace)
+	require.NoError(t, err)
+
+	_, postCount, err := module.Posts.CreatePost(ctx, space.SpaceID, testSpaceBytes("post-key"), nil, space.CurrentVersion, nil)
+	require.ErrorIs(t, err, ErrSpacePostLimitReached)
+	require.Equal(t, MaxPostsPerSpace, postCount)
+
+	_, err = module.Posts.DB.ExecContext(ctx, `
+		UPDATE space_posts
+		SET is_deleted = TRUE
+		WHERE post_id = (
+			SELECT MIN(post_id)
+			FROM space_posts
+			WHERE space_id = $1
+		)
+	`, space.SpaceID)
+	require.NoError(t, err)
+
+	postID, postCount, err := module.Posts.CreatePost(ctx, space.SpaceID, testSpaceBytes("post-key"), nil, space.CurrentVersion, nil)
+	require.NoError(t, err)
+	require.NotZero(t, postID)
+	require.Equal(t, MaxPostsPerSpace, postCount)
 }
 
 func testUpdateCaption(ctx context.Context, module *Module, postID int64, _ int64, spaceID string, captionCipher *string) error {

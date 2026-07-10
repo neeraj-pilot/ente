@@ -3,12 +3,17 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strconv"
 	"strings"
 
 	"github.com/ente/museum/ente/base"
 	"github.com/ente/stacktrace"
 )
+
+const MaxPostsPerSpace = 250
+
+var ErrSpacePostLimitReached = errors.New("space post limit reached")
 
 func postRecordSelectSQL(viewerLikedExpr string) string {
 	return `
@@ -34,10 +39,10 @@ func scanPostRecords(rows *sql.Rows) ([]SpacePostRecord, error) {
 	return out, nil
 }
 
-func (r *PostsRepository) CreatePost(ctx context.Context, spaceID string, encryptedPostKey []byte, captionCipher []byte, keyVersion int, objects []SpacePostAssetRecord) (int64, error) {
+func (r *PostsRepository) CreatePost(ctx context.Context, spaceID string, encryptedPostKey []byte, captionCipher []byte, keyVersion int, objects []SpacePostAssetRecord) (int64, int, error) {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, stacktrace.Propagate(err, "")
+		return 0, 0, stacktrace.Propagate(err, "")
 	}
 	defer tx.Rollback()
 	var currentVersion int
@@ -47,10 +52,21 @@ func (r *PostsRepository) CreatePost(ctx context.Context, spaceID string, encryp
 		WHERE space_id = $1
 		FOR UPDATE
 	`, spaceID).Scan(&currentVersion); err != nil {
-		return 0, stacktrace.Propagate(err, "")
+		return 0, 0, stacktrace.Propagate(err, "")
 	}
 	if currentVersion != keyVersion {
-		return 0, sql.ErrNoRows
+		return 0, 0, sql.ErrNoRows
+	}
+	var postCount int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM space_posts
+		WHERE space_id = $1 AND is_deleted = FALSE
+	`, spaceID).Scan(&postCount); err != nil {
+		return 0, 0, stacktrace.Propagate(err, "")
+	}
+	if postCount >= MaxPostsPerSpace {
+		return 0, postCount, ErrSpacePostLimitReached
 	}
 	caption := []byte{}
 	if captionCipher != nil {
@@ -62,23 +78,23 @@ func (r *PostsRepository) CreatePost(ctx context.Context, spaceID string, encryp
 		VALUES ($1, $2, $3, $4)
 		RETURNING post_id
 	`, spaceID, encryptedPostKey, caption, keyVersion).Scan(&postID); err != nil {
-		return 0, stacktrace.Propagate(err, "")
+		return 0, 0, stacktrace.Propagate(err, "")
 	}
 	for _, obj := range objects {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO space_post_assets (post_id, object_key, bucket_id, size, position, metadata_cipher)
 			VALUES ($1, $2, $3, $4, $5, $6)
 		`, postID, obj.ObjectKey, obj.BucketID, obj.Size, obj.Position, obj.MetadataCipher); err != nil {
-			return 0, stacktrace.Propagate(err, "")
+			return 0, 0, stacktrace.Propagate(err, "")
 		}
 		if err := ConsumeTempObjectTx(ctx, tx, obj.ObjectKey, TempObjectPurposePost, &spaceID); err != nil {
-			return 0, stacktrace.Propagate(err, "failed to consume staged space post upload")
+			return 0, 0, stacktrace.Propagate(err, "failed to consume staged space post upload")
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, stacktrace.Propagate(err, "")
+		return 0, 0, stacktrace.Propagate(err, "")
 	}
-	return postID, nil
+	return postID, postCount + 1, nil
 }
 
 func (r *PostsRepository) GetPost(ctx context.Context, postID int64, viewerSpaceID string) (*SpacePostRecord, error) {

@@ -27,6 +27,7 @@ export interface PendingSpaceFeedPost {
 }
 
 export type FailedSpaceFeedPost = Omit<PendingSpaceFeedPost, "status"> & {
+    reason?: "post-limit";
     status: "failed";
 };
 

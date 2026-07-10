@@ -1,6 +1,9 @@
 import type React from "react";
 import type { SpacePost } from "services/space";
-import type { LocalSpaceFeedPost } from "state/spaceAppState";
+import type {
+    FailedSpaceFeedPost,
+    LocalSpaceFeedPost,
+} from "state/spaceAppState";
 
 let nextLocalFeedPostID = 0;
 
@@ -40,11 +43,12 @@ export const failLocalFeedPost = (
         React.SetStateAction<LocalSpaceFeedPost[]>
     >,
     localPostId: string,
+    reason?: FailedSpaceFeedPost["reason"],
 ) => {
     setLocalFeedPosts((currentPosts) =>
         currentPosts.map((item) =>
             item.id == localPostId && item.status == "pending"
-                ? { ...item, status: "failed" }
+                ? { ...item, reason, status: "failed" }
                 : item,
         ),
     );

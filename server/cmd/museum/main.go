@@ -981,6 +981,7 @@ func main() {
 	spaceRepos := spacerepo.NewModule(db, s3Config)
 	userController.SpaceAccessResetter = spaceRepos
 	spaceModule := spacecontroller.NewModule(spaceRepos, userAuthRepo, &spacecontroller.SpaceEmailSender{UserRepo: userRepo})
+	spaceModule.Posts.AbuseNotifier = discordController
 	spaceDripController := spacecontroller.NewSpaceDripController(spaceRepos, userRepo, notificationHistoryRepo, lockController)
 	spaceModule.UserTokens = userController
 	spaceHandlers := spaceapi.NewHandlers(spaceModule)

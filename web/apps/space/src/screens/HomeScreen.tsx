@@ -171,7 +171,7 @@ interface DraftSpacePostImage {
     width?: number;
 }
 
-type FeedTimestampStatus = "failed" | "posted" | "posting";
+type FeedTimestampStatus = "failed" | "post-limit" | "posted" | "posting";
 
 interface FeedItemProps {
     aspectRatio: number;
@@ -1086,14 +1086,17 @@ const FeedItem: React.FC<FeedItemProps> = ({
                                 aria-label={
                                     timestampStatus == "posting"
                                         ? "Posting"
-                                        : timestampStatus == "failed"
-                                          ? "Failed"
-                                          : "Posted"
+                                        : timestampStatus == "post-limit"
+                                          ? "Post limit reached. Please contact support."
+                                          : timestampStatus == "failed"
+                                            ? "Failed"
+                                            : "Posted"
                                 }
                                 sx={{
                                     alignItems: "center",
                                     color:
-                                        timestampStatus == "failed"
+                                        timestampStatus == "failed" ||
+                                        timestampStatus == "post-limit"
                                             ? dangerColor
                                             : "rgba(255, 255, 255, 0.86)",
                                     display: "flex",
@@ -1107,6 +1110,11 @@ const FeedItem: React.FC<FeedItemProps> = ({
                             >
                                 {timestampStatus == "posted" ? (
                                     <Box component="span">Posted</Box>
+                                ) : timestampStatus == "post-limit" ? (
+                                    <Box component="span">
+                                        Post limit reached. Please contact
+                                        support.
+                                    </Box>
                                 ) : timestampStatus == "failed" ? (
                                     <Box component="span">Failed</Box>
                                 ) : (
@@ -1617,7 +1625,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 name={item.name}
                 onOpenProfile={onOpenProfile}
                 postId={0}
-                timestampStatus={item.status == "failed" ? "failed" : "posting"}
+                timestampStatus={
+                    item.status == "failed"
+                        ? item.reason == "post-limit"
+                            ? "post-limit"
+                            : "failed"
+                        : "posting"
+                }
                 timestampMs={item.timestampMs}
                 viewerLiked={false}
             />

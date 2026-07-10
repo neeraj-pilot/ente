@@ -56,7 +56,8 @@ func testCreatePost(ctx context.Context, module *spacerepo.Module, _ int64, spac
 	if captionCipher != nil {
 		caption = testSpaceBytes(*captionCipher)
 	}
-	return module.Posts.CreatePost(ctx, spaceID, testSpaceBytes(encryptedPostKey), caption, keyVersion, objects)
+	postID, _, err := module.Posts.CreatePost(ctx, spaceID, testSpaceBytes(encryptedPostKey), caption, keyVersion, objects)
+	return postID, err
 }
 
 func insertSpaceControllerUser(t *testing.T, module *spacerepo.Module, email string, publicKey string) int64 {

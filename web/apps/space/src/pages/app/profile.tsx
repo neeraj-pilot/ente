@@ -5,6 +5,7 @@ import { ProfileScreen, profileBackground } from "screens/ProfileScreen";
 import {
     createCurrentPhotoPost,
     deleteCurrentPost,
+    isSpacePostLimitReachedError,
     loadCurrentSpaceFriendsCount,
     loadCurrentSpacePostAssetURL,
     loadCurrentSpaceProfilePostsPage,
@@ -174,7 +175,13 @@ const Page: React.FC = () => {
                             post,
                         );
                     } catch (error) {
-                        failLocalFeedPost(setLocalFeedPosts, localPostId);
+                        failLocalFeedPost(
+                            setLocalFeedPosts,
+                            localPostId,
+                            isSpacePostLimitReachedError(error)
+                                ? "post-limit"
+                                : undefined,
+                        );
                         throw error;
                     }
                 }}

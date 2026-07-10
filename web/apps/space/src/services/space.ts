@@ -1088,6 +1088,13 @@ export const createCurrentPhotoPost = async ({
     }
 };
 
+export const isSpacePostLimitReachedError = (error: unknown) => {
+    if (!error || typeof error != "object" || !("status" in error)) {
+        return false;
+    }
+    return (error as { status?: unknown }).status == 409;
+};
+
 const normalizedImageDimension = (dimension: number | undefined) =>
     typeof dimension == "number" && Number.isFinite(dimension) && dimension > 0
         ? Math.round(dimension)

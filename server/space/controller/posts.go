@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/ente/museum/ente"
@@ -14,12 +15,19 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const spacePostLimitWarningThreshold = 200
+
+type SpaceAbuseNotifier interface {
+	NotifyPotentialAbuse(message string)
+}
+
 type PostsController struct {
 	PostsRepo     *repo.PostsRepository
 	SpacesRepo    *repo.SpacesRepository
 	FriendsRepo   *repo.FriendsRepository
 	AssetsRepo    *repo.AssetsRepository
 	EmailNotifier SpaceEmailNotifier
+	AbuseNotifier SpaceAbuseNotifier
 	auth          authDeps
 }
 
@@ -68,12 +76,21 @@ func (c *PostsController) Create(ctx context.Context, space *repo.SpaceRecord, r
 			MetadataCipher: metadataCipher,
 		})
 	}
-	postID, err := c.PostsRepo.CreatePost(ctx, space.SpaceID, encryptedPostKey, captionCipher, req.KeyVersion, assets)
+	postID, postCount, err := c.PostsRepo.CreatePost(ctx, space.SpaceID, encryptedPostKey, captionCipher, req.KeyVersion, assets)
 	if err != nil {
 		if errors.Is(stacktrace.RootCause(err), sql.ErrNoRows) {
 			return nil, ente.NewBadRequestWithMessage("keyVersion does not match current space version")
 		}
+		if errors.Is(stacktrace.RootCause(err), repo.ErrSpacePostLimitReached) {
+			return nil, ente.NewConflictError("space post limit reached")
+		}
 		return nil, err
+	}
+	if postCount == spacePostLimitWarningThreshold && c.AbuseNotifier != nil {
+		go c.AbuseNotifier.NotifyPotentialAbuse(fmt.Sprintf(
+			"Space %s owned by user %d has reached %d of %d posts",
+			space.SpaceID, space.OwnerID, postCount, repo.MaxPostsPerSpace,
+		))
 	}
 	c.notifyFriendsOfNewPost(space.SpaceID, space.SpaceSlug)
 	return &models.CreatePostResponse{PostID: postID}, nil

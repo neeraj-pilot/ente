@@ -5,6 +5,7 @@ import { HomeScreen, homeBackground } from "screens/HomeScreen";
 import {
     createCurrentPhotoPost,
     deleteCurrentPost,
+    isSpacePostLimitReachedError,
     loadCurrentFeedPage,
     loadCurrentSpaceFriends,
     loadCurrentSpacePostAssetURL,
@@ -277,6 +278,9 @@ const Page: React.FC = () => {
                                   failLocalFeedPost(
                                       setLocalFeedPosts,
                                       localPostId,
+                                      isSpacePostLimitReachedError(error)
+                                          ? "post-limit"
+                                          : undefined,
                                   );
                                   throw error;
                               }
