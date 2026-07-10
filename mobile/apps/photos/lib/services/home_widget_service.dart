@@ -250,6 +250,8 @@ class HomeWidgetService {
 
       await dir.delete(recursive: true);
       _logger.info("Widget directory cleared successfully");
+    } on PathNotFoundException {
+      _logger.info("Widget directory was already cleared");
     } catch (e) {
       _logger.severe("Failed to clear widget directory", e);
     }
