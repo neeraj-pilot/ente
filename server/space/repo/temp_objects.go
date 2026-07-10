@@ -4,8 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/ente/stacktrace"
+)
+
+const (
+	SpaceUploadURLExpiry    = 15 * time.Minute
+	SpaceUploadCleanupDelay = 2 * SpaceUploadURLExpiry
 )
 
 const (
@@ -33,7 +39,7 @@ func QueueObjectCleanupTx(ctx context.Context, tx *sql.Tx, rec SpaceTempObjectRe
 	}
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO space_temp_objects (object_key, space_id, purpose, bucket_id, expected_size, expires_at, cleanup_after)
-		VALUES ($1, $2, $3, $4, $5, now_utc_micro_seconds(), now_utc_micro_seconds())
+		VALUES ($1, $2, $3, $4, $5, now_utc_micro_seconds(), COALESCE(NULLIF($6::BIGINT, 0), now_utc_micro_seconds()))
 		ON CONFLICT (object_key) DO UPDATE
 		SET space_id = EXCLUDED.space_id,
 		    purpose = EXCLUDED.purpose,
@@ -41,7 +47,7 @@ func QueueObjectCleanupTx(ctx context.Context, tx *sql.Tx, rec SpaceTempObjectRe
 		    expected_size = EXCLUDED.expected_size,
 		    expires_at = EXCLUDED.expires_at,
 		    cleanup_after = EXCLUDED.cleanup_after
-	`, rec.ObjectKey, rec.SpaceID, rec.Purpose, rec.BucketID, expectedSize)
+	`, rec.ObjectKey, rec.SpaceID, rec.Purpose, rec.BucketID, expectedSize, rec.CleanupAfter)
 	return stacktrace.Propagate(err, "")
 }
 

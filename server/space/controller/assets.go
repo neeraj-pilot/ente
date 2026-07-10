@@ -25,8 +25,8 @@ const (
 	maxPostUploadBytes     int64 = 5 * 1024 * 1024
 	maxAvatarUploadBytes   int64 = 2 * 1024 * 1024
 	maxCoverUploadBytes    int64 = 2 * 1024 * 1024
-	uploadURLExpiry              = 15 * time.Minute
-	uploadTempObjectExpiry       = 2 * uploadURLExpiry
+	uploadURLExpiry              = spacerepo.SpaceUploadURLExpiry
+	uploadTempObjectExpiry       = spacerepo.SpaceUploadCleanupDelay
 	uploadPurposePost            = spacerepo.TempObjectPurposePost
 	uploadPurposeAvatar          = spacerepo.TempObjectPurposeAvatar
 	uploadPurposeCover           = spacerepo.TempObjectPurposeCover
