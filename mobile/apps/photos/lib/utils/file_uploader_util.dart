@@ -35,18 +35,6 @@ import 'package:video_thumbnail/video_thumbnail.dart';
 
 final _logger = Logger("FileUtil");
 
-String? _extractPrintableExifValue(IfdTag? tag) {
-  final printableValue = tag?.printable;
-  final printable = printableValue?.trim();
-  if (printable == null || printable.isEmpty) {
-    return null;
-  }
-  if (printable.toLowerCase() == 'null') {
-    return null;
-  }
-  return printable;
-}
-
 Future<MediaUploadData> getUploadDataFromEnteFile(
   EnteFile file, {
   bool parseExif = false,
@@ -119,8 +107,8 @@ Future<MediaUploadData> _getMediaUploadDataFromAssetFile(
     if (parseExif && shouldReadExif(file)) {
       exifData = await tryExifFromFile(sourceFile);
       if (exifData != null) {
-        cameraMake = _extractPrintableExifValue(exifData['Image Make']);
-        cameraModel = _extractPrintableExifValue(exifData['Image Model']);
+        cameraMake = extractPrintableExifValue(exifData['Image Make']);
+        cameraModel = extractPrintableExifValue(exifData['Image Model']);
       }
     }
     // h4ck to fetch location data if missing (thank you Android Q+) lazily only during uploads
@@ -169,7 +157,7 @@ Future<MediaUploadData> _getMediaUploadDataFromAssetFile(
       h = asset.height;
       if (Platform.isAndroid &&
           file.fileType == FileType.image &&
-          _shouldSwapDimensionsForExifOrientation(exifData)) {
+          shouldSwapDimensionsForExifOrientation(exifData)) {
         final temp = w;
         w = h;
         h = temp;
@@ -203,12 +191,6 @@ Future<MediaUploadData> _getMediaUploadDataFromAssetFile(
     }
     rethrow;
   }
-}
-
-bool _shouldSwapDimensionsForExifOrientation(Map<String, IfdTag>? exifData) {
-  final orientation = exifData?['Image Orientation']?.values.firstAsInt() ?? 1;
-  // EXIF orientations 5-8 are rotated 90/270 variants and require w/h swap.
-  return orientation >= 5 && orientation <= 8;
 }
 
 Future<int?> motionVideoIndex(Map<String, dynamic> args) async {
@@ -367,8 +349,8 @@ Future<MediaUploadData> _getMediaUploadDataFromAppCache(
       dimensions = await getImageHeightAndWith(imagePath: localPath);
       exifData = await tryExifFromFile(sourceFile);
       if (exifData != null) {
-        cameraMake = _extractPrintableExifValue(exifData['Image Make']);
-        cameraModel = _extractPrintableExifValue(exifData['Image Model']);
+        cameraMake = extractPrintableExifValue(exifData['Image Make']);
+        cameraModel = extractPrintableExifValue(exifData['Image Model']);
         if (!file.hasLocation) {
           final exifLocation = locationFromExif(exifData);
           if (Location.isValidLocation(exifLocation)) {

@@ -68,6 +68,23 @@ Future<Map<String, IfdTag>?> tryExifFromFile(File originFile) async {
   }
 }
 
+String? extractPrintableExifValue(IfdTag? tag) {
+  final printable = tag?.printable.trim();
+  if (printable == null || printable.isEmpty) {
+    return null;
+  }
+  if (printable.toLowerCase() == 'null') {
+    return null;
+  }
+  return printable;
+}
+
+bool shouldSwapDimensionsForExifOrientation(Map<String, IfdTag>? exifData) {
+  final orientation = exifData?['Image Orientation']?.values.firstAsInt() ?? 1;
+  // EXIF orientations 5-8 are rotated 90/270 variants and require w/h swap.
+  return orientation >= 5 && orientation <= 8;
+}
+
 Future<FFProbeProps?> getVideoPropsAsync(File originalFile) async {
   try {
     final stopwatch = Stopwatch()..start();
