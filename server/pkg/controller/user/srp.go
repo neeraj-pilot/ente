@@ -90,6 +90,12 @@ func (c *UserController) UpdateSrpAndKeyAttributes(context *gin.Context,
 		if err != nil {
 			return nil, err
 		}
+		if c.SpaceAccessResetter != nil {
+			err = c.SpaceAccessResetter.RevokeBrowserSessions(context.Request.Context(), userID)
+			if err != nil {
+				return nil, err
+			}
+		}
 	} else {
 		logrus.WithField("user_id", userID).Info("not clearing tokens")
 	}

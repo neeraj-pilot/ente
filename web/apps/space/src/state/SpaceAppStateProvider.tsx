@@ -12,8 +12,10 @@ import {
     clearSpaceMediaURLCache,
 } from "services/space";
 import type { PendingSpacePasskeyVerification } from "services/spacePasskeyVerification";
+import { logoutRevokedSpaceSession } from "services/spacePersistentSession";
 import {
     clearCurrentSpaceContext,
+    isSpaceSessionUnauthorized,
     loadExistingSpaceAvatar,
     loadExistingSpaceCover,
     loadExistingSpaceProfile,
@@ -183,6 +185,11 @@ export const SpaceAppStateProvider: React.FC<React.PropsWithChildren> = ({
                 }
                 return nextProfile;
             } catch (error) {
+                if (isSpaceSessionUnauthorized(error)) {
+                    await logoutRevokedSpaceSession();
+                    window.location.replace("/");
+                    return null;
+                }
                 console.error("Failed to load space profile", error);
                 if (profileLoadGenerationRef.current == generation) {
                     setProfileLoadError(profileErrorMessage(error));

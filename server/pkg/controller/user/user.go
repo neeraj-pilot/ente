@@ -37,6 +37,7 @@ import (
 
 type SpaceAccessResetter interface {
 	ResetUserAccess(ctx context.Context, userID int64) error
+	RevokeBrowserSessions(ctx context.Context, userID int64) error
 }
 
 type SpaceAccountDeletionAccessResetter interface {

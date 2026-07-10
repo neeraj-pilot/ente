@@ -10,6 +10,7 @@ import (
 	"github.com/ente/museum/space/controller"
 	"github.com/ente/museum/space/models"
 	"github.com/gin-gonic/gin"
+	log "github.com/sirupsen/logrus"
 )
 
 func (h *Handlers) RequireSpaceBrowserSession() gin.HandlerFunc {
@@ -50,17 +51,15 @@ func (h *Handlers) CreateBrowserSession(c *gin.Context) {
 		respondJSON(c, nil, ente.ErrAuthenticationRequired)
 		return
 	}
-	created, err := h.Module.Sessions.CreateBrowserSession(c, userID, req.SessionWrapKey)
+	token := strings.TrimSpace(auth.GetToken(c))
+	created, err := h.Module.Sessions.CreateBrowserSession(c, userID, token, req.SessionWrapKey)
 	if err != nil {
 		respondJSON(c, nil, err)
 		return
 	}
-	if token := strings.TrimSpace(auth.GetToken(c)); token != "" {
-		if h.Module.UserTokens != nil {
-			if err := h.Module.UserTokens.TerminateSession(userID, token); err != nil {
-				respondJSON(c, nil, err)
-				return
-			}
+	if h.Module.UserTokens != nil {
+		if err := h.Module.UserTokens.TerminateSession(userID, token); err != nil {
+			log.WithError(err).WithField("user_id", userID).Warn("Failed to evict exchanged Space bootstrap token")
 		}
 	}
 	respondJSON(c, created.Response, nil)
@@ -74,6 +73,6 @@ func (h *Handlers) BootstrapBrowserSession(c *gin.Context) {
 
 func (h *Handlers) DeleteBrowserSession(c *gin.Context) {
 	sessionToken := strings.TrimSpace(c.GetHeader(controller.SpaceBrowserSessionTokenHeader))
-	err := h.Module.Sessions.RevokeBrowserSession(c, sessionToken)
+	err := h.Module.Sessions.RevokeBrowserSessions(c, sessionToken)
 	respondStatus(c, err)
 }

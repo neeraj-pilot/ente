@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"sort"
 	"strconv"
 	"testing"
 
+	"github.com/ente/museum/ente"
 	"github.com/ente/museum/internal/testutil"
 	timeutil "github.com/ente/museum/pkg/utils/time"
 	"github.com/stretchr/testify/require"
@@ -251,6 +253,63 @@ func TestGetBrowserSession(t *testing.T) {
 	require.Equal(t, userID, session.UserID)
 	require.Equal(t, "session-wrap-key", session.SessionWrapKey)
 	require.Equal(t, expiresAt, session.ExpiresAt)
+}
+
+func TestExchangeBrowserSessionConsumesTokenOnce(t *testing.T) {
+	ctx := context.Background()
+	module := newSpaceTestModule(t)
+	userID := insertSpaceUser(t, module, "browser-session-exchange@example.com", "browser-session-exchange-public")
+	authToken := "browser-session-exchange-token"
+	_, err := module.Sessions.DB.Exec(`
+		INSERT INTO tokens (user_id, token, creation_time, app)
+		VALUES ($1, $2, $3, 'photos')
+	`, userID, authToken, timeutil.Microseconds())
+	require.NoError(t, err)
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	for _, tokenHash := range [][]byte{[]byte("first-space-token-hash"), []byte("second-space-token-hash")} {
+		go func(tokenHash []byte) {
+			<-start
+			errs <- module.Sessions.ExchangeBrowserSession(ctx, authToken, tokenHash, userID, "session-wrap-key", timeutil.NDaysFromNow(1))
+		}(tokenHash)
+	}
+	close(start)
+
+	var created, rejected int
+	for range 2 {
+		err := <-errs
+		if err == nil {
+			created++
+		} else if errors.Is(err, ente.ErrAuthenticationRequired) {
+			rejected++
+		} else {
+			require.NoError(t, err)
+		}
+	}
+	require.Equal(t, 1, created)
+	require.Equal(t, 1, rejected)
+	require.Equal(t, int64(1), countSpaceRows(t, module, `SELECT COUNT(*) FROM space_browser_sessions WHERE user_id = $1`, userID))
+}
+
+func TestExchangeBrowserSessionKeepsTokenWhenSessionCreationFails(t *testing.T) {
+	ctx := context.Background()
+	module := newSpaceTestModule(t)
+	userID := insertSpaceUser(t, module, "browser-session-rollback@example.com", "browser-session-rollback-public")
+	authToken := "browser-session-rollback-token"
+	tokenHash := []byte("duplicate-space-token-hash")
+	_, err := module.Sessions.DB.Exec(`
+		INSERT INTO tokens (user_id, token, creation_time, app)
+		VALUES ($1, $2, $3, 'photos')
+	`, userID, authToken, timeutil.Microseconds())
+	require.NoError(t, err)
+	require.NoError(t, module.Sessions.CreateBrowserSession(ctx, tokenHash, userID, "existing-wrap-key", timeutil.NDaysFromNow(1)))
+
+	err = module.Sessions.ExchangeBrowserSession(ctx, authToken, tokenHash, userID, "new-wrap-key", timeutil.NDaysFromNow(1))
+	require.Error(t, err)
+	var isDeleted bool
+	require.NoError(t, module.Sessions.DB.QueryRow(`SELECT is_deleted FROM tokens WHERE token = $1`, authToken).Scan(&isDeleted))
+	require.False(t, isDeleted)
 }
 
 func TestSpaceAccountDeletionResetAccountDeletionAccess(t *testing.T) {

@@ -35,11 +35,10 @@ const Page: React.FC = () => {
                 onOpenProfile={() =>
                     void router.push(spaceRoutes.settingsProfile)
                 }
-                onLogout={() => {
-                    void spaceLogout().then(() => {
-                        resetAfterLogout();
-                        void router.push(spaceRoutes.onboarding);
-                    });
+                onLogout={async () => {
+                    await spaceLogout();
+                    resetAfterLogout();
+                    await router.push(spaceRoutes.onboarding);
                 }}
             />
         </>

@@ -14,6 +14,7 @@ interface ConfirmationActionSheetProps {
     appearance?: "light" | "dark";
     open: boolean;
     title: string;
+    description?: string;
     confirmLabel: string;
     confirmBackgroundColor?: string;
     confirmActionPhase?: SpaceActionPhase | null;
@@ -32,6 +33,7 @@ export const ConfirmationActionSheet: React.FC<
     appearance = "light",
     open,
     title,
+    description,
     confirmLabel,
     confirmBackgroundColor = dangerColor,
     confirmActionPhase = null,
@@ -127,12 +129,27 @@ export const ConfirmationActionSheet: React.FC<
                 >
                     {title}
                 </Box>
+                {description && (
+                    <Box
+                        sx={{
+                            color: isDark ? "#BDBDBD" : "#666666",
+                            fontFamily: '"Inter Variable", Inter, sans-serif',
+                            fontSize: 13,
+                            lineHeight: "18px",
+                            mt: "8px",
+                            px: "20px",
+                            textAlign: "center",
+                        }}
+                    >
+                        {description}
+                    </Box>
+                )}
                 <Box
                     sx={{
                         display: "flex",
                         flexDirection: "column",
                         gap: "12px",
-                        mt: "28px",
+                        mt: description ? "20px" : "28px",
                     }}
                 >
                     <SheetButton

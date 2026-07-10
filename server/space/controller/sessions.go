@@ -26,7 +26,7 @@ type CreatedBrowserSession struct {
 	Response models.SpaceBrowserSessionResponse
 }
 
-func (c *SessionsController) CreateBrowserSession(ctx *gin.Context, userID int64, sessionWrapKey string) (*CreatedBrowserSession, error) {
+func (c *SessionsController) CreateBrowserSession(ctx *gin.Context, userID int64, authToken string, sessionWrapKey string) (*CreatedBrowserSession, error) {
 	sessionToken := auth.GenerateURLSafeRandomString(32)
 	sessionWrapKey = strings.TrimSpace(sessionWrapKey)
 	if sessionWrapKey == "" {
@@ -34,7 +34,7 @@ func (c *SessionsController) CreateBrowserSession(ctx *gin.Context, userID int64
 	}
 	sessionHash := sha256.Sum256([]byte(sessionToken))
 	expiresAt := timeutil.NDaysFromNow(spaceBrowserSessionDurationDays)
-	if err := c.SessionsRepo.CreateBrowserSession(ctx, sessionHash[:], userID, sessionWrapKey, expiresAt); err != nil {
+	if err := c.SessionsRepo.ExchangeBrowserSession(ctx, authToken, sessionHash[:], userID, sessionWrapKey, expiresAt); err != nil {
 		return nil, err
 	}
 	return &CreatedBrowserSession{
@@ -78,10 +78,7 @@ func validateBrowserSession(ctx *gin.Context, sessionsRepo *repo.SessionsReposit
 	return session, nil
 }
 
-func (c *SessionsController) RevokeBrowserSession(ctx *gin.Context, sessionToken string) error {
-	if sessionToken == "" {
-		return nil
-	}
+func (c *SessionsController) RevokeBrowserSessions(ctx *gin.Context, sessionToken string) error {
 	sessionHash := sha256.Sum256([]byte(sessionToken))
-	return c.SessionsRepo.DeleteBrowserSession(ctx, sessionHash[:])
+	return c.SessionsRepo.DeleteBrowserSessionsForToken(ctx, sessionHash[:])
 }

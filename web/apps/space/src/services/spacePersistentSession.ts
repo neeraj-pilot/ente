@@ -9,6 +9,7 @@ import {
     generateKey,
     toB64,
 } from "ente-accounts-rs/services/crypto";
+import { accountLogout } from "ente-accounts-rs/services/logout";
 import { ensureOk, publicRequestHeaders } from "ente-base/http";
 import { apiURL } from "ente-base/origins";
 import { removeAuthToken } from "ente-base/token";
@@ -121,6 +122,11 @@ export const clearSpaceBrowserSession = () => {
     clearSpaceSecureSessionStorage();
 };
 
+export const logoutRevokedSpaceSession = async () => {
+    clearSpaceBrowserSession();
+    await accountLogout();
+};
+
 export const savedSpaceSessionToken = () =>
     savedPersistedSession()?.sessionToken;
 
@@ -197,7 +203,8 @@ const restoreSpaceBrowserSession = async () => {
         },
     });
     if (res.status == 401) {
-        clearSpaceBrowserSession();
+        await logoutRevokedSpaceSession();
+        window.location.replace("/");
         return false;
     }
     ensureOk(res);
@@ -246,10 +253,9 @@ export const getOrCreateSpaceRootKey = async (
     );
 };
 
-export const revokeSpaceBrowserSession = async () => {
+export const revokeSpaceBrowserSessions = async () => {
     const sessionToken = savedSpaceSessionToken();
-    try {
-        if (!sessionToken) return;
+    if (sessionToken) {
         const res = await fetch(
             await apiURL("/account/space/sessions/current"),
             {
@@ -260,10 +266,12 @@ export const revokeSpaceBrowserSession = async () => {
                 },
             },
         );
-        if (res.status != 401) ensureOk(res);
-    } catch {
-        // Local logout must still complete if remote session revocation fails.
-    } finally {
-        clearSpaceBrowserSession();
+        if (res.status == 401) {
+            await logoutRevokedSpaceSession();
+            return false;
+        }
+        ensureOk(res);
     }
+    clearSpaceBrowserSession();
+    return true;
 };

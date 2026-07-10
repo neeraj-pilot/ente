@@ -101,6 +101,9 @@ const spaceHTTPStatus = (error: unknown) => {
     return typeof status == "number" ? status : undefined;
 };
 
+export const isSpaceSessionUnauthorized = (error: unknown) =>
+    spaceHTTPStatus(error) == 401;
+
 const defaultOwnedSpace = (spaces: OwnedSpace[]) => spaces[0];
 
 const currentSpaceContextConfig = async () => {

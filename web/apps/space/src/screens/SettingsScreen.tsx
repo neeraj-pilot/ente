@@ -11,6 +11,7 @@ import {
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Box } from "@mui/material";
 import { ConfirmationActionSheet } from "components/ConfirmationActionSheet";
+import type { SpaceActionPhase } from "components/SpaceActionFeedback";
 import { SpaceButtonSpinner } from "components/SpaceButtonSpinner";
 import React from "react";
 import { spaceTouchTargetSize } from "styles/touchTargets";
@@ -58,7 +59,7 @@ const spaceLinks = [
 ] as const;
 
 interface SettingsScreenProps {
-    onLogout: () => void;
+    onLogout: () => Promise<void>;
     onBack?: () => void;
     onOpenProfile: () => void;
 }
@@ -221,10 +222,26 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     onOpenProfile,
 }) => {
     const [logoutSheetOpen, setLogoutSheetOpen] = React.useState(false);
+    const [logoutActionPhase, setLogoutActionPhase] =
+        React.useState<SpaceActionPhase | null>(null);
+    const [logoutErrorMessage, setLogoutErrorMessage] = React.useState<
+        string | null
+    >(null);
+    const isLogoutRunning = logoutActionPhase != null;
 
     const handleConfirmLogout = () => {
+        setLogoutErrorMessage(null);
+        setLogoutActionPhase("busy");
+        void onLogout().catch((error: unknown) => {
+            console.error("Failed to log out Space sessions", error);
+            setLogoutActionPhase(null);
+            setLogoutErrorMessage("Couldn't log out. Please try again.");
+        });
+    };
+
+    const cancelLogout = () => {
         setLogoutSheetOpen(false);
-        onLogout();
+        setLogoutErrorMessage(null);
     };
 
     return (
@@ -360,9 +377,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </Box>
             <ConfirmationActionSheet
                 open={logoutSheetOpen}
-                title="Are you sure you want to logout?"
+                title="Log out of Space?"
+                description="This will also log you out of Space on any other devices."
                 confirmLabel="Yes, logout"
-                onCancel={() => setLogoutSheetOpen(false)}
+                confirmActionPhase={logoutActionPhase}
+                confirmDisabled={isLogoutRunning}
+                errorMessage={logoutErrorMessage}
+                cancelDisabled={isLogoutRunning}
+                onCancel={cancelLogout}
                 onConfirm={handleConfirmLogout}
             />
         </Box>
