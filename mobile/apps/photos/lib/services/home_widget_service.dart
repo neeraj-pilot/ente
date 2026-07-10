@@ -84,12 +84,15 @@ class HomeWidgetService {
     required String androidClass,
     required String iOSClass,
   }) async {
-    return await hw.HomeWidget.updateWidget(
+    return hw.HomeWidget.updateWidget(
       name: androidClass,
       androidName: androidClass,
       qualifiedAndroidName: 'io.ente.photos.$androidClass',
       iOSName: iOSClass,
-    );
+    ).onError((e, s) {
+      _logger.warning("Failed to update home widget", e, s);
+      return false;
+    });
   }
 
   Future<T?> getData<T>(String key) async {
@@ -136,7 +139,10 @@ class HomeWidgetService {
   }
 
   Future<List<hw.HomeWidgetInfo>> getInstalledWidgets() async {
-    return await hw.HomeWidget.getInstalledWidgets();
+    return hw.HomeWidget.getInstalledWidgets().onError((e, s) {
+      _logger.warning("Failed to get installed home widgets", e, s);
+      return <hw.HomeWidgetInfo>[];
+    });
   }
 
   Future<bool> _captureFileLegacy(
