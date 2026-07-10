@@ -60,7 +60,8 @@ func (r *AssetsRepository) GetTempObject(ctx context.Context, objectKey, purpose
 
 func ConsumeTempObjectTx(ctx context.Context, tx *sql.Tx, objectKey, purpose string, spaceID *string) error {
 	args := []any{objectKey, purpose}
-	query := `DELETE FROM space_temp_objects WHERE object_key = $1 AND purpose = $2`
+	// Cleanup changes cleanup_after before deleting from S3, claiming the object.
+	query := `DELETE FROM space_temp_objects WHERE object_key = $1 AND purpose = $2 AND cleanup_after = expires_at`
 	if spaceID != nil {
 		args = append(args, *spaceID)
 		query += fmt.Sprintf(" AND space_id = $%d", len(args))
