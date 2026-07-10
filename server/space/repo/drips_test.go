@@ -119,6 +119,15 @@ func TestFirstPostAndFeedbackDripCandidates(t *testing.T) {
 	feedbackCandidates, err := module.Drips.ListFeedbackCandidates(ctx, now-7*24*timeutil.MicroSecondsInOneHour, []string{testSpaceDripFeedback7d}, 50)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []int64{aliceID, bobID}, spaceDripCandidateUserIDs(feedbackCandidates))
+
+	testutil.InsertNotificationHistory(t, module.Drips.DB, testutil.NotificationHistoryFixture{
+		UserID:     aliceID,
+		TemplateID: testSpaceDripFeedback7d,
+		SentTime:   now,
+	})
+	feedbackCandidates, err = module.Drips.ListFeedbackCandidates(ctx, now-7*24*timeutil.MicroSecondsInOneHour, []string{testSpaceDripFeedback7d}, 50)
+	require.NoError(t, err)
+	require.Equal(t, []int64{bobID}, spaceDripCandidateUserIDs(feedbackCandidates))
 }
 
 func insertSpaceBrowserSession(t *testing.T, module *Module, userID int64, createdAt int64, expiresAt int64) {

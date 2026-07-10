@@ -6,11 +6,42 @@ import (
 	"testing"
 
 	"github.com/ente/museum/internal/testutil"
+	lockctrl "github.com/ente/museum/pkg/controller/lock"
 	baserepo "github.com/ente/museum/pkg/repo"
 	timeutil "github.com/ente/museum/pkg/utils/time"
 	spacerepo "github.com/ente/museum/space/repo"
 	"github.com/stretchr/testify/require"
 )
+
+func TestProcessSpaceDripsKeepsDailyLock(t *testing.T) {
+	testutil.WithServerRoot(t)
+	db := testutil.RequireTestDB(t)
+	testutil.ResetTables(t, db)
+	t.Cleanup(func() {
+		testutil.ResetTables(t, db)
+	})
+
+	repos := spacerepo.NewModule(db, nil)
+	controller := &SpaceDripController{
+		DripsRepo: repos.Drips,
+		UserRepo: &baserepo.UserRepository{
+			DB:                  db,
+			SecretEncryptionKey: testutil.SecretEncryptionKey(),
+			HashingKey:          testutil.HashingKey(),
+		},
+		NotificationHistoryRepo: &baserepo.NotificationHistoryRepository{DB: db},
+		LockController: &lockctrl.LockController{
+			TaskLockingRepo: &baserepo.TaskLockRepository{DB: db},
+			HostName:        "space-drip-test",
+		},
+	}
+
+	controller.ProcessSpaceDrips()
+
+	var lockUntil int64
+	require.NoError(t, db.QueryRow(`SELECT lock_until FROM task_lock WHERE task_name = $1`, spaceDripMailLock).Scan(&lockUntil))
+	require.Greater(t, lockUntil, timeutil.Microseconds())
+}
 
 func TestSpaceDripsSendMatureProfileNudgeOnly(t *testing.T) {
 	testutil.WithServerRoot(t)

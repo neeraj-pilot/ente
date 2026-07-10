@@ -132,18 +132,27 @@ func (r *DripsRepository) ListFirstPostCandidates(ctx context.Context, threshold
 
 func (r *DripsRepository) ListFeedbackCandidates(ctx context.Context, threshold int64, excludeTemplateIDs []string, limit int) ([]SpaceDripCandidate, error) {
 	rows, err := r.DB.QueryContext(ctx, `
-		WITH activities AS (
-			SELECT s.owner_id AS user_id, p.created_at AS event_at
+		WITH eligible_spaces AS MATERIALIZED (
+			SELECT s.space_id, s.owner_id
 			FROM spaces s
 			JOIN users u ON u.user_id = s.owner_id AND u.encrypted_email IS NOT NULL
+			WHERE NOT EXISTS (
+			      SELECT 1
+			      FROM notification_history nh
+			      WHERE nh.user_id = s.owner_id
+			        AND nh.template_id = ANY($2)
+			  )
+		),
+		activities AS (
+			SELECT s.owner_id AS user_id, p.created_at AS event_at
+			FROM eligible_spaces s
 			JOIN space_posts p ON p.space_id = s.space_id
 			WHERE p.created_at <= $1
 
 			UNION ALL
 
 			SELECT s.owner_id AS user_id, m.created_at AS event_at
-			FROM spaces s
-			JOIN users u ON u.user_id = s.owner_id AND u.encrypted_email IS NOT NULL
+			FROM eligible_spaces s
 			JOIN space_messages m ON m.sender_space_id = s.space_id
 			WHERE m.kind = 'post_reply'
 			  AND m.created_at <= $1
@@ -155,12 +164,6 @@ func (r *DripsRepository) ListFeedbackCandidates(ctx context.Context, threshold 
 		)
 		SELECT fa.user_id
 		FROM first_activity fa
-		WHERE NOT EXISTS (
-		      SELECT 1
-		      FROM notification_history nh
-		      WHERE nh.user_id = fa.user_id
-		        AND nh.template_id = ANY($2)
-		  )
 		ORDER BY fa.event_at ASC, fa.user_id ASC
 		LIMIT $3
 	`, threshold, pq.Array(excludeTemplateIDs), spaceDripCandidateLimit(limit))

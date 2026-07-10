@@ -65,10 +65,9 @@ func (c *SpaceDripController) ProcessSpaceDrips() {
 	}
 	if c.LockController != nil {
 		if !c.LockController.TryLock(spaceDripMailLock, timeutil.MicrosecondsAfterHours(24)) {
-			log.Info("Skipping space drip emails because another instance is running")
+			log.Info("Skipping space drip emails because the daily lock is held")
 			return
 		}
-		defer c.LockController.ReleaseLock(spaceDripMailLock)
 	}
 	stats, err := c.processSpaceDrips(context.Background(), timeutil.Microseconds())
 	if err != nil {
