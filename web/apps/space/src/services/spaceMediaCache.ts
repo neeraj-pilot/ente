@@ -13,7 +13,8 @@ export const spaceProfileMediaCacheKey = (
     spaceId: string,
     assetType: "avatar" | "cover",
     objectID: string,
-) => ["profile", spaceId, assetType, objectID].join(":");
+    keyVersion: number,
+) => ["profile", spaceId, assetType, objectID, keyVersion].join(":");
 
 const trimSpaceMediaURLCache = () => {
     while (spaceMediaURLCache.size > maxSpaceMediaCacheEntries) {

@@ -116,13 +116,16 @@ func TestGetProfileReturnsProfileAssetObjectIDs(t *testing.T) {
 	} {
 		require.NoError(t, repos.Assets.AddTempObject(ctx, rec))
 	}
-	_, err = testUpdateProfile(ctx, repos, aliceID, space.SpaceID, space.CurrentVersion, "alice-profile-v2",
+	updated, err := testUpdateProfile(ctx, repos, aliceID, space.SpaceID, space.CurrentVersion, "alice-profile-v2",
 		&spacerepo.ProfileAssetUpdate{ObjectID: "avatar-object-id", BucketID: "b2-eu-cen", Size: 111},
 		&spacerepo.ProfileAssetUpdate{ObjectID: "cover-object-id", BucketID: "b2-us-west", Size: 222},
 		false,
 		false,
 	)
 	require.NoError(t, err)
+	rotated, err := testRotateKey(ctx, repos, aliceID, space.SpaceID, updated.CurrentVersion, "alice-space-key-v2", "wrapped-prev-key", "alice-profile-v3")
+	require.NoError(t, err)
+	require.Equal(t, 2, rotated.CurrentVersion)
 	sessionHash := sha256.Sum256([]byte("alice-assets-session-token"))
 	require.NoError(t, repos.Sessions.CreateBrowserSession(ctx, sessionHash[:], aliceID, "session-wrap-key", timeutil.MicrosecondsAfterMinutes(5)))
 	ginCtx := newPublicSpaceContext()
@@ -133,14 +136,40 @@ func TestGetProfileReturnsProfileAssetObjectIDs(t *testing.T) {
 	})
 
 	require.NoError(t, err)
+	require.Equal(t, 2, resp.Version)
 	require.NotNil(t, resp.Avatar)
 	require.Equal(t, "avatar-object-id", resp.Avatar.ObjectID)
+	require.Equal(t, 1, resp.Avatar.KeyVersion)
 	require.EqualValues(t, 111, resp.Avatar.Size)
 	require.NotEmpty(t, resp.Avatar.UpdatedAt)
 	require.NotNil(t, resp.Cover)
 	require.Equal(t, "cover-object-id", resp.Cover.ObjectID)
+	require.Equal(t, 1, resp.Cover.KeyVersion)
 	require.EqualValues(t, 222, resp.Cover.Size)
 	require.NotEmpty(t, resp.Cover.UpdatedAt)
+
+	require.NoError(t, repos.Assets.AddTempObject(ctx, spacerepo.SpaceTempObjectRecord{
+		ObjectKey:    spacerepo.ProfileAssetObjectKey(space.SpaceID, spacerepo.ProfileAssetTypeAvatar, "avatar-v2-object-id"),
+		SpaceID:      sql.NullString{String: space.SpaceID, Valid: true},
+		Purpose:      spacerepo.TempObjectPurposeAvatar,
+		BucketID:     "b2-eu-cen",
+		ExpectedSize: 333,
+		ExpiresAt:    timeutil.MicrosecondsAfterMinutes(30),
+	}))
+	_, err = testUpdateProfile(ctx, repos, aliceID, space.SpaceID, rotated.CurrentVersion, "alice-profile-v4",
+		&spacerepo.ProfileAssetUpdate{ObjectID: "avatar-v2-object-id", BucketID: "b2-eu-cen", Size: 333},
+		nil,
+		false,
+		false,
+	)
+	require.NoError(t, err)
+
+	resp, err = module.Spaces.GetProfile(ginCtx, models.GetSpaceProfileRequest{SpaceID: space.SpaceID})
+	require.NoError(t, err)
+	require.Equal(t, 2, resp.Avatar.KeyVersion)
+	require.Equal(t, "avatar-v2-object-id", resp.Avatar.ObjectID)
+	require.Equal(t, 1, resp.Cover.KeyVersion)
+	require.Equal(t, "cover-object-id", resp.Cover.ObjectID)
 }
 
 func TestGetProfileRejectsInvalidVersion(t *testing.T) {

@@ -204,11 +204,21 @@ const Page: React.FC = () => {
                 isStatsLoading={showProfileLoading || showPostsLoading}
                 postGroups={postGroups}
                 profile={{
+                    avatarKeyVersion:
+                        currentSelectedProfile?.avatarKeyVersion ??
+                        selectedFriend.avatarKeyVersion,
+                    avatarObjectID:
+                        currentSelectedProfile?.avatarObjectID ??
+                        selectedFriend.avatarObjectID,
+                    avatarUpdatedAt:
+                        currentSelectedProfile?.avatarUpdatedAt ??
+                        selectedFriend.avatarUpdatedAt,
                     avatarUrl:
                         currentSelectedProfile?.avatarUrl ??
                         selectedFriend.avatarUrl ??
                         null,
                     coverUrl: currentSelectedProfile?.coverUrl ?? null,
+                    coverKeyVersion: currentSelectedProfile?.coverKeyVersion,
                     coverObjectID: currentSelectedProfile?.coverObjectID,
                     coverUpdatedAt: currentSelectedProfile?.coverUpdatedAt,
                     fullName:

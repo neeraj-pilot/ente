@@ -316,9 +316,9 @@ func TestSpaceAccountDeletionDeleteUserData(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = module.Spaces.DB.Exec(`
-		INSERT INTO space_profile_assets (space_id, asset_type, object_id, bucket_id, size)
-		VALUES ($1, $2, $3, $4, 11),
-		       ($1, $5, $6, $7, 22)
+		INSERT INTO space_profile_assets (space_id, asset_type, object_id, bucket_id, size, key_version)
+		VALUES ($1, $2, $3, $4, 11, 1),
+		       ($1, $5, $6, $7, 22, 1)
 	`, aliceSpace.SpaceID, ProfileAssetTypeAvatar, "avatar", "hot", ProfileAssetTypeCover, "cover", "cold")
 	require.NoError(t, err)
 	postID, err := testCreatePost(ctx, module, aliceID, aliceSpace.SpaceID, "alice-post-key", nil, aliceSpace.CurrentVersion, nil)
@@ -476,9 +476,9 @@ func TestSpaceConversationsUseProfileAssetAvatars(t *testing.T) {
 	bobSpace, err := testCreateSpace(ctx, module, bobID, "bob_message_avatars", "bob-space-key", "bob-message-avatars-public", "bob-secret", "bob-secret-nonce", "bob-profile")
 	require.NoError(t, err)
 	_, err = module.Spaces.DB.Exec(`
-		INSERT INTO space_profile_assets (space_id, asset_type, object_id, bucket_id, size)
-		VALUES ($1, $2, $3, $4, 101),
-		       ($5, $2, $6, $4, 202)
+		INSERT INTO space_profile_assets (space_id, asset_type, object_id, bucket_id, size, key_version)
+		VALUES ($1, $2, $3, $4, 101, 1),
+		       ($5, $2, $6, $4, 202, 1)
 	`, aliceSpace.SpaceID, ProfileAssetTypeAvatar, "alice-avatar-object-id", "b2-eu-cen", bobSpace.SpaceID, "bob-avatar-object-id")
 	require.NoError(t, err)
 	require.NoError(t, testAddFriend(ctx, module, bobID, bobSpace.SpaceID, aliceSpace.SpaceID, "alice-share-key", aliceSpace.CurrentVersion, "bob-share-key", bobSpace.CurrentVersion))
@@ -1110,6 +1110,7 @@ func TestSpaceModuleLifecycle(t *testing.T) {
 	rotatedSpace, err := testRotateKey(ctx, module, aliceID, aliceSpace.SpaceID, updatedSpace.CurrentVersion, "alice-space-key-v2", "wrapped-prev-key", "alice-profile-v3")
 	require.NoError(t, err)
 	require.Equal(t, 2, rotatedSpace.CurrentVersion)
+	require.Equal(t, sql.NullInt64{Int64: 1, Valid: true}, rotatedSpace.AvatarKeyVersion)
 
 	versions, err := module.Spaces.ListVersions(ctx, aliceSpace.SpaceID)
 	require.NoError(t, err)
@@ -1137,6 +1138,7 @@ func TestSpaceModuleLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bobFriends, 1)
 	require.Equal(t, "alice", bobFriends[0].Friend.SpaceSlug)
+	require.Equal(t, sql.NullInt64{Int64: 1, Valid: true}, bobFriends[0].Friend.AvatarKeyVersion)
 
 	for _, tempObject := range []SpaceTempObjectRecord{
 		{

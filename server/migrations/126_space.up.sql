@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS space_profile_assets (
     object_id     TEXT   NOT NULL,
     bucket_id     TEXT   NOT NULL,
     size          BIGINT,
+    key_version   INTEGER NOT NULL,
     created_at    BIGINT NOT NULL DEFAULT now_utc_micro_seconds(),
     updated_at    BIGINT NOT NULL DEFAULT now_utc_micro_seconds(),
     PRIMARY KEY (space_id, asset_type),

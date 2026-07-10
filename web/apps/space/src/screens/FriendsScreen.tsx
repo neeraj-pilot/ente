@@ -31,6 +31,7 @@ const friendAvatarLoadRootMargin = "800px 0px";
 const friendAvatarCacheKey = (friend: FriendProfile) =>
     [
         friend.id,
+        friend.avatarKeyVersion ?? "",
         friend.avatarObjectID ?? "",
         friend.avatarUpdatedAt ?? "",
         friend.avatarSize ?? "",

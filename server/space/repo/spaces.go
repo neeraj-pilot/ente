@@ -148,10 +148,10 @@ func (r *SpacesRepository) UpdateProfile(ctx context.Context, spaceID string, ke
 	`, encryptedProfile, spaceID); err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
-	if err := updateProfileAssetTx(ctx, tx, spaceID, ProfileAssetTypeAvatar, avatar, removeAvatar, previousAssets[ProfileAssetTypeAvatar]); err != nil {
+	if err := updateProfileAssetTx(ctx, tx, spaceID, ProfileAssetTypeAvatar, avatar, removeAvatar, previousAssets[ProfileAssetTypeAvatar], currentVersion); err != nil {
 		return nil, err
 	}
-	if err := updateProfileAssetTx(ctx, tx, spaceID, ProfileAssetTypeCover, cover, removeCover, previousAssets[ProfileAssetTypeCover]); err != nil {
+	if err := updateProfileAssetTx(ctx, tx, spaceID, ProfileAssetTypeCover, cover, removeCover, previousAssets[ProfileAssetTypeCover], currentVersion); err != nil {
 		return nil, err
 	}
 	if _, err := tx.ExecContext(ctx, `
@@ -297,8 +297,10 @@ func scanSpaceRecord(scanner interface{ Scan(dest ...any) error }) (*SpaceRecord
 		&rec.EncryptedSecretKey,
 		&rec.ReferredBySpaceID,
 		&rec.AvatarObjectID,
+		&rec.AvatarKeyVersion,
 		&rec.AvatarSize,
 		&rec.CoverObjectID,
+		&rec.CoverKeyVersion,
 		&rec.CoverSize,
 		&rec.CreatedAt,
 		&rec.UpdatedAt,

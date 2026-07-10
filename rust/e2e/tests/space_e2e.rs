@@ -594,6 +594,48 @@ async fn space_rotation_history_and_refresh_suite() {
         .await
         .expect("friend space creation failed");
 
+    let avatar_v1 = owner_ctx
+        .upload_avatar(
+            &owner_space.space_id,
+            &owner_space.space_key,
+            TEST_WEBP_BYTES,
+        )
+        .await
+        .expect("v1 avatar upload should succeed");
+    let cover_v1 = owner_ctx
+        .upload_cover(
+            &owner_space.space_id,
+            &owner_space.space_key,
+            TEST_WEBP_BYTES,
+        )
+        .await
+        .expect("v1 cover upload should succeed");
+    let profile_assets_v1 = owner_ctx
+        .update_space_profile_assets(
+            &owner_space.space_id,
+            &profile_v1,
+            Some(avatar_v1),
+            Some(cover_v1),
+            false,
+            false,
+        )
+        .await
+        .expect("v1 profile assets should attach");
+    assert_eq!(
+        profile_assets_v1
+            .avatar
+            .as_ref()
+            .map(|avatar| avatar.key_version),
+        Some(owner_space.key_version)
+    );
+    assert_eq!(
+        profile_assets_v1
+            .cover
+            .as_ref()
+            .map(|cover| cover.key_version),
+        Some(owner_space.key_version)
+    );
+
     let post_key_v1 = owner_ctx.generate_post_key();
     let object_v1 = owner_ctx
         .upload_post_photo_asset(
@@ -650,6 +692,7 @@ async fn space_rotation_history_and_refresh_suite() {
         .await
         .expect("friend shares should refresh");
     assert_eq!(refreshed, 1);
+    let friend_ctx = space::open_ctx(&endpoint, &friend).await;
     let refreshed_shares = friend_ctx
         .list_friend_shares(&friend_space.space_id)
         .await
@@ -697,6 +740,78 @@ async fn space_rotation_history_and_refresh_suite() {
         .await
         .expect("friend should decrypt current profile");
     assert_eq!(friend_profile_v2.profile, profile_v2);
+    let owner_avatar = owner_profile_v2
+        .avatar
+        .as_ref()
+        .expect("owner profile should retain v1 avatar");
+    let owner_cover = owner_profile_v2
+        .cover
+        .as_ref()
+        .expect("owner profile should retain v1 cover");
+    assert_eq!(owner_avatar.key_version, owner_space.key_version);
+    assert_eq!(owner_cover.key_version, owner_space.key_version);
+    assert_eq!(
+        owner_ctx
+            .download_profile_asset(
+                &owner_space.space_id,
+                None,
+                "avatar",
+                &owner_avatar.object_id,
+                owner_avatar.key_version,
+            )
+            .await
+            .expect("owner should decrypt v1 avatar after rotation"),
+        TEST_WEBP_BYTES
+    );
+    assert_eq!(
+        owner_ctx
+            .download_profile_asset(
+                &owner_space.space_id,
+                None,
+                "cover",
+                &owner_cover.object_id,
+                owner_cover.key_version,
+            )
+            .await
+            .expect("owner should decrypt v1 cover after rotation"),
+        TEST_WEBP_BYTES
+    );
+    let friend_avatar = friend_profile_v2
+        .avatar
+        .as_ref()
+        .expect("friend profile should retain v1 avatar");
+    let friend_cover = friend_profile_v2
+        .cover
+        .as_ref()
+        .expect("friend profile should retain v1 cover");
+    assert_eq!(friend_avatar.key_version, owner_space.key_version);
+    assert_eq!(friend_cover.key_version, owner_space.key_version);
+    assert_eq!(
+        friend_ctx
+            .download_profile_asset(
+                &owner_space.space_id,
+                Some(&friend_space.space_id),
+                "avatar",
+                &friend_avatar.object_id,
+                friend_avatar.key_version,
+            )
+            .await
+            .expect("friend should decrypt v1 avatar after rotation"),
+        TEST_WEBP_BYTES
+    );
+    assert_eq!(
+        friend_ctx
+            .download_profile_asset(
+                &owner_space.space_id,
+                Some(&friend_space.space_id),
+                "cover",
+                &friend_cover.object_id,
+                friend_cover.key_version,
+            )
+            .await
+            .expect("friend should decrypt v1 cover after rotation"),
+        TEST_WEBP_BYTES
+    );
 
     let feed = friend_ctx
         .list_feed(&friend_space.space_id, None, Some(10))

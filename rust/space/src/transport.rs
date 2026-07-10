@@ -282,6 +282,7 @@ pub struct ProfileAvatarPayload {
 pub struct ProfileAvatarResponse {
     #[serde(rename = "objectID")]
     pub object_id: String,
+    pub key_version: i32,
     #[serde(default)]
     pub size: i64,
     #[serde(default)]
@@ -416,8 +417,8 @@ mod tests {
                 "spaceId":"space_owner_main",
                 "spaceSlug":"owner-main",
                 "version":3,
-                "avatar":{"objectID":"avatar-object","size":123,"updatedAt":"2026-04-16T00:00:00Z"},
-                "cover":{"objectID":"cover-object","size":456,"updatedAt":"2026-04-17T00:00:00Z"}
+                "avatar":{"objectID":"avatar-object","keyVersion":2,"size":123,"updatedAt":"2026-04-16T00:00:00Z"},
+                "cover":{"objectID":"cover-object","keyVersion":3,"size":456,"updatedAt":"2026-04-17T00:00:00Z"}
             }"#,
         )
         .expect("profile response should deserialize");
@@ -435,6 +436,14 @@ mod tests {
                 .as_ref()
                 .map(|cover| cover.object_id.as_str()),
             Some("cover-object")
+        );
+        assert_eq!(
+            response.avatar.as_ref().map(|avatar| avatar.key_version),
+            Some(2)
+        );
+        assert_eq!(
+            response.cover.as_ref().map(|cover| cover.key_version),
+            Some(3)
         );
     }
 

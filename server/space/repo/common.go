@@ -39,8 +39,10 @@ const spaceRecordSelectColumns = `
 	s.encrypted_secret_key,
 	s.referred_by_space_id,
 	avatar.object_id AS avatar_object_id,
+	avatar.key_version AS avatar_key_version,
 	avatar.size AS avatar_size,
 	cover.object_id AS cover_object_id,
+	cover.key_version AS cover_key_version,
 	cover.size AS cover_size,
 	s.created_at,
 	s.updated_at
@@ -63,6 +65,7 @@ func spaceActorScanDest(actor *SpaceActorRecord) []any {
 		&actor.KeyVersion,
 		&actor.EncryptedProfile,
 		&actor.AvatarObjectID,
+		&actor.AvatarKeyVersion,
 		&actor.AvatarSize,
 		&actor.UpdatedAt,
 	}
@@ -76,6 +79,7 @@ func spaceActorSelectColumns(spaceAlias string, avatarAlias string, prefix strin
 		fmt.Sprintf("%s.current_version AS %s_current_version", spaceAlias, prefix),
 		fmt.Sprintf("%s.encrypted_profile AS %s_encrypted_profile", spaceAlias, prefix),
 		fmt.Sprintf("%s.object_id AS %s_avatar_object_id", avatarAlias, prefix),
+		fmt.Sprintf("%s.key_version AS %s_avatar_key_version", avatarAlias, prefix),
 		fmt.Sprintf("%s.size AS %s_avatar_size", avatarAlias, prefix),
 		fmt.Sprintf("%s.updated_at AS %s_updated_at", spaceAlias, prefix),
 	}, ",\n\t")
@@ -89,6 +93,7 @@ func spaceActorPublicSelectColumns(spaceAlias string, prefix string) string {
 		fmt.Sprintf("%s.current_version AS %s_current_version", spaceAlias, prefix),
 		fmt.Sprintf("'\\x'::bytea AS %s_encrypted_profile", prefix),
 		fmt.Sprintf("NULL::text AS %s_avatar_object_id", prefix),
+		fmt.Sprintf("NULL::integer AS %s_avatar_key_version", prefix),
 		fmt.Sprintf("NULL::bigint AS %s_avatar_size", prefix),
 		fmt.Sprintf("%s.updated_at AS %s_updated_at", spaceAlias, prefix),
 	}, ",\n\t")

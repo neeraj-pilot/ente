@@ -42,6 +42,31 @@ func TestFriendRelationshipReportsSelfFriendAndEmpty(t *testing.T) {
 	require.Empty(t, resp.Relationship)
 }
 
+func TestListFriendsReturnsAvatarKeyVersion(t *testing.T) {
+	friends, repos, ctx := setupFriendsControllerTest(t)
+	aliceID := insertSpaceControllerUser(t, repos, "alice-avatar-version@example.com", "alice-public")
+	bobID := insertSpaceControllerUser(t, repos, "bob-avatar-version@example.com", "bob-public")
+	aliceSpace, err := testCreateSpace(ctx, repos, aliceID, "alice_avatar_version", "alice-space-key-v1", "alice-public", "alice-secret", "alice-secret-nonce", "alice-profile-v1")
+	require.NoError(t, err)
+	bobSpace, err := testCreateSpace(ctx, repos, bobID, "bob_avatar_version", "bob-space-key", "bob-public", "bob-secret", "bob-secret-nonce", "bob-profile")
+	require.NoError(t, err)
+	_, err = repos.Spaces.DB.Exec(`
+		INSERT INTO space_profile_assets (space_id, asset_type, object_id, bucket_id, size, key_version)
+		VALUES ($1, $2, $3, $4, 111, 1)
+	`, aliceSpace.SpaceID, spacerepo.ProfileAssetTypeAvatar, "alice-avatar", "b2-eu-cen")
+	require.NoError(t, err)
+	rotatedAlice, err := testRotateKey(ctx, repos, aliceID, aliceSpace.SpaceID, aliceSpace.CurrentVersion, "alice-space-key-v2", "wrapped-prev-key", "alice-profile-v2")
+	require.NoError(t, err)
+	require.NoError(t, testAddFriend(ctx, repos, bobID, bobSpace.SpaceID, aliceSpace.SpaceID, "alice-share-key", rotatedAlice.CurrentVersion, "bob-share-key", bobSpace.CurrentVersion))
+
+	resp, err := friends.ListFriends(ctx, bobSpace)
+	require.NoError(t, err)
+	require.Len(t, resp, 1)
+	require.Equal(t, 2, resp[0].Friend.KeyVersion)
+	require.NotNil(t, resp[0].Friend.Avatar)
+	require.Equal(t, 1, resp[0].Friend.Avatar.KeyVersion)
+}
+
 func TestAddFriendRejectsOwnSpace(t *testing.T) {
 	friends, repos, ctx := setupFriendsControllerTest(t)
 	aliceID := insertSpaceControllerUser(t, repos, "alice-own-link@example.com", "alice-public")

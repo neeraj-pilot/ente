@@ -239,8 +239,16 @@ impl AccountSpaceCtx {
         viewer_space_id: Option<&str>,
         asset_type: &str,
         object_id: &str,
-        key: &[u8],
+        key_version: i32,
     ) -> Result<Vec<u8>> {
+        let space_key = self
+            .resolve_space_key_for_version_for_viewer(space_id, viewer_space_id, Some(key_version))
+            .await?
+            .ok_or_else(|| {
+                SpaceError::InvalidInput(format!(
+                    "no space key available for {space_id} version {key_version}"
+                ))
+            })?;
         let download = self
             .get_profile_asset_url(space_id, viewer_space_id, asset_type, object_id)
             .await?;
@@ -253,7 +261,7 @@ impl AccountSpaceCtx {
             .error_for_status()?
             .bytes()
             .await?;
-        crate::crypto::decrypt_asset_payload(key, &encrypted)
+        crate::crypto::decrypt_asset_payload(&space_key, &encrypted)
     }
 
     pub async fn get_asset_url(

@@ -87,9 +87,10 @@ type ProfileAvatarPayload struct {
 }
 
 type ProfileAvatarResponse struct {
-	ObjectID  string `json:"objectID"`
-	Size      int64  `json:"size,omitempty"`
-	UpdatedAt string `json:"updatedAt,omitempty"`
+	ObjectID   string `json:"objectID"`
+	KeyVersion int    `json:"keyVersion"`
+	Size       int64  `json:"size,omitempty"`
+	UpdatedAt  string `json:"updatedAt,omitempty"`
 }
 
 type ProfileCoverPayload = ProfileAvatarPayload

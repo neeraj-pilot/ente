@@ -70,19 +70,20 @@ func getProfileAssetsForUpdateTx(ctx context.Context, tx *sql.Tx, spaceID string
 	return assets, stacktrace.Propagate(rows.Err(), "")
 }
 
-func upsertProfileAssetTx(ctx context.Context, tx *sql.Tx, spaceID, assetType, objectID, bucketID string, size int64) error {
+func upsertProfileAssetTx(ctx context.Context, tx *sql.Tx, spaceID, assetType, objectID, bucketID string, size int64, keyVersion int) error {
 	var sizeValue any
 	if size > 0 {
 		sizeValue = size
 	}
 	_, err := tx.ExecContext(ctx, `
-		INSERT INTO space_profile_assets (space_id, asset_type, object_id, bucket_id, size)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO space_profile_assets (space_id, asset_type, object_id, bucket_id, size, key_version)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (space_id, asset_type)
 		DO UPDATE SET object_id = EXCLUDED.object_id,
 		              bucket_id = EXCLUDED.bucket_id,
-		              size = EXCLUDED.size
-	`, spaceID, assetType, objectID, bucketID, sizeValue)
+		              size = EXCLUDED.size,
+		              key_version = EXCLUDED.key_version
+	`, spaceID, assetType, objectID, bucketID, sizeValue, keyVersion)
 	return stacktrace.Propagate(err, "")
 }
 
@@ -112,7 +113,7 @@ func queueProfileAssetCleanupTx(ctx context.Context, tx *sql.Tx, asset profileAs
 	})
 }
 
-func updateProfileAssetTx(ctx context.Context, tx *sql.Tx, spaceID, assetType string, update *ProfileAssetUpdate, remove bool, previous profileAssetRecord) error {
+func updateProfileAssetTx(ctx context.Context, tx *sql.Tx, spaceID, assetType string, update *ProfileAssetUpdate, remove bool, previous profileAssetRecord, keyVersion int) error {
 	hadPrevious := previous.ObjectID != ""
 	if remove {
 		if err := deleteProfileAssetTx(ctx, tx, spaceID, assetType); err != nil {
@@ -130,7 +131,7 @@ func updateProfileAssetTx(ctx context.Context, tx *sql.Tx, spaceID, assetType st
 	if !IsProfileAssetObjectID(objectID) {
 		return sql.ErrNoRows
 	}
-	if err := upsertProfileAssetTx(ctx, tx, spaceID, assetType, objectID, update.BucketID, update.Size); err != nil {
+	if err := upsertProfileAssetTx(ctx, tx, spaceID, assetType, objectID, update.BucketID, update.Size, keyVersion); err != nil {
 		return err
 	}
 	objectKey := ProfileAssetObjectKey(spaceID, assetType, objectID)

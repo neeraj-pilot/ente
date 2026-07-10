@@ -834,21 +834,15 @@ impl SpaceAccountCtxHandle {
         space_id: String,
         viewer_space_id: Option<String>,
         object_id: String,
+        key_version: i32,
     ) -> Result<Vec<u8>, WasmSpaceError> {
-        let space_key = self
-            .inner
-            .resolve_space_key_for_version_for_viewer(&space_id, viewer_space_id.as_deref(), None)
-            .await?
-            .ok_or_else(|| {
-                CoreSpaceError::InvalidInput(format!("no space key available for {space_id}"))
-            })?;
         self.inner
             .download_profile_asset(
                 &space_id,
                 viewer_space_id.as_deref(),
                 "avatar",
                 &object_id,
-                &space_key,
+                key_version,
             )
             .await
             .map_err(Into::into)
@@ -860,21 +854,15 @@ impl SpaceAccountCtxHandle {
         space_id: String,
         viewer_space_id: Option<String>,
         object_id: String,
+        key_version: i32,
     ) -> Result<Vec<u8>, WasmSpaceError> {
-        let space_key = self
-            .inner
-            .resolve_space_key_for_version_for_viewer(&space_id, viewer_space_id.as_deref(), None)
-            .await?
-            .ok_or_else(|| {
-                CoreSpaceError::InvalidInput(format!("no space key available for {space_id}"))
-            })?;
         self.inner
             .download_profile_asset(
                 &space_id,
                 viewer_space_id.as_deref(),
                 "cover",
                 &object_id,
-                &space_key,
+                key_version,
             )
             .await
             .map_err(Into::into)

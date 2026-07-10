@@ -61,8 +61,10 @@ type SpaceRecord struct {
 	CurrentVersion      int
 	ReferredBySpaceID   sql.NullString
 	AvatarObjectID      sql.NullString
+	AvatarKeyVersion    sql.NullInt64
 	AvatarSize          sql.NullInt64
 	CoverObjectID       sql.NullString
+	CoverKeyVersion     sql.NullInt64
 	CoverSize           sql.NullInt64
 	CreatedAt           int64
 	UpdatedAt           int64
@@ -176,6 +178,7 @@ type SpaceActorRecord struct {
 	KeyVersion       int
 	EncryptedProfile []byte
 	AvatarObjectID   sql.NullString
+	AvatarKeyVersion sql.NullInt64
 	AvatarSize       sql.NullInt64
 	UpdatedAt        int64
 }

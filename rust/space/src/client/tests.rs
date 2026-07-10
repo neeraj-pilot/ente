@@ -507,12 +507,44 @@ async fn upload_cover_uses_cover_presign_and_object_store() {
 }
 
 #[tokio::test]
-async fn account_download_profile_avatar_uses_object_id_redirect() {
+async fn account_download_profile_avatar_uses_asset_key_version() {
     let mut server = Server::new_async().await;
-    let ctx = test_account_ctx(&server.url());
-    let space_key = generate_key();
+    let space_root_key = generate_key();
+    let ctx = test_account_ctx_with_space_root_key(&server.url(), space_root_key.clone());
+    let space_key_v1 = generate_key();
+    let space_key_v2 = generate_key();
     let encrypted_asset =
-        encrypt_asset_payload(&space_key, b"avatar-image").expect("asset encryption");
+        encrypt_asset_payload(&space_key_v1, b"avatar-image").expect("asset encryption");
+    let spaces = server
+        .mock("GET", "/account/space")
+        .match_header("x-space-session-token", "space-session-token")
+        .with_status(200)
+        .with_body(owned_space_response(
+            &space_root_key,
+            &space_key_v2,
+            "space_owner_main",
+            "owner-main",
+            2,
+        ))
+        .create_async()
+        .await;
+    let versions = server
+        .mock("GET", "/spaces/space_owner_main/versions")
+        .match_header("x-space-session-token", "space-session-token")
+        .with_status(200)
+        .with_body(
+            json!([{
+                "version": 2,
+                "wrappedPrevKey": encode_b64(
+                    &encrypt_secretbox_payload(&space_key_v2, &space_key_v1)
+                        .expect("previous key wrap")
+                ),
+                "createdAt": "2026-04-16T00:00:00Z"
+            }])
+            .to_string(),
+        )
+        .create_async()
+        .await;
     let redirect = server
         .mock("GET", "/spaces/space_owner_main/assets/redirect")
         .match_header("x-space-session-token", "space-session-token")
@@ -538,17 +570,13 @@ async fn account_download_profile_avatar_uses_object_id_redirect() {
         .await;
 
     let bytes = ctx
-        .download_profile_asset(
-            "space_owner_main",
-            None,
-            "avatar",
-            "avatar-object",
-            &space_key,
-        )
+        .download_profile_asset("space_owner_main", None, "avatar", "avatar-object", 1)
         .await
         .expect("avatar asset should download and decrypt");
 
     assert_eq!(bytes, b"avatar-image");
+    spaces.assert_async().await;
+    versions.assert_async().await;
     redirect.assert_async().await;
     object.assert_async().await;
 }
@@ -828,11 +856,13 @@ async fn update_space_profile_sends_encrypted_profile_and_profile_assets() {
                 "status": "ok",
                 "avatar": {
                     "objectID": "avatar-object",
+                    "keyVersion": 3,
                     "size": 123,
                     "updatedAt": "2026-04-16T00:00:00Z"
                 },
                 "cover": {
                     "objectID": "cover-object",
+                    "keyVersion": 3,
                     "size": 456,
                     "updatedAt": "2026-04-16T00:00:00Z"
                 }
@@ -874,6 +904,14 @@ async fn update_space_profile_sends_encrypted_profile_and_profile_assets() {
             .as_ref()
             .map(|cover| cover.object_id.as_str()),
         Some("cover-object")
+    );
+    assert_eq!(
+        response.avatar.as_ref().map(|avatar| avatar.key_version),
+        Some(3)
+    );
+    assert_eq!(
+        response.cover.as_ref().map(|cover| cover.key_version),
+        Some(3)
     );
     spaces.assert_async().await;
     update.assert_async().await;

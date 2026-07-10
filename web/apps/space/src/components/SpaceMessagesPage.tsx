@@ -64,6 +64,7 @@ const placeholderFriend = (
 const currentProfileMessageActor = (
     profile: SetupProfile,
 ): SpaceMessage["sender"] => ({
+    avatarKeyVersion: profile.avatarKeyVersion,
     avatarObjectID: profile.avatarObjectID,
     avatarUpdatedAt: profile.avatarUpdatedAt,
     avatarUrl: profile.avatarUrl,

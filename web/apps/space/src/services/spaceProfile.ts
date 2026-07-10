@@ -27,6 +27,7 @@ const minUsernameLength = 3;
 const maxUsernameLength = 30;
 
 interface SpaceAvatar {
+    keyVersion: number;
     objectID: string;
     size?: number;
     updatedAt?: string;
@@ -216,8 +217,19 @@ const avatarURLForRemoteAvatar = async (
 ) => {
     if (!avatar?.objectID) return null;
     return await cachedSpaceMediaBlobURL(
-        spaceProfileMediaCacheKey(spaceId, "avatar", avatar.objectID),
-        () => ctx.download_space_avatar(spaceId, spaceId, avatar.objectID),
+        spaceProfileMediaCacheKey(
+            spaceId,
+            "avatar",
+            avatar.objectID,
+            avatar.keyVersion,
+        ),
+        () =>
+            ctx.download_space_avatar(
+                spaceId,
+                spaceId,
+                avatar.objectID,
+                avatar.keyVersion,
+            ),
     );
 };
 
@@ -228,8 +240,19 @@ const coverURLForRemoteCover = async (
 ) => {
     if (!cover?.objectID) return null;
     return await cachedSpaceMediaBlobURL(
-        spaceProfileMediaCacheKey(spaceId, "cover", cover.objectID),
-        () => ctx.download_space_cover(spaceId, spaceId, cover.objectID),
+        spaceProfileMediaCacheKey(
+            spaceId,
+            "cover",
+            cover.objectID,
+            cover.keyVersion,
+        ),
+        () =>
+            ctx.download_space_cover(
+                spaceId,
+                spaceId,
+                cover.objectID,
+                cover.keyVersion,
+            ),
     );
 };
 
@@ -243,9 +266,11 @@ const profileFromDecryptedSpaceProfile = (
         spaceProfile.spaceSlug;
 
     return {
+        avatarKeyVersion: spaceProfile.avatar?.keyVersion,
         avatarObjectID: spaceProfile.avatar?.objectID,
         avatarUpdatedAt: spaceProfile.avatar?.updatedAt,
         avatarUrl: null,
+        coverKeyVersion: spaceProfile.cover?.keyVersion,
         coverObjectID: spaceProfile.cover?.objectID,
         coverUpdatedAt: spaceProfile.cover?.updatedAt,
         coverUrl: null,
@@ -300,14 +325,16 @@ export const loadExistingSpaceProfile = async (options?: {
 export const loadExistingSpaceAvatar = async (
     spaceId: string | undefined,
     avatarObjectID: string | undefined,
+    avatarKeyVersion: number | undefined,
 ) => {
-    if (!spaceId || !avatarObjectID) return null;
+    if (!spaceId || !avatarObjectID || !avatarKeyVersion) return null;
 
     const ctx = await openCurrentSpaceContext();
     if (!ctx) return null;
 
     try {
         return await avatarURLForRemoteAvatar(ctx, spaceId, {
+            keyVersion: avatarKeyVersion,
             objectID: avatarObjectID,
         });
     } finally {
@@ -318,14 +345,16 @@ export const loadExistingSpaceAvatar = async (
 export const loadExistingSpaceCover = async (
     spaceId: string | undefined,
     coverObjectID: string | undefined,
+    coverKeyVersion: number | undefined,
 ) => {
-    if (!spaceId || !coverObjectID) return null;
+    if (!spaceId || !coverObjectID || !coverKeyVersion) return null;
 
     const ctx = await openCurrentSpaceContext();
     if (!ctx) return null;
 
     try {
         return await coverURLForRemoteCover(ctx, spaceId, {
+            keyVersion: coverKeyVersion,
             objectID: coverObjectID,
         });
     } finally {
@@ -414,6 +443,7 @@ export const saveSpaceProfile = async (
                           spaceId,
                           "avatar",
                           updateResponse.avatar.objectID,
+                          updateResponse.avatar.keyVersion,
                       ),
                       profile.avatarFile,
                   )
@@ -433,6 +463,7 @@ export const saveSpaceProfile = async (
                           spaceId,
                           "cover",
                           updateResponse.cover.objectID,
+                          updateResponse.cover.keyVersion,
                       ),
                       profile.coverFile,
                   )
@@ -445,11 +476,15 @@ export const saveSpaceProfile = async (
         }
 
         const savedProfile = {
+            avatarKeyVersion:
+                updateResponse?.avatar?.keyVersion ?? profile.avatarKeyVersion,
             avatarObjectID:
                 updateResponse?.avatar?.objectID ?? profile.avatarObjectID,
             avatarUpdatedAt:
                 updateResponse?.avatar?.updatedAt ?? profile.avatarUpdatedAt,
             avatarUrl,
+            coverKeyVersion:
+                updateResponse?.cover?.keyVersion ?? profile.coverKeyVersion,
             coverObjectID:
                 updateResponse?.cover?.objectID ?? profile.coverObjectID,
             coverUpdatedAt:

@@ -237,6 +237,7 @@ const feedPostImageCacheKey = (item: SpacePost) =>
 const feedPostAvatarCacheKey = (item: SpacePost) =>
     [
         item.spaceId,
+        item.avatarKeyVersion ?? "",
         item.avatarObjectID ?? "",
         item.avatarUpdatedAt ?? "",
         item.avatarSize ?? "",

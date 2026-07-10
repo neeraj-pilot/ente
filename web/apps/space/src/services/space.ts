@@ -24,6 +24,7 @@ export { clearSpaceMediaURLCache } from "services/spaceMediaCache";
 const currentFeedPageSize = 10;
 
 interface SpaceAvatar {
+    keyVersion: number;
     objectID: string;
     size?: number;
     updatedAt?: string;
@@ -152,6 +153,7 @@ interface SpaceConversationsResponse {
 }
 
 interface SpacePostBase {
+    avatarKeyVersion?: number;
     avatarObjectID?: string;
     avatarSize?: number;
     avatarUpdatedAt?: string;
@@ -365,6 +367,7 @@ const actorProfile = (actor: SpaceActor): FriendProfile => {
     const username = actor.spaceSlug;
 
     return {
+        avatarKeyVersion: actor.avatar?.keyVersion,
         avatarObjectID: actor.avatar?.objectID,
         avatarSize: actor.avatar?.size,
         avatarUpdatedAt: actor.avatar?.updatedAt,
@@ -388,10 +391,12 @@ const profileFromSpaceProfile = (
         spaceProfile.spaceSlug;
 
     return {
+        avatarKeyVersion: spaceProfile.avatar?.keyVersion,
         avatarObjectID: spaceProfile.avatar?.objectID,
         avatarSize: spaceProfile.avatar?.size,
         avatarUpdatedAt: spaceProfile.avatar?.updatedAt,
         avatarUrl: null,
+        coverKeyVersion: spaceProfile.cover?.keyVersion,
         coverObjectID: spaceProfile.cover?.objectID,
         coverUpdatedAt: spaceProfile.cover?.updatedAt,
         coverUrl: null,
@@ -413,12 +418,18 @@ const accountCoverURL = async (
     if (!spaceId || !cover?.objectID) return null;
     try {
         return await cachedSpaceMediaBlobURL(
-            spaceProfileMediaCacheKey(spaceId, "cover", cover.objectID),
+            spaceProfileMediaCacheKey(
+                spaceId,
+                "cover",
+                cover.objectID,
+                cover.keyVersion,
+            ),
             () =>
                 ctx.download_space_cover(
                     spaceId,
                     viewerSpaceId ?? null,
                     cover.objectID,
+                    cover.keyVersion,
                 ),
         );
     } catch (error) {
@@ -436,12 +447,18 @@ const accountAvatarURL = async (
     if (!spaceId || !avatar?.objectID) return null;
     try {
         return await cachedSpaceMediaBlobURL(
-            spaceProfileMediaCacheKey(spaceId, "avatar", avatar.objectID),
+            spaceProfileMediaCacheKey(
+                spaceId,
+                "avatar",
+                avatar.objectID,
+                avatar.keyVersion,
+            ),
             () =>
                 ctx.download_space_avatar(
                     spaceId,
                     viewerSpaceId ?? null,
                     avatar.objectID,
+                    avatar.keyVersion,
                 ),
         );
     } catch (error) {
@@ -530,6 +547,7 @@ const postFromAccountPost = async (
         ? await accountPostAssetURL(ctx, post, object, viewerSpaceId)
         : undefined;
     return {
+        avatarKeyVersion: author.avatarKeyVersion,
         avatarObjectID: author.avatarObjectID,
         avatarSize: author.avatarSize,
         avatarUpdatedAt: author.avatarUpdatedAt,
@@ -557,6 +575,7 @@ const profilePostFromPost = (
 
     const author = actorProfile(post.author);
     return {
+        avatarKeyVersion: author.avatarKeyVersion,
         avatarObjectID: author.avatarObjectID,
         avatarSize: author.avatarSize,
         avatarUpdatedAt: author.avatarUpdatedAt,
@@ -983,7 +1002,9 @@ export const loadCurrentSpacePostAssetURL: SpacePostAssetURLLoader = async (
 export const loadCurrentSpacePostAvatarURL: SpacePostAvatarURLLoader = async (
     post,
 ) => {
-    if (!post.spaceId || !post.avatarObjectID) return null;
+    if (!post.spaceId || !post.avatarObjectID || !post.avatarKeyVersion) {
+        return null;
+    }
 
     const profile = await loadExistingSpaceProfile();
     const ctx = await ensureCurrentSpaceContext();
@@ -992,6 +1013,7 @@ export const loadCurrentSpacePostAvatarURL: SpacePostAvatarURLLoader = async (
             ctx,
             post.spaceId,
             {
+                keyVersion: post.avatarKeyVersion,
                 objectID: post.avatarObjectID,
                 size: post.avatarSize,
                 updatedAt: post.avatarUpdatedAt,
@@ -1006,7 +1028,9 @@ export const loadCurrentSpacePostAvatarURL: SpacePostAvatarURLLoader = async (
 export const loadCurrentFriendAvatarURL = async (
     friend: FriendProfile,
 ): Promise<string | null> => {
-    if (!friend.spaceId || !friend.avatarObjectID) return null;
+    if (!friend.spaceId || !friend.avatarObjectID || !friend.avatarKeyVersion) {
+        return null;
+    }
 
     const profile = await loadExistingSpaceProfile();
     const ctx = await ensureCurrentSpaceContext();
@@ -1015,6 +1039,7 @@ export const loadCurrentFriendAvatarURL = async (
             ctx,
             friend.spaceId,
             {
+                keyVersion: friend.avatarKeyVersion,
                 objectID: friend.avatarObjectID,
                 size: friend.avatarSize,
                 updatedAt: friend.avatarUpdatedAt,
