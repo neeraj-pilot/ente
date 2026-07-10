@@ -204,13 +204,19 @@ const restoreSpaceBrowserSession = async () => {
     const bootstrap = SpaceBrowserSessionBootstrapResponse.parse(
         await res.json(),
     );
-    const spaceRootKey = await decryptBox(
-        {
-            encryptedData: persisted.encryptedSpaceRootKey,
-            nonce: persisted.nonce,
-        },
-        bootstrap.sessionWrapKey,
-    );
+    let spaceRootKey: string;
+    try {
+        spaceRootKey = await decryptBox(
+            {
+                encryptedData: persisted.encryptedSpaceRootKey,
+                nonce: persisted.nonce,
+            },
+            bootstrap.sessionWrapKey,
+        );
+    } catch {
+        clearSpaceBrowserSession();
+        return false;
+    }
     replaceSavedLocalUser({ id: persisted.userId, email: persisted.email });
     saveSpaceRootKeyInSpaceSession(spaceRootKey);
     await removeAuthToken();
@@ -244,13 +250,16 @@ export const revokeSpaceBrowserSession = async () => {
     const sessionToken = savedSpaceSessionToken();
     try {
         if (!sessionToken) return;
-        const res = await fetch(await apiURL("/account/space/sessions/current"), {
-            method: "DELETE",
-            headers: {
-                ...publicRequestHeaders(),
-                [spaceSessionTokenHeader]: sessionToken,
+        const res = await fetch(
+            await apiURL("/account/space/sessions/current"),
+            {
+                method: "DELETE",
+                headers: {
+                    ...publicRequestHeaders(),
+                    [spaceSessionTokenHeader]: sessionToken,
+                },
             },
-        });
+        );
         if (res.status != 401) ensureOk(res);
     } catch {
         // Local logout must still complete if remote session revocation fails.
