@@ -217,7 +217,7 @@ class _LoginPasswordVerificationPageState
           body: AppLocalizations.of(context).recreatePasswordBody,
           firstButtonLabel: AppLocalizations.of(context).useRecoveryKey,
         );
-        if (dialogChoice!.action == ButtonAction.first) {
+        if (dialogChoice?.action == ButtonAction.first && context.mounted) {
           await UserService.instance.sendOtt(
             context,
             email!,
