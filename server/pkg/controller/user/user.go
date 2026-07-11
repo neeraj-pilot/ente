@@ -334,11 +334,9 @@ func (c *UserController) handleAccountDeletion(
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
-	if c.SpaceAccessResetter != nil {
-		logger.Info("revoke space browser sessions for user")
-		if err := c.SpaceAccessResetter.RevokeBrowserSessions(ctx, userID); err != nil {
-			return nil, stacktrace.Propagate(err, "")
-		}
+	logger.Info("revoke space browser sessions for user")
+	if err := c.SpaceAccessResetter.RevokeBrowserSessions(ctx, userID); err != nil {
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	user, err := c.UserRepo.Get(userID)
