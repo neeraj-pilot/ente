@@ -21,12 +21,12 @@ import "package:photos/models/search/generic_search_result.dart";
 import "package:photos/models/search/hierarchical/hierarchical_search_filter.dart";
 import "package:photos/models/search/hierarchical/magic_filter.dart";
 import "package:photos/models/search/search_types.dart";
+import "package:photos/module/download/file.dart";
 import "package:photos/service_locator.dart";
 import "package:photos/services/machine_learning/semantic_search/semantic_search_service.dart";
 import "package:photos/services/search_service.dart";
 import "package:photos/ui/viewer/search/result/magic_result_screen.dart";
 import "package:photos/utils/cache_util.dart";
-import "package:photos/utils/file_util.dart";
 import "package:shared_preferences/shared_preferences.dart";
 
 class MagicCache {

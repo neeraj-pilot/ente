@@ -47,6 +47,7 @@ import "package:photos/models/search/hierarchical/top_level_generic_filter.dart"
 import "package:photos/models/search/hierarchical/uploader_filter.dart";
 import "package:photos/models/search/search_constants.dart";
 import "package:photos/models/search/search_types.dart";
+import "package:photos/module/download/file.dart";
 import "package:photos/service_locator.dart";
 import "package:photos/services/account/user_service.dart";
 import 'package:photos/services/collections_service.dart';
@@ -65,7 +66,6 @@ import "package:photos/ui/viewer/people/cluster_page.dart";
 import "package:photos/ui/viewer/people/people_page.dart";
 import "package:photos/ui/viewer/search/result/magic_result_screen.dart";
 import "package:photos/utils/cache_util.dart";
-import "package:photos/utils/file_util.dart";
 import "package:photos/utils/people_sort_util.dart";
 
 class SearchService {

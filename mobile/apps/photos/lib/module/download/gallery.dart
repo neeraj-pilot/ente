@@ -12,11 +12,11 @@ import 'package:photos/models/file/file.dart';
 import "package:photos/models/file/file_type.dart";
 import 'package:photos/models/ignored_file.dart';
 import 'package:photos/module/download/decrypt.dart';
+import "package:photos/module/download/file.dart";
 import "package:photos/module/download/manager.dart";
 import "package:photos/services/ignored_files_service.dart";
 import "package:photos/services/sync/local_sync_service.dart";
 import "package:photos/utils/apple_photos_errors.dart";
-import "package:photos/utils/file_util.dart";
 
 final _logger = Logger("file_download_util");
 
