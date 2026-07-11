@@ -20,31 +20,6 @@ import 'package:photos/module/live_photo/download.dart';
 
 final _logger = Logger("FileUtil");
 
-const Set<String> _rawImageExtensions = {
-  'arw', // Sony
-  'cr2', 'cr3', // Canon
-  'nef', 'nrw', // Nikon
-  'dng', // Adobe/generic
-  'orf', // Olympus
-  'raf', // Fuji
-  'rw2', // Panasonic
-  'pef', // Pentax
-  'srw', // Samsung
-  '3fr', 'fff', // Hasselblad
-  'rwl', // Leica
-  'x3f', // Sigma
-  'iiq', // Phase One
-  'kdc', 'dcr', // Kodak
-  'mrw', // Minolta
-  'erf', // Epson
-  'mef', // Mamiya
-  'raw', // Generic
-};
-
-bool isRawImageExtension(String extension) {
-  return _rawImageExtensions.contains(extension.toLowerCase());
-}
-
 void preloadFile(EnteFile file) {
   if (file.fileType == FileType.video) {
     return;
@@ -137,7 +112,7 @@ String getSharedMediaPathFromLocalID(String localID) {
 
 final Map<String, Future<File?>> _fileDownloadsInProgress =
     <String, Future<File?>>{};
-Map<String, ProgressCallback?> _progressCallbacks = {};
+final Map<String, ProgressCallback?> _progressCallbacks = {};
 
 Future<T> _runOncePerKey<K, T>(
   Map<K, Future<T>> inProgress,
@@ -168,7 +143,7 @@ Future<T> _runOncePerKey<K, T>(
   return download;
 }
 
-void removeCallBack(EnteFile file) {
+void removeDownloadCallback(EnteFile file) {
   if (!file.isUploaded) {
     return;
   }
@@ -344,19 +319,3 @@ Future<void> clearCache(EnteFile file) async {
   }
   ThumbnailInMemoryLruCache.clearCache(file);
 }
-
-Set<int> filesToUploadedFileIDs(List<EnteFile> files) {
-  final uploadedFileIDs = <int>{};
-  for (final file in files) {
-    if (file.isUploaded) {
-      uploadedFileIDs.add(file.uploadedFileID!);
-    }
-  }
-  return uploadedFileIDs;
-}
-
-/// Computes the MD5 hash of a file or a portion of it.
-///
-/// [filePath] - Path to the file
-/// [start] - Optional starting byte position for partial hash computation
-/// [end] - Optional ending byte position for partial hash computation

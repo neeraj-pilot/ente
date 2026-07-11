@@ -21,7 +21,6 @@ import "package:photos/models/search/hierarchical/magic_filter.dart";
 import "package:photos/models/search/hierarchical/only_them_filter.dart";
 import "package:photos/models/search/hierarchical/top_level_generic_filter.dart";
 import "package:photos/models/search/hierarchical/uploader_filter.dart";
-import "package:photos/module/download/file.dart";
 import "package:photos/service_locator.dart";
 import "package:photos/services/collections_service.dart";
 import "package:photos/services/machine_learning/face_ml/face_filtering/face_filtering_constants.dart";

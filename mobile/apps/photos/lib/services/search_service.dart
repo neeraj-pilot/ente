@@ -47,7 +47,6 @@ import "package:photos/models/search/hierarchical/top_level_generic_filter.dart"
 import "package:photos/models/search/hierarchical/uploader_filter.dart";
 import "package:photos/models/search/search_constants.dart";
 import "package:photos/models/search/search_types.dart";
-import "package:photos/module/download/file.dart";
 import "package:photos/service_locator.dart";
 import "package:photos/services/account/user_service.dart";
 import 'package:photos/services/collections_service.dart';

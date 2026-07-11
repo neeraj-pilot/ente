@@ -260,7 +260,7 @@ class _VideoWidgetNativeState extends State<VideoWidgetNative>
     _guestViewEventSubscription.cancel();
     pauseVideoSubscription.cancel();
     resumeVideoSubscription.cancel();
-    removeCallBack(widget.file);
+    removeDownloadCallback(widget.file);
     _progressNotifier.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _isPlaybackReady.dispose();
