@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
 import "package:dio/dio.dart";
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -17,8 +16,8 @@ import 'package:photos/core/constants.dart';
 import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
+import 'package:photos/module/download/decrypt.dart';
 import 'package:photos/module/live_photo/archive.dart';
-import 'package:photos/utils/file_download_util.dart';
 
 final _logger = Logger("FileUtil");
 
@@ -443,13 +442,6 @@ Set<int> filesToUploadedFileIDs(List<EnteFile> files) {
     }
   }
   return uploadedFileIDs;
-}
-
-Future<String> computeSha1(String filePath) async {
-  final file = File(filePath);
-  final input = file.openRead();
-  final hash = await sha1.bind(input).first;
-  return hash.toString();
 }
 
 /// Computes the MD5 hash of a file or a portion of it.
