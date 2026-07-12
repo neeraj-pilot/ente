@@ -34,6 +34,7 @@ import "package:photos/module/download/file.dart";
 import "package:photos/module/metadata/exif.dart";
 import 'package:photos/module/upload/model/media_upload_data.dart';
 import 'package:photos/module/upload/model/upload_url.dart';
+import 'package:photos/module/upload/service/existing_upload_resolver.dart';
 import "package:photos/module/upload/service/multipart.dart";
 import "package:photos/module/upload/upload_data.dart";
 import "package:photos/module/upload/upload_metadata.dart";
@@ -46,7 +47,6 @@ import 'package:photos/services/sync/sync_service.dart';
 import "package:photos/utils/file_key.dart";
 import "package:photos/utils/network_util.dart";
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tuple/tuple.dart';
 import "package:uuid/uuid.dart";
 
 /// Coordinates encryption, transfer, persistence, and retries for file uploads.
@@ -68,6 +68,7 @@ class FileUploader {
   final LinkedHashMap<String, BackupItem> _allBackups =
       LinkedHashMap<String, BackupItem>();
   final _uploadLocks = UploadLocksDB.instance;
+  final _existingUploadResolver = ExistingUploadResolver();
   final kSafeBufferForLockExpiry = const Duration(hours: 4).inMicroseconds;
   final kBGTaskDeathTimeout = const Duration(seconds: 5).inMicroseconds;
   // Track used upload URLs to detect race conditions
@@ -636,20 +637,25 @@ class FileUploader {
         // check if the file is already uploaded and can be mapped to existing
         // uploaded file. If map is found, it also returns the corresponding
         // mapped or update file entry.
-        final result = await _mapToExistingUploadWithSameHash(
-          mediaUploadData,
-          file,
-          collectionID,
-        );
-        final isMappedToExistingUpload = result.item1;
-        if (isMappedToExistingUpload) {
-          debugPrint(
-            "File success mapped to existing uploaded ${file.toString()}",
-          );
-          // treat as completed so _onUploadDone clears the source export
-          uploadCompleted = true;
-          // return the mapped file
-          return result.item2;
+        final ownerID = Configuration.instance.getUserID();
+        final resolution = ownerID == null
+            ? const UploadRequired()
+            : await _existingUploadResolver.resolve(
+                hashData: mediaUploadData.hashData,
+                fileToUpload: file,
+                destinationCollectionID: collectionID,
+                ownerID: ownerID,
+              );
+        switch (resolution) {
+          case ResolvedExistingUpload(file: final resolvedFile):
+            debugPrint(
+              "File success mapped to existing uploaded ${file.toString()}",
+            );
+            // treat as completed so _onUploadDone clears the source export
+            uploadCompleted = true;
+            return resolvedFile;
+          case UploadRequired():
+            break;
         }
       }
 
@@ -1017,140 +1023,6 @@ class FileUploader {
           e.requestOptions.path.contains("/files/update");
     }
     return false;
-  }
-
-  /*
-  _mapToExistingUpload links the fileToUpload with the existing uploaded
-  files. if the link is successful, it returns true otherwise false.
-  When false, we should go ahead and re-upload or update the file.
-  It performs following checks:
-    a) Target file with same localID and destination collection exists. Delete the
-     fileToUpload entry. If target file is sandbox file, then we skip localID match
-     check.
-    b) Uploaded file in any collection but with missing localID.
-     Update the localID for uploadedFile and delete the fileToUpload entry
-    c) A uploaded file exist with same localID but in a different collection.
-    Add a symlink in the destination collection and update the fileToUpload.
-    If target file is sandbox file, then we skip localID match
-     check.
-    d) File already exists but different localID. Re-upload
-    In case the existing files already have local identifier, which is
-    different from the {fileToUpload}, then most probably device has
-    duplicate files.
-  */
-  Future<Tuple2<bool, EnteFile>> _mapToExistingUploadWithSameHash(
-    MediaUploadData mediaUploadData,
-    EnteFile fileToUpload,
-    int toCollectionID,
-  ) async {
-    if (fileToUpload.uploadedFileID != null) {
-      // ideally this should never happen, but because the code below this case
-      // can do unexpected mapping, we are adding this additional check
-      _logger.severe('Critical: file is already uploaded, skipped mapping');
-      return Tuple2(false, fileToUpload);
-    }
-    final bool isSandBoxFile = fileToUpload.isSharedMediaToAppSandbox;
-
-    final List<EnteFile> existingUploadedFiles = await FilesDB.instance
-        .getUploadedFilesWithHashes(
-          mediaUploadData.hashData,
-          fileToUpload.fileType,
-          Configuration.instance.getUserID()!,
-        );
-    if (existingUploadedFiles.isEmpty) {
-      // continueUploading this file
-      return Tuple2(false, fileToUpload);
-    }
-
-    // case a
-    final EnteFile? sameLocalSameCollection = existingUploadedFiles
-        .firstWhereOrNull(
-          (e) =>
-              e.collectionID == toCollectionID &&
-              (e.localID == fileToUpload.localID || isSandBoxFile),
-        );
-    if (sameLocalSameCollection != null) {
-      _logger.info(
-        "sameLocalSameCollection: toUpload  ${fileToUpload.tag} "
-        "existing: ${sameLocalSameCollection.tag} $isSandBoxFile",
-      );
-      // should delete the fileToUploadEntry
-      if (fileToUpload.generatedID != null) {
-        await FilesDB.instance.deleteByGeneratedID(fileToUpload.generatedID!);
-      }
-
-      Bus.instance.fire(
-        LocalPhotosUpdatedEvent(
-          [fileToUpload],
-          type: EventType.deletedFromEverywhere,
-          source: "sameLocalSameCollection", //
-        ),
-      );
-      return Tuple2(true, sameLocalSameCollection);
-    }
-
-    // case b
-    final EnteFile? fileMissingLocal = existingUploadedFiles.firstWhereOrNull(
-      (e) => e.localID == null,
-    );
-    if (fileMissingLocal != null) {
-      // update the local id of the existing file and delete the fileToUpload
-      // entry
-      _logger.info(
-        "fileMissingLocal: \n toUpload  ${fileToUpload.tag} "
-        "\n existing: ${fileMissingLocal.tag}",
-      );
-      fileMissingLocal.localID = fileToUpload.localID;
-      // set localID for the given uploadedID across collections
-      await FilesDB.instance.updateLocalIDForUploaded(
-        fileMissingLocal.uploadedFileID!,
-        fileToUpload.localID!,
-      );
-      // For files selected from device, during collaborative upload, we don't
-      // insert entries in the FilesDB. So, we don't need to delete the entry
-      if (fileToUpload.generatedID != null) {
-        await FilesDB.instance.deleteByGeneratedID(fileToUpload.generatedID!);
-      }
-      Bus.instance.fire(
-        LocalPhotosUpdatedEvent(
-          [fileToUpload],
-          source: "fileMissingLocal",
-          type: EventType.deletedFromEverywhere, //
-        ),
-      );
-      return Tuple2(true, fileMissingLocal);
-    }
-
-    // case c
-    final EnteFile? fileExistsButDifferentCollection = existingUploadedFiles
-        .firstWhereOrNull(
-          (e) =>
-              e.collectionID != toCollectionID &&
-              (e.localID == fileToUpload.localID || isSandBoxFile),
-        );
-    if (fileExistsButDifferentCollection != null) {
-      _logger.info(
-        "fileExistsButDifferentCollection: toUpload  ${fileToUpload.tag} "
-        "existing: ${fileExistsButDifferentCollection.tag} $isSandBoxFile",
-      );
-      final linkedFile = await CollectionsService.instance
-          .linkLocalFileToExistingUploadedFileInAnotherCollection(
-            toCollectionID,
-            localFileToUpload: fileToUpload,
-            existingUploadedFile: fileExistsButDifferentCollection,
-          );
-      return Tuple2(true, linkedFile);
-    }
-    final Set<String> matchLocalIDs = existingUploadedFiles
-        .where((e) => e.localID != null)
-        .map((e) => e.localID!)
-        .toSet();
-    _logger.info(
-      "Found hashMatch but probably with diff localIDs "
-      "$matchLocalIDs",
-    );
-    // case d
-    return Tuple2(false, fileToUpload);
   }
 
   Future<void> _onUploadDone(
