@@ -53,8 +53,28 @@ func (r *Repository) GetAllDevices(ctx context.Context, userID int64) ([]cast.Ca
 // InsertCastData insert collection_id, cast_user, token and encrypted_payload for given code if collection_id is not null
 func (r *Repository) InsertCastData(ctx context.Context, castUserID int64, code string, collectionID int64, castToken string, encryptedPayload string) error {
 	code = strings.ToUpper(code)
-	_, err := r.DB.ExecContext(ctx, "UPDATE casting SET collection_id = $1, cast_user = $2, token = $3, encrypted_payload = $4 WHERE code = $5 and is_deleted=false", collectionID, castUserID, castToken, encryptedPayload, code)
-	return err
+	result, err := r.DB.ExecContext(ctx, `
+		UPDATE casting
+		SET collection_id = $1, cast_user = $2, token = $3, encrypted_payload = $4
+		WHERE code = $5
+			AND is_deleted = false
+			AND collection_id IS NULL
+			AND cast_user IS NULL
+			AND token IS NULL
+			AND encrypted_payload IS NULL
+			AND last_used_at >= now_utc_micro_seconds() - (60::BIGINT * 60 * 1000 * 1000)`,
+		collectionID, castUserID, castToken, encryptedPayload, code)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return stacktrace.Propagate(err, "failed to check cast claim result")
+	}
+	if rowsAffected != 1 {
+		return ente.ErrSessionAlreadyClaimed.NewErr("cast session is not claimable")
+	}
+	return nil
 }
 
 func (r *Repository) GetPubKeyAndIp(ctx context.Context, code string) (string, string, error) {
