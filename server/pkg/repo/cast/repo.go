@@ -94,7 +94,15 @@ func (r *Repository) GetPubKeyAndIp(ctx context.Context, code string) (string, s
 func (r *Repository) GetEncCastData(ctx context.Context, code string) (*string, error) {
 	code = strings.ToUpper(code)
 	var payload sql.NullString
-	row := r.DB.QueryRowContext(ctx, "SELECT encrypted_payload FROM casting WHERE code = $1 and is_deleted=false", code)
+	row := r.DB.QueryRowContext(ctx, `
+		SELECT encrypted_payload
+		FROM casting
+		WHERE code = $1
+			AND is_deleted = false
+			AND (
+				encrypted_payload IS NOT NULL
+				OR last_used_at >= now_utc_micro_seconds() - (60::BIGINT * 60 * 1000 * 1000)
+			)`, code)
 	err := row.Scan(&payload)
 	if err != nil {
 		if err == sql.ErrNoRows {

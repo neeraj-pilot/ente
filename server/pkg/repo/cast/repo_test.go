@@ -78,6 +78,55 @@ func TestInsertCastDataRejectsExpiredCode(t *testing.T) {
 	}
 }
 
+func TestGetEncCastDataRejectsExpiredUnclaimedCode(t *testing.T) {
+	repository, db := newCastRepositoryTest(t)
+	_, err := db.Exec(
+		`INSERT INTO casting (id, code, public_key, ip, last_used_at)
+		 VALUES ($1, $2, $3, $4, now_utc_micro_seconds() - (61::BIGINT * 60 * 1000 * 1000))`,
+		uuid.New(),
+		"STALE1",
+		"public-key",
+		"127.0.0.1",
+	)
+	if err != nil {
+		t.Fatalf("failed to insert casting row: %v", err)
+	}
+	payload, err := repository.GetEncCastData(t.Context(), "STALE1")
+	if err == nil {
+		t.Fatalf("GetEncCastData payload = %v, error = nil, want not found", payload)
+	}
+	apiErr, ok := err.(*ente.ApiError)
+	if !ok {
+		t.Fatalf("GetEncCastData error = %T %v, want *ente.ApiError", err, err)
+	}
+	if apiErr.Code != ente.ErrNotFoundError.Code {
+		t.Fatalf("GetEncCastData error code = %s, want %s", apiErr.Code, ente.ErrNotFoundError.Code)
+	}
+}
+
+func TestGetEncCastDataReturnsExpiredClaimedPayload(t *testing.T) {
+	repository, db := newCastRepositoryTest(t)
+	_, err := db.Exec(
+		`INSERT INTO casting (id, code, public_key, ip, encrypted_payload, last_used_at)
+		 VALUES ($1, $2, $3, $4, $5, now_utc_micro_seconds() - (61::BIGINT * 60 * 1000 * 1000))`,
+		uuid.New(),
+		"CLAIM1",
+		"public-key",
+		"127.0.0.1",
+		"payload",
+	)
+	if err != nil {
+		t.Fatalf("failed to insert casting row: %v", err)
+	}
+	payload, err := repository.GetEncCastData(t.Context(), "CLAIM1")
+	if err != nil {
+		t.Fatalf("GetEncCastData error = %v", err)
+	}
+	if payload == nil || *payload != "payload" {
+		t.Fatalf("GetEncCastData payload = %v, want payload", payload)
+	}
+}
+
 func TestRevokeForGivenDeviceIDOnlyDeletesUserDevice(t *testing.T) {
 	repository, db := newCastRepositoryTest(t)
 	deviceID := uuid.New()
