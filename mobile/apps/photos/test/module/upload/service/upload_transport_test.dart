@@ -8,6 +8,7 @@ import "package:photos/core/constants.dart";
 import "package:photos/core/errors.dart";
 import "package:photos/gateways/files/file_upload_gateway.dart";
 import "package:photos/models/file/file.dart";
+import "package:photos/models/file/file_type.dart";
 import "package:photos/module/upload/model/upload_url.dart";
 import "package:photos/module/upload/service/upload_transport.dart";
 
@@ -262,7 +263,7 @@ void main() {
     fixture.gateway.createResults.add(
       const CreateFileResponse(id: 11, updationTime: 12, ownerID: 13),
     );
-    final enteFile = EnteFile()..localID = "local";
+    final enteFile = _file();
 
     final result = await fixture.transport.createFile(
       file: enteFile,
@@ -273,16 +274,19 @@ void main() {
       pubMagicMetadata: {"version": 1},
     );
 
-    expect(result, same(enteFile));
-    expect(enteFile.uploadedFileID, 11);
-    expect(enteFile.collectionID, 14);
-    expect(enteFile.updationTime, 12);
-    expect(enteFile.ownerID, 13);
-    expect(enteFile.encryptedKey, "encrypted-key");
-    expect(enteFile.keyDecryptionNonce, "key-nonce");
-    expect(enteFile.fileDecryptionHeader, "file-header");
-    expect(enteFile.thumbnailDecryptionHeader, "thumb-header");
-    expect(enteFile.metadataDecryptionHeader, "metadata-header");
+    expect(result, isNot(same(enteFile)));
+    expect(result.uploadedFileID, 11);
+    expect(result.collectionID, 14);
+    expect(result.updationTime, 12);
+    expect(result.ownerID, 13);
+    expect(result.encryptedKey, "encrypted-key");
+    expect(result.keyDecryptionNonce, "key-nonce");
+    expect(result.fileDecryptionHeader, "file-header");
+    expect(result.thumbnailDecryptionHeader, "thumb-header");
+    expect(result.metadataDecryptionHeader, "metadata-header");
+    expect(result.fileSize, _commitData.fileSize);
+    expect(enteFile.uploadedFileID, isNull);
+    expect(enteFile.fileDecryptionHeader, isNull);
     expect(fixture.gateway.createRequests.single, _expectedCreateRequest);
   });
 
@@ -298,7 +302,7 @@ void main() {
       ]);
 
       await fixture.transport.createFile(
-        file: EnteFile()..localID = "local",
+        file: _file(),
         collectionID: 1,
         encryptedKey: "key",
         keyDecryptionNonce: "nonce",
@@ -329,7 +333,7 @@ void main() {
     final publicMetadata = <String, dynamic>{"version": 1};
 
     await fixture.transport.createFile(
-      file: EnteFile()..localID = "local",
+      file: _file(),
       collectionID: 14,
       encryptedKey: "encrypted-key",
       keyDecryptionNonce: "key-nonce",
@@ -440,8 +444,7 @@ void main() {
       _dioError(),
       const UpdateFileResponse(id: 20, updationTime: 21),
     ]);
-    final enteFile = EnteFile()
-      ..localID = "local"
+    final enteFile = _file()
       ..uploadedFileID = 10
       ..ownerID = 30
       ..collectionID = 31
@@ -453,16 +456,20 @@ void main() {
       data: _commitData,
     );
 
-    expect(result, same(enteFile));
-    expect(enteFile.uploadedFileID, 20);
-    expect(enteFile.updationTime, 21);
-    expect(enteFile.ownerID, 30);
-    expect(enteFile.collectionID, 31);
-    expect(enteFile.encryptedKey, "existing-key");
-    expect(enteFile.keyDecryptionNonce, "existing-nonce");
-    expect(enteFile.fileDecryptionHeader, "file-header");
-    expect(enteFile.thumbnailDecryptionHeader, "thumb-header");
-    expect(enteFile.metadataDecryptionHeader, "metadata-header");
+    expect(result, isNot(same(enteFile)));
+    expect(result.uploadedFileID, 20);
+    expect(result.updationTime, 21);
+    expect(result.ownerID, 30);
+    expect(result.collectionID, 31);
+    expect(result.encryptedKey, "existing-key");
+    expect(result.keyDecryptionNonce, "existing-nonce");
+    expect(result.fileDecryptionHeader, "file-header");
+    expect(result.thumbnailDecryptionHeader, "thumb-header");
+    expect(result.metadataDecryptionHeader, "metadata-header");
+    expect(result.fileSize, _commitData.fileSize);
+    expect(enteFile.uploadedFileID, 10);
+    expect(enteFile.updationTime, isNull);
+    expect(enteFile.fileDecryptionHeader, isNull);
     expect(fixture.gateway.updateRequests, hasLength(4));
     expect(
       fixture.gateway.updateRequests,
@@ -497,6 +504,10 @@ void main() {
     }
   });
 }
+
+EnteFile _file() => EnteFile()
+  ..localID = "local"
+  ..fileType = FileType.image;
 
 const _commitData = UploadCommitData(
   fileObjectKey: "file-key",
