@@ -220,10 +220,10 @@ class UploadTransport {
             ? null
             : Map<String, dynamic>.of(pubMagicMetadata),
       );
-      file.uploadedFileID = response["id"];
+      file.uploadedFileID = response.id;
       file.collectionID = collectionID;
-      file.updationTime = response["updationTime"];
-      file.ownerID = response["ownerID"];
+      file.updationTime = response.updationTime;
+      file.ownerID = response.ownerID;
       file.encryptedKey = encryptedKey;
       file.keyDecryptionNonce = keyDecryptionNonce;
       file.fileDecryptionHeader = data.fileDecryptionHeader;
@@ -273,8 +273,8 @@ class UploadTransport {
         encryptedMetadata: data.encryptedMetadata,
         metadataDecryptionHeader: data.metadataDecryptionHeader,
       );
-      file.uploadedFileID = response["id"];
-      file.updationTime = response["updationTime"];
+      file.uploadedFileID = response.id;
+      file.updationTime = response.updationTime;
       file.fileDecryptionHeader = data.fileDecryptionHeader;
       file.thumbnailDecryptionHeader = data.thumbnailDecryptionHeader;
       file.metadataDecryptionHeader = data.metadataDecryptionHeader;

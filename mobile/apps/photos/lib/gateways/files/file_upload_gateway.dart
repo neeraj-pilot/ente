@@ -2,6 +2,46 @@ import "package:dio/dio.dart";
 import "package:photos/module/upload/model/multipart.dart";
 import "package:photos/module/upload/model/upload_url.dart";
 
+class CreateFileResponse {
+  const CreateFileResponse({
+    required this.id,
+    required this.ownerID,
+    required this.updationTime,
+  });
+
+  factory CreateFileResponse.fromMap(Map<String, dynamic> map) =>
+      CreateFileResponse(
+        id: _requiredInt(map, "id"),
+        ownerID: _requiredInt(map, "ownerID"),
+        updationTime: _requiredInt(map, "updationTime"),
+      );
+
+  final int id;
+  final int ownerID;
+  final int updationTime;
+}
+
+class UpdateFileResponse {
+  const UpdateFileResponse({required this.id, required this.updationTime});
+
+  factory UpdateFileResponse.fromMap(Map<String, dynamic> map) =>
+      UpdateFileResponse(
+        id: _requiredInt(map, "id"),
+        updationTime: _requiredInt(map, "updationTime"),
+      );
+
+  final int id;
+  final int updationTime;
+}
+
+int _requiredInt(Map<String, dynamic> map, String key) {
+  final value = map[key];
+  if (value is! int) {
+    throw FormatException("Expected integer '$key' in file upload response");
+  }
+  return value;
+}
+
 /// Gateway for file upload API endpoints.
 ///
 /// Handles upload URL generation and file creation/update operations.
@@ -59,8 +99,8 @@ class FileUploadGateway {
   /// [metadataDecryptionHeader] - The header for decrypting metadata.
   /// [pubMagicMetadata] - Optional public magic metadata.
   ///
-  /// Returns a map containing the file ID, owner ID, and updation time.
-  Future<Map<String, dynamic>> createFile({
+  /// Returns the server-assigned file ID, owner ID, and updation time.
+  Future<CreateFileResponse> createFile({
     required int collectionID,
     required String encryptedKey,
     required String keyDecryptionNonce,
@@ -97,7 +137,9 @@ class FileUploadGateway {
       request["pubMagicMetadata"] = pubMagicMetadata;
     }
     final response = await _enteDio.post("/files", data: request);
-    return response.data as Map<String, dynamic>;
+    return CreateFileResponse.fromMap(
+      (response.data as Map).cast<String, dynamic>(),
+    );
   }
 
   /// Updates an existing file entry on the server.
@@ -112,8 +154,8 @@ class FileUploadGateway {
   /// [encryptedMetadata] - The encrypted file metadata.
   /// [metadataDecryptionHeader] - The header for decrypting metadata.
   ///
-  /// Returns a map containing the file ID and updation time.
-  Future<Map<String, dynamic>> updateFile({
+  /// Returns the file ID and updation time accepted by the server.
+  Future<UpdateFileResponse> updateFile({
     required int fileID,
     required String fileObjectKey,
     required String fileDecryptionHeader,
@@ -142,7 +184,9 @@ class FileUploadGateway {
       },
     };
     final response = await _enteDio.put("/files/update", data: request);
-    return response.data as Map<String, dynamic>;
+    return UpdateFileResponse.fromMap(
+      (response.data as Map).cast<String, dynamic>(),
+    );
   }
 
   /// Gets a checksum-protected multipart upload URL.

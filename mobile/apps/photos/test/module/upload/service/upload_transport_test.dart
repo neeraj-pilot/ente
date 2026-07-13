@@ -22,6 +22,29 @@ void main() {
 
   tearDownAll(() => tempDir.delete(recursive: true));
 
+  test("parses required create and update response fields", () {
+    final create = CreateFileResponse.fromMap({
+      "id": 1,
+      "ownerID": 2,
+      "updationTime": 3,
+    });
+    final update = UpdateFileResponse.fromMap({"id": 4, "updationTime": 5});
+
+    expect((create.id, create.ownerID, create.updationTime), (1, 2, 3));
+    expect((update.id, update.updationTime), (4, 5));
+  });
+
+  test("rejects incomplete or incorrectly typed upload responses", () {
+    expect(
+      () => CreateFileResponse.fromMap({"id": 1, "updationTime": 2}),
+      throwsFormatException,
+    );
+    expect(
+      () => UpdateFileResponse.fromMap({"id": "1", "updationTime": 2}),
+      throwsFormatException,
+    );
+  });
+
   test("requires MD5 before URL or object requests", () async {
     final fixture = _Fixture();
 
@@ -236,11 +259,9 @@ void main() {
 
   test("create sends commit data and applies the response", () async {
     final fixture = _Fixture();
-    fixture.gateway.createResults.add({
-      "id": 11,
-      "updationTime": 12,
-      "ownerID": 13,
-    });
+    fixture.gateway.createResults.add(
+      const CreateFileResponse(id: 11, updationTime: 12, ownerID: 13),
+    );
     final enteFile = EnteFile()..localID = "local";
 
     final result = await fixture.transport.createFile(
@@ -273,7 +294,7 @@ void main() {
         _dioError(),
         _dioError(),
         _dioError(),
-        {"id": 1, "updationTime": 2, "ownerID": 3},
+        const CreateFileResponse(id: 1, updationTime: 2, ownerID: 3),
       ]);
 
       await fixture.transport.createFile(
@@ -303,7 +324,7 @@ void main() {
       ..clearReceivedPublicMetadata = true
       ..createResults.addAll([
         _dioError(),
-        {"id": 1, "updationTime": 2, "ownerID": 3},
+        const CreateFileResponse(id: 1, updationTime: 2, ownerID: 3),
       ]);
     final publicMetadata = <String, dynamic>{"version": 1};
 
@@ -417,7 +438,7 @@ void main() {
       _dioError(),
       _dioError(),
       _dioError(),
-      {"id": 20, "updationTime": 21},
+      const UpdateFileResponse(id: 20, updationTime: 21),
     ]);
     final enteFile = EnteFile()
       ..localID = "local"
@@ -609,7 +630,7 @@ class _FakeGateway extends Fake implements FileUploadGateway {
   }
 
   @override
-  Future<Map<String, dynamic>> createFile({
+  Future<CreateFileResponse> createFile({
     required int collectionID,
     required String encryptedKey,
     required String keyDecryptionNonce,
@@ -644,11 +665,11 @@ class _FakeGateway extends Fake implements FileUploadGateway {
     }
     final result = createResults.removeFirst();
     if (result is DioException) throw result;
-    return result as Map<String, dynamic>;
+    return result as CreateFileResponse;
   }
 
   @override
-  Future<Map<String, dynamic>> updateFile({
+  Future<UpdateFileResponse> updateFile({
     required int fileID,
     required String fileObjectKey,
     required String fileDecryptionHeader,
@@ -672,7 +693,7 @@ class _FakeGateway extends Fake implements FileUploadGateway {
     });
     final result = updateResults.removeFirst();
     if (result is DioException) throw result;
-    return result as Map<String, dynamic>;
+    return result as UpdateFileResponse;
   }
 }
 
