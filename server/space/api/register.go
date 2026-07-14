@@ -37,7 +37,6 @@ func Register(privateAPI, publicAPI gin.IRouter, handlers *Handlers) {
 	spaceAPI.GET("/friends/relationship", selected(handlers.FriendRelationship))
 	spaceAPI.POST("/friends/shares/refresh", selected(handlers.RefreshFriendShares))
 	spaceAPI.GET("/friends/shares", selected(handlers.ListFriendShares))
-	spaceAPI.POST("/rotate", selected(handlers.RotateSpaceKey))
 
 	publicAPI.GET("/spaces/:spaceID/profile", handlers.GetSpaceProfile)
 	publicAPI.GET("/spaces/:spaceID/assets/redirect", handlers.AssetRedirect)
