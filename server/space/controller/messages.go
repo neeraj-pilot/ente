@@ -22,7 +22,8 @@ const (
 	maxSpaceMessageCipherDecodedBytes = 6 * 1024
 	maxSpaceMessageKeyEncodedBytes    = 1024
 	maxSpaceMessageKeyDecodedBytes    = 768
-	maxSpaceMessageIDBytes            = 128
+	spaceMessageIDPrefix              = "wmsg_"
+	spaceMessageIDSuffixLength        = 22
 )
 
 type MessagesController struct {
@@ -300,9 +301,17 @@ func sameMessageThread(message *repo.SpaceMessageRecord, firstSpaceID, secondSpa
 }
 
 func normalizeOptionalMessageID(messageID string) (string, error) {
-	messageID = strings.TrimSpace(messageID)
-	if len(messageID) > maxSpaceMessageIDBytes {
-		return "", ente.NewBadRequestWithMessage("messageId is too large")
+	if messageID == "" {
+		return "", nil
+	}
+	if len(messageID) != len(spaceMessageIDPrefix)+spaceMessageIDSuffixLength || !strings.HasPrefix(messageID, spaceMessageIDPrefix) {
+		return "", ente.NewBadRequestWithMessage("messageId is invalid")
+	}
+	for i := len(spaceMessageIDPrefix); i < len(messageID); i++ {
+		c := messageID[i]
+		if !((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+			return "", ente.NewBadRequestWithMessage("messageId is invalid")
+		}
 	}
 	return messageID, nil
 }

@@ -145,10 +145,22 @@ func TestValidateCreateMessageRequestLimits(t *testing.T) {
 	_, _, _, err = decodeCreateMessageRequest(tooLargeKey)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "senderEncryptedMessageKey is too large")
+}
 
-	_, err = normalizeOptionalMessageID(strings.Repeat("m", maxSpaceMessageIDBytes+1))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "messageId is too large")
+func TestNormalizeOptionalMessageID(t *testing.T) {
+	messageID := "wmsg_0123456789ABCDEFGHIJKL"
+	normalizedMessageID, err := normalizeOptionalMessageID(messageID)
+	require.NoError(t, err)
+	require.Equal(t, messageID, normalizedMessageID)
+
+	for _, invalidMessageID := range []string{
+		"../../../spaces/space_0123456789ABCDEFGHIJKL/posts/42",
+		"wmsg_/../../posts/123456789",
+	} {
+		_, err = normalizeOptionalMessageID(invalidMessageID)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "messageId is invalid")
+	}
 }
 
 func createMessageControllerUserAndSpace(t *testing.T, repos *spacerepo.Module, slug string, publicKey string) (int64, *spacerepo.SpaceRecord) {
