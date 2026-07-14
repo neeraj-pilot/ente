@@ -242,6 +242,87 @@ func TestCreatePostEnforcesSpacePostLimit(t *testing.T) {
 	require.Equal(t, MaxPostsPerSpace, postCount)
 }
 
+func TestCreateMessageEnforcesSenderLimit(t *testing.T) {
+	module := newSpaceTestModule(t)
+	ctx := context.Background()
+	aliceID := insertSpaceUser(t, module, "message-limit-alice@example.com", "message-limit-alice-public")
+	bobID := insertSpaceUser(t, module, "message-limit-bob@example.com", "message-limit-bob-public")
+	aliceSpace, err := testCreateSpace(ctx, module, aliceID, "message_limit_alice", "root", "public", "secret", "nonce", "profile")
+	require.NoError(t, err)
+	bobSpace, err := testCreateSpace(ctx, module, bobID, "message_limit_bob", "root", "public", "secret", "nonce", "profile")
+	require.NoError(t, err)
+
+	_, err = module.Messages.DB.ExecContext(ctx, `
+		INSERT INTO space_messages (
+			message_id,
+			sender_space_id,
+			recipient_space_id,
+			kind,
+			message_cipher,
+			sender_encrypted_message_key,
+			recipient_encrypted_message_key
+		)
+		SELECT 'message-limit-' || value, $1, $2, 'regular', $3, $4, $5
+		FROM generate_series(1, $6) AS value
+	`, aliceSpace.SpaceID, bobSpace.SpaceID, testSpaceBytes("cipher"), testSpaceBytes("sender-key"), testSpaceBytes("recipient-key"), MaxActiveMessagesSentPerSpace)
+	require.NoError(t, err)
+
+	input := CreateSpaceMessageRecord{
+		Kind:                         "regular",
+		SenderSpaceID:                aliceSpace.SpaceID,
+		RecipientSpaceID:             bobSpace.SpaceID,
+		MessageCipher:                testSpaceBytes("cipher"),
+		SenderEncryptedMessageKey:    testSpaceBytes("sender-key"),
+		RecipientEncryptedMessageKey: testSpaceBytes("recipient-key"),
+	}
+	_, err = module.Messages.CreateMessage(ctx, input)
+	require.ErrorIs(t, err, ErrSpaceMessageLimitReached)
+
+	input.SenderSpaceID = bobSpace.SpaceID
+	input.RecipientSpaceID = aliceSpace.SpaceID
+	_, err = module.Messages.CreateMessage(ctx, input)
+	require.NoError(t, err)
+
+	require.NoError(t, module.Messages.DeleteMessage(ctx, "message-limit-1", aliceSpace.SpaceID))
+	input.SenderSpaceID = aliceSpace.SpaceID
+	input.RecipientSpaceID = bobSpace.SpaceID
+	_, err = module.Messages.CreateMessage(ctx, input)
+	require.NoError(t, err)
+}
+
+func TestCreateFriendRequestEnforcesTargetLimit(t *testing.T) {
+	module := newSpaceTestModule(t)
+	ctx := context.Background()
+	targetID := insertSpaceUser(t, module, "request-limit-target@example.com", "request-limit-target-public")
+	targetSpace, err := testCreateSpace(ctx, module, targetID, "request_limit_target", "root", "public", "secret", "nonce", "profile")
+	require.NoError(t, err)
+
+	var firstRequestID int64
+	for i := 0; i < MaxPendingFriendRequestsPerSpace; i++ {
+		suffix := strconv.Itoa(i)
+		requesterID := insertSpaceUser(t, module, "request-limit-"+suffix+"@example.com", "request-limit-public-"+suffix)
+		requesterSpace, err := testCreateSpace(ctx, module, requesterID, "request_limit_"+suffix, "root", "public", "secret", "nonce", "profile")
+		require.NoError(t, err)
+		request, created, err := testCreateFriendRequest(ctx, module, requesterID, requesterSpace.SpaceID, targetSpace.SpaceID, "share-key", requesterSpace.CurrentVersion)
+		require.NoError(t, err)
+		require.True(t, created)
+		if i == 0 {
+			firstRequestID = request.RequestID
+		}
+	}
+
+	extraID := insertSpaceUser(t, module, "request-limit-extra@example.com", "request-limit-extra-public")
+	extraSpace, err := testCreateSpace(ctx, module, extraID, "request_limit_extra", "root", "public", "secret", "nonce", "profile")
+	require.NoError(t, err)
+	_, _, err = testCreateFriendRequest(ctx, module, extraID, extraSpace.SpaceID, targetSpace.SpaceID, "share-key", extraSpace.CurrentVersion)
+	require.ErrorIs(t, err, ErrSpaceFriendRequestLimitReached)
+
+	require.NoError(t, module.Friends.DeleteFriendRequest(ctx, targetSpace.SpaceID, firstRequestID))
+	_, created, err := testCreateFriendRequest(ctx, module, extraID, extraSpace.SpaceID, targetSpace.SpaceID, "share-key", extraSpace.CurrentVersion)
+	require.NoError(t, err)
+	require.True(t, created)
+}
+
 func testUpdateCaption(ctx context.Context, module *Module, postID int64, _ int64, spaceID string, captionCipher *string) error {
 	var caption []byte
 	if captionCipher != nil {
@@ -844,6 +925,10 @@ func TestLatestChatSummariesUseCurrentFriendActivities(t *testing.T) {
 	require.True(t, bobSummary.LatestActivity.PostID.Valid)
 	require.Equal(t, postID, bobSummary.LatestActivity.PostID.Int64)
 	require.Len(t, bobSummary.UnreadActivities, 2)
+	for _, activity := range bobSummary.UnreadActivities {
+		require.Empty(t, activity.MessageCipher)
+		require.Empty(t, activity.EncryptedMessageKey)
+	}
 	require.Equal(t, int64(1), countChatUnreadActivities(bobSummary.UnreadActivities))
 
 	require.NoError(t, module.Read.UpsertNotificationReadMarker(ctx, aliceSpace.SpaceID, bobSpace.SpaceID, 3000))

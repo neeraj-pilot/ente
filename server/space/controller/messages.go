@@ -63,6 +63,9 @@ func (c *MessagesController) Create(ctx context.Context, senderSpace *repo.Space
 		ReplyMessageID:               replyMessageID,
 	})
 	if err != nil {
+		if errors.Is(stacktrace.RootCause(err), repo.ErrSpaceMessageLimitReached) {
+			return nil, ente.NewConflictError("space message limit reached")
+		}
 		return nil, err
 	}
 	return toMessageResponse(*message), nil
@@ -109,6 +112,9 @@ func (c *MessagesController) ReplyToPost(ctx context.Context, senderSpace *repo.
 		ReplyPostID:                  sql.NullInt64{Int64: postID, Valid: true},
 	})
 	if err != nil {
+		if errors.Is(stacktrace.RootCause(err), repo.ErrSpaceMessageLimitReached) {
+			return nil, ente.NewConflictError("space message limit reached")
+		}
 		return nil, err
 	}
 	if c.EmailNotifier != nil {
@@ -348,7 +354,7 @@ func toMessageResponse(message repo.SpaceMessageRecord) *models.MessageResponse 
 	return resp
 }
 
-func toMessageConversationActivityResponse(activity repo.SpaceMessageConversationActivityRecord) models.MessageConversationActivityResponse {
+func toMessageConversationActivityMetadataResponse(activity repo.SpaceMessageConversationActivityRecord) models.MessageConversationActivityResponse {
 	resp := models.MessageConversationActivityResponse{
 		ID:        activity.ID,
 		Type:      activity.Type,
@@ -359,6 +365,18 @@ func toMessageConversationActivityResponse(activity repo.SpaceMessageConversatio
 		messageID := activity.MessageID.String
 		resp.MessageID = &messageID
 	}
+	if activity.PostID.Valid {
+		postID := activity.PostID.Int64
+		resp.PostID = &postID
+		if activity.PostSpaceID.Valid {
+			resp.PostSpaceID = activity.PostSpaceID.String
+		}
+	}
+	return resp
+}
+
+func toMessageConversationActivityResponse(activity repo.SpaceMessageConversationActivityRecord) models.MessageConversationActivityResponse {
+	resp := toMessageConversationActivityMetadataResponse(activity)
 	if activity.Kind.Valid {
 		resp.Kind = activity.Kind.String
 	}
@@ -378,23 +396,9 @@ func toMessageConversationActivityResponse(activity repo.SpaceMessageConversatio
 		replyMessageID := activity.ReplyMessageID.String
 		resp.ReplyMessageID = &replyMessageID
 	}
-	if activity.PostID.Valid {
-		postID := activity.PostID.Int64
-		resp.PostID = &postID
-		if activity.PostSpaceID.Valid {
-			resp.PostSpaceID = activity.PostSpaceID.String
-		}
-	}
 	return resp
 }
 
 func toUnreadMessageConversationActivityResponse(activity repo.SpaceMessageConversationActivityRecord) models.MessageConversationActivityResponse {
-	resp := toMessageConversationActivityResponse(activity)
-	resp.Kind = ""
-	resp.SenderSpaceID = ""
-	resp.RecipientSpaceID = ""
-	resp.MessageCipher = ""
-	resp.EncryptedMessageKey = ""
-	resp.ReplyMessageID = nil
-	return resp
+	return toMessageConversationActivityMetadataResponse(activity)
 }

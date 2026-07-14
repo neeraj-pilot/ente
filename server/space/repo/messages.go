@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,6 +12,10 @@ import (
 	"github.com/ente/stacktrace"
 	"github.com/lib/pq"
 )
+
+const MaxActiveMessagesSentPerSpace = 5000
+
+var ErrSpaceMessageLimitReached = errors.New("space message limit reached")
 
 const spaceMessageBaseSelectColumns = `
 	m.message_id,
@@ -174,9 +179,36 @@ func (r *MessagesRepository) CreateMessage(ctx context.Context, input CreateSpac
 	if input.ReplyMessageID.Valid {
 		replyMessageID = input.ReplyMessageID.String
 	}
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	defer tx.Rollback()
+	var senderSpaceID string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT space_id
+		FROM spaces
+		WHERE space_id = $1
+		FOR UPDATE
+	`, input.SenderSpaceID).Scan(&senderSpaceID); err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	var activeMessageCount int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM space_messages
+		WHERE sender_space_id = $1
+		  AND kind IN ('regular', 'post_reply')
+		  AND is_deleted = FALSE
+	`, senderSpaceID).Scan(&activeMessageCount); err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	if activeMessageCount >= MaxActiveMessagesSentPerSpace {
+		return nil, ErrSpaceMessageLimitReached
+	}
 	var createdAt int64
 	var updatedAt int64
-	if err := r.DB.QueryRowContext(ctx, `
+	if err := tx.QueryRowContext(ctx, `
 		INSERT INTO space_messages (
 			message_id,
 			sender_space_id,
@@ -192,6 +224,9 @@ func (r *MessagesRepository) CreateMessage(ctx context.Context, input CreateSpac
 		RETURNING created_at, updated_at
 	`, messageID, input.SenderSpaceID, input.RecipientSpaceID, input.Kind, input.MessageCipher, input.SenderEncryptedMessageKey, input.RecipientEncryptedMessageKey, replyPostID, replyMessageID).Scan(&createdAt, &updatedAt); err != nil {
 		return nil, wrapUnique(err, "message already exists")
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, stacktrace.Propagate(err, "")
 	}
 	return &SpaceMessageRecord{
 		MessageID:           messageID,
@@ -334,6 +369,12 @@ func (r *MessagesRepository) ListLatestChatSummaries(ctx context.Context, viewer
 			summary.LatestActivity = activity
 		}
 		if notificationCreatedAt.Valid && notificationCreatedAt.Int64 > readMarkers[friendSpaceID] {
+			activity.Kind = sql.NullString{}
+			activity.SenderSpaceID = sql.NullString{}
+			activity.RecipientSpaceID = sql.NullString{}
+			activity.MessageCipher = nil
+			activity.EncryptedMessageKey = nil
+			activity.ReplyMessageID = sql.NullString{}
 			summary.UnreadActivities = append(summary.UnreadActivities, activity)
 		}
 		out[friendSpaceID] = summary

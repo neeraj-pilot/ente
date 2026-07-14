@@ -12,9 +12,12 @@ import (
 )
 
 var (
-	ErrAlreadyFriends = errors.New("space users are already friends")
-	ErrSelfFriendship = errors.New("space users cannot friend themselves")
+	ErrAlreadyFriends                 = errors.New("space users are already friends")
+	ErrSelfFriendship                 = errors.New("space users cannot friend themselves")
+	ErrSpaceFriendRequestLimitReached = errors.New("space friend request limit reached")
 )
+
+const MaxPendingFriendRequestsPerSpace = 100
 
 type friendShareMutation struct {
 	SpaceID              string
@@ -203,6 +206,18 @@ func (r *FriendsRepository) CreateFriendRequest(ctx context.Context, requesterID
 		return &reverse, false, true, stacktrace.Propagate(tx.Commit(), "")
 	case !errors.Is(err, sql.ErrNoRows):
 		return nil, false, false, stacktrace.Propagate(err, "")
+	}
+
+	var pendingRequestCount int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM space_friend_requests
+		WHERE target_space_id = $1
+	`, targetSpaceID).Scan(&pendingRequestCount); err != nil {
+		return nil, false, false, stacktrace.Propagate(err, "")
+	}
+	if pendingRequestCount >= MaxPendingFriendRequestsPerSpace {
+		return nil, false, false, ErrSpaceFriendRequestLimitReached
 	}
 
 	if err := tx.QueryRowContext(ctx, `
