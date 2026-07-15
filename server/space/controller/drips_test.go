@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProcessSpaceDripsKeepsDailyLock(t *testing.T) {
+func TestProcessSpaceDripsReleasesLock(t *testing.T) {
 	testutil.WithServerRoot(t)
 	db := testutil.RequireTestDB(t)
 	testutil.ResetTables(t, db)
@@ -38,9 +38,9 @@ func TestProcessSpaceDripsKeepsDailyLock(t *testing.T) {
 
 	controller.ProcessSpaceDrips()
 
-	var lockUntil int64
-	require.NoError(t, db.QueryRow(`SELECT lock_until FROM task_lock WHERE task_name = $1`, spaceDripMailLock).Scan(&lockUntil))
-	require.Greater(t, lockUntil, timeutil.Microseconds())
+	var lockCount int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM task_lock WHERE task_name = $1`, spaceDripMailLock).Scan(&lockCount))
+	require.Zero(t, lockCount)
 }
 
 func TestSpaceDripsSendMatureProfileNudgeOnly(t *testing.T) {

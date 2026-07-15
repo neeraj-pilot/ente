@@ -1374,7 +1374,7 @@ func setupAndStartCrons(userAuthRepo *repo.UserAuthRepository, collectionLinkRep
 		emailNotificationCtrl.SendStorageWarningMails()
 	})
 
-	schedule(c, "@every 24h", func() {
+	scheduleAndRun(c, "@every 24h", func() {
 		spaceDripController.ProcessSpaceDrips()
 	})
 

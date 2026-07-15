@@ -65,9 +65,10 @@ func (c *SpaceDripController) ProcessSpaceDrips() {
 	}
 	if c.LockController != nil {
 		if !c.LockController.TryLock(spaceDripMailLock, timeutil.MicrosecondsAfterHours(24)) {
-			log.Info("Skipping space drip emails because the daily lock is held")
+			log.Info("Skipping space drip emails because another instance is running")
 			return
 		}
+		defer c.LockController.ReleaseLock(spaceDripMailLock)
 	}
 	stats, err := c.processSpaceDrips(context.Background(), timeutil.Microseconds())
 	if err != nil {
@@ -168,6 +169,12 @@ func (c *SpaceDripController) processSpaceDripStage(ctx context.Context, stage s
 	candidates, err := stage.Candidates(ctx, now, limit)
 	if err != nil {
 		return 0, err
+	}
+	if len(candidates) == limit {
+		log.WithFields(log.Fields{
+			"template_id": stage.TemplateID,
+			"batch_size":  limit,
+		}).Warn("Space drip candidate batch reached limit")
 	}
 	userIDs := make([]int64, 0, len(candidates))
 	for _, candidate := range candidates {
