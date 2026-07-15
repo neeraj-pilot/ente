@@ -1,7 +1,6 @@
 package user
 
 import (
-	"context"
 	"database/sql"
 	"encoding/base64"
 	"errors"
@@ -506,7 +505,7 @@ func (c *UserController) ClearStorageWarningDeletionLoginBlock(userID int64) err
 	return c.NotificationHistoryRepo.ClearStorageWarningDeletionScheduled(userID)
 }
 
-func (c *UserController) AddTokenAndNotify(ctx context.Context, userID int64, app ente.App, token string, ip string, userAgent string) error {
+func (c *UserController) AddTokenAndNotify(ctx *gin.Context, userID int64, app ente.App, token string, ip string, userAgent string) error {
 	if err := c.ensureStorageWarningDeletionLoginAllowed(userID, app); err != nil {
 		return err
 	}
@@ -522,6 +521,7 @@ func (c *UserController) AddTokenAndNotify(ctx context.Context, userID int64, ap
 		return nil
 	}
 
+	clientPackage := ctx.GetHeader("X-Client-Package")
 	go func() {
 		user, userErr := c.UserRepo.GetUserByIDInternal(userID)
 		if userErr != nil {
@@ -540,6 +540,9 @@ func (c *UserController) AddTokenAndNotify(ctx context.Context, userID int64, ap
 			appName, ok := appDisplayNames[app]
 			if !ok {
 				appName = "Ente"
+			}
+			if clientPackage == "io.ente.space.web" {
+				appName = "Ente Space"
 			}
 			device := "Unknown Device"
 			if strings.TrimSpace(userAgent) != "" {
