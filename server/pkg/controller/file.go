@@ -599,7 +599,7 @@ func (c *FileController) Trash(ctx *gin.Context, userID int64, request ente.Tras
 			return stacktrace.Propagate(ente.ErrPermissionDenied, "user doesn't own collection")
 		}
 	}
-	return c.TrashRepository.TrashFiles(fileIDs, userID, request)
+	return c.TrashRepository.TrashFiles(userID, request)
 }
 
 // GetSize returns the size of files indicated by fileIDs that are owned by userID

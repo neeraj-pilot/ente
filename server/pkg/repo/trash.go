@@ -117,7 +117,11 @@ func (t *TrashRepository) GetFilesWithVersion(userID int64, updateAtTime int64, 
 	return convertRowsToTrash(rows)
 }
 
-func (t *TrashRepository) TrashFiles(fileIDs []int64, userID int64, trash ente.TrashRequest) error {
+func (t *TrashRepository) TrashFiles(userID int64, trash ente.TrashRequest) error {
+	fileIDs := make([]int64, 0, len(trash.TrashItems))
+	for _, item := range trash.TrashItems {
+		fileIDs = append(fileIDs, item.FileID)
+	}
 	updationTime := time.Microseconds()
 	ctx := context.Background()
 	tx, err := t.DB.BeginTx(ctx, nil)
