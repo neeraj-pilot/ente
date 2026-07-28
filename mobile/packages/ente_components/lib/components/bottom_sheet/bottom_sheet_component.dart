@@ -165,6 +165,7 @@ class BottomSheetComponent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.componentColors;
+    final isDesktop = _isDesktopPlatform(Theme.of(context).platform);
     final bottomInset = isKeyboardAware
         ? MediaQuery.viewInsetsOf(context).bottom
         : 0.0;
@@ -220,30 +221,40 @@ class BottomSheetComponent extends StatelessWidget {
       ],
     ];
 
-    final sheetBody = isScrollable
-        ? DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: initialChildSize,
-            snap: snap,
-            snapSizes: snapSizes,
-            builder: (context, scrollController) {
-              return ListView(
-                controller: scrollController,
-                padding: padding,
-                shrinkWrap: true,
-                children: children,
-              );
-            },
-          )
-        : Padding(
-            padding: padding,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: effectiveCrossAxisAlignment,
-              children: children,
-            ),
-          );
+    final contentColumn = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: effectiveCrossAxisAlignment,
+      children: children,
+    );
 
+    late final Widget sheetBody;
+    if (isDesktop) {
+      sheetBody = SingleChildScrollView(padding: padding, child: contentColumn);
+    } else if (isScrollable) {
+      sheetBody = DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: initialChildSize,
+        snap: snap,
+        snapSizes: snapSizes,
+        builder: (context, scrollController) {
+          return ListView(
+            controller: scrollController,
+            padding: padding,
+            shrinkWrap: true,
+            children: children,
+          );
+        },
+      );
+    } else {
+      sheetBody = Padding(padding: padding, child: contentColumn);
+    }
+
+    final borderRadius = isDesktop
+        ? BorderRadius.circular(Radii.sheet)
+        : const BorderRadius.only(
+            topLeft: Radius.circular(Radii.bottomSheet),
+            topRight: Radius.circular(Radii.bottomSheet),
+          );
     final safeAreaBody = SafeArea(top: false, child: sheetBody);
     final outlinedBody = borderSide == null
         ? safeAreaBody
@@ -251,10 +262,7 @@ class BottomSheetComponent extends StatelessWidget {
             position: DecorationPosition.foreground,
             decoration: BoxDecoration(
               border: Border.fromBorderSide(borderSide!),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(Radii.bottomSheet),
-                topRight: Radius.circular(Radii.bottomSheet),
-              ),
+              borderRadius: borderRadius,
             ),
             child: safeAreaBody,
           );
@@ -267,10 +275,7 @@ class BottomSheetComponent extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: backgroundColor ?? colors.backgroundBase,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(Radii.bottomSheet),
-            topRight: Radius.circular(Radii.bottomSheet),
-          ),
+          borderRadius: borderRadius,
         ),
         child: outlinedBody,
       ),
@@ -278,8 +283,8 @@ class BottomSheetComponent extends StatelessWidget {
   }
 }
 
-/// Shows [BottomSheetComponent] with the modal behavior used by the component
-/// catalog and mobile apps.
+/// Shows [BottomSheetComponent] as a centered dialog on desktop and a modal
+/// bottom sheet on mobile.
 Future<T?> showBottomSheetComponent<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -289,6 +294,34 @@ Future<T?> showBottomSheetComponent<T>({
   Color? barrierColor,
 }) {
   final colors = context.componentColors;
+  final effectiveBarrierColor =
+      barrierColor ?? colors.specialScrim.withValues(alpha: 0.55);
+
+  if (_isDesktopPlatform(Theme.of(context).platform)) {
+    return showDialog<T>(
+      context: context,
+      useRootNavigator: useRootNavigator,
+      barrierDismissible: isDismissible,
+      barrierColor: effectiveBarrierColor,
+      builder: (dialogContext) {
+        return Dialog(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(Spacing.xl),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 520,
+              maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.8,
+            ),
+            child: PopScope(
+              canPop: isDismissible,
+              child: builder(dialogContext),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   return showModalBottomSheet<T>(
     context: context,
@@ -297,7 +330,7 @@ Future<T?> showBottomSheetComponent<T>({
     isDismissible: isDismissible,
     enableDrag: enableDrag,
     backgroundColor: Colors.transparent,
-    barrierColor: barrierColor ?? colors.specialScrim.withValues(alpha: 0.55),
+    barrierColor: effectiveBarrierColor,
     useSafeArea: true,
     builder: (context) {
       return PopScope(canPop: isDismissible, child: builder(context));
@@ -440,3 +473,10 @@ class _BottomSheetActions extends StatelessWidget {
 
 const double _headerHeight = 38;
 const double _illustrationSlotBottomInset = 11;
+
+bool _isDesktopPlatform(TargetPlatform platform) => switch (platform) {
+  TargetPlatform.linux ||
+  TargetPlatform.macOS ||
+  TargetPlatform.windows => true,
+  _ => false,
+};
