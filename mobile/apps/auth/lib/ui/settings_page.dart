@@ -205,9 +205,10 @@ class SettingsPage extends StatelessWidget {
   }
 
   Future<void> _openDataSettings(BuildContext context) async {
-    final completed = await Navigator.of(
+    final completed = await pushAuthSettingsPage<bool>(
       context,
-    ).push<bool>(MaterialPageRoute(builder: (_) => const DataSettingsPage()));
+      const DataSettingsPage(),
+    );
     if (completed == true) {
       scaffoldKey.currentState?.closeDrawer();
     }
