@@ -7,12 +7,14 @@ import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:photos/generated/l10n.dart';
 import 'package:photos/models/user_details.dart';
+import 'package:photos/ui/sharing/library_sharing/library_sharing_strings.dart';
 import 'package:photos/ui/viewer/people/person_face_widget.dart';
 import 'package:photos/utils/avatar_util.dart';
 
 enum FamilyMemberAction {
   saveContact,
   editContact,
+  shareAlbums,
   editStorageLimit,
   removeMember,
   resendInvite,
@@ -30,6 +32,7 @@ List<FamilyMemberAction> familyMemberActions({
   required bool isCurrentUser,
   required FamilyMember member,
   required bool hasSavedContact,
+  bool librarySharingEnabled = false,
 }) {
   if (isCurrentUser) {
     return const [];
@@ -40,10 +43,15 @@ List<FamilyMemberAction> familyMemberActions({
       : hasSavedContact
       ? FamilyMemberAction.editContact
       : FamilyMemberAction.saveContact;
+  final shareAction =
+      librarySharingEnabled && member.userID != null && member.isActive
+      ? FamilyMemberAction.shareAlbums
+      : null;
 
   if (isAdmin) {
     return [
       ?contactAction,
+      ?shareAction,
       if (member.isPending) ...[
         FamilyMemberAction.resendInvite,
         FamilyMemberAction.revokeInvite,
@@ -57,7 +65,7 @@ List<FamilyMemberAction> familyMemberActions({
   if (!member.isActive || contactAction == null) {
     return const [];
   }
-  return [contactAction];
+  return [contactAction, ?shareAction];
 }
 
 class FamilyDashboard extends StatelessWidget {
@@ -69,6 +77,8 @@ class FamilyDashboard extends StatelessWidget {
     required this.profilePictureBytesByUserId,
     required this.linkedPersonIdsByUserId,
     required this.linkedPersonNamesByUserId,
+    this.librarySharingEnabled = false,
+    this.sharedAlbumCountsByUserId = const {},
     required this.onMemberTap,
     required this.onAddMember,
     required this.remainingSlots,
@@ -82,6 +92,8 @@ class FamilyDashboard extends StatelessWidget {
   final Map<int, Uint8List?> profilePictureBytesByUserId;
   final Map<int, String> linkedPersonIdsByUserId;
   final Map<int, String> linkedPersonNamesByUserId;
+  final bool librarySharingEnabled;
+  final Map<int, int> sharedAlbumCountsByUserId;
   final void Function(FamilyMember member, String displayName) onMemberTap;
   final VoidCallback onAddMember;
   final int remainingSlots;
@@ -117,7 +129,11 @@ class FamilyDashboard extends StatelessWidget {
             profilePictureBytes: profilePictureBytesByUserId[member.userID],
             linkedPersonId: linkedPersonIdsByUserId[member.userID],
             hasSavedContact: contactsByUserId[member.userID] != null,
+            librarySharingEnabled: librarySharingEnabled,
             avatarColor: _avatarColorFor(member),
+            sharedAlbumCount: librarySharingEnabled
+                ? sharedAlbumCountsByUserId[member.userID]
+                : null,
             onTap: () => onMemberTap(member, _displayNameFor(member)),
           ),
           if (index < visibleMembers.length - 1)
@@ -351,7 +367,9 @@ class _FamilyMemberRow extends StatelessWidget {
     required this.profilePictureBytes,
     required this.linkedPersonId,
     required this.hasSavedContact,
+    required this.librarySharingEnabled,
     required this.avatarColor,
+    this.sharedAlbumCount,
     required this.onTap,
   });
 
@@ -362,7 +380,9 @@ class _FamilyMemberRow extends StatelessWidget {
   final Uint8List? profilePictureBytes;
   final String? linkedPersonId;
   final bool hasSavedContact;
+  final bool librarySharingEnabled;
   final AvatarComponentColor avatarColor;
+  final int? sharedAlbumCount;
   final VoidCallback onTap;
 
   @override
@@ -373,13 +393,17 @@ class _FamilyMemberRow extends StatelessWidget {
       isCurrentUser: isCurrentUser,
       member: member,
       hasSavedContact: hasSavedContact,
+      librarySharingEnabled: librarySharingEnabled,
     );
     final isInteractive = actions.isNotEmpty;
+    final storageUsage = l10n.memberStorageUsed(
+      amount: convertBytesToReadableFormat(member.usage),
+    );
     final subtitle = member.isPending
         ? l10n.pending
-        : l10n.memberStorageUsed(
-            amount: convertBytesToReadableFormat(member.usage),
-          );
+        : isCurrentUser || member.userID == null || sharedAlbumCount == null
+        ? storageUsage
+        : LibrarySharingStrings.memberSubtitle(sharedAlbumCount!, storageUsage);
 
     return MenuComponent(
       title: displayName,
