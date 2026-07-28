@@ -158,28 +158,22 @@ class SettingsPage extends StatelessWidget {
       ]);
     }
 
-    final showMoreFromEnte = Platform.isIOS || Platform.isAndroid;
-    if (showMoreFromEnte) {
-      contents.addAll([
-        const SizedBox(height: 40),
-        MoreFromEnteSection(
-          currentApp: ComponentApp.auth,
-          moreFromLabel: context.strings.moreFrom,
-          onAppTap: (app) {
-            launchUrlString(
-              moreFromEnteUri(
-                sourceApp: ComponentApp.auth,
-                destinationApp: app,
-              ).toString(),
-              mode: LaunchMode.externalApplication,
-            ).ignore();
-          },
-        ),
-      ]);
-    }
-
     contents.addAll([
-      SizedBox(height: showMoreFromEnte ? 40 : Spacing.xxl),
+      const SizedBox(height: 40),
+      MoreFromEnteSection(
+        currentApp: ComponentApp.auth,
+        moreFromLabel: context.strings.moreFrom,
+        onAppTap: (app) {
+          launchUrlString(
+            moreFromEnteUri(
+              sourceApp: ComponentApp.auth,
+              destinationApp: app,
+            ).toString(),
+            mode: LaunchMode.externalApplication,
+          ).ignore();
+        },
+      ),
+      const SizedBox(height: 40),
       const SocialIconsRow(),
       const SizedBox(height: Spacing.md),
       const AppVersionWidget(),
