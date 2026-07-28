@@ -164,10 +164,9 @@ func (repo *UserRepository) GetAll(sinceTime int64, tillTime int64) ([]ente.User
 }
 
 // GetActiveUsersByLastActivityBefore returns active users whose effective last
-// activity is older than or equal to beforeTime. Effective activity uses latest
-// token activity when present, otherwise falls back to max(users.creation_time,
-// authenticator_entity.updated_at, collections.updation_time). Paging is done
-// by user_id.
+// activity is older than or equal to beforeTime. Effective activity is the
+// latest of token activity, users.creation_time, authenticator_entity.updated_at,
+// and collections.updation_time. Paging is done by user_id.
 func (repo *UserRepository) GetActiveUsersByLastActivityBefore(beforeTime int64, afterUserID int64, limit int) ([]UserInactivityCandidate, error) {
 	rows, err := repo.DB.Query(`
 		SELECT
@@ -176,13 +175,11 @@ func (repo *UserRepository) GetActiveUsersByLastActivityBefore(beforeTime int64,
 		FROM (
 			SELECT
 				u.user_id,
-				COALESCE(
-					t.last_token_activity,
-					GREATEST(
-						u.creation_time,
-						COALESCE(a.last_auth_activity, 0),
-						COALESCE(c.last_collection_activity, 0)
-					)
+				GREATEST(
+					u.creation_time,
+					COALESCE(t.last_token_activity, 0),
+					COALESCE(a.last_auth_activity, 0),
+					COALESCE(c.last_collection_activity, 0)
 				) AS last_activity
 			FROM users u
 			LEFT JOIN LATERAL (
@@ -238,13 +235,11 @@ func (repo *UserRepository) GetLatestActivity(userID int64) (int64, bool, error)
 	var lastActivity int64
 	err := repo.DB.QueryRow(`
 		SELECT
-			COALESCE(
-				t.last_token_activity,
-				GREATEST(
-					u.creation_time,
-					COALESCE(a.last_auth_activity, 0),
-					COALESCE(c.last_collection_activity, 0)
-				)
+			GREATEST(
+				u.creation_time,
+				COALESCE(t.last_token_activity, 0),
+				COALESCE(a.last_auth_activity, 0),
+				COALESCE(c.last_collection_activity, 0)
 			) AS last_activity
 		FROM users u
 		LEFT JOIN LATERAL (
