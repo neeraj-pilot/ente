@@ -228,7 +228,7 @@ class BottomSheetComponent extends StatelessWidget {
     );
 
     late final Widget sheetBody;
-    if (isDesktop) {
+    if (isDesktop && isScrollable) {
       sheetBody = SingleChildScrollView(padding: padding, child: contentColumn);
     } else if (isScrollable) {
       sheetBody = DraggableScrollableSheet(
