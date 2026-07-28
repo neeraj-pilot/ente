@@ -120,7 +120,7 @@ class _EnteAppLink extends StatelessWidget {
               children: [
                 Material(
                   key: ValueKey('more-from-ente-${app.name}'),
-                  type: MaterialType.transparency,
+                  color: colors.fillLight,
                   borderRadius: BorderRadius.circular(_appRadius),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
