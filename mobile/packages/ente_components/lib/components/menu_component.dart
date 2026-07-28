@@ -89,7 +89,7 @@ class _MenuComponentState extends State<MenuComponent> {
         child: MouseRegion(
           cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
           onEnter: enabled ? (_) => _setHovered(true) : null,
-          onExit: enabled ? (_) => _setHovered(false) : null,
+          onExit: (_) => _setHovered(false),
           child: InkWell(
             onTap: enabled && widget.onTap != null ? _handleTap : null,
             onDoubleTap: enabled && widget.onDoubleTap != null
@@ -381,6 +381,7 @@ class _MenuComponentState extends State<MenuComponent> {
     _loadingTimer?.cancel();
     setState(() {
       _executionState = ComponentExecutionState.inProgress;
+      _isHovered = false;
       _loadingVisible = false;
     });
     _loadingTimer = Timer(_loadingDelay, () {
