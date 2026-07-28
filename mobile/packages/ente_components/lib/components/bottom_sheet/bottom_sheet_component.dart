@@ -298,31 +298,62 @@ Future<T?> showBottomSheetComponent<T>({
       barrierColor ?? colors.specialScrim.withValues(alpha: 0.55);
 
   if (_isDesktopPlatform(Theme.of(context).platform)) {
-    return showDialog<T>(
+    return _showDesktopDialog<T>(
       context: context,
+      builder: builder,
+      isDismissible: isDismissible,
       useRootNavigator: useRootNavigator,
-      barrierDismissible: isDismissible,
       barrierColor: effectiveBarrierColor,
-      builder: (dialogContext) {
-        return Dialog(
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(Spacing.xl),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: 520,
-              maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.8,
-            ),
-            child: PopScope(
-              canPop: isDismissible,
-              child: builder(dialogContext),
-            ),
-          ),
-        );
-      },
     );
   }
 
+  return _showMobileBottomSheet<T>(
+    context: context,
+    builder: builder,
+    isDismissible: isDismissible,
+    enableDrag: enableDrag,
+    useRootNavigator: useRootNavigator,
+    barrierColor: effectiveBarrierColor,
+  );
+}
+
+Future<T?> _showDesktopDialog<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+  required bool isDismissible,
+  required bool useRootNavigator,
+  required Color barrierColor,
+}) {
+  return showDialog<T>(
+    context: context,
+    useRootNavigator: useRootNavigator,
+    barrierDismissible: isDismissible,
+    barrierColor: barrierColor,
+    builder: (dialogContext) {
+      return Dialog(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(Spacing.xl),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: _desktopDialogMaxWidth,
+            maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.8,
+          ),
+          child: PopScope(canPop: isDismissible, child: builder(dialogContext)),
+        ),
+      );
+    },
+  );
+}
+
+Future<T?> _showMobileBottomSheet<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+  required bool isDismissible,
+  required bool enableDrag,
+  required bool useRootNavigator,
+  required Color barrierColor,
+}) {
   return showModalBottomSheet<T>(
     context: context,
     useRootNavigator: useRootNavigator,
@@ -330,7 +361,7 @@ Future<T?> showBottomSheetComponent<T>({
     isDismissible: isDismissible,
     enableDrag: enableDrag,
     backgroundColor: Colors.transparent,
-    barrierColor: effectiveBarrierColor,
+    barrierColor: barrierColor,
     useSafeArea: true,
     builder: (context) {
       return PopScope(canPop: isDismissible, child: builder(context));
@@ -473,6 +504,7 @@ class _BottomSheetActions extends StatelessWidget {
 
 const double _headerHeight = 38;
 const double _illustrationSlotBottomInset = 11;
+const double _desktopDialogMaxWidth = 440;
 
 bool _isDesktopPlatform(TargetPlatform platform) => switch (platform) {
   TargetPlatform.linux ||
