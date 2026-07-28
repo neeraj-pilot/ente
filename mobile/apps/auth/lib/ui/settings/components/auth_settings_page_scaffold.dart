@@ -23,9 +23,9 @@ class AuthSettingsPageScaffold extends StatelessWidget {
     final colors = context.componentColors;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalPadding = math.max(
+        final rightPadding = math.max(
           Spacing.lg,
-          (constraints.maxWidth - _maxContentWidth) / 2,
+          constraints.maxWidth - Spacing.lg - _maxContentWidth,
         );
 
         return Scaffold(
@@ -34,15 +34,15 @@ class AuthSettingsPageScaffold extends StatelessWidget {
             title: title,
             subtitle: subtitle,
             backButton: backButton,
-            horizontalPadding: horizontalPadding,
+            horizontalPadding: Spacing.lg,
             slivers: [
               SliverSafeArea(
                 top: false,
                 sliver: SliverPadding(
                   padding: EdgeInsets.fromLTRB(
-                    horizontalPadding,
+                    Spacing.lg,
                     0,
-                    horizontalPadding,
+                    rightPadding,
                     Spacing.lg,
                   ),
                   sliver: SliverList.list(children: children),
