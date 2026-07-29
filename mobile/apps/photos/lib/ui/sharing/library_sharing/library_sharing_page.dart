@@ -251,6 +251,7 @@ class _LibrarySharingPageState extends State<LibrarySharingPage> {
           isSelected: _controller.isSelected,
           toggle: _handleAlbumTap,
         ),
+        enableSelectionMode: true,
         gridTopLeftOverlayBuilder: _roleOverlay,
         topPadding: Spacing.sm,
         bottomPadding: _gridBottomPadding,
@@ -263,7 +264,7 @@ class _LibrarySharingPageState extends State<LibrarySharingPage> {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(
         Spacing.lg,
-        Spacing.xl,
+        Spacing.xs,
         Spacing.lg,
         Spacing.md,
       ),

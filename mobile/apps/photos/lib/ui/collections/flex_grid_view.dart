@@ -158,6 +158,10 @@ class _CollectionsFlexiGridViewWidgetState
   }
 
   void _handleCollectionLongPress(Collection collection) {
+    if (widget.selectionCallbacks != null) {
+      unawaited(_toggleAlbumSelection(collection));
+      return;
+    }
     unawaited(
       _togglesSelectionOnTap
           ? _navigateToCollectionPage(collection)

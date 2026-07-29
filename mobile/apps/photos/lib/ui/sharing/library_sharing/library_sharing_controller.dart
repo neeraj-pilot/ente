@@ -19,7 +19,7 @@ class LibrarySharingController extends ChangeNotifier {
   List<Collection> _albums = const [];
   final Map<int, CollectionParticipantRole> _activeRoles = {};
   final Map<int, CollectionParticipantRole> _selectedRoles = {};
-  CollectionParticipantRole _defaultRole = CollectionParticipantRole.admin;
+  CollectionParticipantRole _defaultRole = CollectionParticipantRole.viewer;
   Object? _loadError;
   int _failedCount = 0;
   bool _isLoading = true;

@@ -440,7 +440,6 @@ class _MemberAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasPhoto = profilePictureBytes != null || linkedPersonId != null;
     final cachedPixelWidth =
         (AvatarComponentSize.large.dimension *
                 MediaQuery.devicePixelRatioOf(context))
@@ -475,19 +474,17 @@ class _MemberAvatar extends StatelessWidget {
             semanticLabel: displayName,
           );
 
-    if (hasPhoto) {
-      avatar = DecoratedBox(
-        position: DecorationPosition.foreground,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: avatarComponentColorValue(context, avatarColor),
-            width: 2,
-          ),
+    avatar = DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: avatarComponentColorValue(context, avatarColor),
+          width: 2,
         ),
-        child: avatar,
-      );
-    }
+      ),
+      child: avatar,
+    );
 
     if (!member.isAdmin) {
       return avatar;

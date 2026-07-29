@@ -14,7 +14,7 @@ Future<bool> showEnableLibrarySharingSheet({
   required BuildContext context,
   required String recipientLabel,
 }) async {
-  var selectedRole = CollectionParticipantRole.admin;
+  var selectedRole = CollectionParticipantRole.viewer;
   return await showBottomSheetComponent<bool>(
         context: context,
         builder: (sheetContext) => StatefulBuilder(

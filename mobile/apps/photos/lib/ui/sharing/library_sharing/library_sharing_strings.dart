@@ -7,7 +7,7 @@ abstract final class LibrarySharingStrings {
   static String get shareAlbums => pendingTranslation('Share albums');
   static String get internalShareAlbums =>
       pendingTranslation('(i) Share albums');
-  static String get librarySharing => pendingTranslation('Library Sharing');
+  static String get librarySharing => pendingTranslation('Library sharing');
   static String get shareAllYourAlbums =>
       pendingTranslation('Share all your albums');
   static String get enableLibrarySharing =>

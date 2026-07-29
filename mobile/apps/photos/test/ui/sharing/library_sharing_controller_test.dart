@@ -55,7 +55,7 @@ void main() {
     expect(await controller.applySelection(), isFalse);
     expect(controller.selectedAlbums.map((album) => album.id).toSet(), {2});
     expect(controller.failedCount, 1);
-    expect(controller.activeRoleFor(1), CollectionParticipantRole.admin);
+    expect(controller.activeRoleFor(1), CollectionParticipantRole.viewer);
     expect(controller.activeRoleFor(2), isNull);
 
     repository.shareFailures.clear();
@@ -154,14 +154,14 @@ void main() {
     expect(controller.isMutating, isTrue);
     controller.toggleSelection(repository.albums[1]);
     controller.selectAll();
-    controller.setRoleForSelection(CollectionParticipantRole.viewer);
+    controller.setRoleForSelection(CollectionParticipantRole.admin);
 
     expect(controller.selectedAlbums.map((album) => album.id).toSet(), {1});
-    expect(controller.stagedRoleFor(1), CollectionParticipantRole.admin);
+    expect(controller.stagedRoleFor(1), CollectionParticipantRole.viewer);
 
     gate.complete();
     expect(await apply, isTrue);
-    expect(repository.sharedRoles, [CollectionParticipantRole.admin]);
+    expect(repository.sharedRoles, [CollectionParticipantRole.viewer]);
   });
 
   test(
@@ -180,7 +180,7 @@ void main() {
 
       expect(await controller.applySelection(), isTrue);
       expect(controller.selectedAlbums, isEmpty);
-      expect(controller.activeRoleFor(1), CollectionParticipantRole.admin);
+      expect(controller.activeRoleFor(1), CollectionParticipantRole.viewer);
       expect(repository.sharedIDs, [1]);
     },
   );

@@ -346,7 +346,7 @@ class _SettingsBody extends StatelessWidget {
           },
         ),
         _buildMenuItem(
-          title: AppLocalizations.of(context).familyPlans,
+          title: AppLocalizations.of(context).family,
           icon: HugeIcons.strokeRoundedUserMultiple,
           showOnlyLoadingState: true,
           shouldSurfaceExecutionStates: true,

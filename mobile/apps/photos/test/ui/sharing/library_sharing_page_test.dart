@@ -38,7 +38,7 @@ void main() {
 
     expect(find.byType(LibrarySharingSelectionSheet), findsNothing);
     expect(find.text('No albums to share yet'), findsOneWidget);
-    expect(find.text('Library Sharing'), findsOneWidget);
+    expect(find.text('Library sharing'), findsOneWidget);
     expect(find.byType(ToggleSwitchComponent), findsOneWidget);
   });
 
@@ -70,7 +70,7 @@ void main() {
     expect(find.text('Share with'), findsOneWidget);
     expect(find.text('Sharing with'), findsNothing);
     expect(find.text('All your current albums are shared'), findsOneWidget);
-    expect(find.text('Library Sharing'), findsNothing);
+    expect(find.text('Library sharing'), findsNothing);
     expect(find.byType(LibrarySharingSelectionSheet), findsNothing);
     expect(find.byType(ToggleSwitchComponent), findsNothing);
   });
@@ -90,14 +90,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Library Sharing'), findsOneWidget);
+    expect(find.text('Library sharing'), findsOneWidget);
     expect(find.text('Share all your albums'), findsOneWidget);
     final toggle = tester.widget<ToggleSwitchComponent>(
       find.byKey(const ValueKey('library-sharing-toggle')),
     );
     expect(toggle.selected, isFalse);
 
-    await tester.tap(find.text('Library Sharing'));
+    await tester.tap(find.text('Library sharing'));
     await tester.pumpAndSettle();
 
     expect(find.text('Enable library sharing?'), findsOneWidget);
@@ -114,7 +114,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Role'), findsOneWidget);
-    expect(find.text('Admin'), findsOneWidget);
+    expect(find.text('Viewer'), findsOneWidget);
 
     await tester.tap(find.text('Enable'));
     await tester.pumpAndSettle();
@@ -147,18 +147,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Library Sharing'), findsOneWidget);
+    expect(find.text('Library sharing'), findsOneWidget);
     expect(find.byType(LibrarySharingSelectionSheet), findsNothing);
 
     controller.enterManageMode();
     controller.selectAll();
     await tester.pumpAndSettle();
-    expect(find.text('Library Sharing'), findsOneWidget);
+    expect(find.text('Library sharing'), findsOneWidget);
     expect(find.byType(LibrarySharingSelectionSheet), findsOneWidget);
 
     controller.clearSelection();
     await tester.pumpAndSettle();
-    expect(find.text('Library Sharing'), findsOneWidget);
+    expect(find.text('Library sharing'), findsOneWidget);
     expect(find.byType(LibrarySharingSelectionSheet), findsNothing);
     expect(find.byTooltip('Share albums'), findsOneWidget);
   });
