@@ -270,8 +270,8 @@ class DiffFetcher {
       incomingMinByUploadID[entry.key] = minIncoming;
     }
 
-    final dbMinByUploadID = await FilesDB.instance
-        .getMinPositiveAddedTimeForUploadedFiles(
+    final dbEarliestByUploadID = await FilesDB.instance
+        .getEarliestPositiveAddedTimeRowsForUploadedFiles(
           incomingMinByUploadID.keys.toSet(),
           currentUserID,
         );
@@ -286,17 +286,26 @@ class DiffFetcher {
       final candidates = entry.value;
       collectCandidatesCount += candidates.length;
       final incomingMin = incomingMinByUploadID[uploadedFileID]!;
-      final dbMin = dbMinByUploadID[uploadedFileID];
+      final dbEarliest = dbEarliestByUploadID[uploadedFileID];
 
-      if (dbMin != null && dbMin <= incomingMin) {
+      if (dbEarliest != null && dbEarliest.addedTime <= incomingMin) {
+        var keptForUploadID = false;
         for (final candidate in candidates) {
-          candidate.file.addedTime = -1;
+          if (dbEarliest.collectionID == collectionID &&
+              !keptForUploadID &&
+              candidate.collectionAddedAt == incomingMin) {
+            candidate.file.addedTime = dbEarliest.addedTime;
+            keptForUploadID = true;
+            keptIncomingCount++;
+          } else {
+            candidate.file.addedTime = -1;
+            suppressedIncomingCount++;
+          }
         }
-        suppressedIncomingCount += candidates.length;
         continue;
       }
 
-      if (dbMin != null && dbMin > incomingMin) {
+      if (dbEarliest != null && dbEarliest.addedTime > incomingMin) {
         uploadsToReset.add(uploadedFileID);
       }
 

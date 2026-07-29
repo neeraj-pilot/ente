@@ -1758,7 +1758,8 @@ class FilesDB with SqlDbBase {
     return collectionIDsOfFile;
   }
 
-  Future<Map<int, int>> getMinPositiveAddedTimeForUploadedFiles(
+  Future<Map<int, ({int collectionID, int addedTime})>>
+  getEarliestPositiveAddedTimeRowsForUploadedFiles(
     Set<int> uploadedFileIDs,
     int ownerID,
   ) async {
@@ -1767,7 +1768,7 @@ class FilesDB with SqlDbBase {
     }
 
     final db = await instance.sqliteAsyncDB;
-    final result = <int, int>{};
+    final result = <int, ({int collectionID, int addedTime})>{};
     const maxInParams = 900;
     final uploadIDs = uploadedFileIDs.toList(growable: false);
 
@@ -1779,22 +1780,33 @@ class FilesDB with SqlDbBase {
       final inParam = chunk.join(',');
       final rows = await db.getAll(
         '''
-        SELECT $columnUploadedFileID, MIN($columnAddedTime) AS min_added_time
+        SELECT $columnUploadedFileID, $columnCollectionID, $columnAddedTime
         FROM $filesTable
         WHERE $columnOwnerID = ?
         AND $columnUploadedFileID IN ($inParam)
         AND $columnAddedTime > 0
-        GROUP BY $columnUploadedFileID
         ''',
         [ownerID],
       );
       for (final row in rows) {
         final uploadedFileID = row[columnUploadedFileID] as int?;
-        final minAddedTime = row['min_added_time'] as int?;
-        if (uploadedFileID == null || minAddedTime == null) {
+        final collectionID = row[columnCollectionID] as int?;
+        final addedTime = row[columnAddedTime] as int?;
+        if (uploadedFileID == null ||
+            collectionID == null ||
+            addedTime == null) {
           continue;
         }
-        result[uploadedFileID] = minAddedTime;
+        final current = result[uploadedFileID];
+        if (current == null ||
+            addedTime < current.addedTime ||
+            (addedTime == current.addedTime &&
+                collectionID < current.collectionID)) {
+          result[uploadedFileID] = (
+            collectionID: collectionID,
+            addedTime: addedTime,
+          );
+        }
       }
     }
     return result;
