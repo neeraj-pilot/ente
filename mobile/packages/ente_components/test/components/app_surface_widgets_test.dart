@@ -55,6 +55,8 @@ void main() {
         ),
         selected: true,
         titleColor: ColorTokens.light.warning,
+        subtitleColor: ColorTokens.light.primary,
+        titleBold: true,
         iconColor: ColorTokens.light.primary,
         onTap: () async => tapped = true,
       ),
@@ -75,6 +77,14 @@ void main() {
     expect(
       tester.widget<Text>(find.text('Camera uploads')).style?.color,
       ColorTokens.light.warning,
+    );
+    expect(
+      tester.widget<Text>(find.text('Camera uploads')).style?.fontWeight,
+      TextStyles.bodyBold.fontWeight,
+    );
+    expect(
+      tester.widget<Text>(find.text('Enabled on Wi-Fi')).style?.color,
+      ColorTokens.light.primary,
     );
     expect(
       IconTheme.of(
