@@ -1830,6 +1830,9 @@
   "photos": "Photos",
   "videos": "Videos",
   "camera": "Camera",
+  "cameraPermissionRequired": "Camera access is required to take photos.",
+  "cameraPermissionSettings": "Camera access is turned off. Enable it in Settings to continue.",
+  "cameraPermissionRestricted": "Camera access is restricted on this device.",
   "livePhotos": "Live Photos",
   "searchHint1": "Fast, on-device search",
   "searchHint2": "Photo dates, descriptions",
@@ -2912,7 +2915,7 @@
   "ritualShareUnavailable": "Unable to share right now. Please try again.",
   "ritualNotificationMessage": "Take a photo now",
   "ritualCameraNotFound": "No camera found on this device.",
-  "ritualCameraStartError": "Unable to start camera. Please check permissions.",
+  "ritualCameraStartError": "Unable to start the camera. Please try again.",
   "ritualCaptureError": "Unable to capture photo. Please try again.",
   "ritualPhotoLimit": "You can add up to {maxPhotos, plural, one {# photo.} other {# photos.}}",
   "@ritualPhotoLimit": {

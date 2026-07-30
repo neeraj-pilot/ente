@@ -2,6 +2,7 @@ import "dart:async";
 import "dart:io";
 
 import "package:camera/camera.dart";
+import "package:ente_components/ente_components.dart";
 import "package:ente_pure_utils/ente_pure_utils.dart";
 import "package:flutter/material.dart";
 import "package:hugeicons/hugeicons.dart";
@@ -32,6 +33,14 @@ void openRitualCamera(BuildContext context, Ritual ritual) {
 }
 
 enum _CameraScreenMode { capture, review }
+
+enum _CameraIssue {
+  permissionDenied,
+  permissionSettingsRequired,
+  permissionRestricted,
+  unavailable,
+  initializationFailed,
+}
 
 class _RitualCapture {
   const _RitualCapture({required this.file, required this.mirrorPreview});
@@ -67,11 +76,12 @@ class _RitualCameraPageState extends State<RitualCameraPage>
   _CameraScreenMode _mode = _CameraScreenMode.capture;
   int _selectedIndex = 0;
   bool _restartCameraOnResume = false;
+  bool _resumeCameraAfterSettings = false;
   bool _pausedForNavigation = false;
   bool _initializing = true;
   bool _capturing = false;
   bool _saving = false;
-  String? _error;
+  _CameraIssue? _cameraIssue;
   List<_RitualCapture> _captures = <_RitualCapture>[];
   Collection? _album;
   bool _isPinching = false;
@@ -181,7 +191,10 @@ class _RitualCameraPageState extends State<RitualCameraPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (_restartCameraOnResume) {
+      if (_resumeCameraAfterSettings) {
+        _resumeCameraAfterSettings = false;
+        unawaited(_initializeCamera(_activeCamera));
+      } else if (_restartCameraOnResume) {
         _restartCameraOnResume = false;
         unawaited(_initializeCamera(_activeCamera));
       }
@@ -246,7 +259,7 @@ class _RitualCameraPageState extends State<RitualCameraPage>
     if (!mounted) return;
     setState(() {
       _initializing = true;
-      _error = null;
+      _cameraIssue = null;
     });
     CameraController? controller;
     try {
@@ -255,7 +268,7 @@ class _RitualCameraPageState extends State<RitualCameraPage>
         if (!permission.isGranted) {
           if (!mounted) return;
           setState(() {
-            _error = context.l10n.ritualCameraStartError;
+            _cameraIssue = _issueForPermission(permission);
             _initializing = false;
           });
           return;
@@ -265,7 +278,7 @@ class _RitualCameraPageState extends State<RitualCameraPage>
       if (_cameras.isEmpty) {
         if (!mounted) return;
         setState(() {
-          _error = context.l10n.ritualCameraNotFound;
+          _cameraIssue = _CameraIssue.unavailable;
           _initializing = false;
         });
         return;
@@ -293,13 +306,47 @@ class _RitualCameraPageState extends State<RitualCameraPage>
         _activeCamera = target;
         _initializing = false;
       });
+    } on CameraException catch (error) {
+      await controller?.dispose();
+      if (!mounted) return;
+      setState(() {
+        _cameraIssue = _issueForCameraException(error);
+        _initializing = false;
+      });
     } catch (_) {
       await controller?.dispose();
       if (!mounted) return;
       setState(() {
-        _error = context.l10n.ritualCameraStartError;
+        _cameraIssue = _CameraIssue.initializationFailed;
         _initializing = false;
       });
+    }
+  }
+
+  _CameraIssue _issueForPermission(PermissionStatus permission) {
+    if (permission.isPermanentlyDenied) {
+      return _CameraIssue.permissionSettingsRequired;
+    }
+    if (permission.isRestricted) {
+      return _CameraIssue.permissionRestricted;
+    }
+    return _CameraIssue.permissionDenied;
+  }
+
+  _CameraIssue _issueForCameraException(CameraException error) {
+    return switch (error.code) {
+      "CameraAccessDenied" || "CameraAccessDeniedWithoutPrompt" =>
+        _CameraIssue.permissionSettingsRequired,
+      "CameraAccessRestricted" => _CameraIssue.permissionRestricted,
+      _ => _CameraIssue.initializationFailed,
+    };
+  }
+
+  Future<void> _openCameraSettings() async {
+    _resumeCameraAfterSettings = true;
+    final didOpen = await openAppSettings();
+    if (!didOpen) {
+      _resumeCameraAfterSettings = false;
     }
   }
 
@@ -641,7 +688,11 @@ class _RitualCameraPageState extends State<RitualCameraPage>
               ),
             ),
             _mode == _CameraScreenMode.capture
-                ? _buildCaptureControls(colorScheme, isReady)
+                ? _cameraIssue == null
+                      ? _buildCaptureControls(colorScheme, isReady)
+                      : SizedBox(
+                          height: 20 + MediaQuery.paddingOf(context).bottom,
+                        )
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -717,38 +768,8 @@ class _RitualCameraPageState extends State<RitualCameraPage>
     if (_initializing) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_error != null) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, color: colorScheme.textMuted, size: 32),
-            const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _initializing ? null : _initializeCamera,
-              child: Text(context.l10n.tryAgain),
-            ),
-            TextButton(
-              onPressed: () async {
-                await _pausePreview();
-                if (!mounted) return;
-                await routeToPage(
-                  context,
-                  const AllRitualsScreen(),
-                ).whenComplete(_resumePreview);
-              },
-              child: Text(context.l10n.ritualBackToList),
-            ),
-          ],
-        ),
-      );
+    if (_cameraIssue != null) {
+      return _buildCameraIssue();
     }
     if (!isReady || _controller == null) {
       return const SizedBox.shrink();
@@ -1109,6 +1130,106 @@ class _RitualCameraPageState extends State<RitualCameraPage>
         });
       }
     });
+  }
+
+  Widget _buildCameraIssue() {
+    final issue = _cameraIssue!;
+    final message = switch (issue) {
+      _CameraIssue.permissionDenied => context.l10n.cameraPermissionRequired,
+      _CameraIssue.permissionSettingsRequired =>
+        context.l10n.cameraPermissionSettings,
+      _CameraIssue.permissionRestricted =>
+        context.l10n.cameraPermissionRestricted,
+      _CameraIssue.unavailable => context.l10n.ritualCameraNotFound,
+      _CameraIssue.initializationFailed => context.l10n.ritualCameraStartError,
+    };
+    final primaryLabel = switch (issue) {
+      _CameraIssue.permissionDenied => context.l10n.grantAccess,
+      _CameraIssue.permissionSettingsRequired => context.l10n.openSettings,
+      _CameraIssue.initializationFailed => context.l10n.tryAgain,
+      _CameraIssue.permissionRestricted || _CameraIssue.unavailable => null,
+    };
+    final primaryAction = switch (issue) {
+      _CameraIssue.permissionDenied ||
+      _CameraIssue.initializationFailed => _initializeCamera,
+      _CameraIssue.permissionSettingsRequired => _openCameraSettings,
+      _CameraIssue.permissionRestricted || _CameraIssue.unavailable => null,
+    };
+
+    return Theme(
+      data: ComponentTheme.darkTheme(),
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: HugeIcon(
+                      icon: issue == _CameraIssue.initializationFailed
+                          ? HugeIcons.strokeRoundedAlertCircle
+                          : HugeIcons.strokeRoundedCamera01,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  context.l10n.camera,
+                  style: darkTextTheme.largeBold,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  style: darkTextTheme.bodyMuted,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                if (primaryLabel != null && primaryAction != null) ...[
+                  ButtonComponent(
+                    label: primaryLabel,
+                    onTap: primaryAction,
+                    shouldSurfaceExecutionStates: false,
+                    leading: issue == _CameraIssue.permissionSettingsRequired
+                        ? const HugeIcon(
+                            icon: HugeIcons.strokeRoundedSettings01,
+                            color: Colors.white,
+                            size: 20,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                ButtonComponent(
+                  label: context.l10n.ritualBackToList,
+                  variant: ButtonComponentVariant.link,
+                  shouldSurfaceExecutionStates: false,
+                  onTap: () async {
+                    await _pausePreview();
+                    if (!mounted) return;
+                    await routeToPage(
+                      context,
+                      const AllRitualsScreen(),
+                    ).whenComplete(_resumePreview);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showZoomIndicator() {
