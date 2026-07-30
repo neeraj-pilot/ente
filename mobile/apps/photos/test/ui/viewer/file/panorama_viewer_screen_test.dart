@@ -148,6 +148,9 @@ void main() {
       // degrees maps to longitude 125.81 because the panorama widget's
       // longitude 0 faces the horizontal center), not the empty canvas area.
       expect(pano.longitude, closeTo(125.81, 0.01));
+      expect(pano.latitude, closeTo(13.09, 0.01));
+      expect(pano.zoom, closeTo(1.13, 0.01));
+      expect(pano.minZoom, pano.zoom);
 
       // Let the auto-hide timer fire and dispose the screen.
       await tester.pump(const Duration(seconds: 6));

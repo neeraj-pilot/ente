@@ -107,30 +107,43 @@ class _PanoramaViewerScreenState extends State<PanoramaViewerScreen> {
   Widget _buildPanorama() {
     return Stack(
       children: [
-        Panorama(
-          onTap: (_, _, _) {
-            setState(() {
-              if (isVisible) {
-                timer?.cancel();
-                SystemChrome.setEnabledSystemUIMode(
-                  SystemUiMode.immersiveSticky,
-                );
-              } else {
-                initTimer();
-              }
-              isVisible = !isVisible;
-            });
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final double initialZoom =
+                viewData?.initialZoom(
+                  constraints.maxWidth / constraints.maxHeight,
+                ) ??
+                1.0;
+            return Panorama(
+              onTap: (_, _, _) {
+                setState(() {
+                  if (isVisible) {
+                    timer?.cancel();
+                    SystemChrome.setEnabledSystemUIMode(
+                      SystemUiMode.immersiveSticky,
+                    );
+                  } else {
+                    initTimer();
+                  }
+                  isVisible = !isVisible;
+                });
+              },
+              latitude: viewData?.initialLatitude ?? 0.0,
+              longitude: viewData?.initialLongitude ?? 0.0,
+              zoom: initialZoom,
+              minZoom: initialZoom,
+              croppedArea:
+                  viewData?.croppedArea ??
+                  const Rect.fromLTWH(0.0, 0.0, 1.0, 1.0),
+              croppedFullWidth: viewData?.fullWidth ?? 1.0,
+              croppedFullHeight: viewData?.fullHeight ?? 1.0,
+              sensorControl: control,
+              background: widget.thumbnail != null
+                  ? Image.memory(widget.thumbnail!)
+                  : null,
+              child: Image.file(widget.file),
+            );
           },
-          longitude: viewData?.initialLongitude ?? 0.0,
-          croppedArea:
-              viewData?.croppedArea ?? const Rect.fromLTWH(0.0, 0.0, 1.0, 1.0),
-          croppedFullWidth: viewData?.fullWidth ?? 1.0,
-          croppedFullHeight: viewData?.fullHeight ?? 1.0,
-          sensorControl: control,
-          background: widget.thumbnail != null
-              ? Image.memory(widget.thumbnail!)
-              : null,
-          child: Image.file(widget.file),
         ),
         Visibility(
           visible: isVisible,
@@ -152,7 +165,7 @@ class _PanoramaViewerScreenState extends State<PanoramaViewerScreen> {
                     color: Colors.white,
                     size: 26,
                   ),
-                  onPressed: () async {
+                  onPressed: () {
                     if (control != SensorControl.none) {
                       control = SensorControl.none;
                     } else {

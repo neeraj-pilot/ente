@@ -1,3 +1,5 @@
+import "dart:math" as math;
+
 import "package:flutter/material.dart";
 
 /// View parameters for rendering a (possibly partial) panorama on a sphere,
@@ -36,6 +38,40 @@ class PanoramaViewData {
     if (longitude > 180) longitude -= 360;
     if (longitude < -180) longitude += 360;
     return longitude;
+  }
+
+  /// Initial camera latitude that points at the vertical center of the crop.
+  double get initialLatitude {
+    final double vCenter =
+        (croppedArea.top + croppedArea.height / 2) / fullHeight;
+    return (0.5 - vCenter) * 180;
+  }
+
+  /// Smallest supported zoom that keeps the initial viewport within the crop.
+  double initialZoom(double viewportAspectRatio) {
+    const double halfVerticalFieldOfView = 75 * math.pi / 360;
+    const double maxZoom = 5;
+    final double projectionScale = math.tan(halfVerticalFieldOfView);
+
+    final double halfVerticalCrop =
+        croppedArea.height / fullHeight * math.pi / 2;
+    final double verticalZoom = halfVerticalCrop >= halfVerticalFieldOfView
+        ? 1
+        : projectionScale / math.tan(halfVerticalCrop);
+
+    final double halfHorizontalCrop = croppedArea.width / fullWidth * math.pi;
+    final double halfHorizontalFieldOfView = math.atan(
+      projectionScale * viewportAspectRatio,
+    );
+    final double horizontalZoom =
+        halfHorizontalCrop >= halfHorizontalFieldOfView
+        ? 1
+        : projectionScale * viewportAspectRatio / math.tan(halfHorizontalCrop);
+
+    return math.min(
+      maxZoom,
+      math.max(1, math.max(verticalZoom, horizontalZoom)),
+    );
   }
 
   /// Parses GPano attributes extracted from XMP. Returns null when the

@@ -41,6 +41,28 @@ void main() {
       expect(uCenter * 360, closeTo(305.8, 0.1));
     });
 
+    test("initial view fits within the cropped area", () {
+      const data = PanoramaViewData(
+        fullWidth: 8762,
+        fullHeight: 4381,
+        croppedArea: Rect.fromLTWH(6183, 1040, 2520, 1664),
+      );
+
+      expect(data.initialLatitude, closeTo(13.09, 0.01));
+      expect(data.initialZoom(1080 / 2115), closeTo(1.13, 0.01));
+      expect(data.initialZoom(2), closeTo(1.21, 0.01));
+    });
+
+    test("caps the initial zoom at the viewer's maximum", () {
+      const data = PanoramaViewData(
+        fullWidth: 4000,
+        fullHeight: 2000,
+        croppedArea: Rect.fromLTWH(1500, 950, 1000, 100),
+      );
+
+      expect(data.initialZoom(0.5), 5);
+    });
+
     test("initial longitude is normalized to [-180, 180]", () {
       const data = PanoramaViewData(
         fullWidth: 1000,
