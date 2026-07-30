@@ -257,6 +257,47 @@ class PhotosContactsService {
     return contact;
   }
 
+  Future<contacts.ContactRecord?> createContactWithProfilePictureIfAbsent({
+    required int contactUserId,
+    required String name,
+    required Uint8List bytes,
+  }) async {
+    final contactsService = await _ensureReadyForWrite();
+    final generation = _sessionGeneration;
+    final existing = await contactsService.getContactByUserId(
+      contactUserId,
+      includeDeleted: true,
+    );
+    if (generation != _sessionGeneration) {
+      return null;
+    }
+    if (existing != null) {
+      if (!existing.isDeleted) {
+        _cacheContact(existing);
+        return existing;
+      }
+      return null;
+    }
+
+    final contact = await contactsService.createContact(
+      contacts.ContactData(contactUserId: contactUserId, name: name.trim()),
+    );
+    if (generation != _sessionGeneration) {
+      return null;
+    }
+    _cacheContact(contact);
+    _notifyChanged(contact);
+    final updated = await contactsService.setProfilePicture(contact.id, bytes);
+    if (generation != _sessionGeneration) {
+      return null;
+    }
+    _cacheContact(updated);
+    _profilePictureBytesByUserId[updated.contactUserId] = bytes;
+    _resolvedProfilePictureUserIds.add(updated.contactUserId);
+    _notifyChanged(updated);
+    return updated;
+  }
+
   Future<contacts.ContactRecord> setProfilePicture({
     required String contactId,
     required Uint8List bytes,

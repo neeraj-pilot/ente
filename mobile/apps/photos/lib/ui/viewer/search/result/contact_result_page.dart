@@ -41,6 +41,7 @@ import "package:photos/ui/viewer/gallery/state/selection_state.dart";
 import "package:photos/ui/viewer/hierarchicial_search/app_bar_filter_chips.dart";
 import "package:photos/ui/viewer/search/contact_avatar_widget.dart";
 import "package:photos/ui/viewer/search/result/edit_contact_page.dart";
+import "package:photos/utils/person_contact_linking_util.dart";
 
 class ContactResultPage extends StatefulWidget {
   final SearchResult searchResult;
@@ -265,14 +266,34 @@ class _ContactResultPageState extends State<ContactResultPage> {
       collections.isEmpty;
 
   Future<void> _refreshSavedContact() async {
-    final saved = await PhotosContactsService.instance.getContact(
+    var saved = await PhotosContactsService.instance.getContact(
       contactUserId: _contactUserId,
     );
+    String? resolvedPersonID;
+    if (saved == null && PersonService.isInitialized) {
+      final personID = _personId;
+      final person = personID == null
+          ? await findPersonLinkedToContact(
+              contactUserId: _contactUserId,
+              email: _contactEmail,
+            )
+          : await PersonService.instance.getPerson(personID);
+      if (person != null) {
+        resolvedPersonID = person.remoteID;
+        saved = await PersonService.instance
+            .tryAutoCreateContactForLinkedPerson(
+              person: person,
+              contactUserId: _contactUserId,
+              email: _contactEmail,
+            );
+      }
+    }
     if (!mounted) {
       return;
     }
     setState(() {
       _savedContact = saved;
+      _personId ??= resolvedPersonID;
       _resolvedSavedContact = true;
     });
   }

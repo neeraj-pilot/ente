@@ -35,6 +35,7 @@ import 'package:photos/ui/sharing/library_sharing/library_sharing_page.dart';
 import 'package:photos/ui/sharing/library_sharing/library_sharing_strings.dart';
 import 'package:photos/ui/viewer/search/result/edit_contact_page.dart';
 import 'package:photos/utils/dialog_util.dart';
+import 'package:photos/utils/person_contact_linking_util.dart';
 
 class FamilyPlanPage extends StatefulWidget {
   const FamilyPlanPage({
@@ -511,9 +512,7 @@ class _FamilyPlanPageState extends State<FamilyPlanPage> {
     FamilyMember member,
     String fallbackDisplayName,
   ) async {
-    final isCurrentUser =
-        member.email.trim().toLowerCase() ==
-        _userDetails.email.trim().toLowerCase();
+    final isCurrentUser = _isCurrentMember(member);
     final savedContact = await _resolveMemberContact(member);
     if (!mounted) {
       return;
@@ -671,7 +670,7 @@ class _FamilyPlanPageState extends State<FamilyPlanPage> {
       return _contactsByUserId[userID];
     }
 
-    final resolved = await _loadMemberContact(userID);
+    final resolved = await _loadMemberContact(member);
     if (!mounted) {
       return resolved.contact;
     }
@@ -717,8 +716,13 @@ class _FamilyPlanPageState extends State<FamilyPlanPage> {
 
   Future<void> _loadMemberContacts() async {
     final generation = ++_memberContactsLoadGeneration;
-    final userIDs = _familyMemberUserIDs();
-    final resolvedContacts = await Future.wait(userIDs.map(_loadMemberContact));
+    final members =
+        _userDetails.familyData?.members
+            ?.where((member) => member.userID != null)
+            .toList() ??
+        const <FamilyMember>[];
+    final userIDs = members.map((member) => member.userID!).toSet();
+    final resolvedContacts = await Future.wait(members.map(_loadMemberContact));
     if (!mounted || generation != _memberContactsLoadGeneration) {
       return;
     }
@@ -776,10 +780,32 @@ class _FamilyPlanPageState extends State<FamilyPlanPage> {
           .toSet() ??
       const <int>{};
 
-  Future<_ResolvedMemberContact> _loadMemberContact(int userID) async {
-    final contact = await PhotosContactsService.instance.getContact(
+  bool _isCurrentMember(FamilyMember member) =>
+      member.email.trim().toLowerCase() ==
+      _userDetails.email.trim().toLowerCase();
+
+  Future<_ResolvedMemberContact> _loadMemberContact(FamilyMember member) async {
+    final userID = member.userID!;
+    var contact = await PhotosContactsService.instance.getContact(
       contactUserId: userID,
     );
+    if (contact == null &&
+        member.isActive &&
+        !_isCurrentMember(member) &&
+        PersonService.isInitialized) {
+      final person = await findPersonLinkedToContact(
+        contactUserId: userID,
+        email: member.email,
+      );
+      if (person != null) {
+        contact = await PersonService.instance
+            .tryAutoCreateContactForLinkedPerson(
+              person: person,
+              contactUserId: userID,
+              email: member.email,
+            );
+      }
+    }
     final profilePicture = contact == null
         ? null
         : await PhotosContactsService.instance.getProfilePictureBytesByUserId(
