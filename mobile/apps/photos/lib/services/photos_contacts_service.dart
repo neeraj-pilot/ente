@@ -263,6 +263,9 @@ class PhotosContactsService {
     required Uint8List bytes,
   }) async {
     final contactsService = await _ensureReadyForWrite();
+    if (!identical(contactsService, _activeContactsOrNull())) {
+      return null;
+    }
     final generation = _sessionGeneration;
     final existing = await contactsService.getContactByUserId(
       contactUserId,
