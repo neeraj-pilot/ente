@@ -761,21 +761,15 @@ class PersonService {
     required int contactUserId,
     required String email,
   }) {
-    final pending = _autoContactCreationsByUserId[contactUserId];
-    if (pending != null) {
-      return pending;
-    }
-
-    final creation = _tryAutoCreateContactForLinkedPerson(
-      person: person,
-      contactUserId: contactUserId,
-      email: email,
-    );
-    _autoContactCreationsByUserId[contactUserId] = creation;
-    return creation.whenComplete(() {
-      if (identical(_autoContactCreationsByUserId[contactUserId], creation)) {
+    return _autoContactCreationsByUserId.putIfAbsent(contactUserId, () {
+      final creation = _tryAutoCreateContactForLinkedPerson(
+        person: person,
+        contactUserId: contactUserId,
+        email: email,
+      );
+      return creation.whenComplete(() {
         _autoContactCreationsByUserId.remove(contactUserId);
-      }
+      });
     });
   }
 
@@ -789,13 +783,6 @@ class PersonService {
         contactUserId <= 0 ||
         contactUserId == ownerUserID) {
       return null;
-    }
-
-    final existing = await _contactsService.getContact(
-      contactUserId: contactUserId,
-    );
-    if (existing != null) {
-      return existing;
     }
 
     final personUserID = person.data.userID;
@@ -828,10 +815,7 @@ class PersonService {
         e,
         s,
       );
-      if (_currentUserIDProvider() != ownerUserID) {
-        return null;
-      }
-      return _contactsService.getContact(contactUserId: contactUserId);
+      return null;
     }
   }
 

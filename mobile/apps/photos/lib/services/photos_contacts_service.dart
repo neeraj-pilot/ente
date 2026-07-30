@@ -288,9 +288,16 @@ class PhotosContactsService {
     if (generation != _sessionGeneration) {
       return null;
     }
-    _cacheContact(contact);
-    _notifyChanged(contact);
-    final updated = await contactsService.setProfilePicture(contact.id, bytes);
+    late contacts.ContactRecord updated;
+    try {
+      updated = await contactsService.setProfilePicture(contact.id, bytes);
+    } catch (_) {
+      if (generation != _sessionGeneration ||
+          !identical(contactsService, _activeContactsOrNull())) {
+        rethrow;
+      }
+      updated = await contactsService.setProfilePicture(contact.id, bytes);
+    }
     if (generation != _sessionGeneration) {
       return null;
     }
