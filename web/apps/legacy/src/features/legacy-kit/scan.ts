@@ -108,11 +108,13 @@ const imageOutputDimensions = ({ height, width }: ImageDimensions) => {
 
 const imageBitmapOptions = (
     dimensions: ImageDimensions,
+    isOrientedPortrait: boolean,
 ): ImageBitmapOptions => {
     const { height, width } = imageOutputDimensions(dimensions);
-    return dimensions.width >= dimensions.height
-        ? { resizeQuality: "high", resizeWidth: width }
-        : { resizeHeight: height, resizeQuality: "high" };
+    const longSide = Math.max(height, width);
+    return isOrientedPortrait
+        ? { resizeHeight: longSide, resizeQuality: "high" }
+        : { resizeQuality: "high", resizeWidth: longSide };
 };
 
 const byteAt = (bytes: Uint8Array, offset: number) => bytes[offset] ?? 0;
@@ -432,16 +434,32 @@ const loadImageFromFile = (file: File) =>
         image.src = objectURL;
     });
 
+const loadImageBitmapFromFile = async (
+    file: File,
+    dimensions: ImageDimensions,
+) => {
+    // Ask the browser which orientation it applies without requesting a full bitmap.
+    const orientationProbe = await createImageBitmap(file, { resizeWidth: 1 });
+    try {
+        return await createImageBitmap(
+            file,
+            imageBitmapOptions(
+                dimensions,
+                orientationProbe.height > orientationProbe.width,
+            ),
+        );
+    } finally {
+        orientationProbe.close();
+    }
+};
+
 const loadDrawableFromFile = async (
     file: File,
     dimensions: ImageDimensions,
 ): Promise<DrawableImage> => {
     if (typeof createImageBitmap === "function") {
         try {
-            const bitmap = await createImageBitmap(
-                file,
-                imageBitmapOptions(dimensions),
-            );
+            const bitmap = await loadImageBitmapFromFile(file, dimensions);
             return {
                 dispose: () => bitmap.close(),
                 height: bitmap.height,
