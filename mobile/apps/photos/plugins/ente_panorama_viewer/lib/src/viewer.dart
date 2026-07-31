@@ -367,6 +367,7 @@ class _EntePanoramaViewerState extends State<EntePanoramaViewer>
                   willChange: true,
                   painter: _PanoramaPainter(
                     camera: _camera,
+                    geometry: widget.geometry,
                     shader: shader,
                     image: image.image,
                   ),
@@ -435,18 +436,20 @@ class _BlurredBackgroundPainter extends CustomPainter {
 class _PanoramaPainter extends CustomPainter {
   _PanoramaPainter({
     required this.camera,
+    required this.geometry,
     required this.shader,
     required this.image,
   }) : super(repaint: camera);
 
   final PanoramaCamera camera;
+  final PanoramaGeometry geometry;
   final ui.FragmentShader shader;
   final ui.Image image;
 
   @override
   void paint(Canvas canvas, Size size) {
     final view = camera.view;
-    final crop = camera.geometry.normalizedCrop;
+    final crop = geometry.normalizedCrop;
     shader
       ..setFloat(0, size.width)
       ..setFloat(1, size.height)
@@ -457,13 +460,15 @@ class _PanoramaPainter extends CustomPainter {
       ..setFloat(6, crop.top)
       ..setFloat(7, crop.right)
       ..setFloat(8, crop.bottom)
-      ..setFloat(9, camera.geometry.coversFullWidth ? 1 : 0)
+      ..setFloat(9, geometry.coversFullWidth ? 1 : 0)
       ..setImageSampler(0, image);
     canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
   }
 
   @override
   bool shouldRepaint(_PanoramaPainter oldDelegate) {
-    return oldDelegate.shader != shader || oldDelegate.image != image;
+    return oldDelegate.geometry != geometry ||
+        oldDelegate.shader != shader ||
+        oldDelegate.image != image;
   }
 }
