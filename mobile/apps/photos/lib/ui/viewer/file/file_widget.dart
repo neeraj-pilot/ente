@@ -1,9 +1,11 @@
-import "package:ente_qr/ente_qr.dart";
+import "dart:io";
+
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
 import "package:photos/states/detail_page_state.dart";
+import "package:photos/ui/viewer/file/qr_code_detection_helper.dart";
 import "package:photos/ui/viewer/file/video_widget.dart";
 import "package:photos/ui/viewer/file/zoomable_live_image_new.dart";
 
@@ -16,7 +18,8 @@ class FileWidget extends StatelessWidget {
   final bool? autoPlay;
   final bool? isFromMemories;
   final Function({required int memoryDuration})? onFinalFileLoad;
-  final ValueNotifier<List<QrDetection>>? qrDetectionsNotifier;
+  final ValueChanged<File>? onFinalImageLoaded;
+  final ValueNotifier<QrCodeDetectionResult?>? qrDetectionsNotifier;
   final GestureLongPressStartCallback? onTextSelectionStart;
 
   const FileWidget(
@@ -28,6 +31,7 @@ class FileWidget extends StatelessWidget {
     this.backgroundDecoration,
     this.isFromMemories = false,
     this.onFinalFileLoad,
+    this.onFinalImageLoaded,
     this.qrDetectionsNotifier,
     this.onTextSelectionStart,
     super.key,
@@ -49,6 +53,7 @@ class FileWidget extends StatelessWidget {
         isFromMemories: isFromMemories ?? false,
         key: key ?? ValueKey(fileKey),
         onFinalFileLoad: onFinalFileLoad,
+        onFinalImageLoaded: onFinalImageLoaded,
         qrDetectionsNotifier: qrDetectionsNotifier,
         onTextSelectionStart: onTextSelectionStart,
       );

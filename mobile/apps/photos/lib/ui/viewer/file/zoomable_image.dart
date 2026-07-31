@@ -41,6 +41,7 @@ class ZoomableImage extends StatefulWidget {
   final bool isGuestView;
   final bool isFromMemories;
   final Function({required int memoryDuration})? onFinalFileLoad;
+  final ValueChanged<File>? onFinalImageLoaded;
 
   const ZoomableImage(
     this.photo, {
@@ -52,6 +53,7 @@ class ZoomableImage extends StatefulWidget {
     this.isGuestView = false,
     this.isFromMemories = false,
     this.onFinalFileLoad,
+    this.onFinalImageLoaded,
   });
 
   @override
@@ -604,7 +606,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
         },
       ).then((value) {
         if (mounted && !_loadedFinalImage && !_convertToSupportedFormat) {
-          _updateViewWithFinalImage(imageProvider);
+          _updateViewWithFinalImage(imageProvider, file);
         }
       });
     }
@@ -638,7 +640,10 @@ class _ZoomableImageState extends State<ZoomableImage> {
     );
   }
 
-  Future<void> _updateViewWithFinalImage(ImageProvider imageProvider) async {
+  Future<void> _updateViewWithFinalImage(
+    ImageProvider imageProvider,
+    File file,
+  ) async {
     await _updatePhotoViewController(
       previewImageProvider: _imageProvider,
       finalImageProvider: imageProvider,
@@ -649,6 +654,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
       _logger.info("Final image loaded");
     });
     _notifyReadyOnce();
+    widget.onFinalImageLoaded?.call(file);
   }
 
   Future<void> _updatePhotoViewController({
@@ -751,7 +757,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
 
       await precacheImage(imageProvider, context);
       if (mounted && !_loadedFinalImage) {
-        await _updateViewWithFinalImage(imageProvider);
+        await _updateViewWithFinalImage(imageProvider, file);
       }
       return true;
     } catch (e) {
@@ -855,7 +861,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
       unawaited(
         precacheImage(imageProvider, context).then((value) {
           if (mounted) {
-            _updateViewWithFinalImage(imageProvider);
+            _updateViewWithFinalImage(imageProvider, file);
           }
         }),
       );

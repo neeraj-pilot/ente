@@ -1,4 +1,5 @@
 import "dart:async";
+import "dart:io";
 import "dart:math";
 
 import 'package:ente_lock_screen/local_authentication_service.dart';
@@ -158,6 +159,7 @@ class _BodyState extends State<_Body> {
   bool swipeLocked = false;
   late final StreamSubscription<GuestViewEvent> _guestViewEventSubscription;
   QrCodeDetectionHelper? _qrHelper;
+  final Map<String, File> _renderedFiles = {};
 
   @override
   void initState() {
@@ -327,10 +329,11 @@ class _BodyState extends State<_Body> {
                     }
                     return ValueListenableBuilder(
                       valueListenable: _qrHelper!.qrDetectionsNotifier,
-                      builder: (context, detections, _) {
+                      builder: (context, result, _) {
+                        final file = _files![selectedIndex];
                         return QrCodeHighlightOverlay(
-                          detections: detections,
-                          file: _files![selectedIndex],
+                          detections: result?.forFile(file) ?? const [],
+                          file: file,
                         );
                       },
                     );
@@ -435,6 +438,12 @@ class _BodyState extends State<_Body> {
             });
           },
           backgroundDecoration: const BoxDecoration(color: Colors.black),
+          onFinalImageLoaded: (localFile) {
+            _renderedFiles[file.tag] = localFile;
+            if (_selectedFile?.tag == file.tag) {
+              _evaluateQrIfEligible(file);
+            }
+          },
           qrDetectionsNotifier: _qrHelper?.qrDetectionsNotifier,
           onTextSelectionStart:
               flagService.ocrOverlayEnabled &&
@@ -482,8 +491,10 @@ class _BodyState extends State<_Body> {
   }
 
   void _evaluateQrIfEligible(EnteFile file) {
-    if (_qrHelper == null || isGuestView || file is TrashFile) return;
-    _qrHelper!.evaluateFile(file);
+    _qrHelper?.evaluateFile(
+      file,
+      isGuestView || file is TrashFile ? null : _renderedFiles[file.tag],
+    );
   }
 
   bool shouldAutoPlay() {
