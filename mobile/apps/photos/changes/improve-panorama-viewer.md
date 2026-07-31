@@ -1,0 +1,1 @@
+- Made panoramic photos open faster and improved panning, zooming, and motion controls.

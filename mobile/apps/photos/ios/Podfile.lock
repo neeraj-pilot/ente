@@ -18,6 +18,8 @@ PODS:
     - Flutter
   - ente_cast (0.0.1):
     - Flutter
+  - ente_panorama_viewer (0.0.1):
+    - Flutter
   - ente_photos_rust (0.0.1):
     - Flutter
   - ente_qr (0.0.1):
@@ -159,8 +161,6 @@ PODS:
     - Flutter
   - mobile_ocr (0.0.1):
     - Flutter
-  - motion_sensors (0.0.1):
-    - Flutter
   - motionphoto (0.0.1):
     - Flutter
   - move_to_background (0.0.1):
@@ -262,6 +262,7 @@ DEPENDENCIES:
   - cupertino_http (from `.symlinks/plugins/cupertino_http/darwin`)
   - device_info_plus (from `.symlinks/plugins/device_info_plus/ios`)
   - ente_cast (from `.symlinks/plugins/ente_cast/ios`)
+  - ente_panorama_viewer (from `.symlinks/plugins/ente_panorama_viewer/ios`)
   - ente_photos_rust (from `.symlinks/plugins/ente_photos_rust/ios`)
   - ente_qr (from `.symlinks/plugins/ente_qr/ios`)
   - ente_rust (from `.symlinks/plugins/ente_rust/ios`)
@@ -292,7 +293,6 @@ DEPENDENCIES:
   - media_kit_libs_ios_video (from `.symlinks/plugins/media_kit_libs_ios_video/ios`)
   - media_kit_video (from `.symlinks/plugins/media_kit_video/ios`)
   - mobile_ocr (from `.symlinks/plugins/mobile_ocr/ios`)
-  - motion_sensors (from `.symlinks/plugins/motion_sensors/ios`)
   - motionphoto (from `.symlinks/plugins/motionphoto/ios`)
   - move_to_background (from `.symlinks/plugins/move_to_background/ios`)
   - native_video_editor (from `.symlinks/plugins/native_video_editor/ios`)
@@ -357,6 +357,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/device_info_plus/ios"
   ente_cast:
     :path: ".symlinks/plugins/ente_cast/ios"
+  ente_panorama_viewer:
+    :path: ".symlinks/plugins/ente_panorama_viewer/ios"
   ente_photos_rust:
     :path: ".symlinks/plugins/ente_photos_rust/ios"
   ente_qr:
@@ -417,8 +419,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/media_kit_video/ios"
   mobile_ocr:
     :path: ".symlinks/plugins/mobile_ocr/ios"
-  motion_sensors:
-    :path: ".symlinks/plugins/motion_sensors/ios"
   motionphoto:
     :path: ".symlinks/plugins/motionphoto/ios"
   move_to_background:
@@ -476,6 +476,7 @@ SPEC CHECKSUMS:
   cupertino_http: 94ac07f5ff090b8effa6c5e2c47871d48ab7c86c
   device_info_plus: 21fcca2080fbcd348be798aa36c3e5ed849eefbe
   ente_cast: a25feb3127397e5fc6aff03a12120916707757d4
+  ente_panorama_viewer: 87bb22e7868c3005314f80c05ee0787aa07edcd8
   ente_photos_rust: 2db1f31cbe3f13ef0f52909a52b1f885b880a6ec
   ente_qr: 86beaf5d2644705db9b565b32dd8b82c05fb36af
   ente_rust: d0197ebd5460e8f67576579452b073d698404abe
@@ -516,7 +517,6 @@ SPEC CHECKSUMS:
   media_kit_libs_ios_video: 5a18affdb97d1f5d466dc79988b13eff6c5e2854
   media_kit_video: 1746e198cb697d1ffb734b1d05ec429d1fcd1474
   mobile_ocr: bb5125a6810b4eead3c69778e6b7f3c61fb3c24d
-  motion_sensors: 741e702c17467b9569a92165dda8d4d88c6167f1
   motionphoto: 23e2aeb5c6380112f69468d71f970fa7438e5ed1
   move_to_background: 7e3467dd2a1d1013e98c9c1cb93fd53cd7ef9d84
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275

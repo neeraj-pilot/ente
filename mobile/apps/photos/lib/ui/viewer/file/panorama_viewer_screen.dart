@@ -1,10 +1,11 @@
 import "dart:async";
 import "dart:io";
+import "dart:ui" as ui;
 
+import "package:ente_panorama_viewer/ente_panorama_viewer.dart";
 import "package:flutter/material.dart";
 import "package:flutter/services.dart";
 import "package:logging/logging.dart";
-import "package:panorama/panorama.dart";
 import "package:photos/generated/l10n.dart";
 import "package:photos/src/rust/api/motion_photo_api.dart";
 import "package:photos/ui/viewer/file/panorama_view_data.dart";
@@ -13,6 +14,7 @@ final _logger = Logger("PanoramaViewerScreen");
 
 /// Extracts XMP attributes from the file at [filePath].
 typedef XmpExtractor = Future<Map<String, String>> Function(String filePath);
+typedef MotionAvailabilityChecker = Future<bool> Function();
 
 class PanoramaViewerScreen extends StatefulWidget {
   const PanoramaViewerScreen({
@@ -20,6 +22,7 @@ class PanoramaViewerScreen extends StatefulWidget {
     required this.file,
     required this.thumbnail,
     this.xmpExtractor,
+    this.motionAvailabilityChecker,
   });
 
   final File file;
@@ -27,6 +30,7 @@ class PanoramaViewerScreen extends StatefulWidget {
 
   /// Overridable for tests. Defaults to the Rust XMP extractor.
   final XmpExtractor? xmpExtractor;
+  final MotionAvailabilityChecker? motionAvailabilityChecker;
 
   @override
   State<PanoramaViewerScreen> createState() => _PanoramaViewerScreenState();
@@ -35,15 +39,17 @@ class PanoramaViewerScreen extends StatefulWidget {
 class _PanoramaViewerScreenState extends State<PanoramaViewerScreen> {
   PanoramaViewData? viewData;
   bool isReady = false;
-  SensorControl control = SensorControl.none;
+  bool motionAvailable = false;
+  bool motionEnabled = false;
   Timer? timer;
   bool isVisible = true;
 
   @override
   void initState() {
+    super.initState();
     initTimer();
     init();
-    super.initState();
+    initMotion();
   }
 
   @override
@@ -85,14 +91,50 @@ class _PanoramaViewerScreenState extends State<PanoramaViewerScreen> {
   static Future<Map<String, String>> _extractXmp(String filePath) =>
       extractXmp(filePath: filePath);
 
+  Future<void> initMotion() async {
+    bool available;
+    try {
+      available =
+          await (widget.motionAvailabilityChecker ??
+              isPanoramaMotionAvailable)();
+    } catch (_) {
+      available = false;
+    }
+    if (!mounted) return;
+    setState(() {
+      motionAvailable = available;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: isVisible ? AppBar() : null,
-      // The Panorama widget must only be created once the view parameters are
-      // final: changing its croppedArea afterwards makes it regenerate the
-      // sphere mesh, which drops an already-loaded texture and leaves the
-      // panorama blank (https://github.com/ente-io/ente/issues/11435).
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: isVisible
+          ? AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              foregroundColor: Colors.white,
+              systemOverlayStyle: SystemUiOverlayStyle.light,
+              flexibleSpace: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.72),
+                      Colors.black.withValues(alpha: 0.6),
+                      Colors.transparent,
+                    ],
+                    stops: const [0, 0.2, 1],
+                  ),
+                ),
+              ),
+            )
+          : null,
+      // Keep the thumbnail visible until the final crop is known so the first
+      // rendered frame does not jump from a full sphere to a partial panorama.
       body: isReady ? _buildPanorama() : _buildPlaceholder(),
     );
   }
@@ -101,85 +143,111 @@ class _PanoramaViewerScreenState extends State<PanoramaViewerScreen> {
     if (widget.thumbnail == null) {
       return const SizedBox.shrink();
     }
-    return Center(child: Image.memory(widget.thumbnail!));
+    return _BlurredThumbnail(widget.thumbnail!);
   }
 
   Widget _buildPanorama() {
+    final data = viewData;
+    final geometry = data == null
+        ? const PanoramaGeometry.fullSphere()
+        : PanoramaGeometry(
+            fullSize: Size(data.fullWidth, data.fullHeight),
+            croppedArea: data.croppedArea,
+          );
     return Stack(
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final double initialZoom =
-                viewData?.initialZoom(
-                  constraints.maxWidth / constraints.maxHeight,
-                ) ??
-                1.0;
-            return Panorama(
-              onTap: (_, _, _) {
-                setState(() {
-                  if (isVisible) {
-                    timer?.cancel();
-                    SystemChrome.setEnabledSystemUIMode(
-                      SystemUiMode.immersiveSticky,
-                    );
-                  } else {
-                    initTimer();
-                  }
-                  isVisible = !isVisible;
-                });
-              },
-              latitude: viewData?.initialLatitude ?? 0.0,
-              longitude: viewData?.initialLongitude ?? 0.0,
-              zoom: initialZoom,
-              minZoom: initialZoom,
-              croppedArea:
-                  viewData?.croppedArea ??
-                  const Rect.fromLTWH(0.0, 0.0, 1.0, 1.0),
-              croppedFullWidth: viewData?.fullWidth ?? 1.0,
-              croppedFullHeight: viewData?.fullHeight ?? 1.0,
-              sensorControl: control,
-              background: widget.thumbnail != null
-                  ? Image.memory(widget.thumbnail!)
-                  : null,
-              child: Image.file(widget.file),
-            );
+        EntePanoramaViewer(
+          image: FileImage(widget.file),
+          geometry: geometry,
+          initialView: PanoramaView(
+            longitude: data?.initialLongitude ?? 0,
+            latitude: data?.initialLatitude ?? 0,
+          ),
+          motionEnabled: motionEnabled,
+          placeholder: widget.thumbnail == null
+              ? null
+              : _BlurredThumbnail(widget.thumbnail!),
+          onError: (error, stackTrace) {
+            _logger.warning("Failed to render panorama", error, stackTrace);
+          },
+          onTap: () {
+            setState(() {
+              if (isVisible) {
+                timer?.cancel();
+                SystemChrome.setEnabledSystemUIMode(
+                  SystemUiMode.immersiveSticky,
+                );
+              } else {
+                initTimer();
+              }
+              isVisible = !isVisible;
+            });
           },
         ),
-        Visibility(
-          visible: isVisible,
-          child: Align(
-            alignment: Alignment.bottomRight,
-            child: Tooltip(
-              message: AppLocalizations.of(context).panorama,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 12, bottom: 32, right: 20),
-                child: IconButton(
-                  style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFF252525),
-                    fixedSize: const Size(44, 44),
+        if (motionAvailable)
+          Visibility(
+            visible: isVisible,
+            child: Align(
+              alignment: Alignment.bottomRight,
+              child: Tooltip(
+                message: AppLocalizations.of(context).panorama,
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    top: 12,
+                    bottom: 32,
+                    right: 20,
                   ),
-                  icon: Icon(
-                    control == SensorControl.none
-                        ? Icons.explore_outlined
-                        : Icons.explore_off_outlined,
-                    color: Colors.white,
-                    size: 26,
+                  child: IconButton(
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFF252525),
+                      fixedSize: const Size(44, 44),
+                    ),
+                    icon: Icon(
+                      !motionEnabled
+                          ? Icons.explore_outlined
+                          : Icons.explore_off_outlined,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        motionEnabled = !motionEnabled;
+                      });
+                    },
                   ),
-                  onPressed: () {
-                    if (control != SensorControl.none) {
-                      control = SensorControl.none;
-                    } else {
-                      control = SensorControl.orientation;
-                    }
-
-                    setState(() {});
-                  },
                 ),
               ),
             ),
           ),
-        ),
       ],
+    );
+  }
+}
+
+class _BlurredThumbnail extends StatelessWidget {
+  const _BlurredThumbnail(this.bytes);
+
+  final Uint8List bytes;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: ImageFiltered(
+        imageFilter: ui.ImageFilter.blur(
+          sigmaX: 32,
+          sigmaY: 32,
+          tileMode: TileMode.mirror,
+        ),
+        child: Transform.scale(
+          scale: 1.1,
+          child: Image.memory(
+            bytes,
+            width: double.infinity,
+            height: double.infinity,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
     );
   }
 }

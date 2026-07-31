@@ -2,9 +2,9 @@ import "dart:async";
 import "dart:io";
 import "dart:typed_data";
 
+import "package:ente_panorama_viewer/ente_panorama_viewer.dart";
 import "package:flutter/material.dart";
 import "package:flutter_test/flutter_test.dart";
-import "package:panorama/panorama.dart";
 import "package:photos/generated/l10n.dart";
 import "package:photos/ui/viewer/file/panorama_viewer_screen.dart";
 
@@ -127,30 +127,31 @@ void main() {
             file: imageFile,
             thumbnail: null,
             xmpExtractor: (_) => completer.future,
+            motionAvailabilityChecker: () async => false,
           ),
         ),
       );
 
-      // Regression check for #11435: the Panorama widget must not exist yet.
-      // Building it with placeholder crop values and updating them afterwards
-      // makes the panorama package regenerate its sphere mesh, dropping the
-      // already-loaded texture and rendering a blank (untextured) panorama.
-      expect(find.byType(Panorama), findsNothing);
+      expect(find.byType(EntePanoramaViewer), findsNothing);
 
       completer.complete(_pixelXmp);
       await tester.pump();
 
-      final pano = tester.widget<Panorama>(find.byType(Panorama));
-      expect(pano.croppedArea, const Rect.fromLTWH(6183, 1040, 2520, 1664));
-      expect(pano.croppedFullWidth, 8762);
-      expect(pano.croppedFullHeight, 4381);
+      final pano = tester.widget<EntePanoramaViewer>(
+        find.byType(EntePanoramaViewer),
+      );
+      expect(
+        pano.geometry,
+        PanoramaGeometry(
+          fullSize: const Size(8762, 4381),
+          croppedArea: const Rect.fromLTWH(6183, 1040, 2520, 1664),
+        ),
+      );
       // The initial view must face the cropped area (compass heading 305.8
       // degrees maps to longitude 125.81 because the panorama widget's
       // longitude 0 faces the horizontal center), not the empty canvas area.
-      expect(pano.longitude, closeTo(125.81, 0.01));
-      expect(pano.latitude, closeTo(13.09, 0.01));
-      expect(pano.zoom, closeTo(1.13, 0.01));
-      expect(pano.minZoom, pano.zoom);
+      expect(pano.initialView!.longitude, closeTo(125.81, 0.01));
+      expect(pano.initialView!.latitude, closeTo(13.09, 0.01));
 
       // Let the auto-hide timer fire and dispose the screen.
       await tester.pump(const Duration(seconds: 6));
@@ -167,16 +168,17 @@ void main() {
           file: imageFile,
           thumbnail: null,
           xmpExtractor: (_) async => throw StateError("no xmp"),
+          motionAvailabilityChecker: () async => false,
         ),
       ),
     );
     await tester.pump();
 
-    final pano = tester.widget<Panorama>(find.byType(Panorama));
-    expect(pano.croppedArea, const Rect.fromLTWH(0, 0, 1, 1));
-    expect(pano.croppedFullWidth, 1.0);
-    expect(pano.croppedFullHeight, 1.0);
-    expect(pano.longitude, 0.0);
+    final pano = tester.widget<EntePanoramaViewer>(
+      find.byType(EntePanoramaViewer),
+    );
+    expect(pano.geometry, const PanoramaGeometry.fullSphere());
+    expect(pano.initialView!.longitude, 0);
 
     await tester.pump(const Duration(seconds: 6));
     await tester.pumpWidget(const SizedBox());
@@ -192,16 +194,46 @@ void main() {
           file: imageFile,
           thumbnail: thumbnail,
           xmpExtractor: (_) => completer.future,
+          motionAvailabilityChecker: () async => false,
         ),
       ),
     );
 
-    expect(find.byType(Panorama), findsNothing);
+    expect(find.byType(EntePanoramaViewer), findsNothing);
     expect(find.byType(Image), findsOneWidget);
 
     completer.complete(const {});
     await tester.pump();
-    expect(find.byType(Panorama), findsOneWidget);
+    expect(find.byType(EntePanoramaViewer), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets("shows and toggles motion only when it is available", (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        PanoramaViewerScreen(
+          file: imageFile,
+          thumbnail: null,
+          xmpExtractor: (_) async => _pixelXmp,
+          motionAvailabilityChecker: () async => true,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byIcon(Icons.explore_outlined), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.explore_outlined));
+    await tester.pump();
+
+    final pano = tester.widget<EntePanoramaViewer>(
+      find.byType(EntePanoramaViewer),
+    );
+    expect(pano.motionEnabled, isTrue);
+    expect(find.byIcon(Icons.explore_off_outlined), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 6));
     await tester.pumpWidget(const SizedBox());

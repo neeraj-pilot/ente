@@ -1,0 +1,1 @@
+- Fixed cropped panoramas sometimes opening blank. Thanks @agarwalrahul2702!

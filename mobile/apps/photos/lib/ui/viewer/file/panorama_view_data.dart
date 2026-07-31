@@ -1,5 +1,3 @@
-import "dart:math" as math;
-
 import "package:flutter/material.dart";
 
 /// View parameters for rendering a (possibly partial) panorama on a sphere,
@@ -45,33 +43,6 @@ class PanoramaViewData {
     final double vCenter =
         (croppedArea.top + croppedArea.height / 2) / fullHeight;
     return (0.5 - vCenter) * 180;
-  }
-
-  /// Smallest supported zoom that keeps the initial viewport within the crop.
-  double initialZoom(double viewportAspectRatio) {
-    const double halfVerticalFieldOfView = 75 * math.pi / 360;
-    const double maxZoom = 5;
-    final double projectionScale = math.tan(halfVerticalFieldOfView);
-
-    final double halfVerticalCrop =
-        croppedArea.height / fullHeight * math.pi / 2;
-    final double verticalZoom = halfVerticalCrop >= halfVerticalFieldOfView
-        ? 1
-        : projectionScale / math.tan(halfVerticalCrop);
-
-    final double halfHorizontalCrop = croppedArea.width / fullWidth * math.pi;
-    final double halfHorizontalFieldOfView = math.atan(
-      projectionScale * viewportAspectRatio,
-    );
-    final double horizontalZoom =
-        halfHorizontalCrop >= halfHorizontalFieldOfView
-        ? 1
-        : projectionScale * viewportAspectRatio / math.tan(halfHorizontalCrop);
-
-    return math.min(
-      maxZoom,
-      math.max(1, math.max(verticalZoom, horizontalZoom)),
-    );
   }
 
   /// Parses GPano attributes extracted from XMP. Returns null when the
@@ -150,6 +121,19 @@ class PanoramaViewData {
         cHeight == null ||
         fWidth == null ||
         fHeight == null) {
+      return null;
+    }
+
+    final values = [cLeft, cTop, cWidth, cHeight, fWidth, fHeight];
+    if (values.any((value) => !value.isFinite) ||
+        fWidth <= 0 ||
+        fHeight <= 0 ||
+        cLeft < 0 ||
+        cTop < 0 ||
+        cWidth <= 0 ||
+        cHeight <= 0 ||
+        cLeft + cWidth > fWidth ||
+        cTop + cHeight > fHeight) {
       return null;
     }
 

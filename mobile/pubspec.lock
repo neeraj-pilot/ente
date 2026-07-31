@@ -859,14 +859,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.4"
-  flutter_cube:
-    dependency: transitive
-    description:
-      name: flutter_cube
-      sha256: "71cf679a251166eb97f86751c56582b09abdbf859485fbf60524948813914c3b"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.1"
   flutter_displaymode:
     dependency: transitive
     description:
@@ -1844,15 +1836,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.0"
-  motion_sensors:
-    dependency: "direct overridden"
-    description:
-      path: "."
-      ref: "4b11d59f4bda152627f701070272f657f8358e67"
-      resolved-ref: "4b11d59f4bda152627f701070272f657f8358e67"
-      url: "https://github.com/deckerst/aves_panorama_motion_sensors.git"
-    source: git
-    version: "0.1.0"
   motionphoto:
     dependency: transitive
     description:
@@ -2056,15 +2039,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.2.1"
-  panorama:
-    dependency: transitive
-    description:
-      path: "."
-      ref: d7bf958d045ce5c06080aaa39074546f46f064d1
-      resolved-ref: d7bf958d045ce5c06080aaa39074546f46f064d1
-      url: "https://github.com/ente/panorama_blur.git"
-    source: git
-    version: "0.4.1"
   password_strength:
     dependency: transitive
     description:

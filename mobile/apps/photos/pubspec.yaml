@@ -73,6 +73,8 @@ dependencies:
     path: ../../packages/install_source
   ente_lock_screen:
     path: ../../packages/lock_screen
+  ente_panorama_viewer:
+    path: plugins/ente_panorama_viewer
   ente_photos_rust:
     path: rust_builder
   ente_pure_utils:
@@ -192,10 +194,6 @@ dependencies:
       url: https://github.com/ente/open-mail-app-flutter.git
       ref: 13c0244db82b386ad1a53b2451bdfda8d2687cb6
   package_info_plus: 8.3.1
-  panorama:
-    git:
-      url: https://github.com/ente/panorama_blur.git
-      ref: d7bf958d045ce5c06080aaa39074546f46f064d1
   password_strength: 0.2.0
   path: 1.9.1 #dart
   path_provider: 2.1.5
