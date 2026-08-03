@@ -7,14 +7,10 @@ import {
     ensureLocalUser,
     ensureUserKeyPair,
 } from "ente-accounts-rs/services/user";
-import {
-    authenticatedRequestHeaders,
-    ensureOk,
-    publicRequestHeaders,
-} from "ente-base/http";
+import { fetchFile } from "ente-base/file-download";
+import { authenticatedRequestHeaders, ensureOk } from "ente-base/http";
 import log from "ente-base/log";
 import { apiURL, customAPIOrigin } from "ente-base/origins";
-import { ensureAuthToken } from "ente-base/token";
 import { z } from "zod";
 import {
     boxSealOpen,
@@ -1046,9 +1042,7 @@ export const downloadLockerFile = async (
     let response: Response;
     try {
         if (customOrigin) {
-            const token = await ensureAuthToken();
-            const url = await apiURL(`/files/download/${fileID}`, { token });
-            response = await fetch(url, { headers: publicRequestHeaders() });
+            response = await fetchFile(fileID, "file");
         } else {
             response = await fetch(`https://files.ente.com/?fileID=${fileID}`, {
                 headers: await authenticatedRequestHeaders(),
