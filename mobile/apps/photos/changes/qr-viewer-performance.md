@@ -1,0 +1,1 @@
+- Improved photo viewer responsiveness while swiping through photos.
