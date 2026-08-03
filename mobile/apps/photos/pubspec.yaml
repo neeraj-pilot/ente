@@ -24,7 +24,6 @@ dependencies:
   android_intent_plus: 5.3.0
   app_links: 6.4.1
   archive: 4.0.9
-  async: 2.13.1
   audio_session: 0.2.2
   backup_exclusion:
     path: ../../packages/backup_exclusion
@@ -42,7 +41,6 @@ dependencies:
       url: https://github.com/ente/computer.git
       ref: 82e365fed8a1a76f6eea0220de98389eed7b0445
   connectivity_plus: 6.1.4
-  convert: 3.1.2
   crypto: 3.0.7
   cupertino_icons: 1.0.8
   defer_pointer: 0.0.2
@@ -50,7 +48,6 @@ dependencies:
   dio: 5.9.2
   dio_http2_adapter: 2.7.1
   dotted_border: 3.1.0
-  dropdown_button2: 2.3.9
   email_validator: 3.0.0
   encrypt: 5.0.3
   ente_account_deletion:
@@ -92,7 +89,6 @@ dependencies:
   equatable: 2.0.7
   event_bus: 2.0.1
   exif_reader: 4.1.0
-  expandable: 5.0.1
   expansion_tile_card: 3.0.0
   extended_image: 9.1.0
   fade_indexed_stack: 0.2.2
@@ -106,7 +102,6 @@ dependencies:
   file_saver: 0.3.1
   firebase_core: 3.15.1
   firebase_messaging: 15.2.9
-  fixnum: 1.1.1
   flutter:
     sdk: flutter
   flutter_animate: 4.5.2
@@ -145,7 +140,6 @@ dependencies:
   fraction: 5.0.5
   freezed_annotation: 3.1.0
   home_widget: 0.8.0
-  html_unescape: 2.0.0
   http: 1.6.0
   hugeicons: 1.1.7
   image: 4.7.0
