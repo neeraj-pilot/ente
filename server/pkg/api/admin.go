@@ -546,6 +546,38 @@ func (h *AdminHandler) UpdateBonus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{})
 }
 
+func (h *AdminHandler) RepairCollectionSelfShares(c *gin.Context) {
+	var request struct {
+		CollectionID int64 `json:"collectionID"`
+		UserID       int64 `json:"userID"`
+	}
+	if err := handler.BindJSON(c, &request); err != nil {
+		handler.Error(c, stacktrace.Propagate(err, "Bad request"))
+		return
+	}
+	if request.CollectionID <= 0 {
+		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage("collectionID must be positive"), ""))
+		return
+	}
+	if request.UserID <= 0 {
+		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage("userID must be positive"), ""))
+		return
+	}
+	updationTime := time.Microseconds()
+	repaired, err := h.CollectionRepo.RepairCollectionSelfShare(c, request.CollectionID, request.UserID, updationTime)
+	if err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
+	adminID := auth.GetUserID(c.Request.Header)
+	h.notifyAdminAction(adminID, "repairing owner self-share row for collection %d and user %d", request.CollectionID, request.UserID)
+	c.JSON(http.StatusOK, gin.H{
+		"collectionID": request.CollectionID,
+		"repaired":     repaired,
+		"updationTime": updationTime,
+	})
+}
+
 func (h *AdminHandler) RecoverAccount(c *gin.Context) {
 
 	var request ente.RecoverAccountRequest

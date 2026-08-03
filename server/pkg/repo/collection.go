@@ -611,6 +611,75 @@ func (repo *CollectionRepository) UnShare(collectionID int64, toUserID int64) er
 	return stacktrace.Propagate(err, "")
 }
 
+func (repo *CollectionRepository) RepairCollectionSelfShare(ctx context.Context, collectionID int64, userID int64, updationTime int64) (bool, error) {
+	tx, err := repo.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return false, stacktrace.Propagate(err, "")
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.QueryContext(ctx, `
+		WITH target AS (
+			SELECT cs.collection_id, c.owner_id
+			FROM collection_shares cs
+			INNER JOIN collections c
+				ON c.collection_id = cs.collection_id
+			WHERE cs.is_deleted = FALSE
+				AND cs.collection_id = $1
+				AND c.owner_id = $2
+				AND cs.from_user_id = $2
+				AND cs.to_user_id = $2
+			GROUP BY cs.collection_id, c.owner_id
+		),
+		deleted_shares AS (
+			DELETE FROM collection_shares cs
+			USING target
+			WHERE cs.collection_id = target.collection_id
+				AND cs.from_user_id = target.owner_id
+				AND cs.to_user_id = target.owner_id
+				AND cs.is_deleted = FALSE
+			RETURNING cs.collection_id
+		),
+		updated_collections AS (
+			UPDATE collections c
+			SET updation_time = $3
+			FROM target
+			WHERE c.collection_id = target.collection_id
+				AND EXISTS (
+					SELECT 1
+					FROM deleted_shares ds
+					WHERE ds.collection_id = c.collection_id
+				)
+			RETURNING c.collection_id, c.owner_id, c.updation_time
+		)
+		SELECT collection_id
+		FROM updated_collections
+		ORDER BY collection_id
+	`, collectionID, userID, updationTime)
+	if err != nil {
+		return false, stacktrace.Propagate(err, "")
+	}
+
+	repaired := false
+	for rows.Next() {
+		var repairedCollectionID int64
+		if err := rows.Scan(&repairedCollectionID); err != nil {
+			return false, stacktrace.Propagate(err, "")
+		}
+		repaired = true
+	}
+	if err := rows.Err(); err != nil {
+		return false, stacktrace.Propagate(err, "")
+	}
+	if err := rows.Close(); err != nil {
+		return false, stacktrace.Propagate(err, "")
+	}
+	if err := tx.Commit(); err != nil {
+		return false, stacktrace.Propagate(err, "")
+	}
+	return repaired, nil
+}
+
 // AddFiles adds files to a collection
 func (repo *CollectionRepository) AddFiles(
 	collectionID int64,

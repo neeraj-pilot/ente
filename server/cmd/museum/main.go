@@ -984,6 +984,7 @@ func main() {
 	adminAPI.PUT("/user/subscription", adminHandler.UpdateSubscription)
 	adminAPI.POST("/queue/re-queue", adminHandler.ReQueueItem)
 	adminAPI.POST("/user/bonus", adminHandler.UpdateBonus)
+	adminAPI.POST("/collection-shares/repair-owner-self-shares", adminHandler.RepairCollectionSelfShares)
 
 	userEntityController := &userEntityCtrl.Controller{Repo: userEntityRepo}
 	userEntityHandler := &api.UserEntityHandler{Controller: userEntityController}
