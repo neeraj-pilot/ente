@@ -143,8 +143,7 @@ dependencies:
   http: 1.6.0
   hugeicons: 1.1.7
   image: 4.7.0
-  in_app_purchase: 3.3.0
-  in_app_purchase_storekit: 0.4.11
+  in_app_purchase: 3.2.1
   intl: 0.20.2
   just_audio: 0.10.5
   latlong2: 0.9.1

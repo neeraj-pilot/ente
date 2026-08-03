@@ -1,1 +1,0 @@
-- Update to newer version of Google Play Billing Library to avoid updates from getting rejected after Aug 31st. iOS storekit had to be updated too, so need to test if there are any regressions in the buying subscriptions via both stores

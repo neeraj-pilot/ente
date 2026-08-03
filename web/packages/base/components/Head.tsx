@@ -22,6 +22,7 @@ const AlbumsFontPreloads: React.FC = () => (
 
 const albumsPreviewTitle = "Photos, shared with you";
 const albumsPreviewDescription = "Tap to view on Ente";
+const albumsPreviewURL = "https://albums.ente.com";
 const albumsPreviewImage = "https://albums.ente.com/images/preview.png";
 
 /**
@@ -68,6 +69,7 @@ export const CustomHeadAlbumsStatic: React.FC = () => (
         <link rel="icon" href="/images/favicon.png" type="image/png" />
         <meta name="description" content={albumsPreviewDescription} />
         <meta property="og:type" content="website" />
+        <meta property="og:url" content={albumsPreviewURL} />
         <meta property="og:title" content={albumsPreviewTitle} />
         <meta property="og:description" content={albumsPreviewDescription} />
         <meta property="og:image" content={albumsPreviewImage} />
