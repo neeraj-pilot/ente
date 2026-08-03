@@ -606,9 +606,11 @@ func main() {
 	storageAPI.POST("/files/upload-url", fileHandler.GetUploadURLV2)
 	storageAPI.POST("/files/multipart-upload-url", fileHandler.GetMultipartUploadURLV2)
 	storageAPI.GET("/files/download/:fileID", fileHandler.Get)
-	storageAPI.GET("/files/download/v2/:fileID", fileHandler.GetV2)
+	storageAPI.GET("/files/download/v2/:fileID", fileHandler.GetURL)
+	storageAPI.GET("/files/download/v3/:fileID", fileHandler.GetURLV3)
 	storageAPI.GET("/files/preview/:fileID", fileHandler.GetThumbnail)
-	storageAPI.GET("/files/preview/v2/:fileID", fileHandler.GetThumbnailV2)
+	storageAPI.GET("/files/preview/v2/:fileID", fileHandler.GetThumbnailURL)
+	storageAPI.GET("/files/thumbnail/v3/:fileID", fileHandler.GetThumbnailURLV3)
 
 	storageAPI.POST("/files/share-url", fileHandler.ShareUrl)
 	storageAPI.GET("/files/share-url", fileHandler.GetUrls)

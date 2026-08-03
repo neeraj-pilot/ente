@@ -213,7 +213,8 @@ func isSpaceViewerReadURLPath(reqPath string) bool {
 // getLimiter, based on reqPath & reqMethod, return instance of limiter.Limiter which needs to
 // be applied for a request. It returns nil if the request is not rate limited
 func (r *RateLimitMiddleware) getLimiter(reqPath string, reqMethod string) *limiter.Limiter {
-	if strings.HasPrefix(reqPath, "/files/preview/") {
+	if strings.HasPrefix(reqPath, "/files/preview/") ||
+		strings.HasPrefix(reqPath, "/files/thumbnail/") {
 		return r.limit700ReqPerSec
 	}
 	if reqPath == "/space/public/by-slug/:spaceSlug" ||
