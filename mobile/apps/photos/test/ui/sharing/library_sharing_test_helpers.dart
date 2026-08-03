@@ -22,7 +22,7 @@ class FakeLibrarySharingRepository implements LibrarySharingRepository {
   Completer<void>? shareGate;
   Completer<List<Collection>>? loadGate;
   Object? loadFailure;
-  int publicKeyRequests = 0;
+  bool automaticSharingEnabled = false;
 
   @override
   Future<List<Collection>> getEligibleAlbums() async {
@@ -38,51 +38,78 @@ class FakeLibrarySharingRepository implements LibrarySharingRepository {
   }
 
   @override
-  Future<String?> getPublicKey(String email) async {
-    publicKeyRequests++;
-    return 'public-key';
+  Future<Set<int>> shareAlbums({
+    required LibrarySharingRecipient recipient,
+    required Map<int, CollectionParticipantRole> roles,
+  }) async {
+    await shareGate?.future;
+    final failedIDs = <int>{};
+    for (final entry in roles.entries) {
+      sharedIDs.add(entry.key);
+      sharedRoles.add(entry.value);
+      if (shareFailures.containsKey(entry.key)) {
+        failedIDs.add(entry.key);
+        continue;
+      }
+      final collection = albums.firstWhere((album) => album.id == entry.key);
+      collection.sharees.removeWhere((sharee) => sharee.id == recipient.userID);
+      collection.sharees.add(
+        User(
+          id: recipient.userID,
+          email: recipient.email,
+          role: entry.value.toStringVal(),
+        ),
+      );
+    }
+    return failedIDs;
   }
 
   @override
-  Future<void> shareAlbum({
-    required Collection collection,
-    required String email,
-    required String publicKey,
+  Future<Set<int>> unshareAlbums({
+    required int recipientUserID,
+    required List<int> collectionIDs,
+  }) async {
+    for (final id in collectionIDs) {
+      unsharedIDs.add(id);
+      albums
+          .firstWhere((album) => album.id == id)
+          .sharees
+          .removeWhere((sharee) => sharee.id == recipientUserID);
+    }
+    return const {};
+  }
+
+  @override
+  Future<bool> isAutomaticSharingEnabled(int recipientUserID) async =>
+      automaticSharingEnabled;
+
+  @override
+  Future<Set<int>> enableAutomaticSharing({
+    required LibrarySharingRecipient recipient,
     required CollectionParticipantRole role,
   }) async {
-    sharedIDs.add(collection.id);
-    sharedRoles.add(role);
-    await shareGate?.future;
-    final failure = shareFailures[collection.id];
-    if (failure != null) {
-      throw failure;
-    }
-    collection.sharees.removeWhere(
-      (sharee) => sharee.id == librarySharingTestRecipient.userID,
+    final failures = await shareAlbums(
+      recipient: recipient,
+      roles: {
+        for (final album in albums)
+          if (librarySharingRoleFor(album, recipient.userID) == null)
+            album.id: role,
+      },
     );
-    collection.sharees.add(
-      User(
-        id: librarySharingTestRecipient.userID,
-        email: email,
-        role: role.toStringVal(),
-      ),
-    );
+    automaticSharingEnabled = failures.isEmpty;
+    return failures;
   }
 
   @override
-  Future<void> unshareAlbum({
-    required Collection collection,
-    required int recipientUserID,
-    required String email,
-  }) async {
-    unsharedIDs.add(collection.id);
-    collection.sharees.removeWhere((sharee) => sharee.id == recipientUserID);
+  Future<void> disableAutomaticSharing(int recipientUserID) async {
+    automaticSharingEnabled = false;
   }
 }
 
 Collection librarySharingTestAlbum(
   int id, {
   CollectionParticipantRole? recipientRole,
+  CollectionType type = CollectionType.album,
 }) {
   return Collection(
     id,
@@ -92,7 +119,7 @@ Collection librarySharingTestAlbum(
     'Album $id',
     null,
     null,
-    CollectionType.album,
+    type,
     CollectionAttributes(),
     [
       if (recipientRole != null)

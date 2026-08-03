@@ -26,7 +26,6 @@ void main() {
     controller.setRoleForSelection(CollectionParticipantRole.collaborator);
 
     expect(await controller.applySelection(), isTrue);
-    expect(repository.publicKeyRequests, 1);
     expect(repository.sharedIDs, [2]);
     expect(controller.activeRoleFor(1), CollectionParticipantRole.viewer);
     expect(controller.activeRoleFor(2), CollectionParticipantRole.collaborator);
@@ -102,11 +101,9 @@ void main() {
     controller.enterAddMode();
     controller.toggleSelection(repository.albums[0]);
 
-    await repository.shareAlbum(
-      collection: repository.albums[0],
-      email: librarySharingTestRecipient.email,
-      publicKey: 'public-key',
-      role: CollectionParticipantRole.viewer,
+    await repository.shareAlbums(
+      recipient: librarySharingTestRecipient,
+      roles: {repository.albums[0].id: CollectionParticipantRole.viewer},
     );
     await controller.load();
 

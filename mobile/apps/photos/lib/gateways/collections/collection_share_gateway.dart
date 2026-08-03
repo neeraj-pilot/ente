@@ -1,4 +1,5 @@
 import "package:dio/dio.dart";
+import "package:photos/gateways/collections/models/collection_share.dart";
 import "package:photos/gateways/collections/models/public_url.dart";
 import "package:photos/models/api/collection/user.dart";
 
@@ -78,6 +79,38 @@ class CollectionShareGateway {
       sharees.add(User.fromMap(user));
     }
     return sharees;
+  }
+
+  Future<List<CollectionShareResult>> shareBulk({
+    required int recipientUserID,
+    required CollectionShareSource source,
+    required List<BulkCollectionShareItem> collections,
+  }) async {
+    final response = await _enteDio.post(
+      "/collections/share/bulk",
+      data: {
+        "recipientUserID": recipientUserID,
+        "source": source.name,
+        "collections": collections.map((item) => item.toJson()).toList(),
+      },
+    );
+    return _parseBulkResults(response.data);
+  }
+
+  Future<List<CollectionShareResult>> unshareBulk({
+    required int recipientUserID,
+    required CollectionShareSource source,
+    required List<int> collectionIDs,
+  }) async {
+    final response = await _enteDio.post(
+      "/collections/unshare/bulk",
+      data: {
+        "recipientUserID": recipientUserID,
+        "source": source.name,
+        "collectionIDs": collectionIDs,
+      },
+    );
+    return _parseBulkResults(response.data);
   }
 
   /// Creates a public share URL for a collection.
@@ -207,6 +240,15 @@ class CollectionShareGateway {
     return response.data;
   }
 }
+
+List<CollectionShareResult> _parseBulkResults(dynamic data) =>
+    (data['results'] as List)
+        .map(
+          (result) => CollectionShareResult.fromJson(
+            Map<String, dynamic>.from(result as Map),
+          ),
+        )
+        .toList();
 
 String? _extractErrorMessage(dynamic data) {
   if (data is Map<String, dynamic>) {

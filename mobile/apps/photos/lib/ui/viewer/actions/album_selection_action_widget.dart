@@ -365,6 +365,15 @@ class _AlbumSelectionActionWidgetState
 
     // Determine if we're hiding or unhiding based on first collection
     final isUnhiding = collections.first.isHidden();
+    if (!await prepareSharedAlbumsForHiding(
+      context,
+      collections.where(
+        (collection) => collection.isOwner(userID) && !collection.isHidden(),
+      ),
+    )) {
+      return;
+    }
+    if (!mounted) return;
     final dialog = createProgressDialog(
       context,
       isUnhiding ? context.strings.unhiding : context.strings.hiding,
@@ -390,6 +399,7 @@ class _AlbumSelectionActionWidgetState
           prevVisibility: prevVisiblity,
           isOwner: isOwner,
           showProgressDialog: false,
+          skipSharedAlbumWarning: true,
         );
       }
       if (!mounted) return;

@@ -491,6 +491,9 @@ Future<void> _init(
     await SyncService.instance.init(preferences);
     _isSyncInitialized = true;
     _logger.info("SyncService init done $tlog");
+    if (!isBackground && flagService.librarySharing) {
+      unawaited(librarySharingService.init());
+    }
 
     if (!isBackground && flagService.internalUser) {
       _logger.info("GalleryDownloadQueueService init $tlog");

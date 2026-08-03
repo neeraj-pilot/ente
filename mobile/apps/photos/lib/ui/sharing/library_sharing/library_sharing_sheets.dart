@@ -10,68 +10,64 @@ import 'package:photos/ui/sharing/library_sharing/library_sharing_strings.dart';
 typedef LibrarySharingAlbumThumbnailBuilder =
     Widget Function(BuildContext context, Collection album);
 
-Future<bool> showEnableLibrarySharingSheet({
+Future<CollectionParticipantRole?> showEnableLibrarySharingSheet({
   required BuildContext context,
   required String recipientLabel,
-}) async {
+}) {
   var selectedRole = CollectionParticipantRole.viewer;
-  return await showBottomSheetComponent<bool>(
-        context: context,
-        builder: (sheetContext) => StatefulBuilder(
-          builder: (context, setState) {
-            final colors = context.componentColors;
-            return BottomSheetComponent(
-              title: LibrarySharingStrings.enableLibrarySharing,
-              borderSide: BorderSide(color: colors.strokeDark),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    LibrarySharingStrings.enableLibrarySharingMessage(
-                      recipientLabel,
+  return showBottomSheetComponent<CollectionParticipantRole>(
+    context: context,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (context, setState) {
+        final colors = context.componentColors;
+        return BottomSheetComponent(
+          title: LibrarySharingStrings.enableLibrarySharing,
+          borderSide: BorderSide(color: colors.strokeDark),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                LibrarySharingStrings.enableLibrarySharingMessage(
+                  recipientLabel,
+                ),
+                style: TextStyles.body.copyWith(color: colors.textLight),
+              ),
+              const SizedBox(height: Spacing.lg),
+              Text(
+                LibrarySharingStrings.hiddenAlbumsNotShared,
+                style: TextStyles.body.copyWith(color: colors.textLight),
+              ),
+              const SizedBox(height: Spacing.lg),
+              MenuGroupComponent(
+                items: [
+                  EntePopupMenuButton<CollectionParticipantRole>(
+                    optionsBuilder: () => librarySharingRoleOptions(
+                      context,
+                      activeRole: selectedRole,
                     ),
-                    style: TextStyles.body.copyWith(color: colors.textLight),
-                  ),
-                  const SizedBox(height: Spacing.lg),
-                  Text(
-                    LibrarySharingStrings.hiddenAlbumsNotShared,
-                    style: TextStyles.body.copyWith(color: colors.textLight),
-                  ),
-                  const SizedBox(height: Spacing.lg),
-                  MenuGroupComponent(
-                    items: [
-                      EntePopupMenuButton<CollectionParticipantRole>(
-                        optionsBuilder: () => librarySharingRoleOptions(
-                          context,
-                          activeRole: selectedRole,
-                        ),
-                        onSelected: (role) =>
-                            setState(() => selectedRole = role),
-                        child: MenuComponent(
-                          title: LibrarySharingStrings.role,
-                          trailing: LibrarySharingRoleSelector(
-                            role: selectedRole,
-                          ),
-                        ),
-                      ),
-                    ],
+                    onSelected: (role) => setState(() => selectedRole = role),
+                    child: MenuComponent(
+                      title: LibrarySharingStrings.role,
+                      trailing: LibrarySharingRoleSelector(role: selectedRole),
+                    ),
                   ),
                 ],
               ),
-              actions: [
-                ButtonComponent(
-                  label: LibrarySharingStrings.enable,
-                  density: ButtonComponentDensity.compact,
-                  shouldSurfaceExecutionStates: false,
-                  onTap: () => Navigator.of(sheetContext).pop(true),
-                ),
-              ],
-            );
-          },
-        ),
-      ) ??
-      false;
+            ],
+          ),
+          actions: [
+            ButtonComponent(
+              label: LibrarySharingStrings.enable,
+              density: ButtonComponentDensity.compact,
+              shouldSurfaceExecutionStates: false,
+              onTap: () => Navigator.of(sheetContext).pop(selectedRole),
+            ),
+          ],
+        );
+      },
+    ),
+  );
 }
 
 Future<bool?> showLibrarySharingRolesSheet({

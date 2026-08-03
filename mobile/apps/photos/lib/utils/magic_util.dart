@@ -14,9 +14,12 @@ import 'package:photos/models/file/file.dart';
 import "package:photos/models/metadata/collection_magic.dart";
 import "package:photos/models/metadata/common_keys.dart";
 import "package:photos/models/metadata/file_magic.dart";
+import 'package:photos/service_locator.dart' show librarySharingService;
 import 'package:photos/services/collections_service.dart';
 import 'package:photos/services/file_magic_service.dart';
 import 'package:photos/ui/common/progress_dialog.dart';
+import 'package:photos/ui/components/buttons/button_widget.dart';
+import 'package:photos/ui/components/models/button_type.dart';
 import 'package:photos/ui/notification/toast.dart';
 import 'package:photos/utils/dialog_util.dart';
 
@@ -61,7 +64,16 @@ Future<void> changeCollectionVisibility(
   required int prevVisibility,
   bool isOwner = true,
   bool showProgressDialog = true,
+  bool skipSharedAlbumWarning = false,
 }) async {
+  if (isOwner &&
+      !skipSharedAlbumWarning &&
+      newVisibility == hiddenVisibility &&
+      prevVisibility != hiddenVisibility &&
+      !await prepareSharedAlbumsForHiding(context, [collection])) {
+    return;
+  }
+  if (!context.mounted) return;
   final visibilityAction = _getVisibilityAction(
     context,
     newVisibility,
@@ -80,6 +92,13 @@ Future<void> changeCollectionVisibility(
     final Map<String, dynamic> update = {magicKeyVisibility: newVisibility};
     if (isOwner) {
       await CollectionsService.instance.updateMagicMetadata(collection, update);
+      Bus.instance.fire(
+        CollectionUpdatedEvent(
+          collection.id,
+          const <EnteFile>[],
+          'collection_visibility_changed',
+        ),
+      );
     } else {
       await CollectionsService.instance.updateShareeMagicMetadata(
         collection,
@@ -104,6 +123,60 @@ Future<void> changeCollectionVisibility(
     _logger.severe("failed to update collection visibility", e, s);
     await dialog?.hide();
     rethrow;
+  }
+}
+
+Future<bool> prepareSharedAlbumsForHiding(
+  BuildContext context,
+  Iterable<Collection> collections,
+) async {
+  final sharedAlbums = collections
+      .where((collection) => collection.hasSharees)
+      .toList();
+  if (sharedAlbums.isEmpty) {
+    return true;
+  }
+  final result = await showChoiceDialog(
+    context,
+    title: context.strings.warning,
+    body: pendingTranslation(
+      sharedAlbums.length == 1
+          ? 'This album is currently being shared. Please unshare if you wish to hide its contents from receivers.'
+          : 'Some selected albums are currently being shared. Please unshare if you wish to hide their contents from receivers.',
+    ),
+    firstButtonLabel: context.strings.hide,
+    secondButtonLabel: pendingTranslation('Unshare and Hide'),
+    firstButtonType: ButtonType.neutral,
+    secondButtonType: ButtonType.critical,
+    secondButtonAction: ButtonAction.second,
+    icon: Icons.warning_amber_rounded,
+  );
+  if (result?.action == ButtonAction.first) {
+    return true;
+  }
+  if (result?.action != ButtonAction.second || !context.mounted) {
+    return false;
+  }
+
+  final dialog = createProgressDialog(context, context.strings.pleaseWait);
+  await dialog.show();
+  try {
+    for (final album in sharedAlbums) {
+      await librarySharingService.unshareAlbumFromAll(album);
+    }
+    await dialog.hide();
+    return context.mounted;
+  } catch (error, stackTrace) {
+    _logger.warning(
+      'Failed to unshare albums before hiding',
+      error,
+      stackTrace,
+    );
+    await dialog.hide();
+    if (context.mounted) {
+      await showGenericErrorDialog(context: context, error: error);
+    }
+    return false;
   }
 }
 

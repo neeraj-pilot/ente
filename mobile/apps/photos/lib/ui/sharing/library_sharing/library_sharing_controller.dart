@@ -24,6 +24,7 @@ class LibrarySharingController extends ChangeNotifier {
   int _failedCount = 0;
   bool _isLoading = true;
   bool _isMutating = false;
+  bool _isAutomaticSharingEnabled = false;
   _LibrarySharingSelectionMode? _selectionMode;
   bool _isDisposed = false;
 
@@ -38,6 +39,7 @@ class LibrarySharingController extends ChangeNotifier {
   Object? get loadError => _loadError;
   bool get isLoading => _isLoading;
   bool get isMutating => _isMutating;
+  bool get isAutomaticSharingEnabled => _isAutomaticSharingEnabled;
   bool get isFirstTime => _activeRoles.isEmpty;
   bool get isAddingAlbums =>
       isFirstTime || _selectionMode == _LibrarySharingSelectionMode.add;
@@ -68,6 +70,9 @@ class LibrarySharingController extends ChangeNotifier {
     _loadError = null;
     _notifyListeners();
     try {
+      _isAutomaticSharingEnabled = await _repository.isAutomaticSharingEnabled(
+        recipient.userID,
+      );
       await _reloadAlbums();
     } catch (error) {
       _loadError = error;
@@ -177,32 +182,9 @@ class LibrarySharingController extends ChangeNotifier {
     }
 
     _beginMutation();
-    late final String publicKey;
-    try {
-      final key = await _repository.getPublicKey(recipient.email);
-      if (key == null || key.isEmpty) {
-        throw StateError('No Ente public key found for recipient');
-      }
-      publicKey = key;
-    } catch (error, stackTrace) {
-      _logger.warning(
-        'Failed to fetch recipient public key',
-        error,
-        stackTrace,
-      );
-      _isMutating = false;
-      _notifyListeners();
-      return false;
-    }
-
     return _mutateAlbums(
       intendedRoles.keys.toSet(),
-      (album, collectionID) => _repository.shareAlbum(
-        collection: album,
-        email: recipient.email,
-        publicKey: publicKey,
-        role: intendedRoles[collectionID]!,
-      ),
+      () => _repository.shareAlbums(recipient: recipient, roles: intendedRoles),
       onSucceeded: (collectionID) {
         _activeRoles[collectionID] = intendedRoles[collectionID]!;
       },
@@ -217,13 +199,65 @@ class LibrarySharingController extends ChangeNotifier {
     _beginMutation();
     return _mutateAlbums(
       pendingIDs,
-      (album, _) => _repository.unshareAlbum(
-        collection: album,
+      () => _repository.unshareAlbums(
         recipientUserID: recipient.userID,
-        email: recipient.email,
+        collectionIDs: pendingIDs.toList(),
       ),
       onSucceeded: _activeRoles.remove,
     );
+  }
+
+  Future<bool> enableAutomaticSharing(CollectionParticipantRole role) async {
+    if (_isLoading || _isMutating || _isAutomaticSharingEnabled) {
+      return false;
+    }
+    _beginMutation();
+    try {
+      final failedIDs = await _repository.enableAutomaticSharing(
+        recipient: recipient,
+        role: role,
+      );
+      await _reloadAfterMutation();
+      _failedCount = failedIDs.length;
+      _isAutomaticSharingEnabled = failedIDs.isEmpty;
+      if (failedIDs.isEmpty) {
+        _selectionMode = null;
+        _clearSelectionState();
+      }
+      return failedIDs.isEmpty;
+    } catch (error, stackTrace) {
+      _logger.warning(
+        'Failed to enable automatic library sharing',
+        error,
+        stackTrace,
+      );
+      return false;
+    } finally {
+      _isMutating = false;
+      _notifyListeners();
+    }
+  }
+
+  Future<bool> disableAutomaticSharing() async {
+    if (_isLoading || _isMutating || !_isAutomaticSharingEnabled) {
+      return false;
+    }
+    _beginMutation();
+    try {
+      await _repository.disableAutomaticSharing(recipient.userID);
+      _isAutomaticSharingEnabled = false;
+      return true;
+    } catch (error, stackTrace) {
+      _logger.warning(
+        'Failed to disable automatic library sharing',
+        error,
+        stackTrace,
+      );
+      return false;
+    } finally {
+      _isMutating = false;
+      _notifyListeners();
+    }
   }
 
   void _beginMutation() {
@@ -234,27 +268,15 @@ class LibrarySharingController extends ChangeNotifier {
 
   Future<bool> _mutateAlbums(
     Set<int> collectionIDs,
-    Future<void> Function(Collection album, int collectionID) mutate, {
+    Future<Set<int>> Function() mutate, {
     required ValueChanged<int> onSucceeded,
   }) async {
-    final failedIDs = <int>{};
-    final albumsByID = {for (final album in _albums) album.id: album};
-    for (final collectionID in collectionIDs) {
-      final album = albumsByID[collectionID];
-      if (album == null) {
-        failedIDs.add(collectionID);
-        continue;
-      }
-      try {
-        await mutate(album, collectionID);
-      } catch (error, stackTrace) {
-        _logger.warning(
-          'Failed to update album $collectionID',
-          error,
-          stackTrace,
-        );
-        failedIDs.add(collectionID);
-      }
+    late Set<int> failedIDs;
+    try {
+      failedIDs = {...await mutate()};
+    } catch (error, stackTrace) {
+      _logger.warning('Failed to update albums', error, stackTrace);
+      failedIDs = collectionIDs;
     }
     return _finishMutation(
       collectionIDs,
@@ -274,6 +296,18 @@ class LibrarySharingController extends ChangeNotifier {
       onSucceeded(id);
     }
     _selectedRoles.removeWhere((id, _) => !failedIDs.contains(id));
+    await _reloadAfterMutation();
+    failedIDs.removeWhere((id) => !_selectedRoles.containsKey(id));
+    _failedCount = failedIDs.length;
+    _isMutating = false;
+    if (failedIDs.isEmpty) {
+      _selectionMode = null;
+    }
+    _notifyListeners();
+    return failedIDs.isEmpty;
+  }
+
+  Future<void> _reloadAfterMutation() async {
     try {
       await _reloadAlbums();
     } catch (error, stackTrace) {
@@ -283,14 +317,6 @@ class LibrarySharingController extends ChangeNotifier {
         stackTrace,
       );
     }
-    failedIDs.removeWhere((id) => !_selectedRoles.containsKey(id));
-    _failedCount = failedIDs.length;
-    _isMutating = false;
-    if (failedIDs.isEmpty) {
-      _selectionMode = null;
-    }
-    _notifyListeners();
-    return failedIDs.isEmpty;
   }
 
   Future<void> _reloadAlbums() async {

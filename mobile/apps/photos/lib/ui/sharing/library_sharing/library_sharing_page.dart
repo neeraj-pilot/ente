@@ -6,7 +6,7 @@ import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:hugeicons/hugeicons.dart';
 import 'package:photos/models/collection/collection.dart';
 import 'package:photos/models/library_sharing/library_sharing_recipient.dart';
-import 'package:photos/services/library_sharing_service.dart';
+import 'package:photos/service_locator.dart' show librarySharingService;
 import 'package:photos/ui/collections/flex_grid_view.dart';
 import 'package:photos/ui/components/empty_state_component.dart';
 import 'package:photos/ui/sharing/library_sharing/library_sharing_controller.dart';
@@ -34,7 +34,7 @@ class _LibrarySharingPageState extends State<LibrarySharingPage> {
       widget.controller ??
       LibrarySharingController(
         recipient: widget.recipient,
-        repository: LibrarySharingService(),
+        repository: librarySharingService,
       );
   late final bool _ownsController = widget.controller == null;
   final ScrollController _scrollController = ScrollController();
@@ -274,12 +274,12 @@ class _LibrarySharingPageState extends State<LibrarySharingPage> {
             MenuComponent(
               title: LibrarySharingStrings.librarySharing,
               subtitle: LibrarySharingStrings.shareAllYourAlbums,
-              onTap: _showEnableLibrarySharing,
+              onTap: _toggleLibrarySharing,
               trailing: IgnorePointer(
                 child: ExcludeSemantics(
                   child: ToggleSwitchComponent(
                     key: const ValueKey('library-sharing-toggle'),
-                    selected: false,
+                    selected: _controller.isAutomaticSharingEnabled,
                     onChanged: (_) {},
                   ),
                 ),
@@ -409,14 +409,29 @@ class _LibrarySharingPageState extends State<LibrarySharingPage> {
     }
   }
 
-  Future<void> _showEnableLibrarySharing() async {
-    final shouldEnable = await showEnableLibrarySharingSheet(
+  Future<void> _toggleLibrarySharing() async {
+    if (_controller.isAutomaticSharingEnabled) {
+      await _showFailureIfNeeded(
+        await _controller.disableAutomaticSharing(),
+        _toggleLibrarySharing,
+      );
+      return;
+    }
+    final role = await showEnableLibrarySharingSheet(
       context: context,
       recipientLabel: _recipient.label,
     );
-    if (shouldEnable && mounted) {
-      showToastComponent(context, LibrarySharingStrings.comingSoon);
+    if (role == null || !mounted) {
+      return;
     }
+    await _enableLibrarySharing(role);
+  }
+
+  Future<void> _enableLibrarySharing(CollectionParticipantRole role) async {
+    await _showFailureIfNeeded(
+      await _controller.enableAutomaticSharing(role),
+      () => _enableLibrarySharing(role),
+    );
   }
 
   Future<void> _showFailureIfNeeded(

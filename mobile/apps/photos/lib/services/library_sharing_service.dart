@@ -1,13 +1,34 @@
-import 'package:dio/dio.dart';
+import 'dart:async';
+
+import 'package:ente_pure_utils/ente_pure_utils.dart';
+import 'package:logging/logging.dart';
+import 'package:photos/core/configuration.dart';
+import 'package:photos/core/event_bus.dart';
+import 'package:photos/events/collection_updated_event.dart';
+import 'package:photos/events/user_details_changed_event.dart';
+import 'package:photos/gateways/collections/models/collection_share.dart';
 import 'package:photos/models/collection/collection.dart';
+import 'package:photos/models/library_sharing/library_sharing_recipient.dart';
+import 'package:photos/models/metadata/collection_magic.dart';
+import 'package:photos/models/metadata/common_keys.dart';
 import 'package:photos/services/account/user_service.dart';
 import 'package:photos/services/collections_service.dart';
+import 'package:photos/services/library_sharing_local_store.dart';
+import 'package:photos/utils/contact_string_util.dart';
+import 'package:synchronized/synchronized.dart';
 
 const librarySharingRoles = [
   CollectionParticipantRole.viewer,
   CollectionParticipantRole.collaborator,
   CollectionParticipantRole.admin,
 ];
+
+const _bulkShareLimit = 100;
+const _reconcileEventSources = {
+  'collections_updated',
+  'createCollection',
+  'collection_visibility_changed',
+};
 
 CollectionParticipantRole? librarySharingRoleFor(
   Collection collection,
@@ -25,31 +46,61 @@ CollectionParticipantRole? librarySharingRoleFor(
 abstract interface class LibrarySharingRepository {
   Future<List<Collection>> getEligibleAlbums();
 
-  Future<String?> getPublicKey(String email);
+  Future<Set<int>> shareAlbums({
+    required LibrarySharingRecipient recipient,
+    required Map<int, CollectionParticipantRole> roles,
+  });
 
-  Future<void> shareAlbum({
-    required Collection collection,
-    required String email,
-    required String publicKey,
+  Future<Set<int>> unshareAlbums({
+    required int recipientUserID,
+    required List<int> collectionIDs,
+  });
+
+  Future<bool> isAutomaticSharingEnabled(int recipientUserID);
+
+  Future<Set<int>> enableAutomaticSharing({
+    required LibrarySharingRecipient recipient,
     required CollectionParticipantRole role,
   });
 
-  Future<void> unshareAlbum({
-    required Collection collection,
-    required int recipientUserID,
-    required String email,
-  });
+  Future<void> disableAutomaticSharing(int recipientUserID);
 }
 
 class LibrarySharingService implements LibrarySharingRepository {
   LibrarySharingService({
     CollectionsService? collectionsService,
     UserService? userService,
+    Configuration? configuration,
+    LibrarySharingLocalStore? localStore,
   }) : _collectionsService = collectionsService ?? CollectionsService.instance,
-       _userService = userService ?? UserService.instance;
+       _userService = userService ?? UserService.instance,
+       _configuration = configuration ?? Configuration.instance,
+       _localStore = localStore ?? LibrarySharingLocalStore();
 
   final CollectionsService _collectionsService;
   final UserService _userService;
+  final Configuration _configuration;
+  final LibrarySharingLocalStore _localStore;
+  final _logger = Logger('LibrarySharingService');
+  final _operationLock = Lock();
+
+  StreamSubscription<CollectionUpdatedEvent>? _collectionSubscription;
+  StreamSubscription<UserDetailsChangedEvent>? _userDetailsSubscription;
+  bool _isReconciling = false;
+  bool _reconcileAgain = false;
+
+  Future<void> init() async {
+    await _collectionSubscription?.cancel();
+    await _userDetailsSubscription?.cancel();
+    _collectionSubscription = Bus.instance
+        .on<CollectionUpdatedEvent>()
+        .where((event) => _reconcileEventSources.contains(event.source))
+        .listen((_) => reconcile().ignore());
+    _userDetailsSubscription = Bus.instance
+        .on<UserDetailsChangedEvent>()
+        .listen((_) => reconcile().ignore());
+    await reconcile();
+  }
 
   @override
   Future<List<Collection>> getEligibleAlbums() async {
@@ -58,50 +109,450 @@ class LibrarySharingService implements LibrarySharingRepository {
     return albums;
   }
 
-  static bool _isEligibleAlbum(Collection collection) {
-    final isShareableAlbum =
+  @override
+  Future<Set<int>> shareAlbums({
+    required LibrarySharingRecipient recipient,
+    required Map<int, CollectionParticipantRole> roles,
+  }) => _operationLock.synchronized(() async {
+    final ownerUserID = _currentOwnerUserID();
+    final publicKey = await _requirePublicKey(recipient.userID);
+    final statuses = await _shareInBatches(
+      ownerUserID: ownerUserID,
+      recipientUserID: recipient.userID,
+      recipientEmail: recipient.email,
+      publicKey: publicKey,
+      roles: roles,
+      source: CollectionShareSource.manual,
+    );
+    final succeededIDs = statuses.entries
+        .where((entry) => _isShareSuccess(entry.value))
+        .map((entry) => entry.key)
+        .toSet();
+    final config = await _localStore.read(ownerUserID, recipient.userID);
+    if (config != null && succeededIDs.isNotEmpty) {
+      await _writeConfig(
+        ownerUserID,
+        config.copyWith(
+          unsharedBefore: config.unsharedBefore.difference(succeededIDs),
+          hidden: config.hidden.difference(succeededIDs),
+        ),
+      );
+    }
+    return roles.keys.toSet().difference(succeededIDs);
+  });
+
+  @override
+  Future<Set<int>> unshareAlbums({
+    required int recipientUserID,
+    required List<int> collectionIDs,
+  }) => _operationLock.synchronized(() async {
+    final ownerUserID = _currentOwnerUserID();
+    final statuses = await _unshareInBatches(
+      ownerUserID: ownerUserID,
+      recipientUserID: recipientUserID,
+      collectionIDs: collectionIDs,
+      source: CollectionShareSource.manual,
+    );
+    final succeededIDs = statuses.entries
+        .where((entry) => _isUnshareSuccess(entry.value))
+        .map((entry) => entry.key)
+        .toSet();
+    final config = await _localStore.read(ownerUserID, recipientUserID);
+    if (config != null && succeededIDs.isNotEmpty) {
+      await _writeConfig(
+        ownerUserID,
+        config.copyWith(
+          addedAutomatically: config.addedAutomatically.difference(
+            succeededIDs,
+          ),
+          unsharedBefore: {...config.unsharedBefore, ...succeededIDs},
+        ),
+      );
+    }
+    return collectionIDs.toSet().difference(succeededIDs);
+  });
+
+  Future<void> unshareAlbumFromAll(Collection collection) async {
+    final recipientUserIDs = collection.sharees
+        .map(
+          (sharee) =>
+              sharee.id ??
+              (throw StateError('A collection sharee has no user ID')),
+        )
+        .toList();
+    for (final recipientUserID in recipientUserIDs) {
+      final failedIDs = await unshareAlbums(
+        recipientUserID: recipientUserID,
+        collectionIDs: [collection.id],
+      );
+      if (failedIDs.isNotEmpty) {
+        throw StateError('Could not unshare collection ${collection.id}');
+      }
+    }
+    final updated = _collectionsService.getCollectionByID(collection.id);
+    if (updated == null) {
+      throw StateError('Collection ${collection.id} is not cached');
+    }
+    if (!identical(updated, collection)) {
+      collection.updateSharees(updated.sharees);
+    }
+  }
+
+  @override
+  Future<bool> isAutomaticSharingEnabled(int recipientUserID) async {
+    final ownerUserID = _configuration.getUserID();
+    if (ownerUserID == null) {
+      return false;
+    }
+    return (await _localStore.read(ownerUserID, recipientUserID))?.enabled ??
+        false;
+  }
+
+  @override
+  Future<Set<int>> enableAutomaticSharing({
+    required LibrarySharingRecipient recipient,
+    required CollectionParticipantRole role,
+  }) async {
+    final failedIDs = await _operationLock.synchronized(
+      () => _enableAutomaticSharing(recipient, role),
+    );
+    if (failedIDs.isEmpty) {
+      await reconcile();
+    }
+    return failedIDs;
+  }
+
+  Future<Set<int>> _enableAutomaticSharing(
+    LibrarySharingRecipient recipient,
+    CollectionParticipantRole role,
+  ) async {
+    if (!librarySharingRoles.contains(role)) {
+      throw ArgumentError.value(role, 'role');
+    }
+    final ownerUserID = _currentOwnerUserID();
+    final publicKey = await _requirePublicKey(recipient.userID);
+    final existing = await _localStore.read(ownerUserID, recipient.userID);
+    var config =
+        (existing ??
+                LibrarySharingLocalConfig(
+                  recipientUserID: recipient.userID,
+                  enabled: false,
+                  defaultRole: role,
+                ))
+            .copyWith(defaultRole: role);
+    final collections = _automaticallyShareableOwnedCollections(
+      ownerUserID,
+    ).toList();
+    config = _observeCollections(config, collections);
+    await _writeConfig(ownerUserID, config);
+
+    final roles = _automaticShareRoles(collections, config);
+    final statuses = roles.isEmpty
+        ? <int, CollectionShareStatus>{}
+        : await _shareInBatches(
+            ownerUserID: ownerUserID,
+            recipientUserID: recipient.userID,
+            recipientEmail: recipient.email,
+            publicKey: publicKey,
+            roles: roles,
+            source: CollectionShareSource.automatic,
+          );
+    config = _applyAutomaticShareResults(config, statuses);
+    final failedIDs = roles.keys
+        .where((id) => !_isAutomaticShareSuccess(statuses[id]))
+        .toSet();
+    await _writeConfig(
+      ownerUserID,
+      config.copyWith(enabled: failedIDs.isEmpty),
+    );
+    return failedIDs;
+  }
+
+  @override
+  Future<void> disableAutomaticSharing(int recipientUserID) =>
+      _operationLock.synchronized(() async {
+        final ownerUserID = _currentOwnerUserID();
+        final config = await _localStore.read(ownerUserID, recipientUserID);
+        if (config != null && config.enabled) {
+          await _writeConfig(ownerUserID, config.copyWith(enabled: false));
+        }
+      });
+
+  Future<void> reconcile() async {
+    if (_isReconciling) {
+      _reconcileAgain = true;
+      return;
+    }
+    _isReconciling = true;
+    try {
+      do {
+        _reconcileAgain = false;
+        await _reconcileAll();
+      } while (_reconcileAgain);
+    } finally {
+      _isReconciling = false;
+    }
+  }
+
+  Future<void> _reconcileAll() async {
+    final ownerUserID = _configuration.getUserID();
+    if (ownerUserID == null) {
+      return;
+    }
+    final configs = await _localStore.readAll(ownerUserID);
+    for (final config in configs.where((config) => config.enabled)) {
+      try {
+        await _operationLock.synchronized(() async {
+          final latest = await _localStore.read(
+            ownerUserID,
+            config.recipientUserID,
+          );
+          if (latest == null || !latest.enabled) {
+            return;
+          }
+          final activeFamilyMemberUserIDs = _activeFamilyMemberUserIDs();
+          if (activeFamilyMemberUserIDs != null &&
+              !activeFamilyMemberUserIDs.contains(latest.recipientUserID)) {
+            await _writeConfig(ownerUserID, latest.copyWith(enabled: false));
+          } else {
+            await _reconcileConfig(ownerUserID, latest);
+          }
+        });
+      } catch (error, stackTrace) {
+        _logger.warning(
+          'Could not reconcile library sharing for ${config.recipientUserID}',
+          error,
+          stackTrace,
+        );
+      }
+    }
+  }
+
+  Future<void> _reconcileConfig(
+    int ownerUserID,
+    LibrarySharingLocalConfig config,
+  ) async {
+    final collections = _automaticallyShareableOwnedCollections(
+      ownerUserID,
+    ).toList();
+    config = _observeCollections(config, collections);
+    await _writeConfig(ownerUserID, config);
+
+    final roles = _automaticShareRoles(collections, config);
+    if (roles.isNotEmpty) {
+      final recipientEmail = _recipientEmail(config.recipientUserID);
+      final statuses = await _shareInBatches(
+        ownerUserID: ownerUserID,
+        recipientUserID: config.recipientUserID,
+        recipientEmail: recipientEmail,
+        publicKey: await _requirePublicKey(config.recipientUserID),
+        roles: roles,
+        source: CollectionShareSource.automatic,
+      );
+      config = _applyAutomaticShareResults(config, statuses);
+    }
+    await _writeConfig(ownerUserID, config);
+  }
+
+  LibrarySharingLocalConfig _observeCollections(
+    LibrarySharingLocalConfig config,
+    List<Collection> collections,
+  ) {
+    final collectionIDs = collections
+        .map((collection) => collection.id)
+        .toSet();
+    return config.copyWith(
+      addedAutomatically: config.addedAutomatically.intersection(collectionIDs),
+      unsharedBefore: config.unsharedBefore.intersection(collectionIDs),
+      hidden: {
+        ...config.hidden.intersection(collectionIDs),
+        ...collections
+            .where(_isHiddenOwnedAlbum)
+            .map((collection) => collection.id),
+      },
+    );
+  }
+
+  Map<int, CollectionParticipantRole> _automaticShareRoles(
+    List<Collection> collections,
+    LibrarySharingLocalConfig config,
+  ) => {
+    for (final collection in collections)
+      if (!config.hidden.contains(collection.id) &&
+          !config.unsharedBefore.contains(collection.id) &&
+          librarySharingRoleFor(collection, config.recipientUserID) == null)
+        collection.id: collection.type == CollectionType.uncategorized
+            ? CollectionParticipantRole.viewer
+            : config.defaultRole,
+  };
+
+  LibrarySharingLocalConfig _applyAutomaticShareResults(
+    LibrarySharingLocalConfig config,
+    Map<int, CollectionShareStatus> statuses,
+  ) {
+    final addedAutomatically = {...config.addedAutomatically};
+    final unsharedBefore = {...config.unsharedBefore};
+    for (final entry in statuses.entries) {
+      if (entry.value == CollectionShareStatus.shared) {
+        addedAutomatically.add(entry.key);
+      } else if (entry.value == CollectionShareStatus.blockedPreviousRemoval) {
+        addedAutomatically.remove(entry.key);
+        unsharedBefore.add(entry.key);
+      }
+    }
+    return config.copyWith(
+      addedAutomatically: addedAutomatically,
+      unsharedBefore: unsharedBefore,
+    );
+  }
+
+  Future<Map<int, CollectionShareStatus>> _shareInBatches({
+    required int ownerUserID,
+    required int recipientUserID,
+    required String recipientEmail,
+    required String publicKey,
+    required Map<int, CollectionParticipantRole> roles,
+    required CollectionShareSource source,
+  }) async {
+    final statuses = {
+      for (final id in roles.keys) id: CollectionShareStatus.failed,
+    };
+    for (final batch in roles.entries.toList().chunks(_bulkShareLimit)) {
+      _ensureCurrentOwner(ownerUserID);
+      try {
+        statuses.addAll(
+          await _collectionsService.shareBulk(
+            recipientUserID: recipientUserID,
+            recipientEmail: recipientEmail,
+            publicKey: publicKey,
+            roles: Map.fromEntries(batch),
+            source: source,
+          ),
+        );
+      } catch (error, stackTrace) {
+        _logger.warning('Bulk library share failed', error, stackTrace);
+      }
+    }
+    return statuses;
+  }
+
+  Future<Map<int, CollectionShareStatus>> _unshareInBatches({
+    required int ownerUserID,
+    required int recipientUserID,
+    required List<int> collectionIDs,
+    required CollectionShareSource source,
+  }) async {
+    final statuses = {
+      for (final id in collectionIDs) id: CollectionShareStatus.failed,
+    };
+    for (final batch in collectionIDs.chunks(_bulkShareLimit)) {
+      _ensureCurrentOwner(ownerUserID);
+      try {
+        statuses.addAll(
+          await _collectionsService.unshareBulk(
+            recipientUserID: recipientUserID,
+            collectionIDs: batch,
+            source: source,
+          ),
+        );
+      } catch (error, stackTrace) {
+        _logger.warning('Bulk library unshare failed', error, stackTrace);
+      }
+    }
+    return statuses;
+  }
+
+  Iterable<Collection> _eligibleAlbums() => _collectionsService
+      .getCollectionsForUI(includeUncategorized: false)
+      .where(_isShareableAlbum);
+
+  Iterable<Collection> _automaticallyShareableOwnedCollections(
+    int ownerUserID,
+  ) => _collectionsService.getActiveCollections().where(
+    (collection) =>
+        collection.isOwner(ownerUserID) &&
+        (_isShareableAlbum(collection) ||
+            collection.type == CollectionType.uncategorized),
+  );
+
+  static bool _isShareableAlbum(Collection collection) {
+    final isSupportedType =
         collection.type == CollectionType.album ||
         collection.type == CollectionType.folder ||
         collection.type == CollectionType.favorites;
-    return isShareableAlbum && !collection.isQuickLinkCollection();
+    return isSupportedType &&
+        collection.magicMetadata.subType != subTypeSharedFilesCollection;
   }
 
-  @override
-  Future<String?> getPublicKey(String email) =>
-      _userService.getPublicKey(email);
+  static bool _isHiddenOwnedAlbum(Collection collection) =>
+      collection.isDefaultHidden() ||
+      collection.mMdVersion > 0 &&
+          collection.magicMetadata.visibility == hiddenVisibility;
 
-  @override
-  Future<void> shareAlbum({
-    required Collection collection,
-    required String email,
-    required String publicKey,
-    required CollectionParticipantRole role,
-  }) async {
-    await _collectionsService.share(collection.id, email, publicKey, role);
-  }
+  int _currentOwnerUserID() =>
+      _configuration.getUserID() ??
+      (throw StateError('Library sharing requires a signed-in account'));
 
-  @override
-  Future<void> unshareAlbum({
-    required Collection collection,
-    required int recipientUserID,
-    required String email,
-  }) async {
-    try {
-      await _collectionsService.unshare(collection.id, email);
-    } on DioException catch (error, stackTrace) {
-      if (error.response?.statusCode != 404) {
-        Error.throwWithStackTrace(error, stackTrace);
-      }
-      // A 404 is idempotent only if fresh sharees confirm they are absent.
-      try {
-        final sharees = await _collectionsService.refreshSharees(collection.id);
-        if (!sharees.any((sharee) => sharee.id == recipientUserID)) {
-          return;
-        }
-      } catch (_) {}
-      Error.throwWithStackTrace(error, stackTrace);
+  void _ensureCurrentOwner(int ownerUserID) {
+    if (_configuration.getUserID() != ownerUserID) {
+      throw StateError('The active account changed during library sharing');
     }
   }
+
+  Future<void> _writeConfig(
+    int ownerUserID,
+    LibrarySharingLocalConfig config,
+  ) async {
+    _ensureCurrentOwner(ownerUserID);
+    await _localStore.write(ownerUserID, config);
+  }
+
+  Future<String> _requirePublicKey(int userID) async {
+    final publicKey = await _userService.getPublicKeyByUserID(userID);
+    if (publicKey == null || publicKey.isEmpty) {
+      throw StateError('No Ente public key found for recipient');
+    }
+    return publicKey;
+  }
+
+  String _recipientEmail(int recipientUserID) {
+    String? email;
+    for (final user in _userService.getRelevantContacts()) {
+      if (user.id == recipientUserID) {
+        email = knownContactEmailOrNull(user.email) ?? email;
+      }
+    }
+    return email ??
+        (throw StateError('No email found for library sharing recipient'));
+  }
+
+  Set<int>? _activeFamilyMemberUserIDs() {
+    // Temporary best-effort guard while Library Sharing is family-scoped;
+    // cached details can lag membership changes made on another client.
+    final userDetails = _userService.getCachedUserDetails();
+    if (userDetails == null) {
+      return null;
+    }
+    return userDetails.familyData?.members
+            ?.where((member) => member.isActive)
+            .map((member) => member.userID)
+            .whereType<int>()
+            .toSet() ??
+        const {};
+  }
+
+  bool _isShareSuccess(CollectionShareStatus? status) =>
+      status == CollectionShareStatus.shared ||
+      status == CollectionShareStatus.alreadyShared;
+
+  bool _isAutomaticShareSuccess(CollectionShareStatus? status) =>
+      _isShareSuccess(status) ||
+      status == CollectionShareStatus.blockedPreviousRemoval;
+
+  bool _isUnshareSuccess(CollectionShareStatus status) =>
+      status == CollectionShareStatus.unshared ||
+      status == CollectionShareStatus.alreadyUnshared ||
+      status == CollectionShareStatus.notShared;
 
   Map<int, int> sharedAlbumCounts(Set<int> recipientUserIDs) {
     if (recipientUserIDs.isEmpty) {
@@ -117,8 +568,4 @@ class LibrarySharingService implements LibrarySharingRepository {
     }
     return counts;
   }
-
-  Iterable<Collection> _eligibleAlbums() => _collectionsService
-      .getCollectionsForUI(includeUncategorized: false)
-      .where(_isEligibleAlbum);
 }
