@@ -242,6 +242,11 @@ func (c *UserController) GetPublicKey(requesterUserID int64, email string) (stri
 	if err != nil {
 		return "", stacktrace.Propagate(err, "")
 	}
+	return c.GetPublicKeyByUserID(userID)
+}
+
+// GetPublicKeyByUserID returns the public key of a user.
+func (c *UserController) GetPublicKeyByUserID(userID int64) (string, error) {
 	key, err := c.UserRepo.GetPublicKey(userID)
 	if err != nil {
 		return "", stacktrace.Propagate(err, "")

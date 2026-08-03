@@ -149,7 +149,18 @@ func (h *UserHandler) SetRecoveryKey(c *gin.Context) {
 
 // GetPublicKey returns the public key of a user
 func (h *UserHandler) GetPublicKey(c *gin.Context) {
-	publicKey, err := h.UserController.GetPublicKey(auth.GetUserID(c.Request.Header), c.Query("email"))
+	var publicKey string
+	var err error
+	if userID := c.Query("userID"); userID != "" {
+		targetUserID, parseErr := strconv.ParseInt(userID, 10, 64)
+		if parseErr != nil || targetUserID <= 0 {
+			handler.Error(c, stacktrace.Propagate(ente.ErrBadRequest, "invalid userID"))
+			return
+		}
+		publicKey, err = h.UserController.GetPublicKeyByUserID(targetUserID)
+	} else {
+		publicKey, err = h.UserController.GetPublicKey(auth.GetUserID(c.Request.Header), c.Query("email"))
+	}
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return

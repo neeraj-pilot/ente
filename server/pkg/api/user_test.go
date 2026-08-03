@@ -52,6 +52,49 @@ func TestSetAttributesHandlerRejectsLowMemoryLimit(t *testing.T) {
 	assertAPIErrorResponse(t, recorder, http.StatusBadRequest, ente.BadRequest, "memory limit must be at least 128MB")
 }
 
+func TestGetPublicKeyHandlerLooksUpUserByID(t *testing.T) {
+	handler, db := setupUserHandlerTest(t)
+
+	targetUserID := testutil.InsertUser(t, db, testutil.UserFixture{
+		UserID:       103,
+		Email:        "public-key-target@ente.com",
+		CreationTime: 1,
+	})
+	keyAttributes := ente.KeyAttributes{
+		KEKSalt:                  "kek-salt",
+		KEKHash:                  "kek-hash",
+		EncryptedKey:             "encrypted-key",
+		KeyDecryptionNonce:       "key-decryption-nonce",
+		PublicKey:                "target-public-key",
+		EncryptedSecretKey:       "encrypted-secret-key",
+		SecretKeyDecryptionNonce: "secret-key-decryption-nonce",
+		MemLimit:                 128 * 1024 * 1024,
+		OpsLimit:                 32,
+	}
+	if err := handler.UserController.UserRepo.SetKeyAttributes(targetUserID, keyAttributes); err != nil {
+		t.Fatalf("failed to set key attributes: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/users/public-key?userID="+strconv.FormatInt(targetUserID, 10), nil)
+	router := gin.New()
+	router.GET("/users/public-key", handler.GetPublicKey)
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	var response struct {
+		PublicKey string `json:"publicKey"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode response body: %v", err)
+	}
+	if response.PublicKey != keyAttributes.PublicKey {
+		t.Fatalf("unexpected public key: got %q want %q", response.PublicKey, keyAttributes.PublicKey)
+	}
+}
+
 func setupUserHandlerTest(t *testing.T) (*UserHandler, *sql.DB) {
 	t.Helper()
 
