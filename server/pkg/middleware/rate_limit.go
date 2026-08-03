@@ -263,7 +263,7 @@ func (r *RateLimitMiddleware) getLimiter(reqPath string, reqMethod string) *limi
 		return r.limit250ReqPerMin
 	}
 	if reqPath == "/users/public-key" {
-		return r.limit200ReqPerMin
+		return r.limit60ReqPerMin
 	}
 	if reqPath == "/paste/guard" || reqPath == "/paste/consume" {
 		return r.limit200ReqPerMin
