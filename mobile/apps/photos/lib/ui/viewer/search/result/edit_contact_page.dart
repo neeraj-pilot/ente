@@ -171,7 +171,9 @@ class _EditContactPageState extends State<EditContactPage> {
                                         child: _AvatarActionButton(
                                           size: _editBadgeSize,
                                           isUnlink: _hasLinkedPersonDraft,
-                                          onTap: _hasLinkedPersonDraft
+                                          onTap: _isSaving
+                                              ? null
+                                              : _hasLinkedPersonDraft
                                               ? _draftUnlinkPerson
                                               : _openAvatarEditor,
                                         ),
@@ -380,6 +382,9 @@ class _EditContactPageState extends State<EditContactPage> {
   }
 
   void _draftUnlinkPerson() {
+    if (_isSaving) {
+      return;
+    }
     setState(() {
       _draftLinkedPerson = null;
       _draftUnassignedClusterID = null;
@@ -720,7 +725,7 @@ class _EditContactPageState extends State<EditContactPage> {
 class _AvatarActionButton extends StatelessWidget {
   final double size;
   final bool isUnlink;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _AvatarActionButton({
     required this.size,
