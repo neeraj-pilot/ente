@@ -4,6 +4,7 @@ import {
     decryptStreamBytes,
     deriveKey,
 } from "ente-base/crypto";
+import { fetchPublicCollectionFile } from "ente-base/file-download";
 import {
     authenticatedPublicAlbumsDeviceLimitRequestHeaders,
     authenticatedPublicAlbumsInfoRequestHeaders,
@@ -12,7 +13,7 @@ import {
     linkDeviceTokenFromResponse,
     type PublicAlbumsCredentials,
 } from "ente-base/http";
-import { apiOrigin, apiURL } from "ente-base/origins";
+import { apiURL } from "ente-base/origins";
 import {
     decryptRemoteCollection,
     RemoteCollection,
@@ -351,10 +352,11 @@ export const downloadPublicCollectionFile = async (
     fileDecryptionHeader: string,
     onProgress?: (progress: DownloadProgress) => void,
 ): Promise<void> => {
-    const url = `${await apiOrigin()}/public-collection/files/download/${fileID}`;
-    const response = await fetch(url, {
-        headers: authenticatedPublicAlbumsRequestHeaders(credentials),
-    });
+    const response = await fetchPublicCollectionFile(
+        fileID,
+        "file",
+        credentials,
+    );
     ensureOk(response);
 
     const totalHeader = response.headers.get("content-length");

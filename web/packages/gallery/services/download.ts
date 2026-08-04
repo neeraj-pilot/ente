@@ -1,16 +1,16 @@
-import { fetchFile } from "ente-base/file-download";
+import {
+    fetchFile,
+    fetchPublicCollectionFile,
+    fetchPublicMemoryFile,
+} from "ente-base/file-download";
 import {
     authenticatedPublicAlbumsRequestHeaders,
     authenticatedRequestHeaders,
-    publicRequestHeaders,
     retryEnsuringHTTPOk,
     type PublicAlbumsCredentials,
 } from "ente-base/http";
-import { apiURL, customAPIOrigin } from "ente-base/origins";
-import {
-    authenticatedPublicMemoryRequestHeaders,
-    type PublicMemoryCredentials,
-} from "ente-base/public-memory";
+import { customAPIOrigin } from "ente-base/origins";
+import type { PublicMemoryCredentials } from "ente-base/public-memory";
 import type { EnteFile } from "ente-media/file";
 import { playableVideoURL, renderableImageBlob } from "./convert";
 import {
@@ -233,8 +233,7 @@ const photos_downloadFile = async (
     //
     // Older Museum versions redirect from the legacy endpoint. Browsers
     // preserve request headers across that redirect, so the legacy fallback
-    // has to put the token in the query string instead. Public share routes
-    // still use their legacy query credentials for the same reason.
+    // has to put the token in the query string instead.
     //
     // Ente's own interactive requests use a proxy instead of directly
     // connecting to object storage.
@@ -279,18 +278,9 @@ const publicAlbums_downloadThumbnail = async (
 ) => {
     const customOrigin = await customAPIOrigin();
 
-    const getThumbnail = async () => {
+    const getThumbnail = () => {
         if (customOrigin) {
-            // See: [Note: Passing credentials for self-hosted file fetches]
-            const { accessToken, accessTokenJWT } = credentials;
-            const params = new URLSearchParams({
-                accessToken,
-                ...(accessTokenJWT && { accessTokenJWT }),
-            });
-            return fetch(
-                `${customOrigin}/public-collection/files/preview/${file.id}?${params.toString()}`,
-                { headers: publicRequestHeaders() },
-            );
+            return fetchPublicCollectionFile(file.id, "thumbnail", credentials);
         } else {
             return fetch(
                 `https://public-albums.ente.com/preview/?fileID=${file.id}`,
@@ -314,15 +304,7 @@ const publicAlbums_downloadFile = async (
 
     const getFile = () => {
         if (customOrigin) {
-            // See: [Note: Passing credentials for self-hosted file fetches]
-            const { accessToken, accessTokenJWT } = credentials;
-            const params = new URLSearchParams({
-                accessToken,
-                ...(accessTokenJWT && { accessTokenJWT }),
-            });
-            return fetch(
-                `${customOrigin}/public-collection/files/download/${file.id}?${params.toString()}`,
-            );
+            return fetchPublicCollectionFile(file.id, "file", credentials);
         } else {
             return fetch(
                 `https://public-albums.ente.com/download/?fileID=${file.id}`,
@@ -345,27 +327,8 @@ const publicMemory_downloadThumbnail = async (
     file: EnteFile,
     credentials: PublicMemoryCredentials,
 ) => {
-    const customOrigin = await customAPIOrigin();
-
-    const getThumbnail = async () => {
-        if (customOrigin) {
-            // See: [Note: Passing credentials for self-hosted file fetches]
-            const { accessToken } = credentials;
-            const params = new URLSearchParams({ accessToken });
-            return fetch(
-                `${customOrigin}/public-memory/files/preview/${file.id}?${params.toString()}`,
-                { headers: publicRequestHeaders() },
-            );
-        } else {
-            return fetch(
-                await apiURL(`/public-memory/files/preview/${file.id}`),
-                {
-                    headers:
-                        authenticatedPublicMemoryRequestHeaders(credentials),
-                },
-            );
-        }
-    };
+    const getThumbnail = () =>
+        fetchPublicMemoryFile(file.id, "thumbnail", credentials);
 
     const res = await retryEnsuringHTTPOk(getThumbnail);
     return new Uint8Array(await res.arrayBuffer());
@@ -375,26 +338,7 @@ const publicMemory_downloadFile = async (
     file: EnteFile,
     credentials: PublicMemoryCredentials,
 ) => {
-    const customOrigin = await customAPIOrigin();
-
-    const getFile = async () => {
-        if (customOrigin) {
-            // See: [Note: Passing credentials for self-hosted file fetches]
-            const { accessToken } = credentials;
-            const params = new URLSearchParams({ accessToken });
-            return fetch(
-                `${customOrigin}/public-memory/files/download/${file.id}?${params.toString()}`,
-            );
-        } else {
-            return fetch(
-                await apiURL(`/public-memory/files/download/${file.id}`),
-                {
-                    headers:
-                        authenticatedPublicMemoryRequestHeaders(credentials),
-                },
-            );
-        }
-    };
+    const getFile = () => fetchPublicMemoryFile(file.id, "file", credentials);
 
     return retryEnsuringHTTPOk(getFile);
 };

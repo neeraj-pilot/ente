@@ -7,6 +7,7 @@ import {
     fromHex,
     toB64,
 } from "ente-base/crypto";
+import { fetchFileLinkFile } from "ente-base/file-download";
 import {
     linkDeviceTokenFromResponse,
     linkDeviceTokenRequestHeader,
@@ -433,12 +434,8 @@ export const downloadFile = async (
     fileDecryptionHeader?: string,
     fileNonce?: string,
 ): Promise<void> => {
-    const url = `${await apiOrigin()}/file-link/file`;
-
     // Fetch the encrypted file from the server
-    const response = await fetch(url, {
-        headers: { "X-Auth-Access-Token": accessToken },
-    });
+    const response = await fetchFileLinkFile(accessToken);
 
     if (!response.ok) {
         if (await isDeviceLimitExceededResponse(response)) {

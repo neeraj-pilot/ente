@@ -4,9 +4,9 @@ import {
     setPublicAlbumsCredentials,
 } from "@/public-album/data/auth/public-link-credentials";
 import { blobCache, type BlobCache } from "ente-base/blob-cache";
+import { fetchPublicCollectionFile } from "ente-base/file-download";
 import {
     authenticatedPublicAlbumsRequestHeaders,
-    publicRequestHeaders,
     retryEnsuringHTTPOk,
     type PublicAlbumsCredentials,
 } from "ente-base/http";
@@ -136,17 +136,9 @@ const publicAlbums_downloadThumbnail = async (
 ) => {
     const customOrigin = await customAPIOrigin();
 
-    const getThumbnail = async () => {
+    const getThumbnail = () => {
         if (customOrigin) {
-            const { accessToken, accessTokenJWT } = credentials;
-            const params = new URLSearchParams({
-                accessToken,
-                ...(accessTokenJWT && { accessTokenJWT }),
-            });
-            return fetch(
-                `${customOrigin}/public-collection/files/preview/${file.id}?${params.toString()}`,
-                { headers: publicRequestHeaders() },
-            );
+            return fetchPublicCollectionFile(file.id, "thumbnail", credentials);
         } else {
             return fetch(
                 `https://public-albums.ente.com/preview/?fileID=${file.id}`,

@@ -7,9 +7,9 @@ import {
     playableVideoURL,
     renderableImageBlob,
 } from "@/public-album/media/processing/convert";
+import { fetchPublicCollectionFile } from "ente-base/file-download";
 import {
     authenticatedPublicAlbumsRequestHeaders,
-    publicRequestHeaders,
     retryEnsuringHTTPOk,
     type PublicAlbumsCredentials,
 } from "ente-base/http";
@@ -147,18 +147,9 @@ const publicAlbums_downloadThumbnail = async (
 ) => {
     const customOrigin = await customAPIOrigin();
 
-    const getThumbnail = async () => {
+    const getThumbnail = () => {
         if (customOrigin) {
-            // See: [Note: Passing credentials for self-hosted file fetches]
-            const { accessToken, accessTokenJWT } = credentials;
-            const params = new URLSearchParams({
-                accessToken,
-                ...(accessTokenJWT && { accessTokenJWT }),
-            });
-            return fetch(
-                `${customOrigin}/public-collection/files/preview/${file.id}?${params.toString()}`,
-                { headers: publicRequestHeaders() },
-            );
+            return fetchPublicCollectionFile(file.id, "thumbnail", credentials);
         } else {
             return fetch(
                 `https://public-albums.ente.com/preview/?fileID=${file.id}`,
@@ -182,15 +173,7 @@ const publicAlbums_downloadFile = async (
 
     const getFile = () => {
         if (customOrigin) {
-            // See: [Note: Passing credentials for self-hosted file fetches]
-            const { accessToken, accessTokenJWT } = credentials;
-            const params = new URLSearchParams({
-                accessToken,
-                ...(accessTokenJWT && { accessTokenJWT }),
-            });
-            return fetch(
-                `${customOrigin}/public-collection/files/download/${file.id}?${params.toString()}`,
-            );
+            return fetchPublicCollectionFile(file.id, "file", credentials);
         } else {
             return fetch(
                 `https://public-albums.ente.com/download/?fileID=${file.id}`,

@@ -1,6 +1,7 @@
 import type { CastData } from "@/services/cast-data";
 import { detectMediaMIMEType } from "@/services/detect-type";
 import { decryptStreamBytes } from "ente-base/crypto";
+import { fetchCastFile } from "ente-base/file-download";
 import { nameAndExtension } from "ente-base/file-name";
 import { ensureOk, isHTTP401Error, publicRequestHeaders } from "ente-base/http";
 import log from "ente-base/log";
@@ -251,14 +252,11 @@ const downloadFile = async (
 
     const getFile = () => {
         if (customOrigin) {
-            // See: [Note: Passing credentials for self-hosted file fetches]
-            const params = new URLSearchParams({ castToken });
-            const baseURL = shouldUseThumbnail
-                ? `${customOrigin}/cast/files/preview/${file.id}`
-                : `${customOrigin}/cast/files/download/${file.id}`;
-            return fetch(`${baseURL}?${params.toString()}`, {
-                headers: publicRequestHeaders(),
-            });
+            return fetchCastFile(
+                file.id,
+                shouldUseThumbnail ? "thumbnail" : "file",
+                castToken,
+            );
         } else {
             const url = shouldUseThumbnail
                 ? `https://cast-albums.ente.com/preview/?fileID=${file.id}`
