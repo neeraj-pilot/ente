@@ -784,11 +784,15 @@ func main() {
 	fileLinkApi.GET("/info", fileHandler.LinkInfo)
 	fileLinkApi.GET("/pass-info", fileHandler.PasswordInfo)
 	fileLinkApi.GET("/thumbnail", fileHandler.LinkThumbnail)
+	fileLinkApi.GET("/thumbnail/v3", fileHandler.LinkThumbnailURLV3)
 	fileLinkApi.GET("/file", fileHandler.LinkFile)
+	fileLinkApi.GET("/file/v3", fileHandler.LinkFileURLV3)
 	fileLinkApi.POST("/verify-password", fileHandler.VerifyPassword)
 
 	publicCollectionAPI.GET("/files/preview/:fileID", publicCollectionHandler.GetThumbnail)
+	publicCollectionAPI.GET("/files/thumbnail/v3/:fileID", publicCollectionHandler.GetThumbnailURLV3)
 	publicCollectionAPI.GET("/files/download/:fileID", publicCollectionHandler.GetFile)
+	publicCollectionAPI.GET("/files/download/v3/:fileID", publicCollectionHandler.GetFileURLV3)
 	publicCollectionAPI.GET("/files/data/fetch", publicCollectionHandler.GetFileData)
 	publicCollectionAPI.GET("/files/data/preview", publicCollectionHandler.GetPreviewURL)
 	publicCollectionAPI.GET("/diff", publicCollectionHandler.GetDiff)
@@ -825,7 +829,9 @@ func main() {
 	publicMemoryAPI.GET("/info", publicMemoryShareHandler.GetInfo)
 	publicMemoryAPI.GET("/files", publicMemoryShareHandler.GetFiles)
 	publicMemoryAPI.GET("/files/preview/:fileID", publicMemoryShareHandler.GetThumbnail)
+	publicMemoryAPI.GET("/files/thumbnail/v3/:fileID", publicMemoryShareHandler.GetThumbnailURLV3)
 	publicMemoryAPI.GET("/files/download/:fileID", publicMemoryShareHandler.GetFile)
+	publicMemoryAPI.GET("/files/download/v3/:fileID", publicMemoryShareHandler.GetFileURLV3)
 	publicMemoryAPI.GET("/file-data", publicMemoryShareHandler.GetFileData)
 	publicMemoryAPI.GET("/files/data/preview", publicMemoryShareHandler.GetPreviewURL)
 
@@ -861,7 +867,9 @@ func main() {
 	storageAPI.DELETE("/cast/revoke-all-tokens/", castHandler.RevokeAllToken)
 
 	castAPI.GET("/files/preview/:fileID", castHandler.GetThumbnail)
+	castAPI.GET("/files/thumbnail/v3/:fileID", castHandler.GetThumbnailURLV3)
 	castAPI.GET("/files/download/:fileID", castHandler.GetFile)
+	castAPI.GET("/files/download/v3/:fileID", castHandler.GetFileURLV3)
 	castAPI.GET("/diff", castHandler.GetDiff)
 	castAPI.GET("/info", castHandler.GetCollection)
 	familyHandler := &api.FamilyHandler{

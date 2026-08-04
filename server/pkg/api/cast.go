@@ -131,6 +131,18 @@ func (h *CastHandler) GetThumbnail(c *gin.Context) {
 	h.getFileForType(c, ente.THUMBNAIL)
 }
 
+// GetFileURLV3 returns the file URL and reserves HTTP 404 for an unavailable endpoint.
+func (h *CastHandler) GetFileURLV3(c *gin.Context) {
+	url, err := h.getFileURL(c, ente.FILE)
+	writeFileURLV3(c, url, err)
+}
+
+// GetThumbnailURLV3 returns the thumbnail URL and reserves HTTP 404 for an unavailable endpoint.
+func (h *CastHandler) GetThumbnailURLV3(c *gin.Context) {
+	url, err := h.getFileURL(c, ente.THUMBNAIL)
+	writeFileURLV3(c, url, err)
+}
+
 // GetCollection redirects the request to the collection location
 func (h *CastHandler) GetCollection(c *gin.Context) {
 	collection, err := h.CollectionCtrl.GetCastCollection(c)
@@ -166,16 +178,23 @@ func getDeviceCode(c *gin.Context) string {
 }
 
 func (h *CastHandler) getFileForType(c *gin.Context, objectType ente.ObjectType) {
-	fileID, err := strconv.ParseInt(c.Param("fileID"), 10, 64)
-	if err != nil {
-		handler.Error(c, stacktrace.Propagate(ente.ErrBadRequest, ""))
-		return
-	}
-	castCtx := auth.GetCastCtx(c)
-	url, err := h.FileCtrl.GetPublicOrCastFileURL(c, fileID, objectType, castCtx.CollectionID)
+	url, err := h.getFileURL(c, objectType)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
 	c.Redirect(http.StatusTemporaryRedirect, url)
+}
+
+func (h *CastHandler) getFileURL(c *gin.Context, objectType ente.ObjectType) (string, error) {
+	fileID, err := strconv.ParseInt(c.Param("fileID"), 10, 64)
+	if err != nil {
+		return "", stacktrace.Propagate(ente.ErrBadRequest, "")
+	}
+	castCtx := auth.GetCastCtx(c)
+	url, err := h.FileCtrl.GetPublicOrCastFileURL(c, fileID, objectType, castCtx.CollectionID)
+	if err != nil {
+		return "", stacktrace.Propagate(err, "")
+	}
+	return url, nil
 }

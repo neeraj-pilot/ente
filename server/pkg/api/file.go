@@ -240,11 +240,7 @@ func (h *FileHandler) GetURL(c *gin.Context) {
 func (h *FileHandler) GetURLV3(c *gin.Context) {
 	userID, fileID := getUserAndFileIDs(c)
 	url, err := h.Controller.GetFileURL(c, userID, fileID)
-	if err != nil {
-		handler.Error(c, stacktrace.Propagate(fileURLV3Error(err), ""))
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"url": url})
+	writeFileURLV3(c, url, err)
 }
 
 // GetThumbnail redirects the request to the file's thumbnail location
@@ -274,6 +270,10 @@ func (h *FileHandler) GetThumbnailURL(c *gin.Context) {
 func (h *FileHandler) GetThumbnailURLV3(c *gin.Context) {
 	userID, fileID := getUserAndFileIDs(c)
 	url, err := h.Controller.GetThumbnailURL(c, userID, fileID)
+	writeFileURLV3(c, url, err)
+}
+
+func writeFileURLV3(c *gin.Context, url string, err error) {
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(fileURLV3Error(err), ""))
 		return
@@ -282,7 +282,10 @@ func (h *FileHandler) GetThumbnailURLV3(c *gin.Context) {
 }
 
 func fileURLV3Error(err error) error {
-	if errors.Is(err, sql.ErrNoRows) {
+	var apiErr *ente.ApiError
+	if errors.Is(err, sql.ErrNoRows) ||
+		errors.Is(err, ente.ErrNotFound) ||
+		(errors.As(err, &apiErr) && apiErr.Code == ente.NotFoundError) {
 		return ente.NewBadRequestError(&ente.ApiErrorParams{
 			Code:    ente.NotFoundError,
 			Message: "requested object was not found",
