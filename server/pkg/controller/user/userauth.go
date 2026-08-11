@@ -434,6 +434,22 @@ func storageWarningDeletionScheduledError() error {
 	}, "storage warning deletion scheduled")
 }
 
+func (c *UserController) addTokenIfStorageWarningLoginAllowed(userID int64, app ente.App, token string, ip string, userAgent string) error {
+	addToken := func() error {
+		if err := c.ensureStorageWarningDeletionLoginAllowed(userID, app); err != nil {
+			return err
+		}
+		if err := c.UserAuthRepo.AddToken(userID, app, token, ip, userAgent); err != nil {
+			return stacktrace.Propagate(err, "failed to insert token")
+		}
+		return nil
+	}
+	if c.NotificationHistoryRepo == nil || !shouldEnforceStorageWarningDeletionLoginBlock(app) {
+		return addToken()
+	}
+	return c.NotificationHistoryRepo.WithStorageWarningLoginStateLock(userID, addToken)
+}
+
 func (c *UserController) alertStorageWarningDeletionScheduledLoginBlock(userID int64, app ente.App) {
 	log.WithFields(log.Fields{
 		"user_id": userID,
@@ -488,12 +504,8 @@ func (c *UserController) ClearStorageWarningDeletionLoginBlock(userID int64) err
 }
 
 func (c *UserController) AddTokenAndNotify(ctx *gin.Context, userID int64, app ente.App, token string, ip string, userAgent string) error {
-	if err := c.ensureStorageWarningDeletionLoginAllowed(userID, app); err != nil {
+	if err := c.addTokenIfStorageWarningLoginAllowed(userID, app, token, ip, userAgent); err != nil {
 		return err
-	}
-	err := c.UserAuthRepo.AddToken(userID, app, token, ip, userAgent)
-	if err != nil {
-		return stacktrace.Propagate(err, "failed to insert token")
 	}
 
 	isEmailMFAEnabled, emailMFAErr := c.UserAuthRepo.IsEmailMFAEnabled(ctx, userID)
@@ -685,10 +697,7 @@ func (c *UserController) onVerificationSuccess(context *gin.Context, email strin
 		if errors.Is(err, sql.ErrNoRows) {
 			// user creation is pending on key attributes set based on the password.
 			// No need to send login notification
-			if err := c.ensureStorageWarningDeletionLoginAllowed(userID, app); err != nil {
-				return ente.EmailAuthorizationResponse{}, err
-			}
-			err = c.UserAuthRepo.AddToken(userID, app, token,
+			err = c.addTokenIfStorageWarningLoginAllowed(userID, app, token,
 				network.GetClientIP(context), context.Request.UserAgent())
 			if err != nil {
 				return ente.EmailAuthorizationResponse{}, stacktrace.Propagate(err, "")

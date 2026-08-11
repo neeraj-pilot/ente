@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"sync"
 
 	"github.com/ente/stacktrace"
 	"github.com/lib/pq"
@@ -13,6 +14,8 @@ import (
 type NotificationHistoryRepository struct {
 	DB *sql.DB
 }
+
+var storageWarningLoginStateMu [64]sync.Mutex
 
 const (
 	StorageWarningExpiredScheduledDeletionTemplateID       = "storage_warning_expired_scheduled_deletion"
@@ -209,10 +212,27 @@ func (repo *NotificationHistoryRepository) IsStorageWarningLoginGraceActive(user
 	return StorageWarningLoginGraceActive(graceSentAt, now), graceUntil, nil
 }
 
+func storageWarningLoginStateLock(userID int64) *sync.Mutex {
+	return &storageWarningLoginStateMu[uint64(userID)%uint64(len(storageWarningLoginStateMu))]
+}
+
+// WithStorageWarningLoginStateLock coordinates admin grace, cron re-blocking,
+// and token creation within one Museum instance.
+func (repo *NotificationHistoryRepository) WithStorageWarningLoginStateLock(userID int64, action func() error) error {
+	stateLock := storageWarningLoginStateLock(userID)
+	stateLock.Lock()
+	defer stateLock.Unlock()
+	return action()
+}
+
 // GrantStorageWarningLoginGrace replaces terminal login-block rows with a
 // soft-unblock marker. Duplicate grace rows are allowed; readers use the latest
 // sent_time so a later admin action starts a fresh window.
 func (repo *NotificationHistoryRepository) GrantStorageWarningLoginGrace(userID int64) (int64, bool, error) {
+	stateLock := storageWarningLoginStateLock(userID)
+	stateLock.Lock()
+	defer stateLock.Unlock()
+
 	now := time.Microseconds()
 	tx, err := repo.DB.Begin()
 	if err != nil {

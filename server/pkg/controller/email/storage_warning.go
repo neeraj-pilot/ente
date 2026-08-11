@@ -371,6 +371,48 @@ func (c *EmailNotificationController) clearStorageWarningLoginGrace(userID int64
 	return nil
 }
 
+func (c *EmailNotificationController) resetUserAccessAfterStorageWarningGrace(
+	ctx context.Context,
+	snapshot storageWarningSnapshot,
+	templateID string,
+	logger *log.Entry,
+) error {
+	if c.NotificationHistoryRepo == nil {
+		return errors.New("storage warning notification history repo is not configured")
+	}
+	if c.UserAccessResetter == nil {
+		return errors.New("storage warning user access resetter is not configured")
+	}
+
+	return c.NotificationHistoryRepo.WithStorageWarningLoginStateLock(snapshot.RecipientID, func() error {
+		graceActive, graceUntil, err := c.NotificationHistoryRepo.IsStorageWarningLoginGraceActive(snapshot.RecipientID, time.Microseconds())
+		if err != nil {
+			return err
+		}
+		if graceActive {
+			logger.WithField("login_grace_until", graceUntil).Info("Skipping storage warning re-block after renewed login grace")
+			return nil
+		}
+
+		deletionScheduled, err := c.NotificationHistoryRepo.IsStorageWarningDeletionScheduled(snapshot.RecipientID)
+		if err != nil {
+			return err
+		}
+		if !deletionScheduled {
+			if err := persistStorageWarningHistory(c.NotificationHistoryRepo, snapshot, templateID); err != nil {
+				return err
+			}
+			logger.Info("Restored storage warning scheduled deletion history")
+		}
+
+		if err := c.UserAccessResetter.ResetUserAccess(ctx, snapshot.RecipientID, logger); err != nil {
+			return err
+		}
+		logger.Info("Restricted user access after storage warning login grace expired")
+		return c.clearStorageWarningLoginGrace(snapshot.RecipientID, logger)
+	})
+}
+
 func (c *EmailNotificationController) clearRecoveredStorageWarningLoginState(userID int64, logger *log.Entry) error {
 	if c.NotificationHistoryRepo == nil {
 		return nil
@@ -573,15 +615,20 @@ func (c *EmailNotificationController) processStorageWarningSnapshot(ctx context.
 		return storageWarningProcessResultSkipped, nil
 	}
 
+	shouldResetUserAccess := storageWarningShouldResetUserAccess(snapshot)
 	if storageWarningTemplateSentInCycle(snapshot.NotificationHistory, templateID, snapshot.WarningCycleStart) {
-		if graceExpired {
+		if graceExpired && shouldResetUserAccess {
+			if err := c.resetUserAccessAfterStorageWarningGrace(ctx, snapshot, templateID, logger); err != nil {
+				logger.WithError(err).Error("Failed to re-block user after storage warning login grace expired")
+				return storageWarningProcessResultSkipped, err
+			}
+		} else if graceExpired {
 			if err := c.clearStorageWarningLoginGrace(snapshot.RecipientID, logger); err != nil {
 				return storageWarningProcessResultSkipped, err
 			}
 		}
 		return storageWarningProcessResultSkipped, nil
 	}
-	shouldResetUserAccess := storageWarningShouldResetUserAccess(snapshot)
 	if cadenceBroken, cadenceAlert := storageWarningCadenceBroken(snapshot); cadenceBroken {
 		if shouldResetUserAccess && graceExpired {
 			logger.WithFields(log.Fields{
