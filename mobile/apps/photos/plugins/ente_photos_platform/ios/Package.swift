@@ -6,14 +6,21 @@ let package = Package(
     name: "PhotosPlatformCore",
     platforms: [.iOS(.v15)],
     products: [
-        .library(name: "PhotosPlatformCore", targets: ["PhotosPlatformCore"])
+        .library(
+            name: "PhotosPlatformCore",
+            targets: ["PhotosPlatformCore", "MediaLibraryCore"]
+        )
     ],
     targets: [
         .target(
+            name: "MediaLibraryCore",
+            path: "Sources/MediaLibraryCore"
+        ),
+        .target(
             name: "PhotosPlatformCore",
-            path: "Classes",
-            exclude: ["PhotosPlatformPlugin.swift"]
-        )
+            dependencies: ["MediaLibraryCore"],
+            path: "Sources/PhotosPlatformCore"
+        ),
     ],
     swiftLanguageVersions: [.v5]
 )

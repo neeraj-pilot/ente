@@ -2,13 +2,14 @@
 import Foundation
 
 @MainActor
-public final class PhotosPlatformPlugin: NSObject, @preconcurrency FlutterPlugin {
+final class DeviceHealthChannelAdapter: NSObject {
     private let methodChannel: FlutterMethodChannel
     private let eventChannel: FlutterEventChannel
-    private let healthService = DeviceHealthService()
+    private let service = DeviceHealthService()
     private var eventSink: FlutterEventSink?
+    private var isAttached = true
 
-    private init(registrar: FlutterPluginRegistrar) {
+    init(registrar: FlutterPluginRegistrar) {
         methodChannel = FlutterMethodChannel(
             name: Self.methodChannelName,
             binaryMessenger: registrar.messenger()
@@ -18,52 +19,55 @@ public final class PhotosPlatformPlugin: NSObject, @preconcurrency FlutterPlugin
             binaryMessenger: registrar.messenger()
         )
         super.init()
+        methodChannel.setMethodCallHandler { [weak self] call, result in
+            Task { @MainActor [weak self] in
+                self?.handle(call, result: result)
+            }
+        }
+        eventChannel.setStreamHandler(self)
     }
 
-    public static func register(with registrar: FlutterPluginRegistrar) {
-        let instance = PhotosPlatformPlugin(registrar: registrar)
-        registrar.addMethodCallDelegate(instance, channel: instance.methodChannel)
-        instance.eventChannel.setStreamHandler(instance)
-        registrar.publish(instance)
+    func detach() {
+        guard isAttached else { return }
+        isAttached = false
+        eventSink = nil
+        service.stopObserving()
+        methodChannel.setMethodCallHandler(nil)
+        eventChannel.setStreamHandler(nil)
     }
 
-    public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard isAttached else { return }
         switch call.method {
         case "deviceHealth.getSnapshot":
-            result(healthService.snapshot().channelValue)
+            result(service.snapshot().channelValue)
         case "deviceHealth.getMemorySnapshot":
-            result(healthService.memorySnapshot().memoryChannelValue)
+            result(service.memorySnapshot().memoryChannelValue)
         default:
             result(FlutterMethodNotImplemented)
         }
-    }
-
-    public func detachFromEngine(for registrar: FlutterPluginRegistrar) {
-        eventSink = nil
-        healthService.stopObserving()
-        methodChannel.setMethodCallHandler(nil)
-        eventChannel.setStreamHandler(nil)
     }
 
     private static let methodChannelName = "io.ente.photos.platform"
     private static let eventChannelName = "io.ente.photos.platform/device_health_events"
 }
 
-extension PhotosPlatformPlugin: @preconcurrency FlutterStreamHandler {
-    public func onListen(
+extension DeviceHealthChannelAdapter: @preconcurrency FlutterStreamHandler {
+    func onListen(
         withArguments arguments: Any?,
         eventSink events: @escaping FlutterEventSink
     ) -> FlutterError? {
+        guard isAttached else { return nil }
         eventSink = events
-        healthService.startObserving { [weak self] snapshot in
+        service.startObserving { [weak self] snapshot in
             self?.eventSink?(snapshot.channelValue)
         }
         return nil
     }
 
-    public func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
         eventSink = nil
-        healthService.stopObserving()
+        service.stopObserving()
         return nil
     }
 }
