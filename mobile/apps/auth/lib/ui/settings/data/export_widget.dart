@@ -14,8 +14,7 @@ import 'package:ente_lock_screen/local_authentication_service.dart';
 import 'package:ente_strings/ente_strings.dart';
 import 'package:ente_ui/components/buttons/button_widget.dart';
 import 'package:ente_ui/components/buttons/models/button_type.dart';
-import 'package:ente_utils/ente_utils.dart';
-import 'package:file_saver/file_saver.dart';
+import 'package:file_export/file_export.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
@@ -172,12 +171,14 @@ Future<void> _exportCodes(
       context,
       context.strings.exportCodes,
       saveAction: () async {
-        await FileSaverUtil.saveFile(
-          exportFileName,
-          extension,
-          CryptoUtil.strToBin(fileContent),
-          MimeType.text,
+        final result = await const FileExporter().exportBytes(
+          fileName: '$exportFileName.$extension',
+          mimeType: 'text/plain',
+          bytes: CryptoUtil.strToBin(fileContent),
         );
+        if (result is FileExportFailed && context.mounted) {
+          showToast(context, context.strings.somethingWentWrongPleaseTryAgain);
+        }
       },
       sendAction: () async {
         final codeFile = File(

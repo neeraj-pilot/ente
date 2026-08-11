@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:ente_pure_utils/ente_pure_utils.dart';
-import 'package:file_saver/file_saver.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -36,31 +35,6 @@ class PlatformUtil {
           : LaunchMode.inAppBrowserView,
       browserConfiguration: const BrowserConfiguration(showTitle: true),
     );
-  }
-
-  static Future<void> shareFile(
-    String fileName,
-    String extension,
-    Uint8List bytes,
-    MimeType type,
-  ) async {
-    try {
-      if (Platform.isAndroid || Platform.isIOS) {
-        await FileSaver.instance.saveAs(
-          name: fileName,
-          fileExtension: extension,
-          bytes: bytes,
-          mimeType: type,
-        );
-      } else {
-        await FileSaver.instance.saveFile(
-          name: fileName,
-          fileExtension: extension,
-          bytes: bytes,
-          mimeType: type,
-        );
-      }
-    } catch (_) {}
   }
 
   // Needed to fix issue with local_auth on Windows

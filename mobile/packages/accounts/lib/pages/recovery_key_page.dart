@@ -11,7 +11,7 @@ import 'package:ente_strings/ente_strings.dart';
 import 'package:ente_ui/theme/ente_theme.dart';
 import 'package:ente_ui/utils/toast_util.dart';
 import 'package:ente_utils/ente_utils.dart';
-import 'package:file_saver/file_saver.dart';
+import 'package:file_export/file_export.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -274,21 +274,22 @@ class _RecoveryKeyPageState extends State<RecoveryKeyPage> {
   }
 
   Future _saveRecoveryKey(String recoveryKey) async {
-    final bytes = utf8.encode(recoveryKey);
+    final bytes = Uint8List.fromList(utf8.encode(recoveryKey));
     final time = DateTime.now().millisecondsSinceEpoch;
 
-    await FileSaverUtil.saveFile(
-      "ente_recovery_key_$time",
-      "txt",
-      bytes,
-      MimeType.text,
+    final result = await const FileExporter().exportBytes(
+      fileName: 'ente_recovery_key_$time.txt',
+      mimeType: 'text/plain',
+      bytes: bytes,
     );
 
-    if (mounted) {
-      showToast(context, context.strings.recoveryKeySaved);
+    if (mounted && result is FileExported) {
+      showToast(context, context.strings.recoveryKeyExported);
       setState(() {
         _hasTriedToSave = true;
       });
+    } else if (mounted && result is FileExportFailed) {
+      showToast(context, context.strings.somethingWentWrongPleaseTryAgain);
     }
   }
 

@@ -10,9 +10,10 @@ PODS:
     - FlutterMacOS
   - ente_qr (0.0.1):
     - FlutterMacOS
-  - file_picker (0.0.1):
+  - file_export (0.0.1):
+    - Flutter
     - FlutterMacOS
-  - file_saver (0.0.1):
+  - file_picker (0.0.1):
     - FlutterMacOS
   - flutter_local_notifications (0.0.1):
     - FlutterMacOS
@@ -82,8 +83,8 @@ DEPENDENCIES:
   - cupertino_http (from `Flutter/ephemeral/.symlinks/plugins/cupertino_http/darwin`)
   - device_info_plus (from `Flutter/ephemeral/.symlinks/plugins/device_info_plus/macos`)
   - ente_qr (from `Flutter/ephemeral/.symlinks/plugins/ente_qr/macos`)
+  - file_export (from `Flutter/ephemeral/.symlinks/plugins/file_export/darwin`)
   - file_picker (from `Flutter/ephemeral/.symlinks/plugins/file_picker/macos`)
-  - file_saver (from `Flutter/ephemeral/.symlinks/plugins/file_saver/macos`)
   - flutter_local_notifications (from `Flutter/ephemeral/.symlinks/plugins/flutter_local_notifications/macos`)
   - flutter_secure_storage_macos (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
@@ -117,10 +118,10 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/device_info_plus/macos
   ente_qr:
     :path: Flutter/ephemeral/.symlinks/plugins/ente_qr/macos
+  file_export:
+    :path: Flutter/ephemeral/.symlinks/plugins/file_export/darwin
   file_picker:
     :path: Flutter/ephemeral/.symlinks/plugins/file_picker/macos
-  file_saver:
-    :path: Flutter/ephemeral/.symlinks/plugins/file_saver/macos
   flutter_local_notifications:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_local_notifications/macos
   flutter_secure_storage_macos:
@@ -160,8 +161,8 @@ SPEC CHECKSUMS:
   cupertino_http: 94ac07f5ff090b8effa6c5e2c47871d48ab7c86c
   device_info_plus: 4fb280989f669696856f8b129e4a5e3cd6c48f76
   ente_qr: 679dcacb6a07788ee2e79d29485b07064cdec78d
+  file_export: c4b1dce2c331d3b8c1ee1f342de50e56cf115499
   file_picker: 7584aae6fa07a041af2b36a2655122d42f578c1a
-  file_saver: e35bd97de451dde55ff8c38862ed7ad0f3418d0f
   flutter_local_notifications: 4bf37a31afde695b56091b4ae3e4d9c7a7e6cda0
   flutter_secure_storage_macos: 7f45e30f838cf2659862a4e4e3ee1c347c2b3b54
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1

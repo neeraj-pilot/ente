@@ -49,10 +49,11 @@ PODS:
     - Flutter
   - ente_screen_cover (0.0.1):
     - Flutter
+  - file_export (0.0.1):
+    - Flutter
+    - FlutterMacOS
   - file_picker (0.0.1):
     - DKImagePickerController/PhotoGallery
-    - Flutter
-  - file_saver (0.0.1):
     - Flutter
   - Flutter (1.0.0)
   - flutter_local_notifications (0.0.1):
@@ -134,8 +135,8 @@ DEPENDENCIES:
   - ente_qr (from `.symlinks/plugins/ente_qr/ios`)
   - ente_qr_scanner (from `.symlinks/plugins/ente_qr_scanner/ios`)
   - ente_screen_cover (from `.symlinks/plugins/ente_screen_cover/ios`)
+  - file_export (from `.symlinks/plugins/file_export/darwin`)
   - file_picker (from `.symlinks/plugins/file_picker/ios`)
-  - file_saver (from `.symlinks/plugins/file_saver/ios`)
   - Flutter (from `Flutter`)
   - flutter_local_notifications (from `.symlinks/plugins/flutter_local_notifications/ios`)
   - flutter_native_splash (from `.symlinks/plugins/flutter_native_splash/ios`)
@@ -183,10 +184,10 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/ente_qr_scanner/ios"
   ente_screen_cover:
     :path: ".symlinks/plugins/ente_screen_cover/ios"
+  file_export:
+    :path: ".symlinks/plugins/file_export/darwin"
   file_picker:
     :path: ".symlinks/plugins/file_picker/ios"
-  file_saver:
-    :path: ".symlinks/plugins/file_saver/ios"
   Flutter:
     :path: Flutter
   flutter_local_notifications:
@@ -236,8 +237,8 @@ SPEC CHECKSUMS:
   ente_qr: 86beaf5d2644705db9b565b32dd8b82c05fb36af
   ente_qr_scanner: 91ee1a2245149fb91f00b5b688285a7c94bb9caa
   ente_screen_cover: 6792566774f1c83939f9c1d03ed0a1f1ded45ae4
+  file_export: c4b1dce2c331d3b8c1ee1f342de50e56cf115499
   file_picker: a0560bc09d61de87f12d246fc47d2119e6ef37be
-  file_saver: 6cdbcddd690cb02b0c1a0c225b37cd805c2bf8b6
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_local_notifications: a5a732f069baa862e728d839dd2ebb904737effb
   flutter_native_splash: c32d145d68aeda5502d5f543ee38c192065986cf

@@ -30,6 +30,7 @@ workspace:
   - packages/ente_qr_scanner
   - packages/ente_screen_brightness
   - packages/events
+  - packages/file_export
   - packages/legacy
   - packages/local_auth_linux
   - packages/lock_screen

@@ -1,12 +1,11 @@
 import "dart:io";
-import "dart:typed_data";
 
 import "package:ente_components/ente_components.dart";
 import "package:ente_strings/ente_strings.dart";
 import "package:ente_ui/utils/dialog_util.dart";
 import "package:ente_ui/utils/toast_util.dart";
 import "package:ente_utils/email_util.dart";
-import "package:file_saver/file_saver.dart";
+import "package:file_export/file_export.dart";
 import "package:flutter/material.dart";
 import "package:locker/models/info/info_item.dart";
 import "package:locker/services/collections/collections_service.dart";
@@ -164,7 +163,6 @@ class FileUtil {
 
     var index = 0;
     final savedNames = <String>[];
-    final savedPaths = <String>[];
     var hasShownInfoSkipToast = false;
 
     try {
@@ -193,14 +191,13 @@ class FileUtil {
 
         final sanitizedName = _sanitizeFileName(file.displayName);
         final baseName = _baseNameWithoutExtension(sanitizedName);
-        final fileExtension = _extensionWithoutDot(file.displayName);
+        final fileExtension = _extensionWithoutDot(sanitizedName);
 
-        final String? savedPath = await _saveRegularFile(
+        final result = await _saveRegularFile(
           file: file,
           targetFileName: fileExtension.isEmpty
               ? baseName
               : "$baseName.$fileExtension",
-          fileExtension: fileExtension,
           onProgress: (percentage) {
             if (context.mounted) {
               dialog.update(
@@ -210,10 +207,13 @@ class FileUtil {
             }
           },
         );
-
-        savedNames.add(file.displayName);
-        if (savedPath != null) {
-          savedPaths.add(savedPath);
+        switch (result) {
+          case FileExported():
+            savedNames.add(file.displayName);
+          case FileExportCancelled():
+            return false;
+          case FileExportFailed(:final message):
+            throw Exception(message ?? 'Failed to save file');
         }
       }
 
@@ -221,7 +221,7 @@ class FileUtil {
         final message = savedNames.length == 1
             ? '${savedNames.first} saved'
             : '${savedNames.length} files saved';
-        _logger.info('${savedPaths.length} files saved');
+        _logger.info('${savedNames.length} files saved');
         if (context.mounted) {
           showToast(context, message);
         }
@@ -247,10 +247,9 @@ class FileUtil {
     }
   }
 
-  static Future<String?> _saveRegularFile({
+  static Future<FileExportResult> _saveRegularFile({
     required EnteFile file,
     required String targetFileName,
-    required String fileExtension,
     required ValueChanged<int> onProgress,
   }) async {
     final fileKey = await CollectionService.instance.getFileKey(file);
@@ -272,26 +271,19 @@ class FileUtil {
     }
 
     try {
-      // Use system file picker on both Android and iOS to let user
-      // choose where to save the file.
-      final fileBytes = await decryptedFile.readAsBytes();
-      final baseName = _baseNameWithoutExtension(targetFileName);
-      final savedPath = await _saveFile(
-        bytes: fileBytes,
-        fileName: baseName,
-        fileExtension: fileExtension,
+      final result = await const FileExporter().exportFile(
+        fileName: targetFileName,
+        mimeType: 'application/octet-stream',
+        path: decryptedFile.path,
       );
-
-      if (savedPath == null) {
-        throw Exception('Failed to save file');
+      if (result is FileExported) {
+        try {
+          onProgress(100);
+        } catch (e) {
+          _logger.fine('Unable to update progress dialog after save: $e');
+        }
       }
-
-      try {
-        onProgress(100);
-      } catch (e) {
-        _logger.fine('Unable to update progress dialog after save: $e');
-      }
-      return savedPath;
+      return result;
     } finally {
       try {
         await decryptedFile.delete();
@@ -303,39 +295,10 @@ class FileUtil {
     }
   }
 
-  /// Saves files using the platform's system file picker.
-  /// On Android and iOS this shows a system sheet allowing the user
-  /// to choose where to save the file.
-  static Future<String?> _saveFile({
-    required Uint8List bytes,
-    required String fileName,
-    required String fileExtension,
-  }) async {
-    if (!Platform.isAndroid && !Platform.isIOS) {
-      _logger.warning('File saving only supported on Android and iOS');
-      return null;
-    }
-
-    try {
-      final baseName = _baseNameWithoutExtension(fileName);
-
-      final savedPath = await FileSaver.instance.saveAs(
-        name: baseName,
-        bytes: bytes,
-        fileExtension: fileExtension,
-        mimeType: MimeType.other,
-      );
-
-      _logger.info('File saved successfully');
-      return savedPath;
-    } catch (e, s) {
-      _logger.severe('Failed to save file', e, s);
-      return null;
-    }
-  }
-
   static String _sanitizeFileName(String name) {
-    final sanitized = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    final sanitized = name
+        .replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1F]'), '_')
+        .trim();
     return sanitized.isEmpty ? "file" : sanitized;
   }
 

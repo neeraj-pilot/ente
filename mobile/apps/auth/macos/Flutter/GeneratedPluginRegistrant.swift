@@ -9,8 +9,8 @@ import app_links
 import connectivity_plus
 import device_info_plus
 import ente_qr
+import file_export
 import file_picker
-import file_saver
 import flutter_local_notifications
 import flutter_secure_storage_macos
 import local_auth_darwin
@@ -32,8 +32,8 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   ConnectivityPlusPlugin.register(with: registry.registrar(forPlugin: "ConnectivityPlusPlugin"))
   DeviceInfoPlusMacosPlugin.register(with: registry.registrar(forPlugin: "DeviceInfoPlusMacosPlugin"))
   EnteQrPlugin.register(with: registry.registrar(forPlugin: "EnteQrPlugin"))
+  FileExportPlugin.register(with: registry.registrar(forPlugin: "FileExportPlugin"))
   FilePickerPlugin.register(with: registry.registrar(forPlugin: "FilePickerPlugin"))
-  FileSaverPlugin.register(with: registry.registrar(forPlugin: "FileSaverPlugin"))
   FlutterLocalNotificationsPlugin.register(with: registry.registrar(forPlugin: "FlutterLocalNotificationsPlugin"))
   FlutterSecureStoragePlugin.register(with: registry.registrar(forPlugin: "FlutterSecureStoragePlugin"))
   LocalAuthPlugin.register(with: registry.registrar(forPlugin: "LocalAuthPlugin"))

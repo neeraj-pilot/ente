@@ -3066,6 +3066,10 @@
   "@recoveryKeySaved": {
     "description": "Recovery key saved confirmation message"
   },
+  "recoveryKeyExported": "Recovery key saved",
+  "@recoveryKeyExported": {
+    "description": "Confirmation after the user exports their recovery key to a chosen destination"
+  },
   "recoveryKeySaveDescription": "We don't store this key, please save this 24 word key in a safe place.",
   "@recoveryKeySaveDescription": {
     "description": "Recovery key save description"

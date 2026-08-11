@@ -3,7 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  file_saver
+  file_export
   flutter_secure_storage_linux
   gtk
   local_auth_linux

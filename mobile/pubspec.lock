@@ -748,14 +748,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "11.0.3"
-  file_saver:
-    dependency: transitive
-    description:
-      name: file_saver
-      sha256: "9d93db09bd4da9e43238f9dd485360fc51a5c138eea5ef5f407ec56e58079ac0"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.1"
   firebase_core:
     dependency: transitive
     description:

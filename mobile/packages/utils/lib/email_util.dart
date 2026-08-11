@@ -14,9 +14,8 @@ import 'package:ente_ui/components/dialog_widget.dart';
 import 'package:ente_ui/pages/log_file_viewer.dart';
 import 'package:ente_ui/theme/ente_theme.dart';
 import 'package:ente_ui/utils/toast_util.dart';
-import 'package:ente_utils/file_saver_util.dart';
 import 'package:ente_utils/share_utils.dart';
-import "package:file_saver/file_saver.dart";
+import 'package:file_export/file_export.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import "package:intl/intl.dart";
@@ -188,8 +187,20 @@ Future<void> exportLogs(
     final String logFileName =
         'ente-logs-${now.year}-$shortMonthName-${now.day}-${now.hour}-${now.minute}';
 
-    final bytes = await File(zipFilePath).readAsBytes();
-    await FileSaverUtil.saveFile(logFileName, 'zip', bytes, MimeType.zip);
+    final result = await const FileExporter().exportFile(
+      fileName: '$logFileName.zip',
+      mimeType: 'application/zip',
+      path: zipFilePath,
+    );
+    if (result is FileExportFailed) {
+      _logger.warning('Failed to export logs: ${result.reason.name}');
+      if (context != null && context.mounted) {
+        showShortToast(
+          context,
+          context.strings.somethingWentWrongPleaseTryAgain,
+        );
+      }
+    }
   } else {
     await shareFiles([
       XFile(zipFilePath, mimeType: 'application/zip'),
