@@ -62,28 +62,66 @@
             if didAccess { destination.stopAccessingSecurityScopedResource() }
         }
 
-        let temporary = destination.deletingLastPathComponent().appendingPathComponent(
-            ".\(destination.lastPathComponent).\(UUID().uuidString).tmp"
-        )
-        defer { try? FileManager.default.removeItem(at: temporary) }
         do {
-            switch request.source {
-            case let .data(data):
-                try data.write(to: temporary, options: .atomic)
-            case let .file(source):
-                try FileManager.default.copyItem(at: source, to: temporary)
-            }
-            if FileManager.default.fileExists(atPath: destination.path) {
-                _ = try FileManager.default.replaceItemAt(destination, withItemAt: temporary)
-            } else {
-                try FileManager.default.moveItem(at: temporary, to: destination)
-            }
+            try write(request.source, to: destination)
             return .exported(destination.path)
         } catch {
             return .failed(
                 request.source.failure ?? .writeFailed,
                 error.localizedDescription
             )
+        }
+    }
+
+    private func write(_ source: ExportSource, to destination: URL) throws {
+        let manager = FileManager.default
+        let existed = manager.fileExists(atPath: destination.path)
+        if !existed && !manager.createFile(atPath: destination.path, contents: nil) {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        do {
+            guard let output = OutputStream(url: destination, append: false) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            output.open()
+            defer { output.close() }
+            switch source {
+            case let .data(data):
+                try data.withUnsafeBytes { bytes in
+                    guard let address = bytes.bindMemory(to: UInt8.self).baseAddress else { return }
+                    try write(address, count: bytes.count, to: output)
+                }
+            case let .file(url):
+                guard let input = InputStream(url: url) else {
+                    throw CocoaError(.fileReadUnknown)
+                }
+                input.open()
+                defer { input.close() }
+                var buffer = [UInt8](repeating: 0, count: 1024 * 1024)
+                while true {
+                    let count = input.read(&buffer, maxLength: buffer.count)
+                    if count < 0 { throw input.streamError ?? CocoaError(.fileReadUnknown) }
+                    if count == 0 { break }
+                    try buffer.withUnsafeBufferPointer {
+                        try write($0.baseAddress!, count: count, to: output)
+                    }
+                }
+            }
+        } catch {
+            if !existed { try? manager.removeItem(at: destination) }
+            throw error
+        }
+    }
+
+    private func write(_ bytes: UnsafePointer<UInt8>, count: Int, to output: OutputStream) throws {
+        var offset = 0
+        while offset < count {
+            let written = output.write(bytes + offset, maxLength: count - offset)
+            guard written > 0 else {
+                throw output.streamError ?? CocoaError(.fileWriteUnknown)
+            }
+            offset += written
         }
     }
 #endif
