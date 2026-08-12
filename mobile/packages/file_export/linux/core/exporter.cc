@@ -260,15 +260,18 @@ void Exporter::StartWrite(ExportRequest request, std::string destination_uri,
         ExportResult result =
             Write(request, destination_uri, location, cancellable);
         g_object_unref(cancellable);
-        g_main_context_invoke(
-            nullptr,
+        GSource *source = g_idle_source_new();
+        g_source_set_callback(
+            source,
             +[](gpointer data) -> gboolean {
-              std::unique_ptr<CompletedWrite> completed(
-                  static_cast<CompletedWrite *>(data));
+              auto *completed = static_cast<CompletedWrite *>(data);
               completed->exporter->Finish(std::move(completed->result));
               return G_SOURCE_REMOVE;
             },
-            new CompletedWrite{std::move(self), std::move(result)});
+            new CompletedWrite{std::move(self), std::move(result)},
+            +[](gpointer data) { delete static_cast<CompletedWrite *>(data); });
+        g_source_attach(source, nullptr);
+        g_source_unref(source);
       });
 }
 
