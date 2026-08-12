@@ -8,6 +8,16 @@
 #include <utility>
 
 namespace file_export {
+namespace {
+
+HWND TopLevelWindow(HWND window) {
+  if (window == nullptr)
+    return nullptr;
+  const HWND top_level = GetAncestor(window, GA_ROOT);
+  return top_level == nullptr ? window : top_level;
+}
+
+} // namespace
 
 struct PendingReply {
   std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> reply;
@@ -30,8 +40,9 @@ public:
         return;
       pending_.emplace(pointer, std::move(pending));
     }
-    if (window_ == nullptr || !PostMessage(window_, ExportCompletedMessage(), 0,
-                                           reinterpret_cast<LPARAM>(pointer))) {
+    if (const HWND window = TopLevelWindow(window_);
+        window == nullptr || !PostMessage(window, ExportCompletedMessage(), 0,
+                                          reinterpret_cast<LPARAM>(pointer))) {
       std::lock_guard<std::mutex> lock(mutex_);
       pending_.erase(pointer);
     }
@@ -69,13 +80,6 @@ private:
 namespace {
 
 constexpr char kChannel[] = "io.ente.file_export";
-
-HWND TopLevelWindow(HWND window) {
-  if (window == nullptr)
-    return nullptr;
-  const HWND top_level = GetAncestor(window, GA_ROOT);
-  return top_level == nullptr ? window : top_level;
-}
 
 const flutter::EncodableValue *Find(const flutter::EncodableMap &map,
                                     const char *key) {
@@ -219,8 +223,8 @@ void FileExportPlugin::RegisterWithRegistrar(
 
 FileExportPlugin::FileExportPlugin(flutter::PluginRegistrarWindows *registrar,
                                    HWND window)
-    : registrar_(registrar), window_(TopLevelWindow(window)),
-      replies_(std::make_shared<ReplyDispatcher>(window_)) {
+    : registrar_(registrar), window_(window),
+      replies_(std::make_shared<ReplyDispatcher>(window)) {
   window_proc_delegate_ = registrar_->RegisterTopLevelWindowProcDelegate(
       [this](HWND, UINT message, WPARAM, LPARAM parameter) {
         return HandleWindowMessage(message, parameter);
@@ -247,7 +251,7 @@ void FileExportPlugin::HandleMethodCall(
   auto reply = std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>>(
       std::move(result));
   exporter_.Export(
-      std::move(*request), window_,
+      std::move(*request), TopLevelWindow(window_),
       [dispatcher = replies_, reply](ExportResult outcome) mutable {
         dispatcher->Post(std::move(reply), std::move(outcome));
       });
