@@ -70,6 +70,13 @@ namespace {
 
 constexpr char kChannel[] = "io.ente.file_export";
 
+HWND TopLevelWindow(HWND window) {
+  if (window == nullptr)
+    return nullptr;
+  const HWND top_level = GetAncestor(window, GA_ROOT);
+  return top_level == nullptr ? window : top_level;
+}
+
 const flutter::EncodableValue *Find(const flutter::EncodableMap &map,
                                     const char *key) {
   const auto value = map.find(flutter::EncodableValue(key));
@@ -212,8 +219,8 @@ void FileExportPlugin::RegisterWithRegistrar(
 
 FileExportPlugin::FileExportPlugin(flutter::PluginRegistrarWindows *registrar,
                                    HWND window)
-    : registrar_(registrar), window_(window),
-      replies_(std::make_shared<ReplyDispatcher>(window)) {
+    : registrar_(registrar), window_(TopLevelWindow(window)),
+      replies_(std::make_shared<ReplyDispatcher>(window_)) {
   window_proc_delegate_ = registrar_->RegisterTopLevelWindowProcDelegate(
       [this](HWND, UINT message, WPARAM, LPARAM parameter) {
         return HandleWindowMessage(message, parameter);
