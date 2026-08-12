@@ -133,7 +133,6 @@ class Exporter(
             }
             ExportResult.Exported(destination.toString())
         } catch (error: Exception) {
-            runCatching { contentResolver.delete(destination, null, null) }
             ExportResult.Failed(failure, error.message)
         }
     }
