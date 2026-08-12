@@ -75,43 +75,82 @@
 
     private func write(_ source: ExportSource, to destination: URL) throws {
         let manager = FileManager.default
-        let existed = manager.fileExists(atPath: destination.path)
-        if !existed && !manager.createFile(atPath: destination.path, contents: nil) {
+        let directory = manager.temporaryDirectory
+            .appendingPathComponent("file-export", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try manager.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+        defer { try? manager.removeItem(at: directory) }
+        let staged = directory.appendingPathComponent(destination.lastPathComponent)
+        guard
+            manager.createFile(
+                atPath: staged.path,
+                contents: nil,
+                attributes: [.posixPermissions: 0o600]
+            )
+        else {
             throw CocoaError(.fileWriteUnknown)
         }
+        try writeContents(source, to: staged)
+        try install(staged, at: destination)
+    }
 
-        do {
-            guard let output = OutputStream(url: destination, append: false) else {
-                throw CocoaError(.fileWriteUnknown)
-            }
-            output.open()
-            defer { output.close() }
-            switch source {
-            case let .data(data):
-                try data.withUnsafeBytes { bytes in
-                    guard let address = bytes.bindMemory(to: UInt8.self).baseAddress else { return }
-                    try write(address, count: bytes.count, to: output)
-                }
-            case let .file(url):
-                guard let input = InputStream(url: url) else {
-                    throw CocoaError(.fileReadUnknown)
-                }
-                input.open()
-                defer { input.close() }
-                var buffer = [UInt8](repeating: 0, count: 1024 * 1024)
-                while true {
-                    let count = input.read(&buffer, maxLength: buffer.count)
-                    if count < 0 { throw input.streamError ?? CocoaError(.fileReadUnknown) }
-                    if count == 0 { break }
-                    try buffer.withUnsafeBufferPointer {
-                        try write($0.baseAddress!, count: count, to: output)
-                    }
-                }
-            }
-        } catch {
-            if !existed { try? manager.removeItem(at: destination) }
-            throw error
+    private func writeContents(_ source: ExportSource, to destination: URL) throws {
+        guard let output = OutputStream(url: destination, append: false) else {
+            throw CocoaError(.fileWriteUnknown)
         }
+        output.open()
+        defer { output.close() }
+        switch source {
+        case let .data(data):
+            try data.withUnsafeBytes { bytes in
+                guard let address = bytes.bindMemory(to: UInt8.self).baseAddress else { return }
+                try write(address, count: bytes.count, to: output)
+            }
+        case let .file(url):
+            guard let input = InputStream(url: url) else {
+                throw CocoaError(.fileReadUnknown)
+            }
+            input.open()
+            defer { input.close() }
+            var buffer = [UInt8](repeating: 0, count: 1024 * 1024)
+            while true {
+                let count = input.read(&buffer, maxLength: buffer.count)
+                if count < 0 { throw input.streamError ?? CocoaError(.fileReadUnknown) }
+                if count == 0 { break }
+                try buffer.withUnsafeBufferPointer {
+                    try write($0.baseAddress!, count: count, to: output)
+                }
+            }
+        }
+    }
+
+    private func install(_ staged: URL, at destination: URL) throws {
+        var coordinationError: NSError?
+        var installationError: Error?
+        NSFileCoordinator().coordinate(
+            writingItemAt: destination,
+            options: .forReplacing,
+            error: &coordinationError
+        ) { coordinatedDestination in
+            do {
+                if FileManager.default.fileExists(atPath: coordinatedDestination.path) {
+                    _ = try FileManager.default.replaceItemAt(
+                        coordinatedDestination,
+                        withItemAt: staged
+                    )
+                } else {
+                    try FileManager.default.moveItem(at: staged, to: coordinatedDestination)
+                }
+            } catch {
+                installationError = error
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        if let installationError { throw installationError }
     }
 
     private func write(_ bytes: UnsafePointer<UInt8>, count: Int, to output: OutputStream) throws {
