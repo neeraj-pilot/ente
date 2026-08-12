@@ -49,6 +49,7 @@ import {
 import { useIsOffline } from "@/components/utils/use-is-offline";
 import { shouldShowWhatsNew } from "@/services/changelog";
 import exportService from "@/services/export";
+import { processPendingAlbumJoin } from "@/services/join-album";
 import { Upload01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -60,7 +61,6 @@ import {
     getAndClearIsFirstLogin,
     getAndClearJustSignedUp,
 } from "ente-accounts/services/accounts-db";
-import { processPendingAlbumJoin } from "ente-accounts/services/join-album";
 import { stashRedirect } from "ente-accounts/services/redirect";
 import { isSessionInvalid } from "ente-accounts/services/session";
 import { ensureLocalUser } from "ente-accounts/services/user";

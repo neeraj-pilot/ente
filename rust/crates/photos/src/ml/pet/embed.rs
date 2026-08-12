@@ -78,6 +78,7 @@ pub(crate) fn run_pet_face_embedding(
 
 pub(crate) fn run_pet_body_embedding(
     runtime: &MlRuntimeView<'_>,
+    file_id: i64,
     decoded: &DecodedImage,
     body_results: &mut [PetBodyResult],
 ) -> MlResult<()> {
@@ -87,8 +88,6 @@ pub(crate) fn run_pet_body_embedding(
 
     let per_body_len = PET_EMBEDDING_INPUT_SIZE * PET_EMBEDDING_INPUT_SIZE * PET_EMBEDDING_CHANNELS;
 
-    // Skip detections whose crop is invalid (e.g. zero-area edge boxes)
-    // rather than aborting the whole image.
     let cat_count = body_results
         .iter()
         .filter(|result| result.detection.coco_class == COCO_CAT)
@@ -97,6 +96,8 @@ pub(crate) fn run_pet_body_embedding(
     let mut dog_batch = IndexedEmbeddingBatch::new(dog_count, per_body_len);
     let mut cat_batch = IndexedEmbeddingBatch::new(cat_count, per_body_len);
     let mut preprocessor = PetEmbeddingPreprocessor::new();
+    let mut skipped_count = 0;
+    let mut first_error = None;
 
     for (i, body_result) in body_results.iter().enumerate() {
         let batch = if body_result.detection.coco_class == COCO_CAT {
@@ -105,14 +106,20 @@ pub(crate) fn run_pet_body_embedding(
             &mut dog_batch
         };
         let original_len = batch.input.len();
-        if preprocessor
-            .append(decoded, &body_result.detection.box_xyxy, &mut batch.input)
-            .is_ok()
-        {
-            batch.indices.push(i);
-        } else {
-            batch.input.truncate(original_len);
+        match preprocessor.append(decoded, &body_result.detection.box_xyxy, &mut batch.input) {
+            Ok(()) => batch.indices.push(i),
+            Err(error) => {
+                batch.input.truncate(original_len);
+                skipped_count += 1;
+                first_error.get_or_insert(error);
+            }
         }
+    }
+
+    if let Some(error) = first_error {
+        log::warn!(
+            "skipped {skipped_count} invalid pet body crop(s): file_id={file_id} first_error={error}"
+        );
     }
 
     for (is_cat, batch) in [(false, dog_batch), (true, cat_batch)] {

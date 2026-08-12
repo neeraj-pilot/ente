@@ -81,7 +81,7 @@ export const RemoteCollectionUser = z.looseObject({
 type RemoteCollectionUser = z.infer<typeof RemoteCollectionUser>;
 
 export interface PublicURL {
-    // The URL is of the form "https://albums.ente.com/<token>", without a
+    // The URL is of the form "https://albums.ente.com/?t=<token>", without a
     // fragment. The decryption key is client side only and never reaches
     // remote; the client appends it as the fragment to form the shareable URL.
     url: string;

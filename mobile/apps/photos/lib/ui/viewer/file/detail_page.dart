@@ -19,7 +19,6 @@ import "package:photos/events/guest_view_event.dart";
 import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
 import "package:photos/models/file/file_type.dart";
-import "package:photos/models/file/trash_file.dart";
 import "package:photos/models/gallery_type.dart";
 import 'package:photos/module/download/file.dart';
 import "package:photos/module/download/thumbnail.dart";
@@ -355,7 +354,7 @@ class _BodyState extends State<_Body> {
                   builder: (BuildContext context, int selectedIndex, _) {
                     if (widget.config.mode == DetailPageMode.minimalistic ||
                         isGuestView ||
-                        _files![selectedIndex] is TrashFile) {
+                        _files![selectedIndex].isTrash) {
                       return const SizedBox.shrink();
                     }
                     return ValueListenableBuilder(
@@ -533,7 +532,7 @@ class _BodyState extends State<_Body> {
   void _evaluateQrIfEligible(EnteFile file) {
     _qrHelper?.evaluateFile(
       file,
-      isGuestView || file is TrashFile ? null : _renderedFiles[file.tag],
+      isGuestView || file.isTrash ? null : _renderedFiles[file.tag],
     );
   }
 
@@ -816,9 +815,7 @@ class _GallerySocialOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (mode == DetailPageMode.minimalistic ||
-        isGuestView ||
-        file is TrashFile) {
+    if (mode == DetailPageMode.minimalistic || isGuestView || file.isTrash) {
       return const SizedBox.shrink();
     }
 

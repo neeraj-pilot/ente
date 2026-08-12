@@ -1,5 +1,6 @@
 use crate::ml::{
     clip::{run_clip_image, run_clip_text_query, tokenize_clip_text as tokenize_clip_text_impl},
+    diagnostics::{AnalysisContext, AnalysisOperation, AnalysisStage, log_public_ml_error},
     error::{MlError, MlResult},
     face::{
         run_face_alignment, run_face_detection, run_face_embedding,
@@ -72,6 +73,22 @@ pub fn release_ml_runtime() {
 }
 
 pub fn analyze_image(req: AnalyzeImageRequest) -> MlResult<AnalyzeImageResult> {
+    let context = AnalysisContext {
+        file_id: req.file_id,
+        run_faces: req.run_faces,
+        run_clip: req.run_clip,
+        run_pets: req.run_pets,
+    };
+    let mut operation = AnalysisOperation::start(context);
+    let result = analyze_image_inner(req, &mut operation);
+    operation.finish(&result);
+    result
+}
+
+fn analyze_image_inner(
+    req: AnalyzeImageRequest,
+    operation: &mut AnalysisOperation,
+) -> MlResult<AnalyzeImageResult> {
     validate_request_model_paths(&req)?;
 
     let AnalyzeImageRequest {
@@ -84,17 +101,23 @@ pub fn analyze_image(req: AnalyzeImageRequest) -> MlResult<AnalyzeImageResult> {
         model_paths,
     } = req;
 
+    operation.set_stage(AnalysisStage::RuntimeSetup);
     runtime::with_runtime(&model_paths, |runtime| {
+        operation.set_stage(AnalysisStage::DecodeImage);
         let mut decoded = match &source {
             ImageSource::Path(path) => decode_image_from_path(path)?,
             ImageSource::Bytes(bytes) => decode_image_from_bytes(bytes)?,
         };
         let dims = decoded.dimensions.clone();
-        let detector_input = (run_faces || run_pets)
-            .then(|| preprocess::preprocess_yolo(&decoded))
-            .transpose()?;
+        let detector_input = if run_faces || run_pets {
+            operation.set_stage(AnalysisStage::YoloPreprocess);
+            Some(preprocess::preprocess_yolo(&decoded)?)
+        } else {
+            None
+        };
 
         let faces = if run_faces {
+            operation.set_stage(AnalysisStage::FaceDetection);
             let detections = run_face_detection(
                 runtime,
                 detector_input
@@ -104,8 +127,10 @@ pub fn analyze_image(req: AnalyzeImageRequest) -> MlResult<AnalyzeImageResult> {
             if detections.is_empty() {
                 Some(Vec::new())
             } else {
+                operation.set_stage(AnalysisStage::FaceAlignment);
                 let (aligned, mut face_results) =
                     run_face_alignment(file_id, &mut decoded, detections)?;
+                operation.set_stage(AnalysisStage::FaceEmbedding);
                 run_face_embedding(runtime, aligned, &mut face_results)?;
                 Some(face_results)
             }
@@ -114,6 +139,7 @@ pub fn analyze_image(req: AnalyzeImageRequest) -> MlResult<AnalyzeImageResult> {
         };
 
         let face_crops = if generate_face_crops {
+            operation.set_stage(AnalysisStage::FaceCrops);
             faces.as_ref().map(|face_results| {
                 face_results
                     .iter()
@@ -140,6 +166,7 @@ pub fn analyze_image(req: AnalyzeImageRequest) -> MlResult<AnalyzeImageResult> {
         };
 
         let clip = if run_clip {
+            operation.set_stage(AnalysisStage::ClipEmbedding);
             Some(run_clip_image(runtime, &decoded)?)
         } else {
             None
@@ -149,12 +176,16 @@ pub fn analyze_image(req: AnalyzeImageRequest) -> MlResult<AnalyzeImageResult> {
             let detector_input = detector_input
                 .as_ref()
                 .expect("detector input is prepared when pet indexing is enabled");
+            operation.set_stage(AnalysisStage::PetFaceDetection);
             let pet_face_detections = run_pet_face_detection(runtime, detector_input)?;
+            operation.set_stage(AnalysisStage::PetBodyDetection);
             let body_detections = run_pet_body_detection(runtime, detector_input)?;
 
             let pet_face_results = if !pet_face_detections.is_empty() {
+                operation.set_stage(AnalysisStage::PetFaceAlignment);
                 let (aligned, mut pet_results) =
                     run_pet_face_alignment(file_id, &decoded, pet_face_detections)?;
+                operation.set_stage(AnalysisStage::PetFaceEmbedding);
                 run_pet_face_embedding(runtime, aligned, &mut pet_results)?;
                 pet_results
             } else {
@@ -175,7 +206,8 @@ pub fn analyze_image(req: AnalyzeImageRequest) -> MlResult<AnalyzeImageResult> {
                 .collect();
 
             if !body_results.is_empty() {
-                run_pet_body_embedding(runtime, &decoded, &mut body_results)?;
+                operation.set_stage(AnalysisStage::PetBodyEmbedding);
+                run_pet_body_embedding(runtime, file_id, &decoded, &mut body_results)?;
             }
 
             (Some(pet_face_results), Some(body_results))
@@ -183,6 +215,7 @@ pub fn analyze_image(req: AnalyzeImageRequest) -> MlResult<AnalyzeImageResult> {
             (None, None)
         };
 
+        operation.set_stage(AnalysisStage::Finalize);
         let used_providers = runtime.used_providers();
         Ok(AnalyzeImageResult {
             file_id,
@@ -199,51 +232,62 @@ pub fn analyze_image(req: AnalyzeImageRequest) -> MlResult<AnalyzeImageResult> {
 }
 
 pub fn run_clip_text(req: RunClipTextRequest) -> MlResult<RunClipTextResult> {
-    let RunClipTextRequest {
-        text,
-        model_path,
-        vocab_path,
-    } = req;
+    let result = (|| {
+        let RunClipTextRequest {
+            text,
+            model_path,
+            vocab_path,
+        } = req;
 
-    if model_path.trim().is_empty() {
-        return Err(MlError::InvalidRequest(
-            "missing model path: clipTextModelPath".to_string(),
-        ));
-    }
-    if vocab_path.trim().is_empty() {
-        return Err(MlError::InvalidRequest(
-            "missing model path: clipTextVocabPath".to_string(),
-        ));
-    }
+        if model_path.trim().is_empty() {
+            return Err(MlError::InvalidRequest(
+                "missing model path: clipTextModelPath".to_string(),
+            ));
+        }
+        if vocab_path.trim().is_empty() {
+            return Err(MlError::InvalidRequest(
+                "missing model path: clipTextVocabPath".to_string(),
+            ));
+        }
 
-    let model_paths = ModelPaths {
-        face_detection: String::new(),
-        face_embedding: String::new(),
-        clip_image: String::new(),
-        clip_text: model_path,
-        pet_face_detection: String::new(),
-        pet_face_embedding_dog: String::new(),
-        pet_face_embedding_cat: String::new(),
-        pet_body_detection: String::new(),
-        pet_body_embedding_dog: String::new(),
-        pet_body_embedding_cat: String::new(),
-    };
+        let model_paths = ModelPaths {
+            face_detection: String::new(),
+            face_embedding: String::new(),
+            clip_image: String::new(),
+            clip_text: model_path,
+            pet_face_detection: String::new(),
+            pet_face_embedding_dog: String::new(),
+            pet_face_embedding_cat: String::new(),
+            pet_body_detection: String::new(),
+            pet_body_embedding_dog: String::new(),
+            pet_body_embedding_cat: String::new(),
+        };
 
-    runtime::with_runtime(&model_paths, |runtime| {
-        let clip = run_clip_text_query(runtime, &text, &vocab_path)?;
-        Ok(RunClipTextResult {
-            embedding: clip.embedding,
+        runtime::with_runtime(&model_paths, |runtime| {
+            let clip = run_clip_text_query(runtime, &text, &vocab_path)?;
+            Ok(RunClipTextResult {
+                embedding: clip.embedding,
+            })
         })
-    })
+    })();
+    if let Err(error) = &result {
+        log_public_ml_error("run_clip_text", error);
+    }
+    result
 }
 
 pub fn tokenize_clip_text(text: &str, vocab_path: &str) -> MlResult<Vec<i32>> {
-    if vocab_path.trim().is_empty() {
-        return Err(MlError::InvalidRequest(
+    let result = if vocab_path.trim().is_empty() {
+        Err(MlError::InvalidRequest(
             "missing model path: clipTextVocabPath".to_string(),
-        ));
+        ))
+    } else {
+        tokenize_clip_text_impl(text, vocab_path)
+    };
+    if let Err(error) = &result {
+        log_public_ml_error("tokenize_clip_text", error);
     }
-    tokenize_clip_text_impl(text, vocab_path)
+    result
 }
 
 fn validate_request_model_paths(req: &AnalyzeImageRequest) -> MlResult<()> {

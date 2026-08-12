@@ -118,12 +118,12 @@ class TrashDB {
     return count ?? 0;
   }
 
-  Future<void> insertMultiple(List<TrashFile> trashFiles) async {
+  Future<void> insertMultiple(List<EnteTrashFile> trashFiles) async {
     final startTime = DateTime.now();
     final db = await instance.database;
     var batch = db.batch();
     int batchCounter = 0;
-    for (TrashFile trash in trashFiles) {
+    for (final trash in trashFiles) {
       if (batchCounter == 400) {
         await batch.commit(noResult: true);
         batch = db.batch();
@@ -159,7 +159,7 @@ class TrashDB {
     );
   }
 
-  Future<int> update(TrashFile file) async {
+  Future<int> update(EnteTrashFile file) async {
     final db = await instance.database;
     return await db.update(
       tableName,
@@ -190,8 +190,8 @@ class TrashDB {
     return FileLoadResult(files, files.length == limit);
   }
 
-  TrashFile _getTrashFromRow(Map<String, dynamic> row) {
-    final trashFile = TrashFile();
+  EnteTrashFile _getTrashFromRow(Map<String, dynamic> row) {
+    final trashFile = EnteTrashFile();
     trashFile.updateAt = row[columnTrashUpdatedAt];
     trashFile.deleteBy = row[columnTrashDeleteBy];
     trashFile.uploadedFileID = row[columnUploadedFileID];
@@ -228,7 +228,7 @@ class TrashDB {
     return trashFile;
   }
 
-  Map<String, dynamic> _getRowForTrash(TrashFile trash) {
+  Map<String, dynamic> _getRowForTrash(EnteTrashFile trash) {
     final row = <String, dynamic>{};
     row[columnTrashUpdatedAt] = trash.updateAt;
     row[columnTrashDeleteBy] = trash.deleteBy;

@@ -15,7 +15,6 @@ import "package:mobile_ocr/mobile_ocr.dart"
 import "package:photos/models/file/extensions/file_props.dart";
 import "package:photos/models/file/file.dart";
 import "package:photos/models/file/file_type.dart";
-import "package:photos/models/file/trash_file.dart";
 import "package:photos/module/download/file.dart";
 import "package:photos/states/detail_page_state.dart";
 import "package:photos/ui/viewer/file/ocr/ocr_dot_wave_overlay.dart";
@@ -162,7 +161,7 @@ class _InlineTextDetectionState extends State<InlineTextDetection> {
   }
 
   bool _didFileChange(EnteFile oldFile, EnteFile newFile) {
-    if ((oldFile is TrashFile) != (newFile is TrashFile)) return true;
+    if (oldFile.isTrash != newFile.isTrash) return true;
     if (oldFile.generatedID != newFile.generatedID) return true;
     if (oldFile.uploadedFileID != newFile.uploadedFileID) return true;
     if (oldFile.localID != newFile.localID) return true;
@@ -183,7 +182,7 @@ class _InlineTextDetectionState extends State<InlineTextDetection> {
   }
 
   bool _isFileEligible(EnteFile file) {
-    if (widget.isGuestView || file is TrashFile) return false;
+    if (widget.isGuestView || file.isTrash) return false;
     return file.fileType == FileType.image ||
         file.fileType == FileType.livePhoto;
   }

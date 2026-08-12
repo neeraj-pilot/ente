@@ -124,8 +124,7 @@ impl AssetStore {
 #[napi(object)]
 pub struct AnalyzeImageRequest {
     pub file_id: i64,
-    pub image_path: Option<String>,
-    pub image_bytes: Option<Buffer>,
+    pub image_bytes: Buffer,
     pub run_faces: bool,
     pub run_clip: bool,
     pub run_pets: bool,
@@ -213,28 +212,18 @@ impl Task for AnalyzeImageTask {
 }
 
 #[napi(ts_return_type = "Promise<AnalyzeImageResult>")]
-pub fn analyze_image(req: AnalyzeImageRequest) -> Result<AsyncTask<AnalyzeImageTask>> {
-    let source = match (req.image_path, req.image_bytes) {
-        (Some(path), None) => shared_indexing::ImageSource::Path(path),
-        (None, Some(bytes)) => shared_indexing::ImageSource::Bytes(bytes.to_vec()),
-        _ => {
-            return Err(Error::from_reason(
-                "InvalidRequest: exactly one of imagePath and imageBytes must be set".to_string(),
-            ));
-        }
-    };
-
-    Ok(AsyncTask::new(AnalyzeImageTask {
+pub fn analyze_image(req: AnalyzeImageRequest) -> AsyncTask<AnalyzeImageTask> {
+    AsyncTask::new(AnalyzeImageTask {
         req: Some(shared_indexing::AnalyzeImageRequest {
             file_id: req.file_id,
-            source,
+            source: shared_indexing::ImageSource::Bytes(req.image_bytes.to_vec()),
             run_faces: req.run_faces,
             run_clip: req.run_clip,
             run_pets: req.run_pets,
             generate_face_crops: req.generate_face_crops,
             model_paths: to_shared_model_paths(&req.model_paths),
         }),
-    }))
+    })
 }
 
 #[napi(object)]

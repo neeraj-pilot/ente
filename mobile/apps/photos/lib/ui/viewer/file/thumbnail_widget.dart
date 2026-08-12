@@ -17,7 +17,6 @@ import 'package:photos/events/local_photos_updated_event.dart';
 import 'package:photos/models/file/extensions/file_props.dart';
 import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
-import 'package:photos/models/file/trash_file.dart';
 import 'package:photos/models/gallery_type.dart';
 import 'package:photos/module/download/file.dart';
 import 'package:photos/module/download/thumbnail.dart';
@@ -257,7 +256,7 @@ class _ThumbnailWidgetState extends State<ThumbnailWidget> {
     }
 
     if (widget.file.isTrash) {
-      viewChildren.add(TrashedFileOverlayText(widget.file as TrashFile));
+      viewChildren.add(TrashedFileOverlayText(widget.file.asTrashFile!));
     } else if (galleryContext?.type == GroupType.size) {
       viewChildren.add(FileSizeOverlayText(widget.file));
     } else if (widget.file.debugCaption != null) {
@@ -333,10 +332,15 @@ class _ThumbnailWidgetState extends State<ThumbnailWidget> {
           if (thumbData == null) {
             if (widget.file.isUploaded) {
               _logger.info("Removing localID reference for " + widget.file.tag);
-              widget.file.localID = null;
               if (widget.file.isTrash) {
-                unawaited(TrashDB.instance.update(widget.file as TrashFile));
+                if (widget.file.isEnteTrash) {
+                  widget.file.localID = null;
+                  unawaited(
+                    TrashDB.instance.update(widget.file.asEnteTrashFile!),
+                  );
+                }
               } else {
+                widget.file.localID = null;
                 unawaited(FilesDB.instance.update(widget.file));
               }
               _loadNetworkImage();

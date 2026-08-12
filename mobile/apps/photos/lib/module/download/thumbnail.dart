@@ -17,6 +17,7 @@ import 'package:photos/core/configuration.dart';
 import 'package:photos/core/constants.dart';
 import 'package:photos/core/errors.dart';
 import 'package:photos/core/network/network.dart';
+import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
 import 'package:photos/module/download/file.dart';
@@ -204,7 +205,8 @@ Future<Uint8List?> getThumbnailFromLocal(
     });
   } else {
     return file.getAsset.then((asset) async {
-      if (asset == null || !(await asset.exists)) {
+      // asset.exists may return false for files in the android device trash
+      if (asset == null || !(await asset.exists || file.isDeviceTrash)) {
         return null;
       }
       return asset

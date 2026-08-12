@@ -93,7 +93,8 @@ class MemoriesCacheService {
     Bus.instance
         .on<FilesUpdatedEvent>()
         .where((event) {
-          return _shouldInvalidateForDeletedFiles(event.type);
+          return _shouldInvalidateForDeletedFiles(event.type) &&
+              event.source != "moveFrom";
         })
         .listen((event) async {
           await _invalidateDeletedFiles(event.updatedFiles);
@@ -206,7 +207,7 @@ class MemoriesCacheService {
   }
 
   bool _shouldInvalidateForDeletedFiles(EventType type) {
-    if (type == EventType.deletedFromEverywhere) {
+    if (type == EventType.deletedFromEverywhere || type == EventType.hide) {
       return true;
     }
 

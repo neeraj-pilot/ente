@@ -1,1 +1,1 @@
-export { default } from "ente-accounts/pages/verify";
+export { default } from "ente-accounts-rs/pages/verify";

@@ -1,5 +1,6 @@
 pub mod assets;
 mod clip;
+mod diagnostics;
 pub mod error;
 pub mod face;
 pub mod golden;
