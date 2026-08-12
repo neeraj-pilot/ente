@@ -2,10 +2,70 @@
 
 #include <flutter/standard_method_codec.h>
 
+#include <mutex>
 #include <optional>
+#include <unordered_map>
 #include <utility>
 
 namespace file_export {
+
+struct PendingReply {
+  std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> reply;
+  ExportResult outcome;
+};
+
+class ReplyDispatcher {
+public:
+  explicit ReplyDispatcher(HWND window) : window_(window) {}
+
+  void Post(
+      std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> reply,
+      ExportResult outcome) {
+    auto pending = std::make_unique<PendingReply>(
+        PendingReply{std::move(reply), std::move(outcome)});
+    auto *pointer = pending.get();
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (closed_)
+        return;
+      pending_.emplace(pointer, std::move(pending));
+    }
+    if (window_ == nullptr || !PostMessage(window_, ExportCompletedMessage(), 0,
+                                           reinterpret_cast<LPARAM>(pointer))) {
+      std::lock_guard<std::mutex> lock(mutex_);
+      pending_.erase(pointer);
+    }
+  }
+
+  std::unique_ptr<PendingReply> Take(PendingReply *pointer) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto item = pending_.find(pointer);
+    if (item == pending_.end())
+      return nullptr;
+    auto pending = std::move(item->second);
+    pending_.erase(item);
+    return pending;
+  }
+
+  void Close() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    closed_ = true;
+    pending_.clear();
+  }
+
+  static UINT ExportCompletedMessage() {
+    static const UINT message =
+        RegisterWindowMessageW(L"io.ente.file_export.completed");
+    return message;
+  }
+
+private:
+  HWND window_;
+  std::mutex mutex_;
+  bool closed_ = false;
+  std::unordered_map<PendingReply *, std::unique_ptr<PendingReply>> pending_;
+};
+
 namespace {
 
 constexpr char kChannel[] = "io.ente.file_export";
@@ -142,7 +202,7 @@ void FileExportPlugin::RegisterWithRegistrar(
           &flutter::StandardMethodCodec::GetInstance());
   auto *view = registrar->GetView();
   auto plugin = std::make_unique<FileExportPlugin>(
-      view == nullptr ? nullptr : view->GetNativeWindow());
+      registrar, view == nullptr ? nullptr : view->GetNativeWindow());
   channel->SetMethodCallHandler(
       [plugin_pointer = plugin.get()](const auto &call, auto result) {
         plugin_pointer->HandleMethodCall(call, std::move(result));
@@ -150,7 +210,20 @@ void FileExportPlugin::RegisterWithRegistrar(
   registrar->AddPlugin(std::move(plugin));
 }
 
-FileExportPlugin::FileExportPlugin(HWND window) : window_(window) {}
+FileExportPlugin::FileExportPlugin(flutter::PluginRegistrarWindows *registrar,
+                                   HWND window)
+    : registrar_(registrar), window_(window),
+      replies_(std::make_shared<ReplyDispatcher>(window)) {
+  window_proc_delegate_ = registrar_->RegisterTopLevelWindowProcDelegate(
+      [this](HWND, UINT message, WPARAM, LPARAM parameter) {
+        return HandleWindowMessage(message, parameter);
+      });
+}
+
+FileExportPlugin::~FileExportPlugin() {
+  replies_->Close();
+  registrar_->UnregisterTopLevelWindowProcDelegate(window_proc_delegate_);
+}
 
 void FileExportPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue> &call,
@@ -166,9 +239,22 @@ void FileExportPlugin::HandleMethodCall(
   }
   auto reply = std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>>(
       std::move(result));
-  exporter_.Export(std::move(*request), window_, [reply](ExportResult outcome) {
-    reply->Success(Encode(outcome));
-  });
+  exporter_.Export(
+      std::move(*request), window_,
+      [dispatcher = replies_, reply](ExportResult outcome) mutable {
+        dispatcher->Post(std::move(reply), std::move(outcome));
+      });
+}
+
+std::optional<LRESULT> FileExportPlugin::HandleWindowMessage(UINT message,
+                                                             LPARAM parameter) {
+  if (message != ReplyDispatcher::ExportCompletedMessage())
+    return std::nullopt;
+  auto pending = replies_->Take(reinterpret_cast<PendingReply *>(parameter));
+  if (!pending)
+    return std::nullopt;
+  pending->reply->Success(Encode(pending->outcome));
+  return 0;
 }
 
 } // namespace file_export
