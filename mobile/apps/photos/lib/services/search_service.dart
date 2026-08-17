@@ -75,6 +75,7 @@ class SearchService {
   Future<List<EnteFile>>? _cachedFilesForGenericGallery;
   Future<List<EnteFile>>? _cachedFilesForOfflineGallery;
   Future<List<EnteFile>>? _cachedHiddenFilesFuture;
+  Future<Map<int, EnteFile>>? _cachedFilesByUploadedID;
   final _logger = Logger((SearchService).toString());
   final _collectionService = CollectionsService.instance;
   static const _maximumResultsLimit = 20;
@@ -91,13 +92,18 @@ class SearchService {
         .on<LocalPhotosUpdatedEvent>()
         .listen((event) {
           // Invalidate only; reload on demand.
-          _cachedFilesFuture = null;
-          _cachedFilesForSearch = null;
-          _cachedFilesForHierarchicalSearch = null;
-          _cachedFilesForGenericGallery = null;
-          _cachedFilesForOfflineGallery = null;
-          _cachedHiddenFilesFuture = null;
+          _invalidateFileCaches();
         });
+  }
+
+  void _invalidateFileCaches() {
+    _cachedFilesFuture = null;
+    _cachedFilesForSearch = null;
+    _cachedFilesForHierarchicalSearch = null;
+    _cachedFilesForGenericGallery = null;
+    _cachedFilesForOfflineGallery = null;
+    _cachedHiddenFilesFuture = null;
+    _cachedFilesByUploadedID = null;
   }
 
   Set<int> ignoreCollections() {
@@ -303,6 +309,19 @@ class SearchService {
     return FilesDB.instance.hasAnyFile();
   }
 
+  Future<Map<int, EnteFile>> _getFilesByUploadedID() {
+    return _cachedFilesByUploadedID ??= getAllFilesForSearch().then((files) {
+      final filesByUploadedID = <int, EnteFile>{};
+      for (final file in files) {
+        final uploadedID = file.uploadedFileID;
+        if (uploadedID != null && !filesByUploadedID.containsKey(uploadedID)) {
+          filesByUploadedID[uploadedID] = file;
+        }
+      }
+      return filesByUploadedID;
+    });
+  }
+
   Future<List<GenericSearchResult>> getUploadedFileIDsSearchResults(
     String query,
     Set<int> uploadedFileIDs,
@@ -432,12 +451,7 @@ class SearchService {
   }
 
   void clearCache() {
-    _cachedFilesFuture = null;
-    _cachedFilesForSearch = null;
-    _cachedFilesForHierarchicalSearch = null;
-    _cachedFilesForGenericGallery = null;
-    _cachedFilesForOfflineGallery = null;
-    _cachedHiddenFilesFuture = null;
+    _invalidateFileCaches();
     unawaited(memoriesCacheService.clearMemoriesCache());
   }
 
@@ -1158,14 +1172,7 @@ class SearchService {
     bool includeManualAssigned = true,
     bool sortOnTime = true,
   }) async {
-    final allFiles = await getAllFilesForSearch();
-    final uploadedIdToFile = <int, EnteFile>{};
-    for (final file in allFiles) {
-      final uploadedID = file.uploadedFileID;
-      if (uploadedID != null && !uploadedIdToFile.containsKey(uploadedID)) {
-        uploadedIdToFile[uploadedID] = file;
-      }
-    }
+    final uploadedIdToFile = await _getFilesByUploadedID();
     final Map<int, Set<String>> fileIdToClusterID = await mlDataDB
         .getFileIdToClusterIDSet(personID);
     final files = <EnteFile>[];
@@ -1313,14 +1320,7 @@ class SearchService {
       final Map<String, List<EnteFile>> clusterIdToFiles = {};
       final Map<String, List<EnteFile>> personIdToFiles = {};
       final Map<String, Set<int>> personIdToFileIds = {};
-      final allFiles = await getAllFilesForSearch();
-      final Map<int, EnteFile> uploadedIdToFile = {};
-      for (final file in allFiles) {
-        final uploadedID = file.uploadedFileID;
-        if (uploadedID != null && !uploadedIdToFile.containsKey(uploadedID)) {
-          uploadedIdToFile[uploadedID] = file;
-        }
-      }
+      final uploadedIdToFile = await _getFilesByUploadedID();
 
       for (final entry in fileIdToClusterID.entries) {
         final file = uploadedIdToFile[entry.key];
