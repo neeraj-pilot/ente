@@ -301,6 +301,37 @@ class SearchService {
     return _cachedFilesForSearch!;
   }
 
+  Future<List<EnteFile>> _getFilesCreatedWithinDurations(
+    List<List<int>> durations,
+  ) async {
+    if (durations.isEmpty) {
+      return [];
+    }
+
+    final files = await getAllFilesForSearch();
+    final matchedFiles = <EnteFile>[];
+    for (final duration in durations.reversed) {
+      final firstIndex = _firstFileCreatedBefore(files, duration[1]);
+      final endIndex = _firstFileCreatedBefore(files, duration[0]);
+      matchedFiles.addAll(files.getRange(firstIndex, endIndex));
+    }
+    return matchedFiles;
+  }
+
+  int _firstFileCreatedBefore(List<EnteFile> files, int timestamp) {
+    var low = 0;
+    var high = files.length;
+    while (low < high) {
+      final middle = low + ((high - low) >> 1);
+      if (files[middle].creationTime! >= timestamp) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    return low;
+  }
+
   Future<bool> hasAnyFilesForSearch() async {
     if (_cachedFilesFuture != null && _cachedFilesForSearch != null) {
       return (await _cachedFilesForSearch!).isNotEmpty;
@@ -549,9 +580,9 @@ class SearchService {
     final List<GenericSearchResult> searchResults = [];
     for (var yearData in YearsData.instance.yearsData) {
       if (yearData.year.startsWith(yearFromQuery)) {
-        final List<EnteFile> filesInYear = await _getFilesInYear(
+        final filesInYear = await _getFilesCreatedWithinDurations([
           yearData.duration,
-        );
+        ]);
         if (filesInYear.isNotEmpty) {
           searchResults.add(
             GenericSearchResult(
@@ -596,12 +627,9 @@ class SearchService {
     final List<GenericSearchResult> searchResults = [];
     final matchingMonths = _getMatchingMonths(context, query).toList();
     for (final month in matchingMonths) {
-      final matchedFiles = await FilesDB.instance
-          .getFilesCreatedWithinDurations(
-            _getDurationsOfMonthInEveryYear(month.monthNumber),
-            ignoreCollections(),
-            order: 'DESC',
-          );
+      final matchedFiles = await _getFilesCreatedWithinDurations(
+        _getDurationsOfMonthInEveryYear(month.monthNumber),
+      );
       if (matchedFiles.isNotEmpty) {
         searchResults.add(
           GenericSearchResult(
@@ -634,15 +662,9 @@ class SearchService {
 
     for (var holiday in holidays) {
       if (holiday.name.toLowerCase().contains(query.toLowerCase())) {
-        final matchedFiles = await FilesDB.instance
-            .getFilesCreatedWithinDurations(
-              _getDurationsForCalendarDateInEveryYear(
-                holiday.day,
-                holiday.month,
-              ),
-              ignoreCollections(),
-              order: 'DESC',
-            );
+        final matchedFiles = await _getFilesCreatedWithinDurations(
+          _getDurationsForCalendarDateInEveryYear(holiday.day, holiday.month),
+        );
         if (matchedFiles.isNotEmpty) {
           searchResults.add(
             GenericSearchResult(
@@ -1681,12 +1703,9 @@ class SearchService {
         parsedDate.year != null) {
       final month = parsedDate.month!;
       final year = parsedDate.year!;
-      final monthYearFiles = await FilesDB.instance
-          .getFilesCreatedWithinDurations(
-            [_getDurationForMonthInYear(month, year)],
-            ignoreCollections(),
-            order: 'DESC',
-          );
+      final monthYearFiles = await _getFilesCreatedWithinDurations([
+        _getDurationForMonthInYear(month, year),
+      ]);
       if (monthYearFiles.isNotEmpty) {
         final monthName = DateParseService.instance.getMonthName(month);
         final name = '$monthName $year';
@@ -1710,12 +1729,9 @@ class SearchService {
       final int month = parsedDate.month!;
       final int? year = parsedDate.year; // nullable for generic dates
 
-      final matchedFiles = await FilesDB.instance
-          .getFilesCreatedWithinDurations(
-            _getDurationsForCalendarDateInEveryYear(day, month, year: year),
-            ignoreCollections(),
-            order: 'DESC',
-          );
+      final matchedFiles = await _getFilesCreatedWithinDurations(
+        _getDurationsForCalendarDateInEveryYear(day, month, year: year),
+      );
 
       if (matchedFiles.isNotEmpty) {
         final monthName = DateParseService.instance.getMonthName(month);
@@ -1937,14 +1953,6 @@ class SearchService {
               monthData.name.toLowerCase().startsWith(query.toLowerCase()),
         )
         .toList();
-  }
-
-  Future<List<EnteFile>> _getFilesInYear(List<int> durationOfYear) async {
-    return await FilesDB.instance.getFilesCreatedWithinDurations(
-      [durationOfYear],
-      ignoreCollections(),
-      order: "DESC",
-    );
   }
 
   List<List<int>> _getDurationsForCalendarDateInEveryYear(
