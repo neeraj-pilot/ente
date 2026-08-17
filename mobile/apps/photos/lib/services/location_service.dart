@@ -77,6 +77,16 @@ class LocationService {
     }
     final EnteWatch w = EnteWatch("cities_search")..start();
     w.log('start for files ${allFiles.length} and query $query');
+    final normalizedQuery = query.toLowerCase();
+    if (normalizedQuery.isNotEmpty &&
+        !_cities.any(
+          (city) => city.city.toLowerCase().contains(normalizedQuery),
+        )) {
+      w.log(
+        'end for query: $query  on ${allFiles.length} files, found 0 cities',
+      );
+      return {};
+    }
     final args = <String, dynamic>{
       "query": query,
       "cities": _cities,

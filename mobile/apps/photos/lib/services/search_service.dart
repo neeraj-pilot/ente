@@ -994,8 +994,10 @@ class SearchService {
       }
     }
     final allFiles = await getAllFilesForSearch();
+    final filesWithLocation = <EnteFile>[];
     for (EnteFile file in allFiles) {
       if (file.hasLocation) {
+        filesWithLocation.add(file);
         for (LocalEntity<LocationTag> tag in result.keys) {
           if (isFileInsideLocationTag(
             tag.item.centerPoint,
@@ -1030,10 +1032,7 @@ class SearchService {
     }
     if (showNoLocationTag) {
       _logger.info("finding photos with no location tag");
-      final noLocationTagFiles = allFiles.where((file) {
-        if (!file.hasLocation) {
-          return false;
-        }
+      final noLocationTagFiles = filesWithLocation.where((file) {
         for (LocalEntity<LocationTag> tag in locationTagEntities) {
           if (isFileInsideLocationTag(
             tag.item.centerPoint,
@@ -1094,7 +1093,10 @@ class SearchService {
     if (allCitiesSearch) {
       query = '';
     }
-    final results = await locationService.getFilesInCity(allFiles, query);
+    final results = await locationService.getFilesInCity(
+      filesWithLocation,
+      query,
+    );
     final List<City> sortedByResultCount = results.keys.toList()
       ..sort((a, b) => results[b]!.length.compareTo(results[a]!.length));
     for (final city in sortedByResultCount) {
