@@ -20,15 +20,30 @@ class CollectionsAndSavedFileFilter extends Filter {
 
   void init(List<EnteFile> files) {
     _ignoredUploadIDs = {};
+    final sharedFileHashes = <String>{};
     for (var file in files) {
       if (file.collectionID != null && file.isUploaded) {
         if (collectionIDs.contains(file.collectionID!)) {
           _ignoredUploadIDs!.add(file.uploadedFileID!);
         } else if (ignoreSavedFiles &&
-            file.ownerID == ownerID &&
+            file.ownerID != ownerID &&
             (file.hash ?? '').isNotEmpty) {
-          ownedFileHashes.add(file.hash!);
+          sharedFileHashes.add(file.hash!);
         }
+      }
+    }
+
+    if (sharedFileHashes.isEmpty) {
+      return;
+    }
+    for (final file in files) {
+      if (file.collectionID != null &&
+          file.isUploaded &&
+          !collectionIDs.contains(file.collectionID!) &&
+          file.ownerID == ownerID &&
+          (file.hash ?? '').isNotEmpty &&
+          sharedFileHashes.contains(file.hash!)) {
+        ownedFileHashes.add(file.hash!);
       }
     }
   }

@@ -1,0 +1,1 @@
+- Improved home gallery loading performance for large photo libraries.
