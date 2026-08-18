@@ -20,6 +20,8 @@ import 'package:flutter/material.dart';
 import "package:flutter/rendering.dart";
 import "package:flutter/services.dart";
 import "package:flutter_displaymode/flutter_displaymode.dart";
+import "package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart"
+    show ExternalLibrary;
 import "package:intl/date_symbol_data_local.dart";
 import 'package:logging/logging.dart';
 import "package:media_extension/media_extension_action_types.dart";
@@ -568,7 +570,9 @@ Future<void> _ensureRustInitialized({required String via}) async {
     return;
   }
 
-  final initFuture = EntePhotosRust.init();
+  final initFuture = EntePhotosRust.init(
+    externalLibrary: _photosRustExternalLibrary(),
+  );
   _rustInitFuture = initFuture;
   try {
     await initFuture;
@@ -577,6 +581,14 @@ Future<void> _ensureRustInitialized({required String via}) async {
   } finally {
     _rustInitFuture = null;
   }
+}
+
+ExternalLibrary? _photosRustExternalLibrary() {
+  if (!Platform.isIOS && !Platform.isMacOS) return null;
+
+  // Cargokit is linked into this plugin framework, whose name comes from the
+  // Flutter package rather than the Rust crate.
+  return ExternalLibrary.open("ente_photos_rust.framework/ente_photos_rust");
 }
 
 void _attachRustLogStream() {
