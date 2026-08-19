@@ -86,6 +86,8 @@ Future<bool> confirmDisableLibrarySharing({
             content: Text(
               sheetContext.strings.librarySharingDisableDescription(
                 recipient: recipientLabel,
+                stopSharingLabel:
+                    sheetContext.strings.librarySharingStopSharing,
               ),
               style: TextStyles.body.copyWith(color: colors.textLight),
             ),
