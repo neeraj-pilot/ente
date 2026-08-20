@@ -20,7 +20,8 @@ void listenForPurchaseUpdates({
       return;
     }
     for (final purchase in purchases) {
-      if (purchase.status == PurchaseStatus.purchased) {
+      if (purchase.status == PurchaseStatus.purchased ||
+          purchase.status == PurchaseStatus.restored) {
         verifySubscription(
           purchase.productID,
           purchase.verificationData.serverVerificationData,

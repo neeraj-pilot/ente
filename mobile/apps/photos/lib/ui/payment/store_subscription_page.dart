@@ -87,7 +87,8 @@ class _StoreSubscriptionPageState extends State<StoreSubscriptionPage> {
       }
       for (final purchase in purchases) {
         _logger.info("Purchase status " + purchase.status.toString());
-        if (purchase.status == PurchaseStatus.purchased) {
+        if (purchase.status == PurchaseStatus.purchased ||
+            purchase.status == PurchaseStatus.restored) {
           try {
             final newSubscription = await _billingService.verifySubscription(
               purchase.productID,
