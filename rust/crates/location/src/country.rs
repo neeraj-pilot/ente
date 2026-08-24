@@ -4,8 +4,8 @@ use std::str::FromStr;
 use crate::Error;
 use crate::binary::{array, range, u16_at, u32_at};
 
-const MAGIC: &[u8; 4] = b"ECB3";
-const VERSION: u16 = 3;
+const MAGIC: &[u8; 4] = b"CTRY";
+const VERSION: u16 = 1;
 const HEADER_LEN: usize = 48;
 const BLOCK_SIZE: usize = 64;
 const BLOCK_LEN: usize = 12;
@@ -73,28 +73,24 @@ struct Layout {
 }
 
 #[derive(Debug)]
-pub struct CountryIndex {
+pub(crate) struct CountryGeometry {
     bytes: Box<[u8]>,
     layout: Layout,
 }
 
-impl CountryIndex {
-    pub fn from_bytes(bytes: impl Into<Box<[u8]>>) -> crate::Result<Self> {
+impl CountryGeometry {
+    pub(crate) fn from_bytes(bytes: impl Into<Box<[u8]>>) -> crate::Result<Self> {
         let bytes = bytes.into();
         let layout = validate(&bytes)?;
         Ok(Self { bytes, layout })
     }
 
-    pub const fn country_count(&self) -> usize {
+    pub(crate) const fn country_count(&self) -> usize {
         self.layout.country_count
     }
 
-    pub fn country_codes(&self) -> impl ExactSizeIterator<Item = CountryCode> + '_ {
+    pub(crate) fn country_codes(&self) -> impl ExactSizeIterator<Item = CountryCode> + '_ {
         (0..self.layout.country_count).map(|index| self.country_code(index as u8))
-    }
-
-    pub fn lookup(&self, latitude: f64, longitude: f64) -> crate::Result<Vec<CountryCode>> {
-        self.lookup_prepared(self.prepare_cell(latitude, longitude)?)
     }
 
     pub(crate) const fn columns(&self) -> usize {

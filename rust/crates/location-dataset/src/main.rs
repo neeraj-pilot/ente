@@ -2,13 +2,11 @@ use std::env;
 use std::error::Error;
 use std::path::PathBuf;
 
-use ente_location_dataset::{
-    BuildOptions, DEFAULT_DATASET_VERSION, RemoteSources, SourcePaths, build,
-};
+use ente_location_dataset::{BuildOptions, RemoteSources, SourcePaths, build};
 
 const USAGE: &str = concat!(
-    "usage: ente-location-dataset build --output <file> [--cache <directory>] ",
-    "[--version <number>] [--cities <file> --country-info <file> ",
+    "usage: ente-location-dataset build --output <directory> [--cache <directory>] ",
+    "[--cities <file> --country-info <file> ",
     "--countries <shp> --disputes <shp> --admin1 <shp>]"
 );
 
@@ -23,7 +21,6 @@ fn run() -> Result<(), Box<dyn Error>> {
     let Arguments {
         output,
         cache,
-        version,
         cities,
         country_info,
         countries,
@@ -43,23 +40,22 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
         _ => return Err("local generation requires all five source paths".into()),
     };
-    let manifest = build(&BuildOptions {
-        dataset_version: version,
-        sources,
-        output,
-    })?;
-    println!("dataset version: {}", manifest.dataset_version);
-    println!("cities: {}", manifest.city_count);
-    println!("Priority-1 territories: {}", manifest.territory_count);
-    println!("bytes: {}", manifest.byte_length);
-    println!("sha256: {}", manifest.sha256);
+    let result = build(&BuildOptions { sources, output })?;
+    println!("cities: {}", result.city_count);
+    println!("Priority-1 territories: {}", result.territory_count);
+    println!("bytes: {}", result.byte_length);
+    for file in result.files {
+        println!(
+            "{}: {} bytes, sha256 {}",
+            file.name, file.byte_length, file.sha256
+        );
+    }
     Ok(())
 }
 
 struct Arguments {
     output: PathBuf,
     cache: PathBuf,
-    version: u32,
     cities: Option<PathBuf>,
     country_info: Option<PathBuf>,
     countries: Option<PathBuf>,
@@ -75,7 +71,6 @@ impl Arguments {
         }
         let mut output = None;
         let mut cache = None;
-        let mut version = DEFAULT_DATASET_VERSION;
         let mut cities = None;
         let mut country_info = None;
         let mut countries = None;
@@ -86,7 +81,6 @@ impl Arguments {
             match argument.as_str() {
                 "--output" => output = Some(value.into()),
                 "--cache" => cache = Some(value.into()),
-                "--version" => version = value.parse()?,
                 "--cities" => cities = Some(value.into()),
                 "--country-info" => country_info = Some(value.into()),
                 "--countries" => countries = Some(value.into()),
@@ -98,7 +92,6 @@ impl Arguments {
         Ok(Self {
             output: output.ok_or(USAGE)?,
             cache: cache.unwrap_or_else(default_cache),
-            version,
             cities,
             country_info,
             countries,

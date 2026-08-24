@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use ente_location::{DisputeFamily, DisputeKind, TerritoryId};
+use ente_location::TerritoryId;
 use shapefile::Reader;
 use shapefile::dbase::Record;
 
@@ -12,18 +12,14 @@ use crate::country::{
 use crate::{Result, invalid};
 
 const HEADER_LEN: usize = 64;
-const TERRITORY_LEN: usize = 24;
+const TERRITORY_LEN: usize = 12;
 const MISSING_COUNTRY: u8 = u8::MAX;
 
 #[derive(Clone)]
 struct SourceDispute {
     territory: TerritoryId,
     geometry_code: [u8; 2],
-    source_id: [u8; 3],
-    family: DisputeFamily,
-    kind: DisputeKind,
     name: String,
-    note: String,
     source_default: Option<[u8; 2]>,
     possible_countries: Vec<[u8; 2]>,
     worldview_assignments: Vec<Option<[u8; 2]>>,
@@ -32,16 +28,11 @@ struct SourceDispute {
 struct EncodedRecord {
     territory: TerritoryId,
     geometry_code: [u8; 2],
-    source_id: [u8; 3],
-    family: DisputeFamily,
-    kind: DisputeKind,
     default_country: u8,
     candidate_start: u16,
     candidate_count: u8,
     name_start: u16,
     name_length: u8,
-    note_start: u16,
-    note_length: u8,
 }
 
 pub(crate) fn build(
@@ -119,16 +110,7 @@ fn read_disputed_areas(
         metadata.push(SourceDispute {
             territory: selection.territory,
             geometry_code: selection.geometry_code,
-            source_id: source_id
-                .as_bytes()
-                .try_into()
-                .map_err(|_| invalid("dispute source ID is not three bytes"))?,
-            family: selection.family,
-            kind: selection.kind,
             name,
-            note: character_field(&record, "NOTE_BRK")
-                .unwrap_or("")
-                .to_owned(),
             source_default: assigned_country(&record, "ADM0_A3", country_codes),
             possible_countries: selection.additional_countries.to_vec(),
             worldview_assignments: WORLDVIEWS
@@ -179,11 +161,7 @@ fn read_ukrainian_regions(path: &Path) -> Result<(Vec<SourceDispute>, Vec<Area>)
         metadata.push(SourceDispute {
             territory: selection.territory,
             geometry_code: selection.geometry_code,
-            source_id: selection.source_id,
-            family: DisputeFamily::UkraineRussia,
-            kind: DisputeKind::ClaimedAdministrativeRegion,
             name: format!("{name} Region"),
-            note: "Internationally recognized as Ukraine; claimed by Russia".to_owned(),
             source_default: Some(*b"UA"),
             possible_countries: vec![*b"RU", *b"UA"],
             worldview_assignments: WORLDVIEWS
@@ -234,24 +212,15 @@ fn encode(geometry: &[u8], source: &[SourceDispute]) -> Result<Vec<u8>> {
         let name_length = u8::try_from(dispute.name.len())
             .map_err(|_| invalid("territory name exceeds 255 bytes"))?;
         strings.extend_from_slice(dispute.name.as_bytes());
-        let note_start = u16_length(strings.len(), "dispute strings exceed 64 KiB")?;
-        let note_length = u8::try_from(dispute.note.len())
-            .map_err(|_| invalid("territory note exceeds 255 bytes"))?;
-        strings.extend_from_slice(dispute.note.as_bytes());
 
         records.push(EncodedRecord {
             territory: dispute.territory,
             geometry_code: dispute.geometry_code,
-            source_id: dispute.source_id,
-            family: dispute.family,
-            kind: dispute.kind,
             default_country: encode_optional(dispute.source_default, &country_indices),
             candidate_start,
             candidate_count,
             name_start,
             name_length,
-            note_start,
-            note_length,
         });
         assignments.extend(
             dispute
@@ -275,7 +244,7 @@ fn encode(geometry: &[u8], source: &[SourceDispute]) -> Result<Vec<u8>> {
         .ok_or_else(|| invalid("dispute index size overflow"))?;
     let mut output = Vec::with_capacity(file_length);
 
-    output.extend_from_slice(b"EDB1");
+    output.extend_from_slice(b"DSPT");
     push_u16(&mut output, 1);
     push_u16(&mut output, HEADER_LEN as u16);
     push_u16(
@@ -313,17 +282,12 @@ fn encode(geometry: &[u8], source: &[SourceDispute]) -> Result<Vec<u8>> {
     for record in records {
         push_u16(&mut output, record.territory.get());
         output.extend_from_slice(&record.geometry_code);
-        output.push(record.family as u8);
-        output.push(record.kind as u8);
         output.push(record.default_country);
         output.push(record.candidate_count);
         push_u16(&mut output, record.candidate_start);
         push_u16(&mut output, record.name_start);
         output.push(record.name_length);
-        output.push(record.note_length);
-        push_u16(&mut output, record.note_start);
-        output.extend_from_slice(&record.source_id);
-        output.extend_from_slice(&[0; 5]);
+        output.push(0);
     }
     output.extend_from_slice(&candidates);
     output.extend_from_slice(&assignments);
@@ -341,10 +305,6 @@ fn validate_source(disputes: &[SourceDispute]) -> Result<()> {
             || !geometry_codes.insert(dispute.geometry_code)
             || dispute.name.is_empty()
             || dispute.worldview_assignments.len() != WORLDVIEWS.len()
-            || !dispute
-                .source_id
-                .iter()
-                .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
         {
             return Err(invalid("invalid or duplicate dispute metadata"));
         }
@@ -412,21 +372,53 @@ fn push_length(output: &mut Vec<u8>, value: usize) -> Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use ente_location::{
-        CountryCode, CountryView, DisputeFamily, DisputeIndex, DisputeKind, TerritoryId,
-    };
+pub(crate) fn test_bytes() -> Vec<u8> {
     use geo::{LineString, MultiPolygon, Polygon};
 
-    use crate::catalog::WORLDVIEWS;
+    let geometry = encode_geometry(&[Area {
+        code: *b"AC",
+        geometry: MultiPolygon(vec![Polygon::new(
+            LineString::from(vec![
+                (79.0, 35.0),
+                (80.0, 35.0),
+                (80.0, 36.0),
+                (79.0, 36.0),
+                (79.0, 35.0),
+            ]),
+            vec![],
+        )]),
+    }])
+    .unwrap();
+    encode(
+        &geometry,
+        &[SourceDispute {
+            territory: TerritoryId::AKSAI_CHIN,
+            geometry_code: *b"AC",
+            name: "Aksai Chin".to_owned(),
+            source_default: Some(*b"CN"),
+            possible_countries: vec![*b"CN", *b"IN"],
+            worldview_assignments: WORLDVIEWS
+                .iter()
+                .map(|&(region, _)| Some(if region == *b"IN" { *b"IN" } else { *b"CN" }))
+                .collect(),
+        }],
+    )
+    .unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use ente_location::{Coordinate, CountryCode, CountryIndex, CountryView, TerritoryId};
+    use geo::{LineString, MultiPolygon, Polygon};
+
     use crate::country::{Area, encode as encode_geometry};
 
-    use super::{SourceDispute, encode};
+    use super::test_bytes;
 
     #[test]
     fn builds_and_resolves_a_dispute_overlay() {
-        let geometry = encode_geometry(&[Area {
-            code: *b"AC",
+        let countries = encode_geometry(&[Area {
+            code: *b"AA",
             geometry: MultiPolygon(vec![Polygon::new(
                 LineString::from(vec![
                     (79.0, 35.0),
@@ -439,24 +431,8 @@ mod tests {
             )]),
         }])
         .unwrap();
-        let source = SourceDispute {
-            territory: TerritoryId::AKSAI_CHIN,
-            geometry_code: *b"AC",
-            source_id: *b"B07",
-            family: DisputeFamily::IndiaPakistanChina,
-            kind: DisputeKind::ClaimArea,
-            name: "Aksai Chin".to_owned(),
-            note: String::new(),
-            source_default: Some(*b"CN"),
-            possible_countries: vec![*b"CN", *b"IN"],
-            worldview_assignments: WORLDVIEWS
-                .iter()
-                .map(|&(region, _)| Some(if region == *b"IN" { *b"IN" } else { *b"CN" }))
-                .collect(),
-        };
-        let bytes = encode(&geometry, &[source]).unwrap();
-        let index = DisputeIndex::from_bytes(bytes).unwrap();
-        let disputed = index.lookup(35.5, 79.5).unwrap()[0];
+        let index = CountryIndex::from_bytes(countries, test_bytes()).unwrap();
+        let disputed = index.lookup(Coordinate::new(35.5, 79.5)).unwrap().disputes[0];
         let india = CountryCode::from_bytes(*b"IN").unwrap();
 
         assert_eq!(disputed.territory_id(), TerritoryId::AKSAI_CHIN);

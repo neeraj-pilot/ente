@@ -5,8 +5,6 @@ use reqwest::blocking::Client;
 use crate::Result;
 use crate::download::{download, extract};
 
-pub const DEFAULT_DATASET_VERSION: u32 = 20260824;
-
 const CITIES: Source = Source {
     file: "cities5000.zip",
     url: "https://download.geonames.org/export/dump/cities5000.zip",

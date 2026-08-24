@@ -1,11 +1,16 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
+
+use unicode_normalization::UnicodeNormalization;
+use unicode_normalization::char::is_combining_mark;
 
 use crate::binary::{f32_at, range, u16_at, u24_at, u32_at};
 use crate::{Coordinate, CountryCode, Error};
 
-const MAGIC: &[u8; 4] = b"ELC2";
-const VERSION: u16 = 2;
+const MAGIC: &[u8; 4] = b"CITY";
+const VERSION: u16 = 1;
 const HEADER_LEN: usize = 72;
 const NODE_LEN: usize = 3;
 const POINT_LEN: usize = 15;
@@ -80,14 +85,14 @@ impl SearchBounds {
     }
 }
 
-struct LowercasePattern {
+struct SearchPattern {
     characters: Vec<char>,
     fallback: Vec<usize>,
 }
 
-impl LowercasePattern {
+impl SearchPattern {
     fn new(query: &str) -> Option<Self> {
-        let characters: Vec<char> = query.to_lowercase().chars().collect();
+        let characters: Vec<char> = search_characters(query).collect();
         if characters.is_empty() {
             return None;
         }
@@ -110,7 +115,7 @@ impl LowercasePattern {
 
     fn matches(&self, value: &str) -> bool {
         let mut matched = 0;
-        for character in value.chars().flat_map(char::to_lowercase) {
+        for character in search_characters(value) {
             while matched > 0 && character != self.characters[matched] {
                 matched = self.fallback[matched - 1];
             }
@@ -125,12 +130,23 @@ impl LowercasePattern {
     }
 }
 
+fn search_characters(value: &str) -> impl Iterator<Item = char> + '_ {
+    value
+        .nfd()
+        .filter(|&character| !is_combining_mark(character))
+        .flat_map(char::to_lowercase)
+}
+
 pub struct CityIndex {
     bytes: Box<[u8]>,
     layout: Layout,
 }
 
 impl CityIndex {
+    pub fn from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
+        Self::from_bytes(fs::read(path)?)
+    }
+
     pub fn from_bytes(bytes: impl Into<Box<[u8]>>) -> crate::Result<Self> {
         let bytes = bytes.into();
         let layout = validate(&bytes)?;
@@ -143,12 +159,6 @@ impl CityIndex {
 
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
-    }
-
-    pub fn country_name(&self, code: CountryCode) -> Option<&str> {
-        (0..self.layout.country_count)
-            .find(|&index| self.country_code(index) == code)
-            .map(|index| self.country(index))
     }
 
     pub fn search(&self, query: &str, limit: usize) -> Vec<City> {
@@ -247,23 +257,8 @@ impl CityIndex {
             .collect()
     }
 
-    pub fn nearest_batch(
-        &self,
-        coordinates: &[Coordinate],
-        maximum_distance_km: f64,
-    ) -> Vec<Option<City>> {
-        let mut candidates = Vec::new();
-        let mut stack = Vec::new();
-        coordinates
-            .iter()
-            .map(|&coordinate| {
-                self.nearest(coordinate, maximum_distance_km, &mut candidates, &mut stack)
-            })
-            .collect()
-    }
-
     fn matching_names(&self, query: &str) -> Option<Vec<bool>> {
-        let pattern = LowercasePattern::new(query)?;
+        let pattern = SearchPattern::new(query)?;
         Some(
             (0..self.layout.name_count)
                 .map(|index| {
@@ -272,40 +267,6 @@ impl CityIndex {
                 })
                 .collect(),
         )
-    }
-
-    fn nearest(
-        &self,
-        coordinate: Coordinate,
-        maximum_distance_km: f64,
-        candidates: &mut Vec<usize>,
-        stack: &mut Vec<(usize, usize, u8)>,
-    ) -> Option<City> {
-        if !coordinate.is_valid() || !maximum_distance_km.is_finite() || maximum_distance_km <= 0.0
-        {
-            return None;
-        }
-        self.range_around(coordinate, maximum_distance_km, candidates, stack);
-        let mut best = None;
-        let mut best_distance = maximum_distance_km;
-        let mut best_source_id = u32::MAX;
-        for &point_index in candidates.iter() {
-            let point = self.point(point_index);
-            let distance = distance_km(
-                coordinate.latitude,
-                coordinate.longitude,
-                f64::from(point.latitude),
-                f64::from(point.longitude),
-            );
-            if distance < best_distance
-                || (distance == best_distance && point.source_id < best_source_id)
-            {
-                best = Some(point_index);
-                best_distance = distance;
-                best_source_id = point.source_id;
-            }
-        }
-        best.map(|point| self.city(point))
     }
 
     fn range_around(

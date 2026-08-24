@@ -1,13 +1,13 @@
 use std::str;
 
 use crate::binary::{range, u16_at, u32_at};
-use crate::country::PreparedCell;
-use crate::{CountryCode, CountryIndex, Error};
+use crate::country::{CountryGeometry, PreparedCell};
+use crate::{CountryCode, Error};
 
-const MAGIC: &[u8; 4] = b"EDB1";
+const MAGIC: &[u8; 4] = b"DSPT";
 const VERSION: u16 = 1;
 const HEADER_LEN: usize = 64;
-const TERRITORY_LEN: usize = 24;
+const TERRITORY_LEN: usize = 12;
 const MISSING_COUNTRY: u8 = u8::MAX;
 const SECTION: &str = "dispute index";
 
@@ -47,64 +47,8 @@ impl TerritoryId {
     pub const CYPRUS_BUFFER_ZONE: Self = Self(30);
     pub const FALKLAND_ISLANDS: Self = Self(31);
 
-    pub const fn new(value: u16) -> Option<Self> {
-        if value == 0 { None } else { Some(Self(value)) }
-    }
-
     pub const fn get(self) -> u16 {
         self.0
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-#[repr(u8)]
-pub enum DisputeFamily {
-    IndiaPakistanChina = 1,
-    IsraelPalestineSyria = 2,
-    ChinaTaiwan = 3,
-    UkraineRussia = 4,
-    SerbiaKosovo = 5,
-    MoroccoWesternSahara = 6,
-    Cyprus = 7,
-    FalklandIslands = 8,
-}
-
-impl DisputeFamily {
-    fn from_byte(value: u8) -> Option<Self> {
-        Some(match value {
-            1 => Self::IndiaPakistanChina,
-            2 => Self::IsraelPalestineSyria,
-            3 => Self::ChinaTaiwan,
-            4 => Self::UkraineRussia,
-            5 => Self::SerbiaKosovo,
-            6 => Self::MoroccoWesternSahara,
-            7 => Self::Cyprus,
-            8 => Self::FalklandIslands,
-            _ => return None,
-        })
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-#[repr(u8)]
-pub enum DisputeKind {
-    ClaimArea = 1,
-    Recognition = 2,
-    Indeterminate = 3,
-    BufferZone = 4,
-    ClaimedAdministrativeRegion = 5,
-}
-
-impl DisputeKind {
-    fn from_byte(value: u8) -> Option<Self> {
-        Some(match value {
-            1 => Self::ClaimArea,
-            2 => Self::Recognition,
-            3 => Self::Indeterminate,
-            4 => Self::BufferZone,
-            5 => Self::ClaimedAdministrativeRegion,
-            _ => return None,
-        })
     }
 }
 
@@ -130,43 +74,23 @@ struct Layout {
 }
 
 #[derive(Debug)]
-pub struct DisputeIndex {
+pub(crate) struct DisputeIndex {
     bytes: Box<[u8]>,
     layout: Layout,
-    geometry: CountryIndex,
+    geometry: CountryGeometry,
 }
 
 impl DisputeIndex {
-    pub fn from_bytes(bytes: impl Into<Box<[u8]>>) -> crate::Result<Self> {
+    pub(crate) fn from_bytes(bytes: impl Into<Box<[u8]>>) -> crate::Result<Self> {
         let bytes = bytes.into();
         let layout = validate(&bytes)?;
-        let geometry = CountryIndex::from_bytes(bytes[layout.geometry..].to_vec())?;
+        let geometry = CountryGeometry::from_bytes(bytes[layout.geometry..].to_vec())?;
         validate_geometry(&geometry, &bytes, layout)?;
         Ok(Self {
             bytes,
             layout,
             geometry,
         })
-    }
-
-    pub const fn territory_count(&self) -> usize {
-        self.layout.territory_count
-    }
-
-    pub fn supports_region(&self, code: CountryCode) -> bool {
-        self.worldview_index(code).is_some()
-    }
-
-    pub fn supported_regions(&self) -> impl ExactSizeIterator<Item = CountryCode> + '_ {
-        (0..self.layout.worldview_count).map(|index| {
-            let country = self.bytes[self.layout.worldviews + index];
-            self.country_code(country)
-        })
-    }
-
-    pub fn lookup(&self, latitude: f64, longitude: f64) -> crate::Result<Vec<DisputeMatch<'_>>> {
-        let location = self.geometry.prepare_cell(latitude, longitude)?;
-        self.lookup_prepared(location)
     }
 
     pub(crate) fn lookup_prepared(
@@ -205,34 +129,12 @@ impl<'a> DisputeMatch<'a> {
         TerritoryId(self.record().id)
     }
 
-    pub fn family(self) -> DisputeFamily {
-        DisputeFamily::from_byte(self.record().family).expect("validated dispute family")
-    }
-
-    pub fn kind(self) -> DisputeKind {
-        DisputeKind::from_byte(self.record().kind).expect("validated dispute kind")
-    }
-
     pub fn name(self) -> &'a str {
         let record = self.record();
         self.string(record.name_start, usize::from(record.name_length))
     }
 
-    pub fn source_id(self) -> &'a str {
-        let offset = self.record_offset() + 16;
-        str::from_utf8(&self.index.bytes[offset..offset + 3]).expect("validated source ID")
-    }
-
-    pub fn source_note(self) -> Option<&'a str> {
-        let record = self.record();
-        if record.note_length == 0 {
-            None
-        } else {
-            Some(self.string(record.note_start, usize::from(record.note_length)))
-        }
-    }
-
-    pub fn source_default(self) -> Option<CountryCode> {
+    fn source_default(self) -> Option<CountryCode> {
         decode_optional_country(
             &self.index.bytes,
             self.index.layout,
@@ -275,15 +177,11 @@ impl<'a> DisputeMatch<'a> {
         let offset = self.record_offset();
         TerritoryRecord {
             id: u16_at(&self.index.bytes, offset).expect("validated territory"),
-            family: self.index.bytes[offset + 4],
-            kind: self.index.bytes[offset + 5],
-            default_country: self.index.bytes[offset + 6],
-            candidate_count: self.index.bytes[offset + 7],
-            candidate_start: u16_at(&self.index.bytes, offset + 8).expect("validated territory"),
-            name_start: u16_at(&self.index.bytes, offset + 10).expect("validated territory"),
-            name_length: self.index.bytes[offset + 12],
-            note_length: self.index.bytes[offset + 13],
-            note_start: u16_at(&self.index.bytes, offset + 14).expect("validated territory"),
+            default_country: self.index.bytes[offset + 4],
+            candidate_count: self.index.bytes[offset + 5],
+            candidate_start: u16_at(&self.index.bytes, offset + 6).expect("validated territory"),
+            name_start: u16_at(&self.index.bytes, offset + 8).expect("validated territory"),
+            name_length: self.index.bytes[offset + 10],
         }
     }
 
@@ -300,15 +198,11 @@ impl<'a> DisputeMatch<'a> {
 #[derive(Clone, Copy)]
 struct TerritoryRecord {
     id: u16,
-    family: u8,
-    kind: u8,
     default_country: u8,
     candidate_count: u8,
     candidate_start: u16,
     name_start: u16,
     name_length: u8,
-    note_length: u8,
-    note_start: u16,
 }
 
 fn validate(bytes: &[u8]) -> crate::Result<Layout> {
@@ -417,13 +311,11 @@ fn validate_layout(bytes: &[u8], layout: Layout, declared_length: usize) -> crat
             return Err(invalid("duplicate territory geometry code"));
         }
         geometry_codes.push(geometry_code);
-        DisputeFamily::from_byte(bytes[offset + 4]).ok_or(invalid("unknown dispute family"))?;
-        DisputeKind::from_byte(bytes[offset + 5]).ok_or(invalid("unknown dispute kind"))?;
-        validate_optional_country(bytes[offset + 6], layout.country_count)?;
+        validate_optional_country(bytes[offset + 4], layout.country_count)?;
 
-        let candidate_start = usize::from(read_u16_infallible(bytes, offset + 8));
+        let candidate_start = usize::from(read_u16_infallible(bytes, offset + 6));
         let candidate_end = candidate_start
-            .checked_add(usize::from(bytes[offset + 7]))
+            .checked_add(usize::from(bytes[offset + 5]))
             .ok_or(invalid("candidate range overflow"))?;
         if candidate_end > candidate_length {
             return Err(invalid("candidate range exceeds table"));
@@ -439,10 +331,8 @@ fn validate_layout(bytes: &[u8], layout: Layout, declared_length: usize) -> crat
             validate_optional_country(country, layout.country_count)?;
         }
 
-        let name_start = usize::from(read_u16_infallible(bytes, offset + 10));
-        let name_length = usize::from(bytes[offset + 12]);
-        let note_start = usize::from(read_u16_infallible(bytes, offset + 14));
-        let note_length = usize::from(bytes[offset + 13]);
+        let name_start = usize::from(read_u16_infallible(bytes, offset + 8));
+        let name_length = usize::from(bytes[offset + 10]);
         if name_length == 0 {
             return Err(invalid("empty territory name"));
         }
@@ -453,27 +343,18 @@ fn validate_layout(bytes: &[u8], layout: Layout, declared_length: usize) -> crat
             name_start,
             name_length,
         )?;
-        validate_string(
-            bytes,
-            layout.strings,
-            string_length,
-            note_start,
-            note_length,
-        )?;
-        if !bytes[offset + 16..offset + 19]
-            .iter()
-            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
-            || bytes[offset + 19..offset + TERRITORY_LEN]
-                .iter()
-                .any(|&byte| byte != 0)
-        {
-            return Err(invalid("invalid territory source or reserved bytes"));
+        if bytes[offset + 11] != 0 {
+            return Err(invalid("nonzero reserved territory byte"));
         }
     }
     Ok(())
 }
 
-fn validate_geometry(geometry: &CountryIndex, bytes: &[u8], layout: Layout) -> crate::Result<()> {
+fn validate_geometry(
+    geometry: &CountryGeometry,
+    bytes: &[u8],
+    layout: Layout,
+) -> crate::Result<()> {
     if geometry.columns() != 360
         || geometry.rows() != 180
         || geometry.country_count() != layout.territory_count

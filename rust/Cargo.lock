@@ -2608,6 +2608,7 @@ name = "ente-location"
 version = "0.0.0"
 dependencies = [
  "thiserror 2.0.18",
+ "unicode-normalization",
 ]
 
 [[package]]
@@ -2617,7 +2618,6 @@ dependencies = [
  "ente-location",
  "geo",
  "reqwest 0.12.28",
- "serde_json",
  "sha2 0.11.0",
  "shapefile",
  "thiserror 2.0.18",

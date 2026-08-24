@@ -1,13 +1,17 @@
 # ente-location-dataset
 
-This host-only package builds the single offline location asset consumed by
+This host-only package builds the offline location assets consumed by
 `ente-location`. It downloads pinned upstream inputs by default or accepts five
 already-extracted source files.
 
 ```sh
 cargo run --release -p ente-location-dataset -- \
-  build --output /tmp/ente-locations.eli
+  build --output /tmp/ente-location
 ```
+
+The output directory contains independently downloadable `cities.bin`,
+`countries.bin`, and `disputes.bin` files. The command prints each file's size
+and SHA-256 for Ente's asset catalog.
 
 Local generation uses `--cities`, `--country-info`, `--countries`, `--disputes`,
 and `--admin1` together. The Natural Earth arguments name `.shp` files with
@@ -25,5 +29,5 @@ The default sources are:
 
 URLs and SHA-256 values live in `src/sources.rs`. A changed upstream file fails
 closed until its snapshot date and hash are reviewed and updated. Generation is
-deterministic: source data and the numeric dataset version determine every byte;
-wall-clock timestamps are not stored.
+deterministic: the same source data produces the same bytes; wall-clock
+timestamps are not stored.

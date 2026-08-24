@@ -87,17 +87,20 @@ impl From<core::CountryGrouping> for LocationCountryGrouping {
 }
 
 #[frb(opaque)]
-pub struct LocationIndex {
-    inner: core::LocationIndex,
+pub struct CountryIndex {
+    inner: core::CountryIndex,
 }
 
-pub fn open_location_index(path: String) -> Result<LocationIndex, String> {
-    core::LocationIndex::from_path(path)
-        .map(|inner| LocationIndex { inner })
+pub fn open_country_index(
+    countries_path: String,
+    disputes_path: String,
+) -> Result<CountryIndex, String> {
+    core::CountryIndex::from_paths(countries_path, disputes_path)
+        .map(|inner| CountryIndex { inner })
         .map_err(|error| error.to_string())
 }
 
-impl LocationIndex {
+impl CountryIndex {
     pub fn group_countries(
         &self,
         coordinates: Vec<LocationCoordinate>,
@@ -105,7 +108,7 @@ impl LocationIndex {
     ) -> Result<LocationCountryGrouping, String> {
         let coordinates: Vec<_> = coordinates.into_iter().map(Into::into).collect();
         self.inner
-            .group_countries(&coordinates, view.try_into()?)
+            .group(&coordinates, view.try_into()?)
             .map(Into::into)
             .map_err(|error| error.to_string())
     }

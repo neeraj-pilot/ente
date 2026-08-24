@@ -200,8 +200,8 @@ fn encode(cities: &[SourceCity], countries: &BTreeMap<[u8; 2], String>) -> Resul
     let file_length = country_codes_offset + country_codes.len() * 2;
     let mut output = vec![0; file_length];
 
-    output[..4].copy_from_slice(b"ELC2");
-    put_u16(&mut output, 4, 2);
+    output[..4].copy_from_slice(b"CITY");
+    put_u16(&mut output, 4, 1);
     put_u16(&mut output, 6, HEADER_LEN as u16);
     put_len(&mut output, 8, cities.len())?;
     put_len(&mut output, 12, names.len())?;
@@ -379,19 +379,20 @@ mod tests {
     fn round_trips_city_search_and_lookup() {
         let cities = vec![
             city(1, "Delhi", "Delhi", *b"IN", 28.6139, 77.2090, 4),
-            city(2, "München", "Munich", *b"DE", 48.1372, 11.5756, 3),
+            city(2, "Zürich", "Zuerich", *b"CH", 47.3667, 8.5500, 3),
         ];
-        let countries =
-            BTreeMap::from([(*b"DE", "Germany".to_owned()), (*b"IN", "India".to_owned())]);
+        let countries = BTreeMap::from([
+            (*b"CH", "Switzerland".to_owned()),
+            (*b"IN", "India".to_owned()),
+        ]);
         let bytes = encode(&cities, &countries).unwrap();
         let index = CityIndex::from_bytes(bytes).unwrap();
 
-        assert_eq!(index.search("munich", 5)[0].name, "München");
-        assert_eq!(index.search("MÜN", 5)[0].name, "München");
+        assert_eq!(index.search("zurich", 5)[0].name, "Zürich");
+        assert_eq!(index.search("ZUERICH", 5)[0].name, "Zürich");
         assert_eq!(
-            index.nearest_batch(&[Coordinate::new(28.61, 77.21)], 10.0)[0]
-                .as_ref()
-                .unwrap()
+            index.match_coordinates(&[Coordinate::new(28.61, 77.21)], "")[0]
+                .city
                 .country_code,
             CountryCode::from_bytes(*b"IN").unwrap()
         );

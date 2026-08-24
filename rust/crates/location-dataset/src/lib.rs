@@ -1,7 +1,8 @@
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use ente_location::{Coordinate, CountryCode, CountryView, LocationIndex, TerritoryId};
+use ente_location::{CityIndex, Coordinate, CountryCode, CountryIndex, CountryView, TerritoryId};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 mod catalog;
@@ -9,10 +10,13 @@ mod city;
 mod country;
 mod dispute;
 mod download;
-mod format;
 mod sources;
 
-pub use sources::{DEFAULT_DATASET_VERSION, RemoteSources, SourcePaths};
+pub use sources::{RemoteSources, SourcePaths};
+
+pub const CITY_FILE: &str = "cities.bin";
+pub const COUNTRY_FILE: &str = "countries.bin";
+pub const DISPUTE_FILE: &str = "disputes.bin";
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -26,8 +30,6 @@ pub enum Error {
     Zip(#[from] zip::result::ZipError),
     #[error("shapefile is invalid: {0}")]
     Shapefile(#[from] shapefile::Error),
-    #[error("generated manifest is invalid: {0}")]
-    Json(#[from] serde_json::Error),
     #[error("invalid location data: {0}")]
     InvalidData(String),
     #[error(transparent)]
@@ -35,20 +37,24 @@ pub enum Error {
 }
 
 pub struct BuildOptions {
-    pub dataset_version: u32,
     pub sources: SourcePaths,
     pub output: PathBuf,
 }
 
-pub struct BuildManifest {
-    pub dataset_version: u32,
+pub struct BuildOutput {
     pub city_count: usize,
     pub territory_count: usize,
+    pub byte_length: usize,
+    pub files: [BuildFile; 3],
+}
+
+pub struct BuildFile {
+    pub name: &'static str,
     pub byte_length: usize,
     pub sha256: String,
 }
 
-pub fn build(options: &BuildOptions) -> Result<BuildManifest> {
+pub fn build(options: &BuildOptions) -> Result<BuildOutput> {
     let cities = city::build(&options.sources.cities, &options.sources.country_info)?;
     let countries = country::build_countries(&options.sources.countries)?;
     let disputes = dispute::build(
@@ -56,46 +62,49 @@ pub fn build(options: &BuildOptions) -> Result<BuildManifest> {
         &options.sources.disputes,
         &options.sources.admin1,
     )?;
-    let bytes = format::encode(options.dataset_version, &cities, &countries, &disputes)?;
-    let index = LocationIndex::from_bytes(&bytes)?;
-    validate_output(&index)?;
-    let manifest = BuildManifest {
-        dataset_version: options.dataset_version,
-        city_count: index.cities().len(),
-        territory_count: index.disputes().territory_count(),
-        byte_length: bytes.len(),
-        sha256: format::sha256(&bytes),
+    let city_index = CityIndex::from_bytes(cities.as_slice())?;
+    let country_index = CountryIndex::from_bytes(countries.as_slice(), disputes.as_slice())?;
+    validate_output(&city_index, &country_index)?;
+    let files = [
+        build_file(CITY_FILE, &cities),
+        build_file(COUNTRY_FILE, &countries),
+        build_file(DISPUTE_FILE, &disputes),
+    ];
+    let output = BuildOutput {
+        city_count: city_index.len(),
+        territory_count: catalog::DISPUTED_AREAS.len() + catalog::UKRAINIAN_REGIONS.len(),
+        byte_length: files.iter().map(|file| file.byte_length).sum(),
+        files,
     };
-    write_output(&options.output, &bytes)?;
-    write_manifest(&options.output, &manifest)?;
-    Ok(manifest)
+    std::fs::create_dir_all(&options.output)?;
+    for (name, bytes) in [
+        (CITY_FILE, cities.as_slice()),
+        (COUNTRY_FILE, countries.as_slice()),
+        (DISPUTE_FILE, disputes.as_slice()),
+    ] {
+        std::fs::write(options.output.join(name), bytes)?;
+    }
+    Ok(output)
 }
 
-fn validate_output(index: &LocationIndex) -> Result<()> {
-    if let Some(code) = index
-        .countries()
-        .country_codes()
-        .find(|&code| index.country_name(code).is_none())
-    {
-        return Err(invalid(format!("country {code} has no display name")));
-    }
+fn validate_output(cities: &CityIndex, countries: &CountryIndex) -> Result<()> {
     for (name, coordinate, expected) in [
         ("Delhi", Coordinate::new(28.6139, 77.2090), *b"IN"),
         ("Beijing", Coordinate::new(39.9042, 116.4074), *b"CN"),
         ("London", Coordinate::new(51.5074, -0.1278), *b"GB"),
     ] {
         let expected = CountryCode::from_bytes(expected).expect("static country code");
-        let result = index.classify_country(coordinate)?;
+        let result = countries.lookup(coordinate)?;
         if !result.disputes.is_empty() || !result.countries.contains(&expected) {
             return Err(invalid(format!("{name} country probe did not match")));
         }
     }
-    let ocean = index.classify_country(Coordinate::new(0.0, -140.0))?;
+    let ocean = countries.lookup(Coordinate::new(0.0, -140.0))?;
     if !ocean.countries.is_empty() || !ocean.disputes.is_empty() {
         return Err(invalid("ocean country probe matched land"));
     }
 
-    let aksai = index.classify_country(Coordinate::new(35.2, 79.5))?;
+    let aksai = countries.lookup(Coordinate::new(35.2, 79.5))?;
     let territory = aksai
         .disputes
         .iter()
@@ -111,42 +120,22 @@ fn validate_output(index: &LocationIndex) -> Result<()> {
         return Err(invalid("Aksai Chin worldview probe did not resolve"));
     }
 
-    let city = index
-        .cities()
-        .nearest_batch(&[Coordinate::new(28.6139, 77.2090)], 30.0)
+    let city = cities
+        .match_coordinates(&[Coordinate::new(28.6139, 77.2090)], "")
         .pop()
-        .flatten()
         .ok_or_else(|| invalid("Delhi city probe did not match"))?;
-    if city.country_code != india {
+    if city.city.country_code != india {
         return Err(invalid("Delhi city probe matched the wrong country"));
     }
     Ok(())
 }
 
-fn write_output(path: &Path, bytes: &[u8]) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+fn build_file(name: &'static str, bytes: &[u8]) -> BuildFile {
+    BuildFile {
+        name,
+        byte_length: bytes.len(),
+        sha256: hex(Sha256::digest(bytes)),
     }
-    let temporary = path.with_extension("eli.part");
-    std::fs::write(&temporary, bytes)?;
-    std::fs::rename(temporary, path)?;
-    Ok(())
-}
-
-fn write_manifest(path: &Path, manifest: &BuildManifest) -> Result<()> {
-    let json = serde_json::json!({
-        "format": "ELI1",
-        "datasetVersion": manifest.dataset_version,
-        "cityCount": manifest.city_count,
-        "territoryCount": manifest.territory_count,
-        "byteLength": manifest.byte_length,
-        "sha256": manifest.sha256,
-    });
-    let mut manifest_path = path.as_os_str().to_os_string();
-    manifest_path.push(".manifest.json");
-    let path = PathBuf::from(manifest_path);
-    std::fs::write(path, format!("{}\n", serde_json::to_string_pretty(&json)?))?;
-    Ok(())
 }
 
 fn invalid(message: impl Into<String>) -> Error {

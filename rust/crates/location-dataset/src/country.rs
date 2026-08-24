@@ -153,8 +153,8 @@ fn encode_cells(cells: &[Cell]) -> Result<Vec<u8>> {
         .ok_or_else(|| invalid("country index size overflow"))?;
     let mut output = Vec::with_capacity(file_length);
 
-    output.extend_from_slice(b"ECB3");
-    push_u16(&mut output, 3);
+    output.extend_from_slice(b"CTRY");
+    push_u16(&mut output, 1);
     push_u16(&mut output, HEADER_LEN as u16);
     push_u16(&mut output, COLUMNS);
     push_u16(&mut output, ROWS);
@@ -400,14 +400,29 @@ mod tests {
             geometry: MultiPolygon(vec![polygon]),
         }])
         .unwrap();
-        let index = CountryIndex::from_bytes(bytes).unwrap();
+        let index = CountryIndex::from_bytes(bytes, crate::dispute::test_bytes()).unwrap();
 
         assert_eq!(
-            index.lookup(5.0, 5.0).unwrap(),
+            index
+                .lookup(ente_location::Coordinate::new(5.0, 5.0))
+                .unwrap()
+                .countries,
             [CountryCode::from_bytes(*b"AA").unwrap()]
         );
-        assert!(index.lookup(0.0, 0.0).unwrap().is_empty());
-        assert!(index.lookup(50.0, 50.0).unwrap().is_empty());
+        assert!(
+            index
+                .lookup(ente_location::Coordinate::new(0.0, 0.0))
+                .unwrap()
+                .countries
+                .is_empty()
+        );
+        assert!(
+            index
+                .lookup(ente_location::Coordinate::new(50.0, 50.0))
+                .unwrap()
+                .countries
+                .is_empty()
+        );
     }
 
     fn ring(minimum_x: f64, minimum_y: f64, maximum_x: f64, maximum_y: f64) -> LineString<f64> {
