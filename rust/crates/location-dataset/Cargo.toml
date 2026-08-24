@@ -1,0 +1,14 @@
+[package]
+name = "ente-location-dataset"
+edition = "2024"
+publish = false
+
+[dependencies]
+ente-location.workspace = true
+geo.workspace = true
+reqwest = { workspace = true, features = ["blocking", "rustls-tls-webpki-roots"] }
+serde_json.workspace = true
+sha2.workspace = true
+shapefile.workspace = true
+thiserror.workspace = true
+zip.workspace = true

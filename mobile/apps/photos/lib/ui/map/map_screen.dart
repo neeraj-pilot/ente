@@ -58,6 +58,7 @@ class _MapScreenState extends State<MapScreen> {
     executionInterval: const Duration(milliseconds: 750),
   );
   static const _markerViewportPaddingPixels = 256.0;
+  static const _minimumMarkerDistancePixels = 100.0;
 
   @override
   void initState() {
@@ -121,7 +122,10 @@ class _MapScreenState extends State<MapScreen> {
       );
     }
 
-    _mapClusterer = await createMapClusterer(points: mapPoints);
+    _mapClusterer = await createMapClusterer(
+      points: mapPoints,
+      minimumMarkerDistance: _minimumMarkerDistancePixels,
+    );
     if (!mounted) return;
     setState(() {
       hasLocationData = true;

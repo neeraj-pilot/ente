@@ -2,6 +2,7 @@ pub mod cast_api;
 pub mod contacts;
 pub mod image_processing_api;
 pub mod init;
+pub mod location_api;
 #[cfg(any(feature = "flutter", frb_expand))]
 pub mod log;
 pub mod map_cluster_api;

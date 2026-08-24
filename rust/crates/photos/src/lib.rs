@@ -1,4 +1,3 @@
-pub mod map_cluster;
 pub mod motion_photo;
 
 pub use motion_photo::{
