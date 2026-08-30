@@ -1,0 +1,20 @@
+name: EnteComponentsCatalog
+options:
+  bundleIdPrefix: io.ente
+packages:
+  EnteComponents:
+    path: ..
+targets:
+  EnteComponentsCatalog:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources: [Sources]
+    dependencies:
+      - package: EnteComponents
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.ente.components.catalog
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: 1
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
