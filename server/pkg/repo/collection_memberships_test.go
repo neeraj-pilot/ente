@@ -310,7 +310,9 @@ func TestRestoreFilesAndDeleteSerializeOnFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	insertObjectTestKey(t, db, fileID, ente.FILE, "restore-delete-race", 100, []string{"b2-eu-cen"})
-	testutil.InsertUsage(t, db, ownerID, 100)
+	if _, err := db.Exec(`UPDATE usage SET storage_consumed = 100 WHERE user_id = $1`, ownerID); err != nil {
+		t.Fatal(err)
+	}
 	repository.TrashRepo.FileRepo = &FileRepository{
 		DB: db,
 		ObjectRepo: &ObjectRepository{
@@ -493,6 +495,7 @@ func setupCollectionMembershipTest(t *testing.T) (*CollectionRepository, *sql.DB
 		Email:        "collection-membership-owner@ente.com",
 		CreationTime: 1,
 	})
+	testutil.InsertUsage(t, db, ownerID, 0)
 	return &CollectionRepository{
 		DB:        db,
 		TrashRepo: &TrashRepository{DB: db},
