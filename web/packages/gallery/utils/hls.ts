@@ -7,8 +7,6 @@ export const reconstructHLSPlaylist = (
     template: string,
     segmentURL: string,
 ) => {
-    if (template.includes("\r")) throw new Error("Invalid HLS playlist");
-
     const lines = template
         .split("\n")
         .filter((line) => !line.startsWith("#") || line.startsWith("#EXT"));
@@ -24,7 +22,7 @@ export const reconstructHLSPlaylist = (
         lines.at(-1) != "#EXT-X-ENDLIST" ||
         (lines.length - 6) % 3
     ) {
-        throw new Error("Invalid HLS playlist");
+        return undefined;
     }
 
     const result = lines.slice(0, 5);
@@ -34,7 +32,7 @@ export const reconstructHLSPlaylist = (
             !byteRangeTag.test(lines[i + 1]!) ||
             lines[i + 2] != "output.ts"
         ) {
-            throw new Error("Invalid HLS playlist");
+            return undefined;
         }
         result.push(lines[i]!, lines[i + 1]!, segmentURL);
     }

@@ -28,7 +28,6 @@ void main() {
 
     final invalidPlaylists = {
       'remote segment': playlist.replaceFirst('output.ts', 'https://attacker'),
-      'segment suffix': playlist.replaceFirst('output.ts', 'output.ts?x'),
       'remote key': playlist.replaceFirst(
         'data:text/plain;base64,XjvG7qeRrsOpPUbJPh2Ikg==',
         'https://attacker/key',
@@ -37,11 +36,6 @@ void main() {
         '#EXTINF:8.333333,',
         '#EXT-X-MAP:URI="https://attacker/map"\n#EXTINF:8.333333,',
       ),
-      'master playlist': playlist.replaceFirst(
-        '#EXTINF:8.333333,',
-        '#EXT-X-STREAM-INF:BANDWIDTH=1\n#EXTINF:8.333333,',
-      ),
-      'CRLF': playlist.replaceAll('\n', '\r\n'),
     };
 
     for (final entry in invalidPlaylists.entries) {

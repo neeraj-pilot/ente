@@ -183,6 +183,10 @@ export const hlsPlaylistDataForFile = async (
     if (!videoURL) return undefined;
 
     const playlist = reconstructHLSPlaylist(playlistTemplate, videoURL);
+    if (!playlist) {
+        log.warn(`Ignoring invalid HLS playlist for ${fileLogID(file)}`);
+        return undefined;
+    }
 
     // HLS clients require a recognizable playlist MIME type or filename.
     const playlistURL = await blobToDataURL(

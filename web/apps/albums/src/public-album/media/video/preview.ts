@@ -56,6 +56,10 @@ export const hlsPlaylistDataForFile = async (
     if (!videoURL) return undefined;
 
     const playlist = reconstructHLSPlaylist(playlistTemplate, videoURL);
+    if (!playlist) {
+        log.warn(`Ignoring invalid HLS playlist for ${fileLogID(file)}`);
+        return undefined;
+    }
 
     const playlistURL = await blobToDataURL(
         new Blob([playlist], { type: "application/vnd.apple.mpegurl" }),

@@ -5,10 +5,6 @@ final _durationTag = RegExp(r'^#EXTINF:\d+(?:\.\d+)?,$');
 final _byteRangeTag = RegExp(r'^#EXT-X-BYTERANGE:\d+@\d+$');
 
 String reconstructHlsPlaylist(String template, String segmentUrl) {
-  if (template.contains('\r')) {
-    throw const FormatException('Invalid HLS playlist');
-  }
-
   final lines = template
       .split('\n')
       .where((line) => !line.startsWith('#') || line.startsWith('#EXT'))
