@@ -2,30 +2,38 @@ import { reconstructHLSPlaylist } from "ente-gallery/utils/hls";
 import { describe, expect, test } from "vitest";
 
 const playlist = `#EXTM3U
-#EXT-X-VERSION:4
+#EXT-X-MEDIA-SEQUENCE:42
+#EXT-X-VERSION:7
 #EXT-X-TARGETDURATION:8
-#EXT-X-MEDIA-SEQUENCE:0
 #EXT-X-KEY:METHOD=AES-128,URI="data:text/plain;base64,XjvG7qeRrsOpPUbJPh2Ikg==",IV=0x00000000000000000000000000000000
 #EXTINF:8.333333,
 #EXT-X-BYTERANGE:3046928@0
-output.ts
+video.ts
 #EXTINF:2.200000,
-#EXT-X-BYTERANGE:834736@3046928
-output.ts
+#EXT-X-BYTERANGE:834736
+video.ts
 #EXT-X-ENDLIST
 `;
 
 describe("reconstructHLSPlaylist", () => {
-    test("reconstructs a generated single-file playlist", () => {
+    test("reconstructs an allowed single-file playlist", () => {
         const segmentURL = "https://museum.example/video?token=secret";
 
         expect(reconstructHLSPlaylist(playlist, segmentURL)).toBe(
-            playlist.replaceAll("output.ts", segmentURL),
+            playlist.replaceAll("video.ts", segmentURL),
+        );
+    });
+
+    test("replaces every untrusted URI line", () => {
+        const segmentURL = "https://museum.example/video";
+        const input = playlist.replace("video.ts", "https://attacker");
+
+        expect(reconstructHLSPlaylist(input, segmentURL)).toBe(
+            playlist.replaceAll("video.ts", segmentURL),
         );
     });
 
     test.each([
-        ["remote segment", playlist.replace("output.ts", "https://attacker")],
         [
             "remote key",
             playlist.replace(
