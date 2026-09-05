@@ -296,6 +296,72 @@ func TestRestoreFilesUpsertsBatchAndMarksTrashRestored(t *testing.T) {
 	}
 }
 
+func TestRestoreFilesPreservesMembershipBeforeCollectionLockOrder(t *testing.T) {
+	repository, db, ownerID := setupCollectionMembershipTest(t)
+	collectionID := insertObjectTestCollection(t, db, ownerID)
+	fileID := insertObjectTestFile(t, db, ownerID)
+	linkObjectTestFileToCollection(t, db, collectionID, fileID, ownerID)
+	setReadyFileCounts(t, db, ownerID, 1, 0)
+	repository.TrashRepo.FileLinkRepo = public.NewFileLinkRepo(db)
+	if err := repository.TrashRepo.TrashFiles(t.Context(), ownerID, ente.TrashRequest{
+		TrashItems: []ente.TrashItemRequest{{FileID: fileID, CollectionID: collectionID}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	suggestion, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer suggestion.Rollback()
+	var suggestionPID int
+	if err := suggestion.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&suggestionPID); err != nil {
+		t.Fatal(err)
+	}
+	// A SuggestAction request can pass validation before Trash, then update the
+	// membership after Trash commits. It takes no file lock.
+	if _, err := suggestion.ExecContext(ctx, `UPDATE collection_files SET action = $1
+		WHERE collection_id = $2 AND file_id = $3`, ente.ActionRemove, collectionID, fileID); err != nil {
+		t.Fatal(err)
+	}
+	restoreResult := make(chan error, 1)
+	go func() {
+		restoreResult <- repository.RestoreFiles(ctx, ownerID, collectionID,
+			[]ente.CollectionFileItem{collectionMembershipTestItem(fileID)})
+	}()
+	for {
+		var waiting bool
+		if err := db.QueryRowContext(ctx, `SELECT EXISTS (
+			SELECT 1 FROM pg_stat_activity WHERE datname = current_database()
+			AND $1 = ANY(pg_blocking_pids(pid))
+		)`, suggestionPID).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// Restore is waiting for our membership row. Taking the collection lock
+	// must succeed, allowing SuggestAction to finish and unblock Restore.
+	if _, err := suggestion.ExecContext(ctx, `UPDATE collections SET updation_time = $1
+		WHERE collection_id = $2`, time.Now().UnixMicro(), collectionID); err != nil {
+		t.Fatal(err)
+	}
+	if err := suggestion.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-restoreResult; err != nil {
+		t.Fatalf("RestoreFiles() error = %v", err)
+	}
+	if state := readCollectionMembershipState(t, db, collectionID, fileID); state.isDeleted || state.action.Valid {
+		t.Fatalf("restored membership retained deleted or suggested-removal state: %+v", state)
+	}
+	assertReadyFileCounts(t, db, ownerID, 1, 0, 2)
+}
+
 func TestRestoreFilesAndDeleteSerializeOnFile(t *testing.T) {
 	repository, db, ownerID := setupCollectionMembershipTest(t)
 	collectionID := insertObjectTestCollection(t, db, ownerID)
