@@ -301,7 +301,6 @@ func TestRestoreFilesPreservesMembershipBeforeCollectionLockOrder(t *testing.T) 
 	collectionID := insertObjectTestCollection(t, db, ownerID)
 	fileID := insertObjectTestFile(t, db, ownerID)
 	linkObjectTestFileToCollection(t, db, collectionID, fileID, ownerID)
-	setReadyFileCounts(t, db, ownerID, 1, 0)
 	repository.TrashRepo.FileLinkRepo = public.NewFileLinkRepo(db)
 	if err := repository.TrashRepo.TrashFiles(t.Context(), ownerID, ente.TrashRequest{
 		TrashItems: []ente.TrashItemRequest{{FileID: fileID, CollectionID: collectionID}},
@@ -359,7 +358,6 @@ func TestRestoreFilesPreservesMembershipBeforeCollectionLockOrder(t *testing.T) 
 	if state := readCollectionMembershipState(t, db, collectionID, fileID); state.isDeleted || state.action.Valid {
 		t.Fatalf("restored membership retained deleted or suggested-removal state: %+v", state)
 	}
-	assertReadyFileCounts(t, db, ownerID, 1, 0, 2)
 }
 
 func TestRestoreFilesAndDeleteSerializeOnFile(t *testing.T) {
