@@ -695,6 +695,14 @@ func (h *AdminHandler) alertIfAdminMissing2FA(ctx adminAlertContext) {
 }
 
 func (h *AdminHandler) attachSubscription(ctx *gin.Context, userID int64, response gin.H) {
+	storageConsumed, err := h.UsageRepo.GetUsage(userID)
+	if err != nil {
+		logrus.WithError(err).WithField("user_id", userID).Error("failed to get user storage usage")
+		response["storageConsumedStatus"] = "unavailable"
+	} else {
+		response["storageConsumed"] = storageConsumed
+		response["storageConsumedStatus"] = "available"
+	}
 	subscription, err := h.BillingRepo.GetUserSubscription(userID)
 	if err == nil {
 		response["subscription"] = subscription
