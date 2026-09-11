@@ -212,10 +212,8 @@ class CastViewModel: ObservableObject {
 
             await MainActor.run {
                 guard sessionID == self.sessionID else { return }
-                let hasError = slideshowService.error != nil && !slideshowService.error!.isEmpty
-
-                if hasError {
-                    handleSlideshowError(slideshowService.error!)
+                if let error = slideshowService.error, !error.isEmpty {
+                    handleSlideshowError(error)
                 } else {
                     currentView = .slideshow
                     statusMessage = ""
@@ -276,10 +274,9 @@ class CastViewModel: ObservableObject {
     private func handleSlideshowError(_ error: String) {
         // Ignore stale slideshow errors while a new connection is starting.
         // Empty-state errors may belong to the new connection.
-        let isEmptyStateError = error.contains("No media files") ||
-            error.contains("available in this album") ||
-            error.contains("available in this collection") ||
-            error.contains("Empty file list")
+        let isEmptyStateError =
+            error.contains("No media files") || error.contains("available in this album")
+            || error.contains("available in this collection") || error.contains("Empty file list")
 
         if (currentView == .pairing || currentView == .connecting) && !isEmptyStateError {
             return
