@@ -474,7 +474,6 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Cast/Info.plist;
-				"INFOPLIST_FILE[sdk=appletvos*]" = "";
 				INFOPLIST_KEY_CFBundleDisplayName = "Ente Cast";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

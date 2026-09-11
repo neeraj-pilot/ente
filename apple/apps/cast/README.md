@@ -27,11 +27,6 @@ Run `cast-build.yml` manually on `main` to archive and upload a TestFlight build
 Its build number is the committed Cast Release build number plus the GitHub
 Actions run number.
 
-For a release candidate, create `release/cast-v<version>` after setting the Cast
-Release marketing version to `<version>`, then run the same workflow on that
-branch. Release branches use the committed build number; increment it before
-uploading another build for the same version.
-
 Before the first release, create the `Cast App Store` provisioning profile for
 `io.ente.frame.tv.cast`. The shared certificate and App Store Connect API-key
 secrets are documented in [Apple signing](../../../.github/docs/apple-signing.md).

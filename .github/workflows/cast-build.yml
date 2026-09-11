@@ -25,28 +25,12 @@ jobs:
               working-directory: apple/apps/cast
               run: |
                   settings="$(xcodebuild -showBuildSettings -project Cast.xcodeproj -scheme Cast -configuration Release)"
-                  version="$(awk '$1 == "MARKETING_VERSION" { print $3; exit }' <<< "${settings}")"
                   build_base="$(awk '$1 == "CURRENT_PROJECT_VERSION" { print $3; exit }' <<< "${settings}")"
-                  if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-                      echo "::error::MARKETING_VERSION must be x.y or x.y.z"
-                      exit 1
-                  fi
                   if [[ ! "${build_base}" =~ ^[0-9]+$ ]]; then
                       echo "::error::CURRENT_PROJECT_VERSION must be an integer"
                       exit 1
                   fi
-                  if [[ "${GITHUB_REF_NAME}" == release/cast-v* ]]; then
-                      if [[ "${GITHUB_REF_NAME}" != "release/cast-v${version}" ]]; then
-                          echo "::error::${GITHUB_REF_NAME} does not match Cast version ${version}"
-                          exit 1
-                      fi
-                      build_number="${build_base}"
-                  elif [[ "${GITHUB_REF_NAME}" == main ]]; then
-                      build_number="$((build_base + GITHUB_RUN_NUMBER))"
-                  else
-                      echo "::error::Cast builds must run from main or release/cast-v${version}"
-                      exit 1
-                  fi
+                  build_number="$((build_base + GITHUB_RUN_NUMBER))"
                   echo "build_number=${build_number}" >> "${GITHUB_OUTPUT}"
 
             - name: Generate Cast bindings
