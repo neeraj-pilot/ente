@@ -68,7 +68,7 @@ jobs:
                       CODE_SIGN_STYLE=Manual \
                       CODE_SIGN_IDENTITY="Apple Distribution" \
                       DEVELOPMENT_TEAM="${APPLE_TEAM_ID}" \
-                      PROVISIONING_PROFILE_SPECIFIER="Cast App Store" \
+                      APP_STORE_PROFILE_SPECIFIER="Cast App Store" \
                       CURRENT_PROJECT_VERSION="${BUILD_NUMBER}"
 
                   xcodebuild -exportArchive \
