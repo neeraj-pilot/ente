@@ -50,15 +50,8 @@ jobs:
             - name: Validate version input
               shell: bash
               run: |
-                  if [[ "${APP}" == "cast" ]]; then
-                      pattern='^[0-9]+\.[0-9]+$'
-                      example=x.y
-                  else
-                      pattern='^[0-9]+\.[0-9]+\.[0-9]+$'
-                      example=x.y.z
-                  fi
-                  if [[ ! "${VERSION}" =~ ${pattern} ]]; then
-                      echo "::error::version must be ${example}"
+                  if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                      echo "::error::version must be x.y.z"
                       exit 1
                   fi
 
@@ -112,14 +105,9 @@ jobs:
 
                   release_branch="release/${APP}-v${VERSION}"
                   beta_tag="${APP}-v${VERSION}-beta"
+                  IFS=. read -r major minor patch <<< "${VERSION}"
                   expected_main_version="${VERSION}"
-                  if [ "${APP}" = "cast" ]; then
-                      IFS=. read -r major minor <<< "${VERSION}"
-                      next_version="${major}.$((minor + 1))"
-                  else
-                      IFS=. read -r major minor patch <<< "${VERSION}"
-                      next_version="${major}.${minor}.$((patch + 1))"
-                  fi
+                  next_version="${major}.${minor}.$((patch + 1))"
                   if [ "${APP}" = "ensu" ] || [ "${APP}" = "photos-desktop" ]; then
                       expected_main_version="${VERSION}-beta"
                       next_version="${next_version}-beta"
@@ -143,10 +131,8 @@ jobs:
                   fi
                   git_push_with_app_token "${release_branch}"
 
-                  if [ "${APP}" != "cast" ]; then
-                      gh release delete "${beta_tag}" --yes --cleanup-tag --repo ente/nightly || true
-                      git push origin ":refs/tags/${beta_tag}" || true
-                  fi
+                  gh release delete "${beta_tag}" --yes --cleanup-tag --repo ente/nightly || true
+                  git push origin ":refs/tags/${beta_tag}" || true
 
                   git switch -c "${next_branch}" main
                   app_version set "${next_version}"
@@ -240,9 +226,7 @@ jobs:
                   gh release edit "${rc_tag}" --tag "${final_tag}" --title "${final_tag}" --target "${release_sha}" --draft=false --prerelease=false --verify-tag
 
                   git push origin ":refs/tags/${rc_tag}" || true
-                  if [ "${APP}" != "cast" ]; then
-                      gh release delete "${rc_tag}" --yes --cleanup-tag --repo ente/nightly || true
-                  fi
+                  gh release delete "${rc_tag}" --yes --cleanup-tag --repo ente/nightly || true
                   git_push_with_app_token ":refs/heads/${release_branch}"
 
     sync-docs:

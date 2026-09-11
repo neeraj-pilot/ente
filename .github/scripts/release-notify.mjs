@@ -19,6 +19,11 @@ const apps = {
         testFlightId: "6758197006",
         accentColor: 16633363,
     },
+    cast: {
+        testFlightId: "6751903820",
+        testFlightPlatform: "tvos",
+        accentColor: 65280,
+    },
     "photos-desktop": { accentColor: 65280 },
 };
 
@@ -68,7 +73,7 @@ if (config.packageId) {
 }
 if (config.testFlightId) {
     downloadLinks.push(
-        `[TestFlight](https://appstoreconnect.apple.com/apps/${config.testFlightId}/testflight/ios)`,
+        `[TestFlight](https://appstoreconnect.apple.com/apps/${config.testFlightId}/testflight/${config.testFlightPlatform ?? "ios"})`,
     );
 }
 downloadLinks.push(`[GitHub Release](${releaseUrl})`);

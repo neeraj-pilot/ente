@@ -15,27 +15,24 @@ function source() {
 }
 
 function fieldPattern(name) {
-    return new RegExp(
-        `(${name} = )([^;]+)(;[^}]*PRODUCT_BUNDLE_IDENTIFIER = io\\.ente\\.frame\\.tv\\.cast;)`,
-    );
+    return new RegExp(`${name} = ([^;]+);`, "g");
 }
 
 function value(name) {
-    const found = source().match(fieldPattern(name))?.[2];
-    if (!found) throw new Error(`${name}: no Cast Release entry found`);
+    const found = fieldPattern(name).exec(source())?.[1];
+    if (!found) throw new Error(`${name}: no Cast entry found`);
     return found;
 }
 
 function set(name, next) {
     const text = source();
     const pattern = fieldPattern(name);
-    if (!pattern.test(text))
-        throw new Error(`${name}: no Cast Release entry found`);
-    fs.writeFileSync(xcode, text.replace(pattern, `$1${next}$3`));
+    if (!pattern.test(text)) throw new Error(`${name}: no Cast entry found`);
+    fs.writeFileSync(xcode, text.replace(pattern, `${name} = ${next};`));
 }
 
 function checkVersion(version) {
-    if (!/^\d+\.\d+$/.test(version))
+    if (!/^\d+\.\d+\.\d+$/.test(version))
         throw new Error(`Invalid Cast version: ${version}`);
 }
 
@@ -48,8 +45,8 @@ function usage() {
     console.error(`Usage:
   node .github/scripts/cast-version.mjs get
   node .github/scripts/cast-version.mjs get-build-base
-  node .github/scripts/cast-version.mjs set 1.2
-  node .github/scripts/cast-version.mjs set-build 1.2 34
+  node .github/scripts/cast-version.mjs set 1.2.0
+  node .github/scripts/cast-version.mjs set-build 1.2.0 34
   node .github/scripts/cast-version.mjs bump-build`);
 }
 

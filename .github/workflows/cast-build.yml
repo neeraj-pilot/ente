@@ -37,14 +37,20 @@ jobs:
                       fi
                       build_number="${build_base}"
                       release_tag="cast-v${version}-rc"
-                      echo "release_tag=${release_tag}" >> "${GITHUB_OUTPUT}"
-                      node .github/scripts/release-notes.mjs apple/apps/cast/changes "${release_tag}" >> "${GITHUB_OUTPUT}"
+                      release_title="📺 Cast release candidate · ${version} (build ${build_number})"
                   else
                       build_number="$((build_base + GITHUB_RUN_NUMBER))"
+                      release_tag="cast-v${version}-beta"
+                      release_title="📺 Cast beta · ${version} (build ${build_number})"
                   fi
+
+                  git fetch --force --depth=1 --no-tags origin "refs/tags/${release_tag}:refs/tags/${release_tag}" || true
 
                   echo "build_number=${build_number}" >> "${GITHUB_OUTPUT}"
                   echo "commit_sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+                  echo "release_tag=${release_tag}" >> "${GITHUB_OUTPUT}"
+                  echo "release_title=${release_title}" >> "${GITHUB_OUTPUT}"
+                  node .github/scripts/release-notes.mjs apple/apps/cast/changes "${release_tag}" >> "${GITHUB_OUTPUT}"
 
             - name: Generate Cast bindings
               working-directory: rust
@@ -93,6 +99,29 @@ jobs:
                       -authenticationKeyID "${ASC_KEY_ID}" \
                       -authenticationKeyIssuerID "${ASC_ISSUER_ID}"
 
+            - name: Mint nightly token
+              id: nightly_token
+              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+              with:
+                  client-id: ${{ secrets.ENTE_CI_GH_CLIENT_ID }}
+                  private-key: ${{ secrets.ENTE_CI_GH_APP_PRIVATE_KEY }}
+                  repositories: nightly
+                  permission-contents: write
+
+            - name: Publish prerelease notes
+              uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
+              with:
+                  repo: nightly
+                  token: ${{ steps.nightly_token.outputs.token }}
+                  tag: ${{ steps.metadata.outputs.release_tag }}
+                  name: ${{ steps.metadata.outputs.release_tag }}
+                  body: ${{ steps.metadata.outputs.release_body }}
+                  commit: main
+                  prerelease: true
+                  makeLatest: false
+                  allowUpdates: true
+                  updateOnlyUnreleased: true
+
             - name: Create RC draft
               if: startsWith(github.ref_name, 'release/cast-v')
               uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
@@ -105,11 +134,19 @@ jobs:
                   allowUpdates: true
                   updateOnlyUnreleased: true
 
-            - name: Point RC tag at the successfully uploaded commit
-              if: startsWith(github.ref_name, 'release/cast-v')
+            - name: Point release tag at the successfully uploaded commit
               env:
                   COMMIT_SHA: ${{ steps.metadata.outputs.commit_sha }}
                   RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
               run: |
                   git tag --force "${RELEASE_TAG}" "${COMMIT_SHA}"
                   git push --force origin "refs/tags/${RELEASE_TAG}"
+
+            - name: Notify Discord
+              continue-on-error: true
+              env:
+                  DISCORD_WEBHOOK: ${{ secrets.DISCORD_INTERNAL_RELEASE_WEBHOOK }}
+                  RELEASE_TITLE: ${{ steps.metadata.outputs.release_title }}
+                  RELEASE_BODY_GROUPED: ${{ steps.metadata.outputs.release_body_grouped }}
+                  RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+              run: node .github/scripts/release-notify.mjs cast "${RELEASE_TAG}"
