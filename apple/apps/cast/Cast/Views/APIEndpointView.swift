@@ -35,13 +35,15 @@ struct APIEndpointView: View {
                         onSave()
                         dismiss()
                     } label: { buttonLabel("Use Ente") }
-                    .disabled(isSaving)
+                        .disabled(isSaving)
                 }
                 Button(role: .cancel) { dismiss() } label: { buttonLabel("Cancel") }
                     .disabled(isSaving)
             }
 
-            if isSaving { ProgressView() }
+            if isSaving {
+                ProgressView()
+            }
         }
         .frame(maxWidth: 720)
         .multilineTextAlignment(.center)
@@ -49,7 +51,9 @@ struct APIEndpointView: View {
         .padding(80)
     }
 
-    private func buttonLabel(_ title: String) -> some View { Text(title).frame(width: 240) }
+    private func buttonLabel(_ title: String) -> some View {
+        Text(title).frame(width: 240)
+    }
 
     private func save() {
         isSaving = true
