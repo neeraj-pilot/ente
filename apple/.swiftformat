@@ -1,0 +1,4 @@
+--exclude apps/ensu,**/Generated,**/build,**/DerivedData
+--swift-version 5.9
+--indent 4
+--maxwidth 100
