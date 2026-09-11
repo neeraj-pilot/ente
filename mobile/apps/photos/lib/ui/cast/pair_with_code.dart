@@ -86,6 +86,7 @@ class _PairWithCodeSheetState extends State<_PairWithCodeSheet> {
           autofocus: true,
           hintText: l10n.pairUsingCode,
           keyboardType: .streetAddress,
+          textCapitalization: .characters,
         ),
         ButtonComponent(
           label: l10n.pair,
