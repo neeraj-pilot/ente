@@ -4,7 +4,7 @@ on:
     workflow_dispatch:
 
 permissions:
-    contents: read
+    contents: write
 
 concurrency:
     group: cast-build
@@ -19,19 +19,32 @@ jobs:
         steps:
             - name: Checkout
               uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+              with:
+                  ref: ${{ github.ref_name }}
 
-            - name: Prepare build metadata
+            - name: Prepare release
               id: metadata
-              working-directory: apple/apps/cast
               run: |
-                  settings="$(xcodebuild -showBuildSettings -project Cast.xcodeproj -scheme Cast -configuration Release)"
-                  build_base="$(awk '$1 == "CURRENT_PROJECT_VERSION" { print $3; exit }' <<< "${settings}")"
-                  if [[ ! "${build_base}" =~ ^[0-9]+$ ]]; then
-                      echo "::error::CURRENT_PROJECT_VERSION must be an integer"
-                      exit 1
+                  set -euo pipefail
+
+                  version="$(node .github/scripts/cast-version.mjs get)"
+                  build_base="$(node .github/scripts/cast-version.mjs get-build-base)"
+
+                  if [[ "${GITHUB_REF_NAME}" == release/cast-v* ]]; then
+                      if [[ "${GITHUB_REF_NAME}" != "release/cast-v${version}" ]]; then
+                          echo "::error::Branch ${GITHUB_REF_NAME} does not match Cast version ${version}"
+                          exit 1
+                      fi
+                      build_number="${build_base}"
+                      release_tag="cast-v${version}-rc"
+                      echo "release_tag=${release_tag}" >> "${GITHUB_OUTPUT}"
+                      node .github/scripts/release-notes.mjs apple/apps/cast/changes "${release_tag}" >> "${GITHUB_OUTPUT}"
+                  else
+                      build_number="$((build_base + GITHUB_RUN_NUMBER))"
                   fi
-                  build_number="$((build_base + GITHUB_RUN_NUMBER))"
+
                   echo "build_number=${build_number}" >> "${GITHUB_OUTPUT}"
+                  echo "commit_sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
             - name: Generate Cast bindings
               working-directory: rust
@@ -79,3 +92,24 @@ jobs:
                       -authenticationKeyPath "${key_path}" \
                       -authenticationKeyID "${ASC_KEY_ID}" \
                       -authenticationKeyIssuerID "${ASC_ISSUER_ID}"
+
+            - name: Create RC draft
+              if: startsWith(github.ref_name, 'release/cast-v')
+              uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
+              with:
+                  tag: ${{ steps.metadata.outputs.release_tag }}
+                  name: ${{ steps.metadata.outputs.release_tag }}
+                  body: ${{ steps.metadata.outputs.release_body }}
+                  commit: ${{ steps.metadata.outputs.commit_sha }}
+                  draft: true
+                  allowUpdates: true
+                  updateOnlyUnreleased: true
+
+            - name: Point RC tag at the successfully uploaded commit
+              if: startsWith(github.ref_name, 'release/cast-v')
+              env:
+                  COMMIT_SHA: ${{ steps.metadata.outputs.commit_sha }}
+                  RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+              run: |
+                  git tag --force "${RELEASE_TAG}" "${COMMIT_SHA}"
+                  git push --force origin "refs/tags/${RELEASE_TAG}"

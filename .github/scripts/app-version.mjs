@@ -13,6 +13,7 @@ const scripts = {
     auth: ["flutter-version.mjs", "auth"],
     locker: ["flutter-version.mjs", "locker"],
     ensu: ["ensu-version.mjs"],
+    cast: ["cast-version.mjs"],
     "photos-desktop": ["photos-desktop-version.mjs"],
 };
 
@@ -30,6 +31,7 @@ const versionFiles = {
         "apple/apps/ensu/Ensu.xcodeproj/project.pbxproj",
         "apple/apps/ensu/Ensu/Info.plist",
     ],
+    cast: ["apple/apps/cast/Cast.xcodeproj/project.pbxproj"],
 };
 
 function usage() {
