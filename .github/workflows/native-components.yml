@@ -27,4 +27,6 @@ jobs:
                   ./gradlew \
                     :packages:fonts:ktfmtCheck \
                     :packages:fonts:lintDebug \
-                    :packages:fonts:assembleDebug
+                    :packages:fonts:assembleDebug \
+                    :apps:ensu:app:compileDebugKotlin \
+                    -x :apps:ensu:rust:buildRustJniDebug
