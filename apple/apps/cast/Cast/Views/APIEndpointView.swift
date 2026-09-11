@@ -34,11 +34,17 @@ struct APIEndpointView: View {
                         APIEndpoint.reset()
                         onSave()
                         dismiss()
-                    } label: { buttonLabel("Use Ente") }
+                    } label: {
+                        buttonLabel("Use Ente")
+                    }
                     .disabled(isSaving)
                 }
-                Button(role: .cancel) { dismiss() } label: { buttonLabel("Cancel") }
-                    .disabled(isSaving)
+                Button(role: .cancel) {
+                    dismiss()
+                } label: {
+                    buttonLabel("Cancel")
+                }
+                .disabled(isSaving)
             }
 
             if isSaving { ProgressView() }

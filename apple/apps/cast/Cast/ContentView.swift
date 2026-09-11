@@ -4,7 +4,7 @@ struct ContentView: View {
     @StateObject private var viewModel = CastViewModel()
     @State private var tapCount = 0
     @State private var isConfiguringEndpoint = false
-    
+
     var body: some View {
         ZStack {
             switch viewModel.currentView {
@@ -14,10 +14,10 @@ struct ContentView: View {
                     onRetry: nil,
                     debugLogs: nil
                 )
-                
+
             case .pairing:
                 PairingView(deviceCode: viewModel.deviceCode)
-                
+
             case .slideshow:
                 SlideshowView(
                     imageData: viewModel.currentImageData,
@@ -25,14 +25,14 @@ struct ContentView: View {
                     isVideo: viewModel.currentFile?.isVideo ?? false,
                     slideshowService: viewModel.slideshowService
                 )
-                
+
             case .error:
                 StatusView(
                     status: .error(viewModel.errorMessage ?? "Unknown error"),
                     onRetry: viewModel.retryOperation,
                     debugLogs: nil
                 )
-                
+
             case .empty:
                 StatusView(
                     status: .empty("No photos were found in this album"),

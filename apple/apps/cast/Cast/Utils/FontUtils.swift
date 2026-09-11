@@ -12,26 +12,27 @@ struct FontUtils {
     }
 
     static func montserratBold(size: CGFloat) -> Font {
-        return safeFont(name: "Montserrat-Bold", size: size, fallback: .system(size: size, weight: .bold))
+        safeFont(name: "Montserrat-Bold", size: size, fallback: .system(size: size, weight: .bold))
     }
-    
+
     static func montserratExtraBold(size: CGFloat) -> Font {
-        return safeFont(name: "Montserrat-Bold", size: size, fallback: .system(size: size, weight: .heavy))
+        safeFont(name: "Montserrat-Bold", size: size, fallback: .system(size: size, weight: .heavy))
     }
-    
+
     static func interRegular(size: CGFloat) -> Font {
-        return safeFont(name: "Inter-Regular", size: size, fallback: .system(size: size, weight: .regular))
+        safeFont(name: "Inter-Regular", size: size, fallback: .system(size: size, weight: .regular))
     }
-    
+
     static func interMedium(size: CGFloat) -> Font {
-        return safeFont(name: "Inter-Medium", size: size, fallback: .system(size: size, weight: .medium))
+        safeFont(name: "Inter-Medium", size: size, fallback: .system(size: size, weight: .medium))
     }
-    
+
     static func interSemiBold(size: CGFloat) -> Font {
-        return safeFont(name: "Inter-SemiBold", size: size, fallback: .system(size: size, weight: .semibold))
+        safeFont(
+            name: "Inter-SemiBold", size: size, fallback: .system(size: size, weight: .semibold))
     }
-    
+
     static func interBold(size: CGFloat) -> Font {
-        return safeFont(name: "Inter-Bold", size: size, fallback: .system(size: size, weight: .bold))
+        safeFont(name: "Inter-Bold", size: size, fallback: .system(size: size, weight: .bold))
     }
 }

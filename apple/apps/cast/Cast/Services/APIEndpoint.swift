@@ -12,12 +12,12 @@ enum APIEndpoint {
     static func update(_ value: String) async throws {
         let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var components = URLComponents(string: value),
-              components.scheme?.lowercased() == "https",
-              components.host != nil,
-              components.user == nil,
-              components.query == nil,
-              components.fragment == nil,
-              components.path.isEmpty || components.path == "/"
+            components.scheme?.lowercased() == "https",
+            components.host != nil,
+            components.user == nil,
+            components.query == nil,
+            components.fragment == nil,
+            components.path.isEmpty || components.path == "/"
         else { throw EndpointError.invalidURL }
         components.scheme = "https"
         components.path = ""
@@ -27,7 +27,7 @@ enum APIEndpoint {
         request.timeoutInterval = 10
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200,
-              (try? JSONDecoder().decode(Ping.self, from: data).message) == "pong"
+            (try? JSONDecoder().decode(Ping.self, from: data).message) == "pong"
         else { throw EndpointError.invalidServer }
 
         url == production ? reset() : UserDefaults.standard.set(url, forKey: "endpoint")

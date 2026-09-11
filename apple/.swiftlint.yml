@@ -1,0 +1,22 @@
+only_rules:
+    - blanket_disable_command
+    - class_delegate_protocol
+    - duplicate_conditions
+    - duplicated_key_in_dictionary_literal
+    - force_cast
+    - force_try
+    - force_unwrapping
+    - identical_operands
+    - invalid_swiftlint_command
+    - notification_center_detachment
+    - private_swiftui_state
+    - return_value_from_void_function
+    - self_in_property_initialization
+    - superfluous_disable_command
+    - unhandled_throwing_task
+    - unneeded_synthesized_initializer
+    - unused_closure_parameter
+    - unused_control_flow_label
+    - unused_optional_binding
+    - unused_setter_value
+    - weak_delegate
