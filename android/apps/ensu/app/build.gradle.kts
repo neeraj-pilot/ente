@@ -69,7 +69,7 @@ android {
 
     defaultConfig {
         applicationId = "io.ente.ensu"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = (project.findProperty("versionCode") as? String)?.toInt() ?: 33
         versionName = "0.1.21"
@@ -120,7 +120,7 @@ kotlin {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.02.02")
+    val composeBom = platform(libs.androidx.compose.bom)
 
     implementation(composeBom)
     androidTestImplementation(composeBom)
@@ -140,6 +140,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("com.google.accompanist:accompanist-navigation-animation:0.34.0")
     implementation(project(":apps:ensu:rust"))
+    implementation(project(":packages:fonts"))
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     implementation("androidx.datastore:datastore-preferences:1.1.1")

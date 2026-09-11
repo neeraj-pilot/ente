@@ -32,4 +32,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "ente-android"
-include(":apps:ensu:app", ":apps:ensu:rust")
+include(":apps:ensu:app", ":apps:ensu:rust", ":packages:fonts")
