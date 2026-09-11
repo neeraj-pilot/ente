@@ -1,5 +1,5 @@
-import SwiftUI
 import Combine
+import SwiftUI
 import UIKit
 
 @MainActor
@@ -17,7 +17,7 @@ class CastViewModel: ObservableObject {
     private let castSession: CastSession
     private var sessionID = UUID()
 
-    public let slideshowService: RealSlideshowService
+    let slideshowService: RealSlideshowService
 
     enum CurrentView {
         case pairing
@@ -28,8 +28,8 @@ class CastViewModel: ObservableObject {
     }
 
     init() {
-        self.castSession = CastSession()
-        self.slideshowService = RealSlideshowService()
+        castSession = CastSession()
+        slideshowService = RealSlideshowService()
 
         setupBindings()
         startCastSession()
@@ -50,11 +50,11 @@ class CastViewModel: ObservableObject {
         slideshowService.$currentImageData
             .receive(on: DispatchQueue.main)
             .sink { [weak self] data in
-                guard let self = self else { return }
-                if data != nil && (self.currentView == .connecting || self.currentView == .empty) {
-                    self.currentView = .slideshow
-                    self.statusMessage = ""
-                    self.errorMessage = nil
+                guard let self else { return }
+                if data != nil, currentView == .connecting || currentView == .empty {
+                    currentView = .slideshow
+                    statusMessage = ""
+                    errorMessage = nil
                 }
             }
             .store(in: &cancellables)
@@ -66,11 +66,11 @@ class CastViewModel: ObservableObject {
         slideshowService.$currentVideoData
             .receive(on: DispatchQueue.main)
             .sink { [weak self] data in
-                guard let self = self else { return }
-                if data != nil && (self.currentView == .connecting || self.currentView == .empty) {
-                    self.currentView = .slideshow
-                    self.statusMessage = ""
-                    self.errorMessage = nil
+                guard let self else { return }
+                if data != nil, currentView == .connecting || currentView == .empty {
+                    currentView = .slideshow
+                    statusMessage = ""
+                    errorMessage = nil
                 }
             }
             .store(in: &cancellables)
@@ -82,7 +82,7 @@ class CastViewModel: ObservableObject {
 
         slideshowService.$error
             .receive(on: DispatchQueue.main)
-            .compactMap { $0 }
+            .compactMap(\.self)
             .sink { [weak self] error in
                 self?.handleSlideshowError(error)
             }
@@ -155,7 +155,7 @@ class CastViewModel: ObservableObject {
                             guard let self, sessionID == self.sessionID else { return }
                             self.handleNetworkError(error)
                         }
-                    }
+                    },
                 )
 
             } catch {
@@ -193,7 +193,7 @@ class CastViewModel: ObservableObject {
     }
 
     private func handlePayloadReceived(_ payload: CastPayload) {
-        if case .connected(let existing) = castSession.state, existing == payload {
+        if case let .connected(existing) = castSession.state, existing == payload {
             return
         }
 
@@ -260,15 +260,15 @@ class CastViewModel: ObservableObject {
             deviceCode = ""
             currentView = .pairing
 
-        case .waitingForPairing(let code):
+        case let .waitingForPairing(code):
             deviceCode = code
             currentView = .pairing
             statusMessage = "Waiting for connection..."
 
-        case .connected(let payload):
+        case let .connected(payload):
             handlePayloadReceived(payload)
 
-        case .error(let message):
+        case let .error(message):
             handleError(message)
         }
     }
@@ -281,7 +281,7 @@ class CastViewModel: ObservableObject {
             error.contains("available in this collection") ||
             error.contains("Empty file list")
 
-        if (currentView == .pairing || currentView == .connecting) && !isEmptyStateError {
+        if currentView == .pairing || currentView == .connecting, !isEmptyStateError {
             return
         }
 
