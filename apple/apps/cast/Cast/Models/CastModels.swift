@@ -1,5 +1,5 @@
-import Foundation
 import AVKit
+import Foundation
 
 extension Notification.Name {
     static let authenticationExpired = Notification.Name("authenticationExpired")
@@ -14,12 +14,12 @@ struct SlideConfiguration {
     let maxImageSize: Int64
     let maxVideoSize: Int64
     let includeVideos: Bool
-    
+
     let prefetchCount: Int
     let maxCacheSize: Int
     let prefetchDelay: TimeInterval
     let enablePrefetching: Bool
-    
+
     init(
         imageDuration: TimeInterval = 12.0,
         videoDuration: TimeInterval = 30.0,
@@ -45,13 +45,13 @@ struct SlideConfiguration {
         self.prefetchDelay = prefetchDelay
         self.enablePrefetching = enablePrefetching
     }
-    
+
     func duration(for file: CastFile) -> TimeInterval {
-        return file.isVideo ? videoDuration : imageDuration
+        file.isVideo ? videoDuration : imageDuration
     }
-    
+
     static let `default` = SlideConfiguration()
-    
+
     static let tvOptimized = SlideConfiguration(
         imageDuration: 8.0,
         videoDuration: 25.0,
@@ -75,21 +75,31 @@ struct CastFile: Codable, Equatable {
     let encryptedKey: String
     let keyDecryptionNonce: String
     let fileDecryptionHeader: String
-    let hash: String?      // BLAKE2b hash for file content verification
-    
-    var isImage: Bool { !isVideo && !isLivePhoto }
+    let hash: String? // BLAKE2b hash for file content verification
+
+    var isImage: Bool {
+        !isVideo && !isLivePhoto
+    }
 }
 
 struct FileMetadata {
-    let fileType: Int       // 0 = image, 1 = video, 2 = livePhoto
-    let title: String       // filename with extension
+    let fileType: Int // 0 = image, 1 = video, 2 = livePhoto
+    let title: String // filename with extension
     let creationTime: Int64 // microseconds since epoch
     let modificationTime: Int64
-    let hash: String?       // BLAKE2b hash for file content verification
-    
-    var isImage: Bool { fileType == 0 }
-    var isVideo: Bool { fileType == 1 }
-    var isLivePhoto: Bool { fileType == 2 }
+    let hash: String? // BLAKE2b hash for file content verification
+
+    var isImage: Bool {
+        fileType == 0
+    }
+
+    var isVideo: Bool {
+        fileType == 1
+    }
+
+    var isLivePhoto: Bool {
+        fileType == 2
+    }
 }
 
 enum CastSessionState: Equatable {
@@ -117,15 +127,15 @@ enum CastError: Error, LocalizedError {
     case networkError(String)
     case serverError(Int, String?)
     case decryptionError(String)
-    
+
     var errorDescription: String? {
         switch self {
-        case .networkError(let message):
-            return "Network error: \(message)"
-        case .serverError(let code, let message):
-            return "Server error \(code): \(message ?? "Unknown error")"
-        case .decryptionError(let message):
-            return "Decryption error: \(message)"
+        case let .networkError(message):
+            "Network error: \(message)"
+        case let .serverError(code, message):
+            "Server error \(code): \(message ?? "Unknown error")"
+        case let .decryptionError(message):
+            "Decryption error: \(message)"
         }
     }
 }

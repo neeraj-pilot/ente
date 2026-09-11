@@ -13,13 +13,14 @@ import PackageDescription
 let package = Package(
     name: "EnteOnnxRuntime",
     products: [
-        .library(name: "EnteOnnxRuntime", targets: ["onnxruntime"])
+        .library(name: "EnteOnnxRuntime", targets: ["onnxruntime"]),
     ],
     targets: [
         .binaryTarget(
             name: "onnxruntime",
-            url: "https://github.com/ente/ort-packaging/releases/download/ort-1.28.1-r1/onnxruntime-coreml-ios-1.28.1-r1.zip",
+            url:
+            "https://github.com/ente/ort-packaging/releases/download/ort-1.28.1-r1/onnxruntime-coreml-ios-1.28.1-r1.zip",
             checksum: "774b986bdd8a9f729a3e80ce7f7e7e695f0387be6f66633feaa9835c05e8557e"
-        )
+        ),
     ]
 )

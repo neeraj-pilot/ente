@@ -2,6 +2,8 @@
 
 Source code for the Ente Cast tvOS app.
 
+See [Apple development commands](../../README.md) for formatting and linting.
+
 ## Building from source
 
 1. Install [Xcode](https://developer.apple.com/xcode/) and [Rust](https://www.rust-lang.org/tools/install). In Xcode install the tvOS platform.
