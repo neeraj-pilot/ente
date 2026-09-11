@@ -9,7 +9,7 @@ Photos, Auth, Locker, Ensu, Cast, and Photos desktop use the same release proces
 ## App specifics
 
 - Photos desktop follows the same flow, but its stable releases live in [ente/photos-desktop](https://github.com/ente/photos-desktop). See [desktop/docs/release.md](../../desktop/docs/release.md) for more details.
-- Cast builds are manual. Run `cast-build.yml` on the release branch after starting a release.
+- Cast has no scheduled nightly builds and skips the docs changelog PR on promotion.
 
 ## Normal development
 

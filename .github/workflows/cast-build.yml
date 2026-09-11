@@ -1,6 +1,9 @@
 name: "Build (Cast)"
 
 on:
+    push:
+        branches:
+            - "release/cast-v*"
     workflow_dispatch:
 
 permissions:
