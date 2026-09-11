@@ -102,21 +102,9 @@ Future<int?> _process2FasExportFile(
   } else {
     await dialog.show();
   }
-  final parsedCodes = parse2FasServices(
-    decodedServices,
-    groupIdToName: groupIdToName,
-  );
-  return saveImportedCodes(parsedCodes);
-}
-
-List<Code> parse2FasServices(
-  Iterable<dynamic> decodedServices, {
-  Map<dynamic, dynamic> groupIdToName = const {},
-}) {
-  const supportedTotpAlgorithms = {'sha1', 'sha256', 'sha512'};
   final parsedCodes = <Code>[];
   for (var item in decodedServices) {
-    var kind = item['otp']['tokenType'];
+    var kind = item['otp']['tokenType'] ?? 'TOTP';
     var account = item['otp']['account'] ?? '';
     var issuer = item['otp']['issuer'];
     if (issuer == null || (issuer as String).isEmpty) {
@@ -129,16 +117,13 @@ List<Code> parse2FasServices(
     var digits = item['otp']['digits'];
     var counter = item['otp']['counter'];
 
-    Code code = parseImportOtpCode(item, () {
-      if (kind is String && kind.toLowerCase() == 'totp') {
-        algorithm ??= 'SHA1';
-        digits ??= Code.defaultDigits;
-        if (algorithm is! String ||
-            !supportedTotpAlgorithms.contains(algorithm.toLowerCase())) {
-          throw const FormatException('Unsupported 2FAS TOTP algorithm');
-        }
-      }
-      return buildImportOtpUri(
+    if (kind == 'TOTP') {
+      algorithm ??= 'SHA1';
+      digits ??= Code.defaultDigits;
+    }
+    Code code = parseImportOtpCode(
+      item,
+      () => buildImportOtpUri(
         kind: kind,
         issuer: issuer,
         account: account,
@@ -147,8 +132,8 @@ List<Code> parse2FasServices(
         digits: digits,
         period: timer,
         counter: counter,
-      );
-    });
+      ),
+    );
     if (groupID != null && groupIdToName.containsKey(groupID)) {
       code = code.copyWith(
         display: CodeDisplay(tags: [groupIdToName[groupID]]),
@@ -157,7 +142,7 @@ List<Code> parse2FasServices(
     parsedCodes.add(code);
   }
 
-  return parsedCodes;
+  return saveImportedCodes(parsedCodes);
 }
 
 String decrypt2FasVault(dynamic data, {required String password}) {
