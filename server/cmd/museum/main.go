@@ -838,7 +838,7 @@ func main() {
 	castAPI := server.Group("/cast")
 
 	castCtrl := cast.NewController(&castDb, accessCtrl)
-	castMiddleware := middleware.CastMiddleware{CastCtrl: castCtrl, Cache: authCache}
+	castMiddleware := middleware.CastMiddleware{CastCtrl: castCtrl}
 	castAPI.Use(rateLimiter.GlobalRateLimiter(), castMiddleware.CastAuthMiddleware())
 
 	castHandler := &api.CastHandler{
