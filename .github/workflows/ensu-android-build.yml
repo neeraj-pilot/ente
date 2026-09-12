@@ -31,6 +31,6 @@ jobs:
             - run: cargo codegen native
               working-directory: rust
 
-            - name: Build Ensu and shared fonts
+            - name: Build Ensu
               working-directory: android
-              run: ./gradlew :packages:fonts:assembleDebug :apps:ensu:app:assembleDebug
+              run: ./gradlew :apps:ensu:app:assembleDebug
