@@ -24,6 +24,11 @@ jobs:
             - id: select
               run: node .github/scripts/ci/check.mjs select HEAD^1 HEAD
 
+    android-lint:
+        needs: select
+        if: ${{ contains(fromJSON(needs.select.outputs.jobs), 'android-lint') }}
+        uses: ./.github/workflows/android-lint.yml
+
     dependency-review:
         needs: select
         if: ${{ contains(fromJSON(needs.select.outputs.jobs), 'dependency-review') }}
@@ -94,6 +99,7 @@ jobs:
         if: ${{ always() }}
         needs:
             - select
+            - android-lint
             - dependency-review
             - desktop-lint
             - docs-verify-build

@@ -37,6 +37,19 @@ test("shared build inputs select their consumers", (t) => {
     );
 });
 
+test("Android tooling selects lint and shared fonts also select the app build", (t) => {
+    assert.deepEqual(select(t, ["android/scripts/lint.sh"]), [
+        "android-lint",
+        "repo-lint",
+    ]);
+    assert.deepEqual(
+        select(t, [
+            "android/packages/fonts/src/main/kotlin/io/ente/fonts/Fonts.kt",
+        ]),
+        ["android-lint", "ensu-android-build", "repo-lint"],
+    );
+});
+
 test("path filters cover root files, nested files, and dotfiles", (t) => {
     for (const file of [
         "Cargo.lock",

@@ -6,13 +6,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-kotlin { explicitApi() }
-
-ktfmt {
-    kotlinLangStyle()
-    maxWidth.set(100)
-}
-
 android {
     namespace = "io.ente.fonts"
     compileSdk = 36
@@ -32,6 +25,7 @@ android {
 }
 
 kotlin {
+    explicitApi()
     compilerOptions {
         jvmTarget = JvmTarget.JVM_17
         allWarningsAsErrors = true

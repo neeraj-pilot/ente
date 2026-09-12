@@ -1,4 +1,5 @@
 {
+    "android-lint": [".github/workflows/android-lint.yml", "android/**"],
     "dependency-review": [
         "**/Cargo.lock",
         "**/Cargo.toml",

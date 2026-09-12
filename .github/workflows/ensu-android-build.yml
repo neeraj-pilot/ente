@@ -14,14 +14,6 @@ jobs:
             - name: Checkout
               uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-            - name: Check Android fonts
-              working-directory: android
-              run: |
-                  ./gradlew \
-                    :packages:fonts:ktfmtCheck \
-                    :packages:fonts:lintDebug \
-                    :packages:fonts:assembleDebug
-
             # Restore-only; primed on main by warm-caches.yml.
             - name: Restore Rust cache
               uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
@@ -39,6 +31,6 @@ jobs:
             - run: cargo codegen native
               working-directory: rust
 
-            - name: Build Ensu
+            - name: Build Ensu and shared fonts
               working-directory: android
-              run: ./gradlew :apps:ensu:app:assembleDebug
+              run: ./gradlew :packages:fonts:assembleDebug :apps:ensu:app:assembleDebug
