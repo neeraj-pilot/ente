@@ -20,5 +20,3 @@ Source code for the Ente Cast tvOS app.
 > The first build will install the Rust `nightly` toolchain and `rust-src`. They are needed for building Rust for tvOS targets.
 >
 > Re-run `cargo codegen native cast` whenever the UniFFI-exported surface of the cast crate (`rust/bindings/uniffi/cast`) changes.
-
-For formatting and lint commands, see the [Apple development instructions](../../README.md#development).
