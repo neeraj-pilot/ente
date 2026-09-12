@@ -3,3 +3,4 @@
 --language-mode 6
 --indent 4
 --maxwidth 100
+--enable emptyExtensions,singlePropertyPerLine,wrapEnumCases,isEmpty
