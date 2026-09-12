@@ -148,20 +148,21 @@ type sizeResult struct {
 }
 
 func (c *FileController) Create(ctx *gin.Context, userID int64, file ente.File, userAgent string, app ente.App) (ente.File, error) {
-	fileChan := make(chan sizeResult, 1)
-	thumbChan := make(chan sizeResult, 1)
-	go func() {
-		size, err := c.sizeOf(file.File.ObjectKey)
-		fileChan <- sizeResult{size, err}
-	}()
-	go func() {
-		size, err := c.sizeOf(file.Thumbnail.ObjectKey)
-		thumbChan <- sizeResult{size, err}
-	}()
 	err := c.validateFileCreateOrUpdateReq(userID, file, app)
 	if err != nil {
 		return file, stacktrace.Propagate(err, "")
 	}
+	requestCtx := ctx.Request.Context()
+	fileChan := make(chan sizeResult, 1)
+	thumbChan := make(chan sizeResult, 1)
+	go func() {
+		size, err := c.sizeOf(requestCtx, file.File.ObjectKey)
+		fileChan <- sizeResult{size, err}
+	}()
+	go func() {
+		size, err := c.sizeOf(requestCtx, file.Thumbnail.ObjectKey)
+		thumbChan <- sizeResult{size, err}
+	}()
 	fileResult := <-fileChan
 	thumbResult := <-thumbChan
 
@@ -277,7 +278,7 @@ func (c *FileController) Update(ctx context.Context, userID int64, file ente.Fil
 	}
 	existingThumbnailObjectKey := existingThumbnailObject.ObjectKey
 	oldThumbnailSize := existingThumbnailObject.FileSize
-	fileSize, err := c.sizeOf(file.File.ObjectKey)
+	fileSize, err := c.sizeOf(ctx, file.File.ObjectKey)
 	if err != nil {
 		return response, stacktrace.Propagate(err, "")
 	}
@@ -291,7 +292,7 @@ func (c *FileController) Update(ctx context.Context, userID int64, file ente.Fil
 	if file.File.Size != 0 && file.File.Size != fileSize {
 		return response, stacktrace.Propagate(ente.ErrBadRequest, "mismatch in file size")
 	}
-	thumbnailSize, err := c.sizeOf(file.Thumbnail.ObjectKey)
+	thumbnailSize, err := c.sizeOf(ctx, file.Thumbnail.ObjectKey)
 	if err != nil {
 		return response, stacktrace.Propagate(err, "")
 	}
@@ -712,7 +713,7 @@ func (c *FileController) UpdateThumbnail(ctx *gin.Context, fileID int64, newThum
 	}
 	existingThumbnailObjectKey := existingThumbnailObject.ObjectKey
 	oldThumbnailSize := existingThumbnailObject.FileSize
-	newThumbnailSize, err := c.sizeOf(newThumbnail.ObjectKey)
+	newThumbnailSize, err := c.sizeOf(ctx.Request.Context(), newThumbnail.ObjectKey)
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
@@ -933,13 +934,13 @@ func (c *FileController) getPreSignedURLForDC(objectKey string, dc string, objTy
 	return r.Presign(PreSignedRequestValidityDuration)
 }
 
-func (c *FileController) sizeOf(objectKey string) (int64, error) {
+func (c *FileController) sizeOf(ctx context.Context, objectKey string) (int64, error) {
 	s3Client := c.S3Config.GetHotS3Client()
 	bucket := c.S3Config.GetHotBucket()
 	var head *s3.HeadObjectOutput
 	var err error
 	for i := 0; i < 3; i++ {
-		head, err = s3Client.HeadObject(&s3.HeadObjectInput{
+		head, err = s3Client.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
 			Key:    &objectKey,
 			Bucket: bucket,
 		})
@@ -947,7 +948,11 @@ func (c *FileController) sizeOf(objectKey string) (int64, error) {
 			return *head.ContentLength, nil
 		}
 		if i < 2 {
-			gTime.Sleep(gTime.Duration(500*(i+1)) * gTime.Millisecond)
+			select {
+			case <-ctx.Done():
+				return -1, stacktrace.Propagate(ctx.Err(), "")
+			case <-gTime.After(gTime.Duration(500*(i+1)) * gTime.Millisecond):
+			}
 		}
 	}
 	return -1, stacktrace.Propagate(err, "")
