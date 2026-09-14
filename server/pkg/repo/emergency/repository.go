@@ -97,63 +97,50 @@ func (r *Repository) GetActiveEmergencyContact(ctx context.Context, userID int64
 func (r *Repository) UpdateState(ctx context.Context,
 	userID int64,
 	emergencyContactID int64,
-	newState ente.ContactState) (bool, []*RecoverRow, error) {
+	newState ente.ContactState) (bool, int64, error) {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return false, nil, stacktrace.Propagate(err, "failed to start emergency contact update")
+		return false, 0, stacktrace.Propagate(err, "failed to start emergency contact update")
 	}
 	defer tx.Rollback()
 	if err = lockOwnerForUpdate(ctx, tx, userID); err != nil {
-		return false, nil, err
+		return false, 0, err
 	}
-	contact, err := getContactForUpdate(ctx, tx, userID, emergencyContactID)
-	if err == sql.ErrNoRows {
-		return false, nil, nil
-	}
-	if err != nil {
-		return false, nil, err
-	}
-	validState := false
-	for _, state := range getValidPreviousState(newState) {
-		if contact.State == state {
-			validState = true
-			break
-		}
-	}
-	if !validState {
-		return false, nil, nil
-	}
-
-	var cancelled []*RecoverRow
-	if newState == ente.ContactDenied || newState == ente.ContactLeft || newState == ente.UserRevokedContact {
-		cancelled, err = getActiveSessionsForUpdate(ctx, tx, userID, emergencyContactID)
-		if err != nil {
-			return false, nil, err
-		}
-		if len(cancelled) > 0 {
-			status := ente.RecoveryStatusStopped
-			if newState == ente.UserRevokedContact {
-				status = ente.RecoveryStatusRejected
-			}
-			if _, err = tx.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1 WHERE user_id=$2 AND emergency_contact_id=$3 AND status = ANY($4)`,
-				status, userID, emergencyContactID, pq.Array([]ente.RecoveryStatus{ente.RecoveryStatusWaiting, ente.RecoveryStatusReady})); err != nil {
-				return false, nil, stacktrace.Propagate(err, "failed to cancel emergency recovery")
-			}
-		}
-	}
-
+	allowedPreviousStates := getValidPreviousState(newState)
+	var result sql.Result
 	if newState == ente.ContactAccepted || newState == ente.UserInvitedContact {
-		_, err = tx.ExecContext(ctx, `UPDATE emergency_contact SET state=$1 WHERE user_id=$2 and emergency_contact_id=$3`,
-			newState, userID, emergencyContactID)
+		result, err = tx.ExecContext(ctx, `UPDATE emergency_contact SET state=$1 WHERE user_id=$2 and emergency_contact_id=$3 and state = ANY($4)`,
+			newState, userID, emergencyContactID, pq.Array(allowedPreviousStates))
 	} else {
-		_, err = tx.ExecContext(ctx, `UPDATE emergency_contact SET state=$1, encrypted_key = NULL WHERE user_id=$2 and emergency_contact_id=$3`,
-			newState, userID, emergencyContactID)
+		result, err = tx.ExecContext(ctx, `UPDATE emergency_contact SET state=$1, encrypted_key = NULL WHERE user_id=$2 and emergency_contact_id=$3 and state = ANY($4)`,
+			newState, userID, emergencyContactID, pq.Array(allowedPreviousStates))
 	}
 	if err != nil {
-		return false, nil, stacktrace.Propagate(err, "")
+		return false, 0, stacktrace.Propagate(err, "")
+	}
+	count, err := result.RowsAffected()
+	if err != nil || count == 0 {
+		return false, 0, stacktrace.Propagate(err, "")
+	}
+
+	var cancelled int64
+	if newState == ente.ContactDenied || newState == ente.ContactLeft || newState == ente.UserRevokedContact {
+		status := ente.RecoveryStatusStopped
+		if newState == ente.UserRevokedContact {
+			status = ente.RecoveryStatusRejected
+		}
+		result, err = tx.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1 WHERE user_id=$2 AND emergency_contact_id=$3 AND status = ANY($4)`,
+			status, userID, emergencyContactID, pq.Array([]ente.RecoveryStatus{ente.RecoveryStatusWaiting, ente.RecoveryStatusReady}))
+		if err != nil {
+			return false, 0, stacktrace.Propagate(err, "failed to cancel emergency recovery")
+		}
+		cancelled, err = result.RowsAffected()
+		if err != nil {
+			return false, 0, stacktrace.Propagate(err, "")
+		}
 	}
 	if err = tx.Commit(); err != nil {
-		return false, nil, stacktrace.Propagate(err, "failed to commit emergency contact update")
+		return false, 0, stacktrace.Propagate(err, "failed to commit emergency contact update")
 	}
 	return true, cancelled, nil
 }
@@ -174,11 +161,11 @@ func (r *Repository) UpdateRecoveryNotice(ctx context.Context,
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
-	activeSessions, err := getActiveSessionsForUpdate(ctx, tx, userID, emergencyContactID)
+	hasActiveSession, err := hasActiveRecovery(ctx, tx, userID, emergencyContactID)
 	if err != nil {
 		return err
 	}
-	if len(activeSessions) > 0 {
+	if hasActiveSession {
 		return stacktrace.Propagate(&ente.ErrActiveRecoverySession, "")
 	}
 	if contact == nil || contact.State != ente.UserInvitedContact && contact.State != ente.ContactAccepted {

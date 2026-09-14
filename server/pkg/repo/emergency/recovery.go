@@ -54,11 +54,11 @@ func (repo *Repository) InsertIntoRecovery(ctx context.Context, contact ente.Con
 		logrus.Warn("notice period is less than 24 hours")
 		return false, nil, ente.NewBadRequestWithMessage("notice period should be greater than 24 hours")
 	}
-	activeSessions, err := getActiveSessionsForUpdate(ctx, tx, contact.UserID, contact.EmergencyContactID)
+	hasActiveSession, err := hasActiveRecovery(ctx, tx, contact.UserID, contact.EmergencyContactID)
 	if err != nil {
 		return false, nil, err
 	}
-	if len(activeSessions) > 0 {
+	if hasActiveSession {
 		return false, contactRow, nil
 	}
 	waitTime := time.MicrosecondsAfterHours(contactRow.NoticePeriodInHrs)
@@ -81,24 +81,6 @@ func (repo *Repository) InsertIntoRecovery(ctx context.Context, contact ente.Con
 func (repo *Repository) GetActiveRecoverySessions(ctx *gin.Context, userID int64) ([]*RecoverRow, error) {
 	rows, err := repo.DB.QueryContext(ctx, `SELECT id, user_id, emergency_contact_id, status, wait_till, next_reminder_at, created_at 
 FROM emergency_recovery WHERE (user_id=$1  OR emergency_contact_id=$1) AND status= ANY($2)`, userID, pq.Array([]ente.RecoveryStatus{ente.RecoveryStatusWaiting, ente.RecoveryStatusReady}))
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "")
-	}
-	defer rows.Close()
-	var sessions []*RecoverRow
-	for rows.Next() {
-		var row RecoverRow
-		if err := rows.Scan(&row.ID, &row.UserID, &row.EmergencyContactID, &row.Status, &row.WaitTill, &row.NextReminderAt, &row.CreatedAt); err != nil {
-			return nil, stacktrace.Propagate(err, "")
-		}
-		sessions = append(sessions, &row)
-	}
-	return sessions, nil
-}
-
-func (repo *Repository) GetActiveSessions(ctx *gin.Context, userID int64, emergencyContactID int64) ([]*RecoverRow, error) {
-	rows, err := repo.DB.QueryContext(ctx, `SELECT id, user_id, emergency_contact_id, status, wait_till, next_reminder_at, created_at 
-FROM emergency_recovery WHERE user_id=$1  and emergency_contact_id=$2 AND status= ANY($3)`, userID, emergencyContactID, pq.Array([]ente.RecoveryStatus{ente.RecoveryStatusWaiting, ente.RecoveryStatusReady}))
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
@@ -158,47 +140,21 @@ func (repo *Repository) UpdateRecoveryStatusForID(ctx context.Context, sessionID
 }
 
 func (repo *Repository) UpdateRecoveryStatusForSession(ctx context.Context, sessionID uuid.UUID, userID, emergencyContactID int64, status ente.RecoveryStatus) (bool, error) {
-	tx, err := repo.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return false, stacktrace.Propagate(err, "failed to start recovery status update")
-	}
-	defer tx.Rollback()
-	if err = lockOwnerForUpdate(ctx, tx, userID); err != nil {
-		return false, err
-	}
-	if _, err = getContactForUpdate(ctx, tx, userID, emergencyContactID); err != nil {
-		return false, err
-	}
-	session, err := getRecoveryForUpdate(ctx, tx, sessionID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
-		return false, err
-	}
-	if session.UserID != userID || session.EmergencyContactID != emergencyContactID {
-		return false, nil
-	}
 	validPrevStatus := validPreviousStatus(status)
 	var result sql.Result
+	var err error
 	if status == ente.RecoveryStatusReady {
-		result, err = tx.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1, wait_till=$2 WHERE id=$3 and user_id=$4 and emergency_contact_id=$5 and status = ANY($6)`,
+		result, err = repo.DB.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1, wait_till=$2 WHERE id=$3 and user_id=$4 and emergency_contact_id=$5 and status = ANY($6)`,
 			status, time.Microseconds(), sessionID, userID, emergencyContactID, pq.Array(validPrevStatus))
 	} else {
-		result, err = tx.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1 WHERE id=$2 and user_id=$3 and emergency_contact_id=$4 and status = ANY($5)`,
+		result, err = repo.DB.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1 WHERE id=$2 and user_id=$3 and emergency_contact_id=$4 and status = ANY($5)`,
 			status, sessionID, userID, emergencyContactID, pq.Array(validPrevStatus))
 	}
 	if err != nil {
 		return false, stacktrace.Propagate(err, "")
 	}
 	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		return false, nil
-	}
-	if err = tx.Commit(); err != nil {
-		return false, stacktrace.Propagate(err, "failed to commit recovery status update")
-	}
-	return true, nil
+	return rows > 0, nil
 }
 
 func (repo *Repository) CompleteRecovery(ctx context.Context, tx *sql.Tx, sessionID uuid.UUID, userID, emergencyContactID int64) error {
@@ -233,23 +189,12 @@ func (repo *Repository) GetRecoverRowByID(ctx context.Context, sessionID uuid.UU
 	return &row, nil
 }
 
-func getActiveSessionsForUpdate(ctx context.Context, tx *sql.Tx, userID, emergencyContactID int64) ([]*RecoverRow, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT id, user_id, emergency_contact_id, status, wait_till, next_reminder_at, created_at
-		FROM emergency_recovery WHERE user_id=$1 AND emergency_contact_id=$2 AND status=ANY($3) ORDER BY id FOR UPDATE`,
-		userID, emergencyContactID, pq.Array([]ente.RecoveryStatus{ente.RecoveryStatusWaiting, ente.RecoveryStatusReady}))
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "failed to lock active recovery sessions")
-	}
-	defer rows.Close()
-	var sessions []*RecoverRow
-	for rows.Next() {
-		var session RecoverRow
-		if err := rows.Scan(&session.ID, &session.UserID, &session.EmergencyContactID, &session.Status, &session.WaitTill, &session.NextReminderAt, &session.CreatedAt); err != nil {
-			return nil, stacktrace.Propagate(err, "failed to scan active recovery session")
-		}
-		sessions = append(sessions, &session)
-	}
-	return sessions, stacktrace.Propagate(rows.Err(), "failed to read active recovery sessions")
+func hasActiveRecovery(ctx context.Context, tx *sql.Tx, userID, emergencyContactID int64) (bool, error) {
+	var exists bool
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS (
+		SELECT 1 FROM emergency_recovery WHERE user_id=$1 AND emergency_contact_id=$2 AND status=ANY($3))`,
+		userID, emergencyContactID, pq.Array([]ente.RecoveryStatus{ente.RecoveryStatusWaiting, ente.RecoveryStatusReady})).Scan(&exists)
+	return exists, stacktrace.Propagate(err, "failed to check active recovery sessions")
 }
 
 func getRecoveryForUpdate(ctx context.Context, tx *sql.Tx, sessionID uuid.UUID) (*RecoverRow, error) {

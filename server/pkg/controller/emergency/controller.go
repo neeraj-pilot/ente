@@ -41,8 +41,8 @@ func (c *Controller) UpdateContact(ctx *gin.Context,
 		if req.State == ente.UserRevokedContact {
 			status = ente.RecoveryStatusRejected
 		}
-		for _, session := range cancelled {
-			go c.sendRecoveryNotification(ctx, session.UserID, session.EmergencyContactID, status, nil)
+		for range cancelled {
+			go c.sendRecoveryNotification(ctx, req.UserID, req.EmergencyContactID, status, nil)
 		}
 		go c.sendContactNotification(ctx, req.UserID, req.EmergencyContactID, req.State)
 	}
