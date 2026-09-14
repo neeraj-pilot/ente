@@ -16,6 +16,7 @@ import (
 
 	"github.com/ente/museum/ente"
 	"github.com/ente/museum/pkg/controller"
+	"github.com/ente/museum/pkg/controller/authsession"
 	"github.com/ente/museum/pkg/controller/family"
 	"github.com/ente/museum/pkg/repo"
 	authenticatorRepo "github.com/ente/museum/pkg/repo/authenticator"
@@ -307,12 +308,6 @@ func (c *UserController) handleAccountDeletion(
 	logger.Info("remove push tokens for user")
 	c.PushController.RemoveTokensForUser(userID)
 
-	logger.Info("remove remaining active tokens for user")
-	err = c.RemoveAllTokens(userID)
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "")
-	}
-
 	user, err := c.UserRepo.Get(userID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
@@ -352,14 +347,18 @@ func (c *UserController) markAccountDeletedAndScheduleCleanup(ctx context.Contex
 	}
 	defer transaction.Rollback()
 
-	emailHash, err := c.UserRepo.DeleteTx(ctx, transaction, userID)
+	emailHash, revokedTokens, err := c.UserRepo.DeleteTx(ctx, transaction, userID)
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
 	if err := c.DataCleanupRepo.InsertTx(ctx, transaction, userID, emailHash); err != nil {
 		return stacktrace.Propagate(err, "")
 	}
-	return stacktrace.Propagate(transaction.Commit(), "failed to commit account deletion")
+	if err := transaction.Commit(); err != nil {
+		return stacktrace.Propagate(err, "failed to commit account deletion")
+	}
+	authsession.MarkRevoked(c.Cache, revokedTokens)
+	return nil
 }
 
 func (c *UserController) NotifyAccountDeletion(userID int64, userEmail string, isSubscriptionCancelled bool) {

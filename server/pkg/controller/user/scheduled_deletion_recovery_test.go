@@ -11,6 +11,7 @@ import (
 	cleanuprepo "github.com/ente/museum/pkg/repo/datacleanup"
 	"github.com/ente/museum/pkg/utils/crypto"
 	"github.com/gin-gonic/gin"
+	"github.com/patrickmn/go-cache"
 )
 
 func TestMarkAccountDeletedAndScheduleCleanupIsAtomic(t *testing.T) {
@@ -31,8 +32,10 @@ func TestMarkAccountDeletedAndScheduleCleanupIsAtomic(t *testing.T) {
 	}
 	controller := &UserController{
 		UserRepo:        userRepo,
+		UserAuthRepo:    &repo.UserAuthRepository{DB: db},
 		DataCleanupRepo: &cleanuprepo.Repository{DB: db},
 		HashingKey:      testutil.HashingKey(),
+		Cache:           cache.New(cache.NoExpiration, cache.NoExpiration),
 	}
 
 	userID := testutil.InsertUser(t, db, testutil.UserFixture{
@@ -40,11 +43,18 @@ func TestMarkAccountDeletedAndScheduleCleanupIsAtomic(t *testing.T) {
 		Email:        "deleted@example.com",
 		CreationTime: 1,
 	})
+	if err := controller.UserAuthRepo.AddToken(userID, ente.Photos, "deleted-token", "", ""); err != nil {
+		t.Fatalf("failed to insert token: %v", err)
+	}
 	if err := controller.markAccountDeletedAndScheduleCleanup(t.Context(), userID); err != nil {
 		t.Fatalf("markAccountDeletedAndScheduleCleanup() error = %v", err)
 	}
 	if _, err := userRepo.Get(userID); !errors.Is(err, ente.ErrUserDeleted) {
 		t.Fatalf("user state after deletion = %v, want deleted", err)
+	}
+	var activeTokens int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM tokens WHERE user_id = $1 AND is_deleted = FALSE`, userID).Scan(&activeTokens); err != nil || activeTokens != 0 {
+		t.Fatalf("active token count = %d, err = %v", activeTokens, err)
 	}
 
 	expectedHash, err := crypto.GetHash("deleted@example.com", testutil.HashingKey())
@@ -72,6 +82,9 @@ func TestMarkAccountDeletedAndScheduleCleanupIsAtomic(t *testing.T) {
 		Email:        "rollback@example.com",
 		CreationTime: 1,
 	})
+	if err := controller.UserAuthRepo.AddToken(rollbackUserID, ente.Photos, "rollback-token", "", ""); err != nil {
+		t.Fatalf("failed to insert rollback token: %v", err)
+	}
 	if _, err := db.Exec(`INSERT INTO data_cleanup(user_id) VALUES($1)`, rollbackUserID); err != nil {
 		t.Fatalf("failed to create conflicting cleanup row: %v", err)
 	}
@@ -80,6 +93,9 @@ func TestMarkAccountDeletedAndScheduleCleanupIsAtomic(t *testing.T) {
 	}
 	if _, err := userRepo.Get(rollbackUserID); err != nil {
 		t.Fatalf("user was left deleted after cleanup insert failed: %v", err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM tokens WHERE user_id = $1 AND is_deleted = FALSE`, rollbackUserID).Scan(&activeTokens); err != nil || activeTokens != 1 {
+		t.Fatalf("active token count after rollback = %d, err = %v", activeTokens, err)
 	}
 }
 

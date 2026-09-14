@@ -243,9 +243,12 @@ func (repo *UserAuthRepository) AddTokenForPendingLogin(ctx context.Context, use
 }
 
 func lockUserForLogin(ctx context.Context, tx *sql.Tx, userID int64, srpAuth *ente.SRPAuthEntity, expectedKeyAttributes *ente.KeyAttributes) error {
-	var lockedUserID int64
-	if err := tx.QueryRowContext(ctx, `SELECT user_id FROM users WHERE user_id = $1 FOR NO KEY UPDATE`, userID).Scan(&lockedUserID); err != nil {
+	var active bool
+	if err := tx.QueryRowContext(ctx, `SELECT encrypted_email IS NOT NULL FROM users WHERE user_id = $1 FOR NO KEY UPDATE`, userID).Scan(&active); err != nil {
 		return stacktrace.Propagate(err, "")
+	}
+	if !active {
+		return stacktrace.Propagate(ente.ErrUserDeleted, "")
 	}
 	if srpAuth != nil {
 		var currentSRPUserID uuid.UUID
@@ -331,13 +334,6 @@ func (repo *UserAuthRepository) RemoveTokensForApps(userID int64, apps []ente.Ap
 	return repo.markTokensDeleted(
 		`UPDATE tokens SET is_deleted = true WHERE user_id = $1 AND app = ANY($2) AND is_deleted = false RETURNING app, token_hash`,
 		userID, pq.Array(dbApps),
-	)
-}
-
-func (repo *UserAuthRepository) RemoveAllTokens(userID int64) ([]RevokedToken, error) {
-	return repo.markTokensDeleted(
-		`UPDATE tokens SET is_deleted = true WHERE user_id = $1 AND is_deleted = false RETURNING app, token_hash`,
-		userID,
 	)
 }
 

@@ -89,12 +89,20 @@ func (repo *UserRepository) Delete(userID int64) error {
 	return deleteUser(context.Background(), repo.DB, userID)
 }
 
-func (repo *UserRepository) DeleteTx(ctx context.Context, tx *sql.Tx, userID int64) (string, error) {
+func (repo *UserRepository) DeleteTx(ctx context.Context, tx *sql.Tx, userID int64) (string, []RevokedToken, error) {
 	var emailHash string
-	if err := tx.QueryRowContext(ctx, `SELECT email_hash FROM users WHERE user_id = $1 FOR UPDATE`, userID).Scan(&emailHash); err != nil {
-		return "", stacktrace.Propagate(err, "failed to read email hash")
+	var active bool
+	if err := tx.QueryRowContext(ctx, `SELECT email_hash, encrypted_email IS NOT NULL FROM users WHERE user_id = $1 FOR NO KEY UPDATE`, userID).Scan(&emailHash, &active); err != nil {
+		return "", nil, stacktrace.Propagate(err, "failed to read user for deletion")
 	}
-	return emailHash, deleteUser(ctx, tx, userID)
+	if !active {
+		return "", nil, ente.ErrUserDeleted
+	}
+	revokedTokens, err := markTokensDeleted(tx, `UPDATE tokens SET is_deleted = true WHERE user_id = $1 AND is_deleted = false RETURNING app, token_hash`, userID)
+	if err != nil {
+		return "", nil, err
+	}
+	return emailHash, revokedTokens, deleteUser(ctx, tx, userID)
 }
 
 func deleteUser(ctx context.Context, executor userMutationExecutor, userID int64) error {

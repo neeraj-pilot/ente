@@ -149,7 +149,7 @@ func TestAddTokenForPendingLoginConsumesPasskeyRecoverySession(t *testing.T) {
 	}
 }
 
-func TestAddLoginResultRejectsStaleCredentials(t *testing.T) {
+func TestAddLoginResultRejectsInvalidatedCredentials(t *testing.T) {
 	testutil.WithServerRoot(t)
 
 	db := testutil.RequireTestDB(t)
@@ -195,6 +195,9 @@ func TestAddLoginResultRejectsStaleCredentials(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM tokens WHERE user_id = $1`, userID).Scan(&tokenCount); err != nil || tokenCount != 0 {
 		t.Fatalf("token count = %d, err = %v", tokenCount, err)
 	}
+	require.NoError(t, (&UserRepository{DB: db}).Delete(userID))
+	err = repo.AddLoginResult(context.Background(), userID, srpAuth, &keyAttributes, ente.Photos, "token", "", "", "", "", 0)
+	require.ErrorIs(t, err, ente.ErrUserDeleted)
 }
 
 func TestPasswordUpdateRollsBackRecoveryAuthorization(t *testing.T) {

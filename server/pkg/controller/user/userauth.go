@@ -549,10 +549,6 @@ func (c *UserController) RemoveTokensForApps(userID int64, apps []ente.App) erro
 	return c.finishTokenRevocation(c.UserAuthRepo.RemoveTokensForApps(userID, apps))
 }
 
-func (c *UserController) RemoveAllTokens(userID int64) error {
-	return c.finishTokenRevocation(c.UserAuthRepo.RemoveAllTokens(userID))
-}
-
 func (c *UserController) RemoveAllOtherTokens(userID int64, token string) error {
 	tokenHash := auth.HashToken(token)
 	return c.finishTokenRevocation(c.UserAuthRepo.RemoveAllOtherTokensByHash(userID, tokenHash[:]))
