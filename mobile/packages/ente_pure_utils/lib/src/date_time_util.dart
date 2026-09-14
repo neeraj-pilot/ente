@@ -349,50 +349,67 @@ bool isValidGregorianDate({
   return true;
 }
 
-final RegExp _filenameExp = RegExp('[\\.A-Za-z]*');
-
 DateTime? parseDateTimeFromFileNameV2(
   String fileName, {
   // Year bounds reduce false dates parsed from filenames.
   int minYear = 1990,
   int? maxYear,
 }) {
-  // Include next year for 31 December edge cases.
-  maxYear ??= currentYear + 1;
-  String val = fileName.replaceAll(_filenameExp, '');
-  if (val.isNotEmpty && !_isNumeric(val[0])) {
-    val = val.substring(1, val.length);
+  final date = _filenameDate.matchAsPrefix(fileName);
+  if (date == null) return null;
+
+  final year = int.parse(date[1]!);
+  final month = int.parse(date[3]!);
+  final day = int.parse(date[4]!);
+  if (year < minYear ||
+      year > (maxYear ?? currentYear + 1) ||
+      !isValidGregorianDate(day: day, month: month, year: year)) {
+    return null;
   }
-  if (val.isNotEmpty && !_isNumeric(val[val.length - 1])) {
-    val = val.substring(0, val.length - 1);
+
+  final time = _filenameTime.matchAsPrefix(fileName, date.end);
+  if (time == null) {
+    // Don't turn an unrecognized time into a date-only result.
+    return _filenameDateSuffix.matchAsPrefix(fileName, date.end) != null
+        ? DateTime(year, month, day)
+        : null;
   }
-  final int countOfHyphen = val.split("-").length - 1;
-  final int countUnderScore = val.split("_").length - 1;
-  String valForParser = val;
-  if (countOfHyphen == 1) {
-    valForParser = val.replaceAll("-", "T");
-  } else if (countUnderScore == 1 || countUnderScore == 2) {
-    valForParser = val.replaceFirst("_", "T");
-    if (countUnderScore == 2) {
-      valForParser = valForParser.split("_")[0];
-    }
-  } else if (countOfHyphen == 2) {
-    valForParser = val.replaceAll(".", ":");
-  } else if (countOfHyphen == 6 || countOfHyphen == 7) {
-    final splits = val.split("-");
-    valForParser =
-        "${splits[0]}${splits[1]}${splits[2]}T${splits[3]}${splits[4]}${splits[5]}";
+  if (_filenameTimeSuffix.matchAsPrefix(fileName, time.end) == null) {
+    return null;
   }
-  final result = DateTime.tryParse(valForParser);
-  if (result != null && result.year >= minYear && result.year <= maxYear) {
-    return result;
+
+  final hour = int.parse(time[1]!);
+  final minute = int.parse(time[3]!);
+  final second = int.parse(time[4]!);
+  if (hour > 23 || minute > 59 || second > 59) return null;
+
+  final fraction = time[5];
+  final micros = fraction == null ? 0 : int.parse(fraction.padRight(6, '0'));
+  final zone = time[6];
+  if (zone == null) {
+    return DateTime(year, month, day, hour, minute, second, 0, micros);
   }
-  return null;
+  final utc = DateTime.utc(year, month, day, hour, minute, second, 0, micros);
+  if (zone.length == 1) return utc;
+
+  final offset = zone.substring(1).replaceAll(':', '');
+  final offsetHour = int.parse(offset.substring(0, 2));
+  final offsetMinute = int.parse(offset.substring(2));
+  if (offsetHour > 23 || offsetMinute > 59) return null;
+  final offsetMinutes =
+      (offsetHour * 60 + offsetMinute) * (zone[0] == '-' ? -1 : 1);
+  return utc.subtract(Duration(minutes: offsetMinutes));
 }
 
-bool _isNumeric(String? s) {
-  if (s == null) {
-    return false;
-  }
-  return double.tryParse(s) != null;
-}
+// Match the first numeric portion, with consistent separators and digit bounds.
+final _filenameDate = RegExp(r'^[^\d]*(\d{4})(-?)(\d{2})\2(\d{2})(?!\d)');
+final _filenameTime = RegExp(
+  r'[ T_-](\d{2})([-.:]?)(\d{2})\2(\d{2})'
+  r'(?:[.,](\d{1,6})(?!\d))?'
+  // Require a colon in negative offsets to distinguish Signal copy counters.
+  r'([zZ]|\+\d{2}:?\d{2}|-\d{2}:\d{2})?(?!\d)',
+);
+final _filenameDateSuffix = RegExp(r'(?:-WA\d+)?(?:\.[A-Za-z][A-Za-z0-9]*)?$');
+final _filenameTimeSuffix = RegExp(
+  r'(?:[-_][A-Za-z0-9_.-]+|\.[A-Za-z][A-Za-z0-9_.-]*)?$',
+);
