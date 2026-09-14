@@ -1,0 +1,1 @@
+- Fixed panoramas appearing upside down on some Android devices.
