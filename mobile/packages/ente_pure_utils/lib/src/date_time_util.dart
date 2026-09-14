@@ -374,7 +374,17 @@ DateTime? parseDateTimeFromFileNameV2(
         ? DateTime(year, month, day)
         : null;
   }
-  if (_filenameTimeSuffix.matchAsPrefix(fileName, time.end) == null) {
+  var zone = time[6];
+  var timeEnd = time.end;
+  if (zone == null &&
+      (fileName[date.end] == ' ' || fileName[date.end] == 'T')) {
+    final offset = _filenameCompactOffset.matchAsPrefix(fileName, timeEnd);
+    if (offset != null) {
+      zone = offset[0];
+      timeEnd = offset.end;
+    }
+  }
+  if (_filenameTimeSuffix.matchAsPrefix(fileName, timeEnd) == null) {
     return null;
   }
 
@@ -385,7 +395,6 @@ DateTime? parseDateTimeFromFileNameV2(
 
   final fraction = time[5];
   final micros = fraction == null ? 0 : int.parse(fraction.padRight(6, '0'));
-  final zone = time[6];
   if (zone == null) {
     return DateTime(year, month, day, hour, minute, second, 0, micros);
   }
@@ -393,6 +402,7 @@ DateTime? parseDateTimeFromFileNameV2(
   if (zone.length == 1) return utc;
 
   final offset = zone.substring(1).replaceAll(':', '');
+  if (offset.length != 4) return null;
   final offsetHour = int.parse(offset.substring(0, 2));
   final offsetMinute = int.parse(offset.substring(2));
   if (offsetHour > 23 || offsetMinute > 59) return null;
@@ -402,14 +412,16 @@ DateTime? parseDateTimeFromFileNameV2(
 }
 
 // Match the first numeric portion, with consistent separators and digit bounds.
-final _filenameDate = RegExp(r'^[^\d]*(\d{4})(-?)(\d{2})\2(\d{2})(?!\d)');
+final _filenameDate = RegExp(r'^[^\d]*(\d{4})([-.]?)(\d{2})\2(\d{2})(?!\d)');
 final _filenameTime = RegExp(
   r'[ T_-](\d{2})([-.:]?)(\d{2})\2(\d{2})'
   r'(?:[.,](\d{1,6})(?!\d))?'
-  // Require a colon in negative offsets to distinguish Signal copy counters.
   r'([zZ]|\+\d{2}:?\d{2}|-\d{2}:\d{2})?(?!\d)',
 );
-final _filenameDateSuffix = RegExp(r'(?:-WA\d+)?(?:\.[A-Za-z][A-Za-z0-9]*)?$');
+final _filenameCompactOffset = RegExp(r'-\d+');
+final _filenameDateSuffix = RegExp(
+  r'(?:-WA\d+|[-_][A-Za-z]+)?(?:\.[A-Za-z][A-Za-z0-9]*)?$',
+);
 final _filenameTimeSuffix = RegExp(
   r'(?:[-_][A-Za-z0-9_.-]+|\.[A-Za-z][A-Za-z0-9_.-]*)?$',
 );
