@@ -1,38 +1,61 @@
 package public
 
 import (
-	"strconv"
-	"sync/atomic"
+	"sync"
 	"time"
 
+	"github.com/ente/museum/pkg/utils/auth"
 	"github.com/patrickmn/go-cache"
 )
 
 type LinkCache struct {
-	*cache.Cache
-	version atomic.Uint64
+	cache    *cache.Cache
+	lifetime time.Duration
+	mu       sync.Mutex
+}
+
+type linkCacheEntry struct {
+	value     any
+	expiresAt int64
 }
 
 func NewLinkCache(defaultExpiration, cleanupInterval time.Duration) *LinkCache {
-	return &LinkCache{Cache: cache.New(defaultExpiration, cleanupInterval)}
+	return &LinkCache{cache: cache.New(defaultExpiration, cleanupInterval), lifetime: defaultExpiration}
 }
 
-func (c *LinkCache) Version() string {
+func (c *LinkCache) Get(accessToken, key string) (any, bool) {
+	if _, bypass := c.cache.Get(linkCacheBypassKey(accessToken)); bypass {
+		return nil, false
+	}
+	value, found := c.cache.Get(key)
+	if !found {
+		return nil, false
+	}
+	entry := value.(linkCacheEntry)
+	return entry.value, time.Now().UnixNano() < entry.expiresAt
+}
+
+func (c *LinkCache) Set(key string, value any, lookupStarted time.Time) {
+	// Age from before the lookup so a delayed fill cannot outlive an invalidation.
+	expiresAt := lookupStarted.Add(c.lifetime).UnixNano()
+	if remaining := time.Duration(expiresAt - time.Now().UnixNano()); remaining > 0 {
+		c.cache.Set(key, linkCacheEntry{value: value, expiresAt: expiresAt}, remaining)
+	}
+}
+
+func (c *LinkCache) Invalidate(accessTokens ...string) {
 	if c == nil {
-		return ""
+		return
 	}
-	return strconv.FormatUint(c.version.Load(), 10)
+	// Concurrent refreshes must not shorten the bypass window.
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, accessToken := range accessTokens {
+		c.cache.SetDefault(linkCacheBypassKey(accessToken), true)
+	}
 }
 
-func (c *LinkCache) Invalidate() {
-	if c != nil {
-		c.version.Add(1)
-	}
-}
-
-func (c *LinkCache) SetIfCurrent(key, version string, value any) {
-	c.Set(key, value, cache.DefaultExpiration)
-	if c.Version() != version {
-		c.Delete(key)
-	}
+func linkCacheBypassKey(accessToken string) string {
+	hash := auth.HashToken(accessToken)
+	return "public-link-bypass:" + string(hash[:])
 }

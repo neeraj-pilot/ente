@@ -21,10 +21,9 @@ func TestCollectionLinkCacheIsScopedToOrigin(t *testing.T) {
 	)
 	origins := []string{"https://albums.example", "https://gallery.example"}
 	linkCache := public.NewLinkCache(time.Minute, time.Minute)
-	cacheVersion := linkCache.Version()
 	for i, origin := range origins {
-		key := computeHashKeyForList([]string{accessToken, clientIP, userAgent, origin, cacheVersion}, ":")
-		linkCache.SetDefault(key, ente.PublicCollectionSummary{ID: int64(i + 1)})
+		key := computeHashKeyForList([]string{accessToken, clientIP, userAgent, origin}, ":")
+		linkCache.Set(key, ente.PublicCollectionSummary{ID: int64(i + 1)}, time.Now())
 	}
 
 	gin.SetMode(gin.TestMode)

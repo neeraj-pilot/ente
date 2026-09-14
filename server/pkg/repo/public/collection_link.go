@@ -75,12 +75,16 @@ func (pcr *CollectionLinkRepo) Insert(ctx context.Context,
 }
 
 func (pcr *CollectionLinkRepo) DisableSharing(ctx context.Context, cID int64) error {
-	_, err := pcr.DB.ExecContext(ctx, `UPDATE public_collection_tokens SET is_disabled = true where
-		collection_id = $1 and is_disabled = false`, cID)
+	var accessToken string
+	err := pcr.DB.QueryRowContext(ctx, `UPDATE public_collection_tokens SET is_disabled = true where
+		collection_id = $1 and is_disabled = false RETURNING access_token`, cID).Scan(&accessToken)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
 	if err != nil {
 		return stacktrace.Propagate(err, "failed to disable sharing")
 	}
-	pcr.Cache.Invalidate()
+	pcr.Cache.Invalidate(accessToken)
 	return nil
 }
 
@@ -158,7 +162,7 @@ func (pcr *CollectionLinkRepo) UpdatePublicCollectionToken(ctx context.Context, 
 	if err != nil {
 		return stacktrace.Propagate(err, "failed to update public collection token")
 	}
-	pcr.Cache.Invalidate()
+	pcr.Cache.Invalidate(pct.Token)
 	return nil
 }
 

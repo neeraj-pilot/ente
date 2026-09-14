@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"time"
 
 	publicCtrl "github.com/ente/museum/pkg/controller/public"
 	"github.com/ente/museum/pkg/repo/public"
@@ -14,7 +15,7 @@ import (
 	"github.com/ente/museum/pkg/controller/discord"
 	"github.com/ente/museum/pkg/utils/auth"
 	"github.com/ente/museum/pkg/utils/network"
-	"github.com/ente/museum/pkg/utils/time"
+	timeutil "github.com/ente/museum/pkg/utils/time"
 	"github.com/ente/stacktrace"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -43,17 +44,12 @@ func (m *FileLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context) stri
 		shouldCheckDeviceLimit := shouldCheckFileLinkDeviceLimit(reqPath)
 		passwordValidated := false
 
-		cacheVersion := m.Cache.Version()
-		cacheKey := computeHashKeyForList([]string{
-			accessToken,
-			clientIP,
-			userAgent,
-			cacheVersion,
-		}, ":")
+		lookupStarted := time.Now()
+		cacheKey := computeHashKeyForList([]string{accessToken, clientIP, userAgent}, ":")
 		var cachedValue interface{}
 		cacheHit := false
 		if !shouldCheckDeviceLimit {
-			cachedValue, cacheHit = m.Cache.Get(cacheKey)
+			cachedValue, cacheHit = m.Cache.Get(accessToken, cacheKey)
 		}
 		var fileLinkRow *ente.FileLinkRow
 		var err error
@@ -69,7 +65,7 @@ func (m *FileLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context) stri
 				return
 			}
 			if fileLinkRow.ValidTill > 0 && // expiry time is defined, 0 indicates no expiry
-				fileLinkRow.ValidTill < time.Microseconds() {
+				fileLinkRow.ValidTill < timeutil.Microseconds() {
 				c.AbortWithStatusJSON(http.StatusGone, gin.H{"code": ente.LinkExpired, "error": "expired token"})
 				return
 			}
@@ -104,7 +100,7 @@ func (m *FileLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context) stri
 		}
 
 		if fileLinkRow.ValidTill > 0 && // expiry time is defined, 0 indicates no expiry
-			fileLinkRow.ValidTill < time.Microseconds() {
+			fileLinkRow.ValidTill < timeutil.Microseconds() {
 			c.AbortWithStatusJSON(http.StatusGone, gin.H{"code": ente.LinkExpired, "error": "expired token"})
 			return
 		}
@@ -118,7 +114,7 @@ func (m *FileLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context) stri
 		}
 
 		if !cacheHit && !shouldCheckDeviceLimit {
-			m.Cache.SetIfCurrent(cacheKey, cacheVersion, fileLinkRow)
+			m.Cache.Set(cacheKey, fileLinkRow, lookupStarted)
 		}
 
 		c.Set(auth.FileLinkAccessKey, &ente.FileLinkAccessContext{
@@ -138,7 +134,7 @@ func (m *FileLinkMiddleware) checkDeviceLimit(c *gin.Context, accessToken string
 	if linkDeviceToken != "" {
 		claim, err := publicCtrl.ValidateLinkDeviceToken(m.FileLinkCtrl.JwtSecret, linkDeviceToken, publicCtrl.LinkDeviceScopeFile, fileLinkRow.LinkID, accessToken)
 		if err == nil {
-			if claim.ExpiryTime-time.Microseconds() < publicCtrl.LinkDeviceTokenRefreshBefore {
+			if claim.ExpiryTime-timeutil.Microseconds() < publicCtrl.LinkDeviceTokenRefreshBefore {
 				token, _, tokenErr := publicCtrl.NewLinkDeviceToken(m.FileLinkCtrl.JwtSecret, publicCtrl.LinkDeviceScopeFile, fileLinkRow.LinkID, accessToken, fileLinkRow.ValidTill)
 				return token, false, stacktrace.Propagate(tokenErr, "")
 			}
