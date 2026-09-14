@@ -606,8 +606,8 @@ func main() {
 	}
 	pasteHandler := &api.PasteHandler{Controller: pasteCtrl}
 	storageAPI.GET("/files/upload-eligibility", fileHandler.ValidateUploadEligibility)
-	storageAPI.GET("/files/upload-urls", fileHandler.GetUploadURLs)
-	storageAPI.GET("/files/multipart-upload-urls", fileHandler.GetMultipartUploadURLs)
+	storageAPI.GET("/files/upload-urls", fileHandler.RestrictLegacyUploads, fileHandler.GetUploadURLs)
+	storageAPI.GET("/files/multipart-upload-urls", fileHandler.RestrictLegacyUploads, fileHandler.GetMultipartUploadURLs)
 	storageAPI.POST("/files/upload-url", fileHandler.GetUploadURLV2)
 	storageAPI.POST("/files/multipart-upload-url", fileHandler.GetMultipartUploadURLV2)
 	storageAPI.GET("/files/download/:fileID", fileHandler.Get)
