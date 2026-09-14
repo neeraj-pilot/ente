@@ -11,6 +11,8 @@ import (
 	"github.com/ente/museum/ente"
 	"github.com/ente/museum/internal/testutil"
 	"github.com/ente/museum/pkg/utils/time"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTokenHashTrigger(t *testing.T) {
@@ -193,4 +195,56 @@ func TestAddLoginResultRejectsStaleCredentials(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM tokens WHERE user_id = $1`, userID).Scan(&tokenCount); err != nil || tokenCount != 0 {
 		t.Fatalf("token count = %d, err = %v", tokenCount, err)
 	}
+}
+
+func TestPasswordUpdateRollsBackRecoveryAuthorization(t *testing.T) {
+	testutil.WithServerRoot(t)
+
+	db := testutil.RequireTestDB(t)
+	testutil.ResetTables(t, db)
+	t.Cleanup(func() { testutil.ResetTables(t, db) })
+
+	userID := testutil.InsertUser(t, db, testutil.UserFixture{Email: "recovery-rollback@example.com", CreationTime: 1})
+	contactID := testutil.InsertUser(t, db, testutil.UserFixture{Email: "recovery-contact@example.com", CreationTime: 1})
+	require.NoError(t, (&UserRepository{DB: db}).SetKeyAttributes(userID, ente.KeyAttributes{
+		KEKSalt: "old-salt", EncryptedKey: "old-key", KeyDecryptionNonce: "old-nonce",
+		PublicKey: "public-key", EncryptedSecretKey: "secret-key", SecretKeyDecryptionNonce: "secret-nonce",
+		MemLimit: 1, OpsLimit: 1,
+	}))
+	oldSRPUserID, recoveryID := uuid.New(), uuid.New()
+	tokenHash := sha256.Sum256([]byte("auth-token"))
+	browserTokenHash := []byte("space-token")
+	_, err := db.Exec(`INSERT INTO srp_auth(user_id, srp_user_id, salt, verifier) VALUES($1, $2, 'old-srp-salt', 'old-verifier')`, userID, oldSRPUserID)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO tokens(user_id, token_hash, creation_time, app) VALUES($1, $2, 1, $3)`, userID, tokenHash[:], ente.Photos)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO emergency_recovery(id, user_id, emergency_contact_id, status) VALUES($1, $2, $3, $4)`, recoveryID, userID, contactID, ente.RecoveryStatusReady)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO space_browser_sessions(token_hash, user_id, session_wrap_key, expires_at) VALUES($1, $2, 'wrap-key', 1)`, browserTokenHash, userID)
+	require.NoError(t, err)
+
+	authorizationErr := errors.New("authorization failed")
+	_, err = (&UserAuthRepository{DB: db}).InsertOrUpdateSRPAuthAndKeyAttr(t.Context(), userID,
+		ente.UpdateKeysRequest{KEKSalt: "new-salt", EncryptedKey: "new-key", KeyDecryptionNonce: "new-nonce", MemLimit: 2, OpsLimit: 2},
+		&ente.SRPSetupEntity{SRPUserID: uuid.New(), Salt: "new-srp-salt", Verifier: "new-verifier"}, true, nil, false,
+		func(ctx context.Context, tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1 WHERE id=$2`, ente.RecoveryStatusRecovered, recoveryID); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `DELETE FROM space_browser_sessions WHERE user_id=$1`, userID); err != nil {
+				return err
+			}
+			return authorizationErr
+		})
+	require.ErrorIs(t, err, authorizationErr)
+
+	var unchanged bool
+	require.NoError(t, db.QueryRow(`SELECT
+		EXISTS (SELECT FROM srp_auth WHERE user_id=$1 AND srp_user_id=$2 AND salt='old-srp-salt' AND verifier='old-verifier') AND
+		EXISTS (SELECT FROM key_attributes WHERE user_id=$1 AND kek_salt='old-salt' AND encrypted_key='old-key' AND key_decryption_nonce='old-nonce' AND mem_limit=1 AND ops_limit=1) AND
+		EXISTS (SELECT FROM tokens WHERE user_id=$1 AND token_hash=$3 AND is_deleted=FALSE) AND
+		EXISTS (SELECT FROM emergency_recovery WHERE id=$4 AND status=$5) AND
+		EXISTS (SELECT FROM space_browser_sessions WHERE token_hash=$6 AND user_id=$1)`,
+		userID, oldSRPUserID, tokenHash[:], recoveryID, ente.RecoveryStatusReady, browserTokenHash).Scan(&unchanged))
+	require.True(t, unchanged)
 }

@@ -224,6 +224,16 @@ func (r *Repository) OpenOrResumeRecovery(
 	}
 	defer tx.Rollback()
 
+	var userID int64
+	if err := tx.QueryRowContext(ctx, `SELECT user_id FROM legacy_kit WHERE id=$1`, kitID).Scan(&userID); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil, "", false, stacktrace.Propagate(ente.ErrNotFound, "legacy kit not found")
+		}
+		return nil, nil, "", false, stacktrace.Propagate(err, "failed to read legacy kit owner")
+	}
+	if err := lockUserRow(ctx, tx, userID); err != nil {
+		return nil, nil, "", false, err
+	}
 	kit, err := getKitByIDForUpdate(ctx, tx, kitID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -393,22 +403,6 @@ func hashChallenge(challenge string) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-func (r *Repository) UpdateSessionStatus(ctx context.Context, sessionID uuid.UUID, status ente.LegacyKitRecoveryStatus) (bool, error) {
-	result, err := r.DB.ExecContext(ctx, `
-		UPDATE legacy_kit_recovery_session SET status = $1
-		WHERE id = $2 AND status IN ($3, $4)`,
-		status, sessionID, ente.LegacyKitRecoveryStatusWaiting, ente.LegacyKitRecoveryStatusReady,
-	)
-	if err != nil {
-		return false, stacktrace.Propagate(err, "failed to update legacy kit session status")
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return false, stacktrace.Propagate(err, "failed to inspect legacy kit session update")
-	}
-	return rows > 0, nil
-}
-
 func (r *Repository) UpdateRecoveryNotice(ctx context.Context, userID int64, kitID uuid.UUID, noticePeriodHrs int32) (bool, error) {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -458,6 +452,9 @@ func (r *Repository) BlockActiveSessionForKit(ctx context.Context, kitID uuid.UU
 	}
 	defer tx.Rollback()
 
+	if err := lockUserRow(ctx, tx, userID); err != nil {
+		return false, err
+	}
 	if _, err := getKitForOwnerByIDForUpdate(ctx, tx, userID, kitID); err != nil {
 		if err == sql.ErrNoRows {
 			return false, nil
@@ -472,6 +469,38 @@ func (r *Repository) BlockActiveSessionForKit(ctx context.Context, kitID uuid.UU
 		return false, stacktrace.Propagate(err, "failed to commit legacy kit block")
 	}
 	return updated, nil
+}
+
+func (r *Repository) CompleteRecovery(
+	ctx context.Context,
+	tx *sql.Tx,
+	sessionID, kitID uuid.UUID,
+	userID int64,
+	sessionToken string,
+) error {
+	kit, err := getKitByIDForUpdate(ctx, tx, kitID)
+	if err != nil {
+		return err
+	}
+	if kit.IsDeleted || kit.UserID != userID {
+		return stacktrace.Propagate(ente.ErrNotFound, "legacy kit not found")
+	}
+	session, err := getSessionByIDAndTokenForUpdate(ctx, tx, sessionID, sessionToken)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return stacktrace.Propagate(ente.ErrNotFound, "legacy kit recovery session not found")
+		}
+		return err
+	}
+	if session.KitID != kitID || session.UserID != userID {
+		return stacktrace.Propagate(ente.ErrNotFound, "legacy kit recovery session not found")
+	}
+	if session.Status != ente.LegacyKitRecoveryStatusReady {
+		return stacktrace.Propagate(ente.NewBadRequestWithMessage("legacy kit recovery is not ready"), "")
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE legacy_kit_recovery_session SET status=$1 WHERE id=$2`,
+		ente.LegacyKitRecoveryStatusRecovered, sessionID)
+	return stacktrace.Propagate(err, "failed to complete legacy kit recovery")
 }
 
 func nullableInt64(value sql.NullInt64) any {
@@ -534,7 +563,7 @@ func insertKit(ctx context.Context, exec execer, userID int64, req ente.CreateLe
 
 func lockUserRow(ctx context.Context, tx *sql.Tx, userID int64) error {
 	var lockedUserID int64
-	err := tx.QueryRowContext(ctx, `SELECT user_id FROM users WHERE user_id = $1 FOR UPDATE`, userID).Scan(&lockedUserID)
+	err := tx.QueryRowContext(ctx, `SELECT user_id FROM users WHERE user_id = $1 FOR NO KEY UPDATE`, userID).Scan(&lockedUserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return stacktrace.Propagate(ente.ErrNotFound, "legacy kit owner not found")

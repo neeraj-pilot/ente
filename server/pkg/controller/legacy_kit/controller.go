@@ -3,6 +3,7 @@ package legacy_kit
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"strings"
@@ -287,12 +288,12 @@ func (c *Controller) ChangePassword(ctx *gin.Context, req ente.LegacyKitRecovery
 		return nil, stacktrace.Propagate(ente.NewBadRequestWithMessage("legacy kit recovery is not ready"), "")
 	}
 	logOutAllSessions := req.UpdateSrpAndKeysRequest.LogOutOtherDevices == nil || *req.UpdateSrpAndKeysRequest.LogOutOtherDevices
-	resp, err := c.UserCtrl.RecoverSrpAndKeyAttributes(ctx, session.UserID, req.UpdateSrpAndKeysRequest, logOutAllSessions)
+	resp, err := c.UserCtrl.RecoverSrpAndKeyAttributes(ctx, session.UserID, req.UpdateSrpAndKeysRequest, logOutAllSessions,
+		func(txCtx context.Context, tx *sql.Tx) error {
+			return c.Repo.CompleteRecovery(txCtx, tx, session.ID, session.KitID, session.UserID, strings.TrimSpace(req.SessionToken))
+		})
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "failed to update password via legacy kit")
-	}
-	if _, err := c.Repo.UpdateSessionStatus(ctx, session.ID, ente.LegacyKitRecoveryStatusRecovered); err != nil {
-		return nil, err
 	}
 	go c.sendRecoveryCompletedNotification(context.Background(), session.UserID)
 	return resp, nil
