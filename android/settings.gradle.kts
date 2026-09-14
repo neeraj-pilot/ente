@@ -20,9 +20,7 @@ dependencyResolutionManagement {
                 ivy {
                     name = "enteOnnxRuntimePackaging"
                     url = uri("https://github.com/ente/ort-packaging/releases/download")
-                    patternLayout {
-                        artifact("ort-[revision]/[artifact]-[revision].[ext]")
-                    }
+                    patternLayout { artifact("ort-[revision]/[artifact]-[revision].[ext]") }
                     metadataSources { artifact() }
                 }
             }
@@ -31,5 +29,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ensu"
-include(":app", ":rust")
+rootProject.name = "ente-android"
+
+include(":apps:ensu:app", ":apps:ensu:rust", ":packages:fonts")
