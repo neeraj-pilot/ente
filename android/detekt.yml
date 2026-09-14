@@ -1,0 +1,57 @@
+config:
+  validation: true
+  warningsAsErrors: true
+
+coroutines:
+  active: true
+  GlobalCoroutineUsage:
+    active: true
+  RedundantSuspendModifier:
+    active: true
+  SleepInsteadOfDelay:
+    active: true
+  SuspendFunSwallowedCancellation:
+    active: true
+
+empty-blocks:
+  active: true
+  EmptyCatchBlock:
+    active: true
+
+exceptions:
+  active: true
+  RethrowCaughtException:
+    active: true
+  ReturnFromFinally:
+    active: true
+  ThrowingExceptionFromFinally:
+    active: true
+
+potential-bugs:
+  active: true
+  CastToNullableType:
+    active: true
+  CharArrayToStringCall:
+    active: true
+  ElseCaseInsteadOfExhaustiveWhen:
+    active: true
+  EqualsWithHashCodeExist:
+    active: true
+  IgnoredReturnValue:
+    active: true
+  ImplicitDefaultLocale:
+    active: true
+  InvalidRange:
+    active: true
+  UnnecessaryNotNullCheck:
+    active: true
+  UnnecessaryNotNullOperator:
+    active: true
+  UnnecessarySafeCall:
+    active: true
+  UnreachableCatchBlock:
+    active: true
+  UnreachableCode:
+    active: true
+  UnsafeCallOnNullableType:
+    active: true
