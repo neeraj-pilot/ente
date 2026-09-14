@@ -3,6 +3,7 @@ package repo
 import (
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/ente/museum/ente"
 	"github.com/ente/museum/internal/testutil"
@@ -11,6 +12,9 @@ import (
 
 func TestTrashFilesUsesRequestItemsAsItsScope(t *testing.T) {
 	repository, db := setupTrashTest(t)
+	repository.FileLinkRepo.Cache = public.NewLinkCache(time.Minute, time.Minute)
+	repository.FileLinkRepo.Cache.Set("requested-token", true, time.Now())
+	repository.FileLinkRepo.Cache.Set("untouched-token", true, time.Now())
 	ownerID := testutil.InsertUser(t, db, testutil.UserFixture{
 		UserID:       1,
 		Email:        "trash-owner@ente.com",
@@ -78,10 +82,18 @@ func TestTrashFilesUsesRequestItemsAsItsScope(t *testing.T) {
 	if !requestedLinkDisabled || untouchedLinkDisabled {
 		t.Fatalf("unexpected public file link states: requested disabled=%t, untouched disabled=%t", requestedLinkDisabled, untouchedLinkDisabled)
 	}
+	if _, cached := repository.FileLinkRepo.Cache.Get("requested-token", "requested-token"); cached {
+		t.Fatal("trashed file link cache entry was not invalidated")
+	}
+	if _, cached := repository.FileLinkRepo.Cache.Get("untouched-token", "untouched-token"); !cached {
+		t.Fatal("untouched file link cache entry was invalidated")
+	}
 }
 
 func TestTrashFilesRollsBackWhenFileLinkCleanupFails(t *testing.T) {
 	repository, db := setupTrashTest(t)
+	repository.FileLinkRepo.Cache = public.NewLinkCache(time.Minute, time.Minute)
+	repository.FileLinkRepo.Cache.Set("failure-token", true, time.Now())
 	ownerID := testutil.InsertUser(t, db, testutil.UserFixture{
 		UserID:       1,
 		Email:        "trash-owner@ente.com",
@@ -141,6 +153,9 @@ func TestTrashFilesRollsBackWhenFileLinkCleanupFails(t *testing.T) {
 	}
 	if linkDisabled {
 		t.Fatal("public file link changed despite transaction rollback")
+	}
+	if _, cached := repository.FileLinkRepo.Cache.Get("failure-token", "failure-token"); !cached {
+		t.Fatal("rolled-back file link invalidated its cache entry")
 	}
 }
 

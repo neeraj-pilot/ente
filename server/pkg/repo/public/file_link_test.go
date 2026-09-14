@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/ente/museum/ente"
 	"github.com/ente/museum/internal/testutil"
@@ -44,6 +45,30 @@ func TestGetFileUrlRowByTokenReturnsNotFoundForUnknownToken(t *testing.T) {
 	_, err := repository.GetFileUrlRowByToken(t.Context(), "missing-token")
 	if !errors.Is(err, ente.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestDisableLinksForUserInvalidatesTheirCacheEntries(t *testing.T) {
+	repository, db := setupFileLinkRepositoryTest(t)
+	repository.Cache = NewLinkCache(time.Minute, time.Minute)
+
+	insertFileLinkToken(t, db, "pft_owner_1", "owner-token-1", 1, 11, false)
+	insertFileLinkToken(t, db, "pft_owner_2", "owner-token-2", 2, 11, false)
+	insertFileLinkToken(t, db, "pft_other", "other-token", 3, 22, false)
+	for _, token := range []string{"owner-token-1", "owner-token-2", "other-token"} {
+		repository.Cache.Set(token, true, time.Now())
+	}
+
+	if err := repository.DisableLinksForUser(t.Context(), 11); err != nil {
+		t.Fatalf("DisableLinksForUser() error = %v", err)
+	}
+	for _, token := range []string{"owner-token-1", "owner-token-2"} {
+		if _, cached := repository.Cache.Get(token, token); cached {
+			t.Fatalf("cache entry %q was not invalidated", token)
+		}
+	}
+	if _, cached := repository.Cache.Get("other-token", "other-token"); !cached {
+		t.Fatal("unaffected cache entry was invalidated")
 	}
 }
 

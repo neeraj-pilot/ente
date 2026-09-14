@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
 	"github.com/ente/museum/ente/base"
 	"github.com/lib/pq"
 	"github.com/spf13/viper"
@@ -14,13 +15,14 @@ import (
 )
 
 type FileLinkRepository struct {
+	Cache      *LinkCache
 	DB         *sql.DB
 	photoHost  string
 	lockerHost string
 }
 
 type fileLinkUpdater interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 func NewFileLinkRepo(db *sql.DB) *FileLinkRepository {
@@ -177,31 +179,55 @@ func (pcr *FileLinkRepository) GetFileUrls(ctx context.Context, userID int64, si
 }
 
 func (pcr *FileLinkRepository) DisableLinkForFiles(ctx context.Context, fileIDs []int64) error {
-	return disableLinkForFiles(ctx, pcr.DB, fileIDs)
+	accessTokens, err := disableLinkForFiles(ctx, pcr.DB, fileIDs)
+	if err != nil {
+		return err
+	}
+	pcr.Cache.Invalidate(accessTokens...)
+	return nil
 }
 
-func (pcr *FileLinkRepository) DisableLinkForFilesTx(ctx context.Context, tx *sql.Tx, fileIDs []int64) error {
+func (pcr *FileLinkRepository) DisableLinkForFilesTx(ctx context.Context, tx *sql.Tx, fileIDs []int64) ([]string, error) {
 	return disableLinkForFiles(ctx, tx, fileIDs)
 }
 
-func disableLinkForFiles(ctx context.Context, updater fileLinkUpdater, fileIDs []int64) error {
+func disableLinkForFiles(ctx context.Context, updater fileLinkUpdater, fileIDs []int64) ([]string, error) {
 	if len(fileIDs) == 0 {
-		return nil
+		return nil, nil
 	}
-	query := `UPDATE public_file_tokens SET is_disabled = TRUE WHERE file_id = ANY($1) AND is_disabled IS FALSE`
-	_, err := updater.ExecContext(ctx, query, pq.Array(fileIDs))
+	rows, err := updater.QueryContext(ctx, `UPDATE public_file_tokens SET is_disabled = TRUE
+		WHERE file_id = ANY($1) AND is_disabled IS FALSE RETURNING access_token`, pq.Array(fileIDs))
 	if err != nil {
-		return stacktrace.Propagate(err, "failed to disable public file links")
+		return nil, stacktrace.Propagate(err, "failed to disable public file links")
 	}
-	return nil
+	return scanAccessTokens(rows)
 }
 
 func (pcr *FileLinkRepository) DisableLinksForUser(ctx context.Context, userID int64) error {
-	_, err := pcr.DB.ExecContext(ctx, `UPDATE public_file_tokens SET is_disabled = TRUE WHERE owner_id = $1`, userID)
+	rows, err := pcr.DB.QueryContext(ctx, `UPDATE public_file_tokens SET is_disabled = TRUE
+		WHERE owner_id = $1 RETURNING access_token`, userID)
 	if err != nil {
 		return stacktrace.Propagate(err, "failed to disable public file link")
 	}
+	accessTokens, err := scanAccessTokens(rows)
+	if err != nil {
+		return err
+	}
+	pcr.Cache.Invalidate(accessTokens...)
 	return nil
+}
+
+func scanAccessTokens(rows *sql.Rows) ([]string, error) {
+	defer rows.Close()
+	var accessTokens []string
+	for rows.Next() {
+		var accessToken string
+		if err := rows.Scan(&accessToken); err != nil {
+			return nil, stacktrace.Propagate(err, "failed to read disabled public file link")
+		}
+		accessTokens = append(accessTokens, accessToken)
+	}
+	return accessTokens, stacktrace.Propagate(rows.Err(), "failed to read disabled public file links")
 }
 
 func (pcr *FileLinkRepository) GetFileUrlRowByToken(ctx context.Context, accessToken string) (*ente.FileLinkRow, error) {
@@ -274,7 +300,11 @@ func (pcr *FileLinkRepository) UpdateLink(ctx context.Context, pct ente.FileLink
                                     pw_hash = $3, pw_nonce = $4, mem_limit = $5, ops_limit = $6, enable_download = $7  
                                 where id = $8`,
 		pct.ValidTill, pct.DeviceLimit, pct.PassHash, pct.Nonce, pct.MemLimit, pct.OpsLimit, pct.EnableDownload, pct.LinkID)
-	return stacktrace.Propagate(err, "failed to update public file token")
+	if err != nil {
+		return stacktrace.Propagate(err, "failed to update public file token")
+	}
+	pcr.Cache.Invalidate(pct.Token)
+	return nil
 }
 
 func (pcr *FileLinkRepository) GetUniqueAccessCount(ctx context.Context, linkId string) (int64, error) {
