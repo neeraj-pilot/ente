@@ -11,9 +11,11 @@ import (
 	"github.com/ente/museum/ente"
 	"github.com/ente/stacktrace"
 	"github.com/lib/pq"
+	"github.com/patrickmn/go-cache"
 )
 
 type CollectionLinkRepo struct {
+	Cache      *cache.Cache
 	DB         *sql.DB
 	albumHost  string
 	lockerHost string
@@ -74,9 +76,17 @@ func (pcr *CollectionLinkRepo) Insert(ctx context.Context,
 }
 
 func (pcr *CollectionLinkRepo) DisableSharing(ctx context.Context, cID int64) error {
-	_, err := pcr.DB.ExecContext(ctx, `UPDATE public_collection_tokens SET is_disabled = true where
-                                                             collection_id = $1 and is_disabled = false`, cID)
-	return stacktrace.Propagate(err, "failed to disable sharing")
+	var accessToken string
+	err := pcr.DB.QueryRowContext(ctx, `UPDATE public_collection_tokens SET is_disabled = true where
+		collection_id = $1 and is_disabled = false RETURNING access_token`, cID).Scan(&accessToken)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return stacktrace.Propagate(err, "failed to disable sharing")
+	}
+	InvalidateLinkCache(pcr.Cache, accessToken)
+	return nil
 }
 
 // "Active" only means not disabled; links may be expired or over their limit.
@@ -150,7 +160,11 @@ func (pcr *CollectionLinkRepo) UpdatePublicCollectionToken(ctx context.Context, 
                                     pw_hash = $3, pw_nonce = $4, mem_limit = $5, ops_limit = $6, enable_download = $7, enable_collect = $8, enable_comment = $9, enable_join = $10, min_role = $11
                                 where id = $12`,
 		pct.ValidTill, pct.DeviceLimit, pct.PassHash, pct.Nonce, pct.MemLimit, pct.OpsLimit, pct.EnableDownload, pct.EnableCollect, pct.EnableComment, pct.EnableJoin, minRole, pct.ID)
-	return stacktrace.Propagate(err, "failed to update public collection token")
+	if err != nil {
+		return stacktrace.Propagate(err, "failed to update public collection token")
+	}
+	InvalidateLinkCache(pcr.Cache, pct.Token)
+	return nil
 }
 
 func (pcr *CollectionLinkRepo) GetUniqueAccessCount(ctx context.Context, shareId int64) (int64, error) {

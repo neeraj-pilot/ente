@@ -44,7 +44,13 @@ func (m *FileLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context) stri
 		shouldCheckDeviceLimit := shouldCheckFileLinkDeviceLimit(reqPath)
 		passwordValidated := false
 
-		cacheKey := computeHashKeyForList([]string{accessToken, clientIP, userAgent}, ":")
+		cacheVersion := public.LinkCacheVersion(m.Cache, accessToken)
+		cacheKey := computeHashKeyForList([]string{
+			accessToken,
+			clientIP,
+			userAgent,
+			cacheVersion,
+		}, ":")
 		var cachedValue interface{}
 		cacheHit := false
 		if !shouldCheckDeviceLimit {
@@ -113,7 +119,7 @@ func (m *FileLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context) stri
 		}
 
 		if !cacheHit && !shouldCheckDeviceLimit {
-			m.Cache.Set(cacheKey, fileLinkRow, cache.DefaultExpiration)
+			public.SetLinkCacheValue(m.Cache, accessToken, cacheKey, cacheVersion, fileLinkRow)
 		}
 
 		c.Set(auth.FileLinkAccessKey, &ente.FileLinkAccessContext{

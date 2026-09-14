@@ -63,7 +63,14 @@ func (m *CollectionLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context
 		shouldCheckDeviceLimit := shouldCheckCollectionLinkDeviceLimit(reqPath)
 		passwordValidated := false
 
-		cacheKey := computeHashKeyForList([]string{accessToken, clientIP, userAgent, c.GetHeader("Origin")}, ":")
+		cacheVersion := public.LinkCacheVersion(m.Cache, accessToken)
+		cacheKey := computeHashKeyForList([]string{
+			accessToken,
+			clientIP,
+			userAgent,
+			c.GetHeader("Origin"),
+			cacheVersion,
+		}, ":")
 		var cachedValue interface{}
 		cacheHit := false
 		if !shouldCheckDeviceLimit {
@@ -140,7 +147,7 @@ func (m *CollectionLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context
 		}
 
 		if !cacheHit && !shouldCheckDeviceLimit {
-			m.Cache.Set(cacheKey, publicCollectionSummary, cache.DefaultExpiration)
+			public.SetLinkCacheValue(m.Cache, accessToken, cacheKey, cacheVersion, publicCollectionSummary)
 		}
 
 		publicCtx := ente.PublicAccessContext{

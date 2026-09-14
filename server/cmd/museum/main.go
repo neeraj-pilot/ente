@@ -224,6 +224,8 @@ func main() {
 
 	authCache := cache.New(1*time.Minute, 15*time.Minute)
 	accessTokenCache := cache.New(1*time.Minute, 15*time.Minute)
+	fileLinkRepo.Cache = accessTokenCache
+	collectionLinkRepo.Cache = accessTokenCache
 	discordController := discord.NewDiscordController(userRepo, hostName, environment)
 	userLookupController := controller.NewUserLookupController(userRepo, discordController)
 	rateLimiter := middleware.NewRateLimitMiddleware(discordController, 1000, 1*time.Second)
