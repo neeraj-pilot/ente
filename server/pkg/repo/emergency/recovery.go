@@ -34,10 +34,32 @@ func (r RecoverRow) CanRecover() error {
 	return nil
 }
 
-func (repo *Repository) InsertIntoRecovery(ctx *gin.Context, contact ente.ContactIdentifier, contactRow ContactRow) (bool, error) {
+func (repo *Repository) InsertIntoRecovery(ctx context.Context, contact ente.ContactIdentifier) (bool, *ContactRow, error) {
+	tx, err := repo.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return false, nil, stacktrace.Propagate(err, "failed to start emergency recovery")
+	}
+	defer tx.Rollback()
+	if err = lockOwnerForUpdate(ctx, tx, contact.UserID); err != nil {
+		return false, nil, err
+	}
+	contactRow, err := getContactForUpdate(ctx, tx, contact.UserID, contact.EmergencyContactID)
+	if err != nil {
+		return false, nil, err
+	}
+	if contactRow.State != ente.ContactAccepted {
+		return false, nil, stacktrace.Propagate(sql.ErrNoRows, "active emergency contact not found")
+	}
 	if contactRow.NoticePeriodInHrs <= 24 {
 		logrus.Warn("notice period is less than 24 hours")
-		return false, ente.NewBadRequestWithMessage("notice period should be greater than 24 hours")
+		return false, nil, ente.NewBadRequestWithMessage("notice period should be greater than 24 hours")
+	}
+	activeSessions, err := getActiveSessionsForUpdate(ctx, tx, contact.UserID, contact.EmergencyContactID)
+	if err != nil {
+		return false, nil, err
+	}
+	if len(activeSessions) > 0 {
+		return false, contactRow, nil
 	}
 	waitTime := time.MicrosecondsAfterHours(contactRow.NoticePeriodInHrs)
 	nextReminder := time.MicrosecondsAfterHours(24 * 7)
@@ -45,13 +67,15 @@ func (repo *Repository) InsertIntoRecovery(ctx *gin.Context, contact ente.Contac
 		logrus.Warn("initial reminder is greater than wait time")
 		nextReminder = time.MicrosecondsAfterHours(24 * 1)
 	}
-	result, err := repo.DB.ExecContext(ctx, `INSERT INTO emergency_recovery (id,user_id, emergency_contact_id, status, wait_till, next_reminder_at) VALUES ($1, $2, $3, $4, $5, $6) on conflict DO NOTHING`,
+	_, err = tx.ExecContext(ctx, `INSERT INTO emergency_recovery (id,user_id, emergency_contact_id, status, wait_till, next_reminder_at) VALUES ($1, $2, $3, $4, $5, $6)`,
 		uuid.New(), contact.UserID, contact.EmergencyContactID, ente.RecoveryStatusWaiting, waitTime, nextReminder)
 	if err != nil {
-		return false, stacktrace.Propagate(err, "")
+		return false, nil, stacktrace.Propagate(err, "")
 	}
-	count, _ := result.RowsAffected()
-	return count > 0, nil
+	if err = tx.Commit(); err != nil {
+		return false, nil, stacktrace.Propagate(err, "failed to commit emergency recovery")
+	}
+	return true, contactRow, nil
 }
 
 func (repo *Repository) GetActiveRecoverySessions(ctx *gin.Context, userID int64) ([]*RecoverRow, error) {
@@ -134,21 +158,69 @@ func (repo *Repository) UpdateRecoveryStatusForID(ctx context.Context, sessionID
 }
 
 func (repo *Repository) UpdateRecoveryStatusForSession(ctx context.Context, sessionID uuid.UUID, userID, emergencyContactID int64, status ente.RecoveryStatus) (bool, error) {
+	tx, err := repo.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return false, stacktrace.Propagate(err, "failed to start recovery status update")
+	}
+	defer tx.Rollback()
+	if err = lockOwnerForUpdate(ctx, tx, userID); err != nil {
+		return false, err
+	}
+	if _, err = getContactForUpdate(ctx, tx, userID, emergencyContactID); err != nil {
+		return false, err
+	}
+	session, err := getRecoveryForUpdate(ctx, tx, sessionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	if session.UserID != userID || session.EmergencyContactID != emergencyContactID {
+		return false, nil
+	}
 	validPrevStatus := validPreviousStatus(status)
 	var result sql.Result
-	var err error
 	if status == ente.RecoveryStatusReady {
-		result, err = repo.DB.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1, wait_till=$2 WHERE id=$3 and user_id=$4 and emergency_contact_id=$5 and status = ANY($6)`,
+		result, err = tx.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1, wait_till=$2 WHERE id=$3 and user_id=$4 and emergency_contact_id=$5 and status = ANY($6)`,
 			status, time.Microseconds(), sessionID, userID, emergencyContactID, pq.Array(validPrevStatus))
 	} else {
-		result, err = repo.DB.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1 WHERE id=$2 and user_id=$3 and emergency_contact_id=$4 and status = ANY($5)`,
+		result, err = tx.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1 WHERE id=$2 and user_id=$3 and emergency_contact_id=$4 and status = ANY($5)`,
 			status, sessionID, userID, emergencyContactID, pq.Array(validPrevStatus))
 	}
 	if err != nil {
 		return false, stacktrace.Propagate(err, "")
 	}
 	rows, _ := result.RowsAffected()
-	return rows > 0, nil
+	if rows == 0 {
+		return false, nil
+	}
+	if err = tx.Commit(); err != nil {
+		return false, stacktrace.Propagate(err, "failed to commit recovery status update")
+	}
+	return true, nil
+}
+
+func (repo *Repository) CompleteRecovery(ctx context.Context, tx *sql.Tx, sessionID uuid.UUID, userID, emergencyContactID int64) error {
+	contact, err := getContactForUpdate(ctx, tx, userID, emergencyContactID)
+	if err != nil {
+		return err
+	}
+	if contact.State != ente.ContactAccepted || contact.EncryptedKey == nil {
+		return stacktrace.Propagate(ente.ErrNotFound, "active emergency contact not found")
+	}
+	session, err := getRecoveryForUpdate(ctx, tx, sessionID)
+	if err != nil {
+		return err
+	}
+	if session.UserID != userID || session.EmergencyContactID != emergencyContactID {
+		return stacktrace.Propagate(ente.ErrPermissionDenied, "recovery session does not match contact")
+	}
+	if err = session.CanRecover(); err != nil {
+		return stacktrace.Propagate(ente.NewBadRequestWithMessage(err.Error()), "")
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE emergency_recovery SET status=$1 WHERE id=$2`, ente.RecoveryStatusRecovered, sessionID)
+	return stacktrace.Propagate(err, "failed to complete emergency recovery")
 }
 
 func (repo *Repository) GetRecoverRowByID(ctx context.Context, sessionID uuid.UUID) (*RecoverRow, error) {
@@ -159,6 +231,36 @@ func (repo *Repository) GetRecoverRowByID(ctx context.Context, sessionID uuid.UU
 		return nil, stacktrace.Propagate(err, "")
 	}
 	return &row, nil
+}
+
+func getActiveSessionsForUpdate(ctx context.Context, tx *sql.Tx, userID, emergencyContactID int64) ([]*RecoverRow, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT id, user_id, emergency_contact_id, status, wait_till, next_reminder_at, created_at
+		FROM emergency_recovery WHERE user_id=$1 AND emergency_contact_id=$2 AND status=ANY($3) ORDER BY id FOR UPDATE`,
+		userID, emergencyContactID, pq.Array([]ente.RecoveryStatus{ente.RecoveryStatusWaiting, ente.RecoveryStatusReady}))
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "failed to lock active recovery sessions")
+	}
+	defer rows.Close()
+	var sessions []*RecoverRow
+	for rows.Next() {
+		var session RecoverRow
+		if err := rows.Scan(&session.ID, &session.UserID, &session.EmergencyContactID, &session.Status, &session.WaitTill, &session.NextReminderAt, &session.CreatedAt); err != nil {
+			return nil, stacktrace.Propagate(err, "failed to scan active recovery session")
+		}
+		sessions = append(sessions, &session)
+	}
+	return sessions, stacktrace.Propagate(rows.Err(), "failed to read active recovery sessions")
+}
+
+func getRecoveryForUpdate(ctx context.Context, tx *sql.Tx, sessionID uuid.UUID) (*RecoverRow, error) {
+	var session RecoverRow
+	err := tx.QueryRowContext(ctx, `SELECT id, user_id, emergency_contact_id, status, wait_till, next_reminder_at, created_at
+		FROM emergency_recovery WHERE id=$1 FOR UPDATE`, sessionID).
+		Scan(&session.ID, &session.UserID, &session.EmergencyContactID, &session.Status, &session.WaitTill, &session.NextReminderAt, &session.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &session, nil
 }
 
 func (repo *Repository) UpdateRecoveryStatus(ctx context.Context, userID, emergencyContactID int64, status ente.RecoveryStatus) error {

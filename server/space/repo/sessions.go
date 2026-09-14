@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/ente/museum/ente"
 	timeutil "github.com/ente/museum/pkg/utils/time"
@@ -104,7 +105,19 @@ func (r *SessionsRepository) DeleteBrowserSessionsForToken(ctx context.Context, 
 }
 
 func (r *SessionsRepository) DeleteBrowserSessionsForUser(ctx context.Context, userID int64) error {
-	_, err := r.DB.ExecContext(ctx, `DELETE FROM space_browser_sessions WHERE user_id = $1`, userID)
+	return deleteBrowserSessionsForUser(ctx, r.DB, userID)
+}
+
+func (m *Module) RevokeBrowserSessionsTx(ctx context.Context, tx *sql.Tx, userID int64) error {
+	return deleteBrowserSessionsForUser(ctx, tx, userID)
+}
+
+type browserSessionExecer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func deleteBrowserSessionsForUser(ctx context.Context, execer browserSessionExecer, userID int64) error {
+	_, err := execer.ExecContext(ctx, `DELETE FROM space_browser_sessions WHERE user_id = $1`, userID)
 	return stacktrace.Propagate(err, "")
 }
 

@@ -133,16 +133,8 @@ func (c *Controller) UpdateRecoveryNotice(ctx *gin.Context, userID int64, reques
 		return stacktrace.Propagate(ente.NewBadRequestWithMessage("recovery notice must be between 1 and 60 days"), "")
 	}
 
-	activeSessions, err := c.Repo.GetActiveSessions(ctx, userID, request.EmergencyContactID)
-	if err != nil {
-		return stacktrace.Propagate(err, "failed to check active recovery sessions")
-	}
-	if len(activeSessions) > 0 {
-		return stacktrace.Propagate(&ente.ErrActiveRecoverySession, "")
-	}
-
 	noticePeriodInHrs := request.RecoveryNoticeInDays * 24
-	err = c.Repo.UpdateRecoveryNotice(ctx, userID, request.EmergencyContactID, noticePeriodInHrs)
+	err := c.Repo.UpdateRecoveryNotice(ctx, userID, request.EmergencyContactID, noticePeriodInHrs)
 	if err != nil {
 		return stacktrace.Propagate(err, "failed to update recovery notice")
 	}

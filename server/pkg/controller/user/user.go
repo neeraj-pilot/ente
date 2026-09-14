@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/ente/museum/pkg/controller/collections"
@@ -34,6 +35,7 @@ import (
 type SpaceAccessResetter interface {
 	ResetUserAccess(ctx context.Context, userID int64) error
 	RevokeBrowserSessions(ctx context.Context, userID int64) error
+	RevokeBrowserSessionsTx(ctx context.Context, tx *sql.Tx, userID int64) error
 }
 
 type SpaceAccountDeletionAccessResetter interface {

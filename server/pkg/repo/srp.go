@@ -11,6 +11,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type PasswordUpdateAuthorization func(context.Context, *sql.Tx) error
+
 func (repo *UserAuthRepository) AddSRPSession(srpUserID uuid.UUID, serverKey string, srpA string) (uuid.UUID, error) {
 	id := uuid.New()
 	_, err := repo.DB.Exec(`
@@ -117,7 +119,7 @@ func (repo *UserAuthRepository) InsertSRPAuth(ctx context.Context, userID int64,
 }
 
 func (repo *UserAuthRepository) InsertOrUpdateSRPAuthAndKeyAttr(ctx context.Context, userID int64, updateKeyAttr ente.UpdateKeysRequest,
-	setup *ente.SRPSetupEntity, clearTokens bool, currentTokenHash []byte, disableSecondFactors bool,
+	setup *ente.SRPSetupEntity, clearTokens bool, currentTokenHash []byte, disableSecondFactors bool, authorize PasswordUpdateAuthorization,
 ) ([]RevokedToken, error) {
 	tx, err := repo.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -134,6 +136,11 @@ func (repo *UserAuthRepository) InsertOrUpdateSRPAuthAndKeyAttr(ctx context.Cont
 				return nil, stacktrace.Propagate(ente.ErrAuthenticationRequired, "token revoked during password update")
 			}
 			return nil, stacktrace.Propagate(err, "")
+		}
+	}
+	if authorize != nil {
+		if err = authorize(ctx, tx); err != nil {
+			return nil, err
 		}
 	}
 	if disableSecondFactors {
