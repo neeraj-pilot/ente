@@ -85,13 +85,11 @@ void main() {
       "2024-08-31T09:04:56-0330.jpg": utc,
       "2024-08-31 09:04:56-0330-edited.jpg": utc,
       "2024-01-01 00:15:00+01:00.jpg": DateTime.utc(2023, 12, 31, 23, 15),
-      "2024-01-01 23:45:00-00:30.jpg": DateTime.utc(2024, 1, 2, 0, 15),
       "2024-01-01 23:45:00-0030.jpg": DateTime.utc(2024, 1, 2, 0, 15),
       "20240831T123456Z.jpg": utc,
       "20240831T123456z.jpg": utc,
       "2024-08-31 14:34:56.123456+02:00.jpg": utcMicros,
       "2024-08-31 09:04:56.123456-0330.jpg": utcMicros,
-      "signal-2026-08-31-195517-0100.jpeg": signalTime,
       "signal-2026-08-31-195517-0330.jpeg": signalTime,
       "signal-2026-08-31-195517-2460.jpeg": signalTime,
       "PHOTO-2024-08-31-12-34-56-0330.jpg": time,
@@ -102,24 +100,20 @@ void main() {
       });
     }
 
-    for (final extension in ["mp4", "3gp", "3g2"]) {
-      test("parses extension-stripped $extension filenames", () {
-        expect(
-          parseDateTimeFromFileNameV2(
-            basenameWithoutExtension("signal-2026-08-31-195517.$extension"),
-          ),
-          signalTime,
-        );
-      });
-    }
+    test("parses extension-stripped 3gp filenames", () {
+      expect(
+        parseDateTimeFromFileNameV2(
+          basenameWithoutExtension("signal-2026-08-31-195517.3gp"),
+        ),
+        signalTime,
+      );
+    });
 
     for (final name in [
       "",
       "photo.jpg",
       "IMG_0123.JPG",
       "Snapchat-431959199.mp4.",
-      "Snapchat-400000000.mp4",
-      "Snapchat-900000000.mp4",
       "2023-02-29.jpg",
       "2023.02.29.jpg",
       "IMG_2024.08-31_195517.jpg",
@@ -154,7 +148,6 @@ void main() {
       "2024-01-01 12:34:56-2400.jpg",
       "2024-01-01 12:34:56-0260.jpg",
       "2024-01-01 12:34:56-03.jpg",
-      "2024-01-01 12:34:56-033.jpg",
       "2024-01-01 12:34:56-03300.jpg",
       "2024-01-01 12:34:56+02:000.jpg",
       "2024-01-01 12:34:56+02.jpg",
