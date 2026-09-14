@@ -11,11 +11,10 @@ import (
 	"github.com/ente/museum/ente"
 	"github.com/ente/stacktrace"
 	"github.com/lib/pq"
-	"github.com/patrickmn/go-cache"
 )
 
 type CollectionLinkRepo struct {
-	Cache      *cache.Cache
+	Cache      *LinkCache
 	DB         *sql.DB
 	albumHost  string
 	lockerHost string
@@ -76,16 +75,12 @@ func (pcr *CollectionLinkRepo) Insert(ctx context.Context,
 }
 
 func (pcr *CollectionLinkRepo) DisableSharing(ctx context.Context, cID int64) error {
-	var accessToken string
-	err := pcr.DB.QueryRowContext(ctx, `UPDATE public_collection_tokens SET is_disabled = true where
-		collection_id = $1 and is_disabled = false RETURNING access_token`, cID).Scan(&accessToken)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
+	_, err := pcr.DB.ExecContext(ctx, `UPDATE public_collection_tokens SET is_disabled = true where
+		collection_id = $1 and is_disabled = false`, cID)
 	if err != nil {
 		return stacktrace.Propagate(err, "failed to disable sharing")
 	}
-	InvalidateLinkCache(pcr.Cache, accessToken)
+	pcr.Cache.Invalidate()
 	return nil
 }
 
@@ -163,7 +158,7 @@ func (pcr *CollectionLinkRepo) UpdatePublicCollectionToken(ctx context.Context, 
 	if err != nil {
 		return stacktrace.Propagate(err, "failed to update public collection token")
 	}
-	InvalidateLinkCache(pcr.Cache, pct.Token)
+	pcr.Cache.Invalidate()
 	return nil
 }
 

@@ -30,7 +30,6 @@ import (
 	"github.com/ente/museum/pkg/utils/time"
 	"github.com/ente/stacktrace"
 	"github.com/gin-gonic/gin"
-	"github.com/patrickmn/go-cache"
 	"github.com/sirupsen/logrus"
 )
 
@@ -41,7 +40,7 @@ type CollectionLinkMiddleware struct {
 	PublicCollectionCtrl *public2.CollectionLinkController
 	CollectionRepo       *repo.CollectionRepository
 	AnonUsersRepo        *socialrepo.AnonUsersRepository
-	Cache                *cache.Cache
+	Cache                *public.LinkCache
 	BillingCtrl          *controller.BillingController
 	DiscordController    *discord.DiscordController
 	RemoteStoreRepo      *remotestore.Repository
@@ -63,7 +62,7 @@ func (m *CollectionLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context
 		shouldCheckDeviceLimit := shouldCheckCollectionLinkDeviceLimit(reqPath)
 		passwordValidated := false
 
-		cacheVersion := public.LinkCacheVersion(m.Cache, accessToken)
+		cacheVersion := m.Cache.Version()
 		cacheKey := computeHashKeyForList([]string{
 			accessToken,
 			clientIP,
@@ -147,7 +146,7 @@ func (m *CollectionLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context
 		}
 
 		if !cacheHit && !shouldCheckDeviceLimit {
-			public.SetLinkCacheValue(m.Cache, accessToken, cacheKey, cacheVersion, publicCollectionSummary)
+			m.Cache.SetIfCurrent(cacheKey, cacheVersion, publicCollectionSummary)
 		}
 
 		publicCtx := ente.PublicAccessContext{

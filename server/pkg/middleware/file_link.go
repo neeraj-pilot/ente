@@ -17,7 +17,6 @@ import (
 	"github.com/ente/museum/pkg/utils/time"
 	"github.com/ente/stacktrace"
 	"github.com/gin-gonic/gin"
-	"github.com/patrickmn/go-cache"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,7 +25,7 @@ var filePasswordWhiteListedURLs = []string{"/file-link/pass-info", "/file-link/v
 type FileLinkMiddleware struct {
 	FileLinkRepo      *public.FileLinkRepository
 	FileLinkCtrl      *publicCtrl.FileLinkController
-	Cache             *cache.Cache
+	Cache             *public.LinkCache
 	BillingCtrl       *controller.BillingController
 	DiscordController *discord.DiscordController
 }
@@ -44,7 +43,7 @@ func (m *FileLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context) stri
 		shouldCheckDeviceLimit := shouldCheckFileLinkDeviceLimit(reqPath)
 		passwordValidated := false
 
-		cacheVersion := public.LinkCacheVersion(m.Cache, accessToken)
+		cacheVersion := m.Cache.Version()
 		cacheKey := computeHashKeyForList([]string{
 			accessToken,
 			clientIP,
@@ -119,7 +118,7 @@ func (m *FileLinkMiddleware) Authenticate(urlSanitizer func(_ *gin.Context) stri
 		}
 
 		if !cacheHit && !shouldCheckDeviceLimit {
-			public.SetLinkCacheValue(m.Cache, accessToken, cacheKey, cacheVersion, fileLinkRow)
+			m.Cache.SetIfCurrent(cacheKey, cacheVersion, fileLinkRow)
 		}
 
 		c.Set(auth.FileLinkAccessKey, &ente.FileLinkAccessContext{

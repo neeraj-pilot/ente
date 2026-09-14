@@ -168,8 +168,7 @@ func (t *TrashRepository) TrashFiles(ctx context.Context, userID int64, trash en
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
-	accessTokens, err := t.FileLinkRepo.DisableLinkForFilesTx(ctx, tx, fileIDs)
-	if err != nil {
+	if err = t.FileLinkRepo.DisableLinkForFilesTx(ctx, tx, fileIDs); err != nil {
 		return stacktrace.Propagate(err, "failed to disable file links for files being trashed")
 	}
 	if photosFileDelta != 0 || lockerFileDelta != 0 || ambiguousFileApp {
@@ -184,7 +183,7 @@ func (t *TrashRepository) TrashFiles(ctx context.Context, userID int64, trash en
 	if err = tx.Commit(); err != nil {
 		return stacktrace.Propagate(err, "")
 	}
-	public.InvalidateLinkCache(t.FileLinkRepo.Cache, accessTokens...)
+	t.FileLinkRepo.Cache.Invalidate()
 	return nil
 }
 

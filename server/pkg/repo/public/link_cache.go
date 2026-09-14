@@ -1,49 +1,38 @@
 package public
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"strconv"
+	"sync/atomic"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/patrickmn/go-cache"
 )
 
-const linkCacheVersionPrefix = "public-link-version:"
+type LinkCache struct {
+	*cache.Cache
+	version atomic.Uint64
+}
 
-func LinkCacheVersion(linkCache *cache.Cache, accessToken string) string {
-	if linkCache == nil {
+func NewLinkCache(defaultExpiration, cleanupInterval time.Duration) *LinkCache {
+	return &LinkCache{Cache: cache.New(defaultExpiration, cleanupInterval)}
+}
+
+func (c *LinkCache) Version() string {
+	if c == nil {
 		return ""
 	}
-	key := linkCacheVersionKey(accessToken)
-	for {
-		if version, found := linkCache.Get(key); found {
-			return version.(string)
-		}
-		version := uuid.NewString()
-		if linkCache.Add(key, version, cache.DefaultExpiration) == nil {
-			return version
-		}
+	return strconv.FormatUint(c.version.Load(), 10)
+}
+
+func (c *LinkCache) Invalidate() {
+	if c != nil {
+		c.version.Add(1)
 	}
 }
 
-func InvalidateLinkCache(linkCache *cache.Cache, accessTokens ...string) {
-	if linkCache == nil || len(accessTokens) == 0 {
-		return
+func (c *LinkCache) SetIfCurrent(key, version string, value any) {
+	c.Set(key, value, cache.DefaultExpiration)
+	if c.Version() != version {
+		c.Delete(key)
 	}
-	version := uuid.NewString()
-	for _, accessToken := range accessTokens {
-		linkCache.Set(linkCacheVersionKey(accessToken), version, cache.DefaultExpiration)
-	}
-}
-
-func SetLinkCacheValue(linkCache *cache.Cache, accessToken, cacheKey, version string, value interface{}) {
-	linkCache.Set(cacheKey, value, cache.DefaultExpiration)
-	if LinkCacheVersion(linkCache, accessToken) != version {
-		linkCache.Delete(cacheKey)
-	}
-}
-
-func linkCacheVersionKey(accessToken string) string {
-	hash := sha256.Sum256([]byte(accessToken))
-	return linkCacheVersionPrefix + hex.EncodeToString(hash[:])
 }
