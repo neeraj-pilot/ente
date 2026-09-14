@@ -1,5 +1,6 @@
 import 'package:ente_pure_utils/ente_pure_utils.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart';
 
 void main() {
   group('ISO week boundaries', () {
@@ -33,103 +34,82 @@ void main() {
   });
 
   group("filename dates", () {
+    final date = DateTime(2024, 8, 31);
+    final time = DateTime(2024, 8, 31, 12, 34, 56);
+    final utc = DateTime.utc(2024, 8, 31, 12, 34, 56);
+    final signalTime = DateTime(2026, 8, 31, 19, 55, 17);
+    final millis = time.add(const Duration(milliseconds: 789));
+    final tenths = time.add(const Duration(milliseconds: 100));
+    const fraction = Duration(microseconds: 123456);
+    final micros = time.add(fraction);
+    final utcMicros = utc.add(fraction);
     final cases = {
-      "IMG-20221109-WA0000": DateTime(2022, 11, 9),
-      "Screenshot_20220807-195908_Firefox": DateTime(2022, 8, 7, 19, 59, 8),
-      "Screenshot_20220507-195908": DateTime(2022, 5, 7, 19, 59, 8),
-      "2022-02-18 16.00.12-DCMX.png": DateTime(2022, 2, 18, 16, 0, 12),
-      "20221107_231730": DateTime(2022, 11, 7, 23, 17, 30),
-      "2020-11-01 02.31.02": DateTime(2020, 11, 1, 2, 31, 2),
-      "IMG_20210921_144423": DateTime(2021, 9, 21, 14, 44, 23),
-      "2019-10-31 155703": DateTime(2019, 10, 31, 15, 57, 3),
-      "IMG_20210921_144423_783": DateTime(2021, 9, 21, 14, 44, 23),
-      "Screenshot_2022-06-21-16-51-29-164_newFormat.heic": DateTime(
-        2022,
-        6,
-        21,
-        16,
-        51,
-        29,
-      ),
-      "Screenshot 20221106 211633.com.google.android.apps.nbu.paisa.user.jpg":
-          DateTime(2022, 11, 6, 21, 16, 33),
-      "signal-2022-12-17-15-16-04-718.jpg": DateTime(2022, 12, 17, 15, 16, 4),
-      "signal-2022-12-17-15-16-04-718-2.jpg": DateTime(2022, 12, 17, 15, 16, 4),
-      "signal-2026-08-31-195517.jpeg": DateTime(2026, 8, 31, 19, 55, 17),
-      "signal-2026-08-31-195517-1.jpeg": DateTime(2026, 8, 31, 19, 55, 17),
-      "signal-2026-08-31-195517.mp4": DateTime(2026, 8, 31, 19, 55, 17),
-      "signal-2026-08-31-195517-12.mp4": DateTime(2026, 8, 31, 19, 55, 17),
-      "PHOTO-2026-07-02-15-15-31.jpg": DateTime(2026, 7, 2, 15, 15, 31),
-      "PHOTO-2026-07-02-15-15-31-1.jpg": DateTime(2026, 7, 2, 15, 15, 31),
+      "IMG-20240831-WA0000": date,
+      "Screenshot_20240831-123456_Firefox": time,
+      "Screenshot_20240831-123456": time,
+      "2024-08-31 12.34.56-DCMX.png": time,
+      "20240831_123456": time,
+      "2024-08-31 12.34.56": time,
+      "IMG_20240831_123456": time,
+      "2024-08-31 123456": time,
+      "IMG_20240831_123456_783": time,
+      "Screenshot_2024-08-31-12-34-56-164_newFormat.heic": time,
+      "Screenshot 20240831 123456.com.google.android.apps.nbu.paisa.user.jpg":
+          time,
+      "signal-2024-08-31-12-34-56-718.jpg": time,
+      "signal-2024-08-31-12-34-56-718-2.jpg": time,
+      "signal-2026-08-31-195517.jpeg": signalTime,
+      "signal-2026-08-31-195517-1.jpeg": signalTime,
+      "signal-2026-08-31-195517.mp4": signalTime,
+      "signal-2026-08-31-195517-12.mp4": signalTime,
+      "PHOTO-2024-08-31-12-34-56.jpg": time,
+      "PHOTO-2024-08-31-12-34-56-1.jpg": time,
       "2024-02-29 23:59:59.jpg": DateTime(2024, 2, 29, 23, 59, 59),
       "2000-02-29.jpg": DateTime(2000, 2, 29),
-      "2024-01-01.jpg": DateTime(2024, 1, 1),
-      "20240101.mp4": DateTime(2024, 1, 1),
-      "IMG-20240101-WA0001.jpg": DateTime(2024, 1, 1),
-      "IMG_2024.08.31_195517.jpg": DateTime(2024, 8, 31, 19, 55, 17),
+      "2024-08-31.jpg": date,
+      "20240831.mp4": date,
+      "IMG-20240831-WA0001.jpg": date,
+      "IMG_2024.08.31_123456.jpg": time,
       "2024.02.29.jpg": DateTime(2024, 2, 29),
-      "2024-01-01-edited.jpg": DateTime(2024, 1, 1),
-      "IMG_20240101_HDR.jpg": DateTime(2024, 1, 1),
-      "IMG_20240101_HDR": DateTime(2024, 1, 1),
-      "2024-01-01 12:34:56,789.jpg": DateTime(2024, 1, 1, 12, 34, 56, 789),
-      "2024-01-01 12:34:56.1.jpg": DateTime(2024, 1, 1, 12, 34, 56, 100),
-      "2024-01-01 12:34:56.123456.jpg": DateTime(
-        2024,
-        1,
-        1,
-        12,
-        34,
-        56,
-        123,
-        456,
-      ),
-      "2024-01-01 12:34:56+02:00.jpg": DateTime.utc(2024, 1, 1, 10, 34, 56),
-      "2024-01-01 12:34:56+0200.jpg": DateTime.utc(2024, 1, 1, 10, 34, 56),
-      "2024-01-01 12:34:56-03:30.jpg": DateTime.utc(2024, 1, 1, 16, 4, 56),
-      "2024-01-01 12:34:56-0330.jpg": DateTime.utc(2024, 1, 1, 16, 4, 56),
-      "20240101T123456-0330.jpg": DateTime.utc(2024, 1, 1, 16, 4, 56),
-      "2024-01-01T12:34:56-0330.jpg": DateTime.utc(2024, 1, 1, 16, 4, 56),
-      "2024-01-01 12:34:56-0330-edited.jpg": DateTime.utc(
-        2024,
-        1,
-        1,
-        16,
-        4,
-        56,
-      ),
+      "2024-08-31-edited.jpg": date,
+      "IMG_20240831_HDR.jpg": date,
+      "IMG_20240831_HDR": date,
+      "2024-08-31 12:34:56,789.jpg": millis,
+      "2024-08-31 12:34:56.1.jpg": tenths,
+      "2024-08-31 12:34:56.123456.jpg": micros,
+      "2024-08-31 14:34:56+02:00.jpg": utc,
+      "2024-08-31 14:34:56+0200.jpg": utc,
+      "2024-08-31 09:04:56-03:30.jpg": utc,
+      "2024-08-31 09:04:56-0330.jpg": utc,
+      "20240831T090456-0330.jpg": utc,
+      "2024-08-31T09:04:56-0330.jpg": utc,
+      "2024-08-31 09:04:56-0330-edited.jpg": utc,
       "2024-01-01 00:15:00+01:00.jpg": DateTime.utc(2023, 12, 31, 23, 15),
       "2024-01-01 23:45:00-00:30.jpg": DateTime.utc(2024, 1, 2, 0, 15),
       "2024-01-01 23:45:00-0030.jpg": DateTime.utc(2024, 1, 2, 0, 15),
-      "20240101T123456Z.jpg": DateTime.utc(2024, 1, 1, 12, 34, 56),
-      "20240101T123456z.jpg": DateTime.utc(2024, 1, 1, 12, 34, 56),
-      "2024-01-01 12:34:56.123456+02:00.jpg": DateTime.utc(
-        2024,
-        1,
-        1,
-        10,
-        34,
-        56,
-        123,
-        456,
-      ),
-      "2024-01-01 12:34:56.123456-0330.jpg": DateTime.utc(
-        2024,
-        1,
-        1,
-        16,
-        4,
-        56,
-        123,
-        456,
-      ),
-      "signal-2026-08-31-195517-0100.jpeg": DateTime(2026, 8, 31, 19, 55, 17),
-      "signal-2026-08-31-195517-0330.jpeg": DateTime(2026, 8, 31, 19, 55, 17),
-      "signal-2026-08-31-195517-2460.jpeg": DateTime(2026, 8, 31, 19, 55, 17),
-      "PHOTO-2026-07-02-15-15-31-0330.jpg": DateTime(2026, 7, 2, 15, 15, 31),
+      "20240831T123456Z.jpg": utc,
+      "20240831T123456z.jpg": utc,
+      "2024-08-31 14:34:56.123456+02:00.jpg": utcMicros,
+      "2024-08-31 09:04:56.123456-0330.jpg": utcMicros,
+      "signal-2026-08-31-195517-0100.jpeg": signalTime,
+      "signal-2026-08-31-195517-0330.jpeg": signalTime,
+      "signal-2026-08-31-195517-2460.jpeg": signalTime,
+      "PHOTO-2024-08-31-12-34-56-0330.jpg": time,
     };
     for (final entry in cases.entries) {
       test("parses ${entry.key}", () {
         expect(parseDateTimeFromFileNameV2(entry.key), entry.value);
+      });
+    }
+
+    for (final extension in ["mp4", "3gp", "3g2"]) {
+      test("parses extension-stripped $extension filenames", () {
+        expect(
+          parseDateTimeFromFileNameV2(
+            basenameWithoutExtension("signal-2026-08-31-195517.$extension"),
+          ),
+          signalTime,
+        );
       });
     }
 
