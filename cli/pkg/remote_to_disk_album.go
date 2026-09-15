@@ -27,6 +27,10 @@ func (c *ClICtrl) createLocalFolderForRemoteAlbums(ctx context.Context, account 
 	filter := ctx.Value(model.FilterKey).(model.Filter)
 	for _, album := range albums {
 		if album.IsDeleted {
+			if (filter.ExcludeShared && album.IsShared) ||
+				(filter.ExcludeHidden && album.IsHidden()) {
+				continue
+			}
 			if meta, ok := albumIDToMetaMap[album.ID]; ok {
 				log.Printf("Deleting album %s as it is deleted", meta.AlbumName)
 				if err = os.RemoveAll(filepath.Join(path, meta.FolderName)); err != nil {

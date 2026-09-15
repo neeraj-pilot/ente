@@ -43,6 +43,9 @@ func (c *ClICtrl) fetchRemoteCollections(ctx context.Context) error {
 			if putErr := c.PutValue(ctx, model.RemoteAlbums, []byte(strconv.FormatInt(album.ID, 10)), encoding.MustMarshalJSON(album)); putErr != nil {
 				return putErr
 			}
+			if putErr := c.PutConfigValue(ctx, fmt.Sprintf(model.CollectionsFileSyncKeyFmt, album.ID), []byte("0")); putErr != nil {
+				return putErr
+			}
 			continue
 		}
 		album, mapErr := mapper.MapCollectionToAlbum(ctx, collection, c.KeyHolder)
