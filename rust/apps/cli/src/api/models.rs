@@ -329,7 +329,6 @@ pub struct Collection {
     pub name_decryption_nonce: Option<String>,
     #[serde(rename = "type")]
     pub collection_type: String,
-    pub attributes: Option<CollectionAttributes>,
     pub sharees: Option<Vec<CollectionUser>>,
     #[serde(rename = "publicURLs")]
     pub public_urls: Option<Vec<PublicUrl>>,
@@ -340,11 +339,6 @@ pub struct Collection {
     pub pub_magic_metadata: Option<MagicMetadata>,
     pub shared_magic_metadata: Option<MagicMetadata>,
     pub app: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct CollectionAttributes {
-    pub version: i32,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -467,4 +461,41 @@ pub struct GetFileUrlResponse {
 #[derive(Debug, Deserialize)]
 pub struct GetThumbnailUrlResponse {
     pub url: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+
+    use super::Collection;
+
+    fn collection_json(attributes: Value, is_deleted: bool) -> Value {
+        json!({
+            "id": 1,
+            "owner": { "id": 2, "email": "" },
+            "encryptedKey": "key",
+            "type": "album",
+            "attributes": attributes,
+            "updationTime": 3,
+            "isDeleted": is_deleted
+        })
+    }
+
+    #[test]
+    fn collection_accepts_active_and_compatibility_tombstone_payloads() {
+        for payload in [
+            collection_json(json!({ "version": 1 }), false),
+            collection_json(json!({}), true),
+        ] {
+            serde_json::from_value::<Collection>(payload).unwrap();
+        }
+    }
+
+    #[test]
+    fn collection_still_requires_encrypted_key() {
+        let mut payload = collection_json(json!({ "version": 1 }), false);
+        payload.as_object_mut().unwrap().remove("encryptedKey");
+
+        assert!(serde_json::from_value::<Collection>(payload).is_err());
+    }
 }
