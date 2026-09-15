@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:ente_auth/ente_theme_data.dart';
 import 'package:ente_auth/ui/utils/icon_utils.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -50,6 +53,31 @@ void main() {
     }
 
     expect(missingAssets, isEmpty);
+  });
+
+  testWidgets('black icons use the theme icon color in dark mode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: darkThemeData,
+        home: Builder(
+          builder: (context) => IconUtils.instance.getSVGIcon(
+            'assets/simple-icons/icons/apple.svg',
+            'Apple',
+            '000000',
+            24,
+            context,
+          ),
+        ),
+      ),
+    );
+
+    final icon = tester.widget<SvgPicture>(find.byType(SvgPicture));
+    expect(
+      icon.colorFilter,
+      ColorFilter.mode(darkThemeData.colorScheme.iconColor, BlendMode.srcIn),
+    );
   });
 }
 
