@@ -10,6 +10,7 @@ import "package:photos/models/location/location.dart";
 import "package:photos/models/metadata/file_magic.dart";
 import "package:photos/module/metadata/asset_date_times.dart";
 import "package:photos/module/metadata/exif.dart";
+import "package:photos/module/metadata/filename.dart";
 
 EnteFile fileFromAsset(String deviceFolder, AssetEntity asset) {
   final resolvedDateTimes = resolveAssetDateTimes(asset);
@@ -57,7 +58,7 @@ void applyCreationTimeMetadata(EnteFile file, ParsedExifDateTime? exifTime) {
   // Try to get the timestamp from fileName. In case of iOS, file names are
   // generic IMG_XXXX, so only parse it on Android devices
   if (!hasExifTime && Platform.isAndroid && file.title != null) {
-    final timeFromFileName = parseDateTimeFromFileNameV2(
+    final timeFromFileName = parseDateTimeFromFileName(
       basenameWithoutExtension(file.title!),
     );
     if (timeFromFileName != null) {

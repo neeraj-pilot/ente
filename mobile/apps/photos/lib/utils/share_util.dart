@@ -1,7 +1,6 @@
 import 'dart:async';
 import "dart:io";
 
-import 'package:ente_pure_utils/ente_pure_utils.dart';
 import 'package:flutter/widgets.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart';
@@ -12,6 +11,7 @@ import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
 import 'package:photos/module/download/file.dart';
 import 'package:photos/module/metadata/exif.dart';
+import 'package:photos/module/metadata/filename.dart';
 import 'package:photos/module/metadata/local_file.dart';
 import 'package:photos/utils/dialog_util.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -218,7 +218,7 @@ Future<List<EnteFile>> convertIncomingSharedMediaToFile(
       enteFile.duration = (media.duration ?? 0) ~/ 1000;
     }
     if (enteFile.creationTime == null || enteFile.creationTime == 0) {
-      final parsedDateTime = parseDateTimeFromFileNameV2(
+      final parsedDateTime = parseDateTimeFromFileName(
         basenameWithoutExtension(media.path),
       );
       if (parsedDateTime != null) {

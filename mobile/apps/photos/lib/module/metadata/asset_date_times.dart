@@ -1,10 +1,10 @@
 import "dart:math";
 
-import "package:ente_pure_utils/ente_pure_utils.dart";
 import "package:logging/logging.dart";
 import "package:path/path.dart";
 import "package:photo_manager/photo_manager.dart";
 import "package:photos/core/constants.dart";
+import "package:photos/module/metadata/filename.dart";
 
 final _logger = Logger("AssetDateTimes");
 
@@ -79,7 +79,7 @@ int _resolveCreationTime(
       ? modificationTime
       : uploadTime;
   try {
-    final parsedDateTime = parseDateTimeFromFileNameV2(
+    final parsedDateTime = parseDateTimeFromFileName(
       basenameWithoutExtension(asset.title ?? ""),
     );
     return parsedDateTime?.microsecondsSinceEpoch ?? resolvedCreationTime;
