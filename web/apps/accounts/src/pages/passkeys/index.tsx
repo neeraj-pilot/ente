@@ -70,9 +70,9 @@ const Page: React.FC = () => {
     }, [showMiniDialog]);
 
     useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-
-        const token = urlParams.get("token");
+        const token =
+            new URLSearchParams(window.location.hash.slice(1)).get("token") ??
+            new URLSearchParams(window.location.search).get("token");
         if (token) {
             setToken(token);
         } else {
@@ -92,9 +92,18 @@ const Page: React.FC = () => {
                     redirectURL.pathname += "/";
                 }
                 redirectURL.pathname += "passkeys";
-                redirectURL.search = new URLSearchParams({
+                const params = new URLSearchParams({
                     token: token!,
                 }).toString();
+                if (
+                    new URLSearchParams(window.location.hash.slice(1)).has(
+                        "token",
+                    )
+                ) {
+                    redirectURL.hash = params;
+                } else {
+                    redirectURL.search = params;
+                }
                 window.location.href = redirectURL.toString();
                 return;
             }

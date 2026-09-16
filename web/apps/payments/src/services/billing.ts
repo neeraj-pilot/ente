@@ -14,7 +14,10 @@ export const parseAndHandleRequest = async () => {
             "payment_intent_client_secret",
         );
         const productID = urlParams.get("productID");
-        const paymentToken = urlParams.get("paymentToken");
+        const paymentToken =
+            new URLSearchParams(window.location.hash.slice(1)).get(
+                "paymentToken",
+            ) ?? urlParams.get("paymentToken");
         const action = urlParams.get("action");
         const redirectURL = urlParams.get("redirectURL");
         const accountCountry = urlParams.get("accountCountry");
@@ -46,14 +49,14 @@ export const parseAndHandleRequest = async () => {
 
         if (!action && !paymentToken && !productID && !redirectURL) {
             console.log(
-                "None of the required query parameters were supplied, redirecting to the ente.com",
+                "None of the required parameters were supplied, redirecting to the ente.com",
             );
             redirectHome();
             return;
         }
 
         if (!action || !paymentToken || !productID || !redirectURL) {
-            throw Error("Required query parameter was not provided");
+            throw Error("Required parameter was not provided");
         }
 
         switch (action) {
@@ -307,6 +310,7 @@ const stripeConfirmationReturnURL = (
     accountCountry: StripeAccountCountry,
 ) => {
     const url = new URL(window.location.href);
+    url.hash = "";
     url.searchParams.delete("paymentToken");
     url.searchParams.delete("productID");
     url.searchParams.delete("action");
