@@ -3,6 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('show waits for a frame before completing', (tester) async {
+    final context = await _pumpPage(tester);
+    final dialog = _dialog(context, 'Pending');
+    var completed = false;
+    final shown = dialog.show().whenComplete(() {
+      completed = true;
+    });
+
+    await tester.idle();
+    expect(completed, isFalse);
+    await tester.pump();
+    expect(await shown, isTrue);
+
+    final hidden = dialog.hide();
+    await tester.pumpAndSettle();
+    expect(await hidden, isTrue);
+  });
+
   testWidgets('hide before the first frame removes the dialog', (tester) async {
     final context = await _pumpPage(tester);
     final dialog = _dialog(context, 'Pending');

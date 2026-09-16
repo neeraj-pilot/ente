@@ -175,6 +175,7 @@ class ProgressDialog {
         if (identical(_route, route)) _route = null;
       }),
     );
+    await WidgetsBinding.instance.endOfFrame;
     if (_showLogs) debugPrint('ProgressDialog shown');
     return true;
   }
