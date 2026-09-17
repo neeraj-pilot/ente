@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:ente_auth/models/code.dart';
 import 'package:ente_auth/theme/ente_theme.dart';
 import 'package:ente_auth/ui/components/scanner_camera_view.dart';
-import 'package:ente_auth/ui/settings/data/import/google_auth_import.dart';
+import 'package:ente_auth/ui/settings/data/import/google_auth_migration_tracker.dart';
+import 'package:ente_auth/ui/settings/data/import/google_auth_qr_parser.dart';
 import 'package:ente_auth/utils/toast_util.dart';
 import 'package:ente_qr_scanner/ente_qr_scanner.dart';
 import 'package:ente_strings/ente_strings.dart';
@@ -19,6 +21,7 @@ class ScannerGoogleAuthPage extends StatefulWidget {
 class ScannerGoogleAuthPageState extends State<ScannerGoogleAuthPage> {
   EnteQrScannerController? controller;
   StreamSubscription<String>? _scanSubscription;
+  final _migrationTracker = GoogleAuthMigrationTracker();
   bool _hasCompletedScan = false;
 
   // Pause the camera on Android and resume it on iOS for hot reload.
@@ -35,6 +38,11 @@ class ScannerGoogleAuthPageState extends State<ScannerGoogleAuthPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.strings;
+    final progress = _migrationTracker.batchSize == 0
+        ? l10n.scanACode
+        : '${l10n.scanACode} '
+              '(${_migrationTracker.receivedBatchCount}/'
+              '${_migrationTracker.batchSize})';
     return Scaffold(
       appBar: AppBar(title: Text(l10n.scan)),
       body: Column(
@@ -50,7 +58,7 @@ class ScannerGoogleAuthPageState extends State<ScannerGoogleAuthPage> {
               onScannerCreated: _onScannerCreated,
             ),
           ),
-          Expanded(flex: 1, child: Center(child: Text(l10n.scanACode))),
+          Expanded(flex: 1, child: Center(child: Text(progress))),
         ],
       ),
     );
@@ -76,13 +84,20 @@ class ScannerGoogleAuthPageState extends State<ScannerGoogleAuthPage> {
 
     try {
       final migration = parseGoogleAuthMigration(qrCode);
-      _completeWithMigration(migration);
+      final receivedBatchCount = _migrationTracker.receivedBatchCount;
+      final codes = _migrationTracker.add(migration);
+      if (codes != null) {
+        _completeWithCodes(codes);
+      } else if (receivedBatchCount != _migrationTracker.receivedBatchCount &&
+          mounted) {
+        setState(() {});
+      }
     } catch (e) {
-      _completeWithError(e);
+      _showError(e);
     }
   }
 
-  void _completeWithMigration(GoogleAuthMigration migration) {
+  void _completeWithCodes(List<Code> codes) {
     if (_hasCompletedScan) {
       return;
     }
@@ -91,19 +106,11 @@ class ScannerGoogleAuthPageState extends State<ScannerGoogleAuthPage> {
     if (!mounted) {
       return;
     }
-    Navigator.of(context).pop(migration);
+    Navigator.of(context).pop(codes);
   }
 
-  void _completeWithError(Object error) {
-    if (_hasCompletedScan) {
-      return;
-    }
-    _hasCompletedScan = true;
-    _cancelScanSubscription();
-    if (!mounted) {
-      return;
-    }
-    Navigator.of(context).pop();
+  void _showError(Object error) {
+    if (!mounted) return;
     showToastAboveBottomControls(context, "${context.strings.error} $error");
   }
 

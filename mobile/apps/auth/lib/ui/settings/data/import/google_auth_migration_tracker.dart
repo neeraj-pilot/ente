@@ -1,22 +1,59 @@
+import 'package:ente_auth/models/code.dart';
 import 'package:ente_auth/ui/settings/data/import/google_auth_qr_parser.dart';
 
 class GoogleAuthMigrationTracker {
-  final Map<(int, int), Set<int>> _importedBatchIndices = {};
+  int? _batchId;
+  int? _batchSize;
+  final Map<int, List<Code>> _batches = {};
+
+  int get receivedBatchCount => _batches.length;
+  int get batchSize => _batchSize ?? 0;
+
+  List<Code>? add(GoogleAuthMigration migration) {
+    if (_batchId != null &&
+        (_batchId != migration.batchId || _batchSize != migration.batchSize)) {
+      throw const FormatException(
+        'QR code belongs to a different Google Authenticator export',
+      );
+    }
+    if (migration.batchSize == 0) {
+      _reset();
+      return migration.codes;
+    }
+    if (!migration.hasValidBatchMetadata ||
+        (migration.batchSize > 1 && migration.batchId == 0)) {
+      throw const FormatException('Invalid Google Authenticator export batch');
+    }
+    if (migration.batchSize == 1) {
+      _reset();
+      return migration.codes;
+    }
+
+    _batchId = migration.batchId;
+    _batchSize = migration.batchSize;
+    _batches.putIfAbsent(migration.batchIndex, () => migration.codes);
+    if (_batches.length != migration.batchSize) return null;
+
+    final codes = [
+      for (var index = 0; index < migration.batchSize; index++)
+        ..._batches[index]!,
+    ];
+    _reset();
+    return codes;
+  }
 
   bool record(GoogleAuthMigration migration) {
     if (!migration.hasValidBatchMetadata) return false;
-    if (migration.batchSize == 1) return true;
-    if (migration.batchId == 0) return false;
+    try {
+      return add(migration) != null;
+    } on FormatException {
+      return false;
+    }
+  }
 
-    final key = (migration.batchId, migration.batchSize);
-    final importedIndices = _importedBatchIndices.putIfAbsent(
-      key,
-      () => <int>{},
-    );
-    importedIndices.add(migration.batchIndex);
-    if (importedIndices.length != migration.batchSize) return false;
-
-    _importedBatchIndices.remove(key);
-    return true;
+  void _reset() {
+    _batchId = null;
+    _batchSize = null;
+    _batches.clear();
   }
 }
