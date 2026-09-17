@@ -1,14 +1,15 @@
+import EnteFonts
 import SwiftUI
 
 struct EnteBranding: View {
     var body: some View {
         VStack(alignment: .leading, spacing: -4) {
             Text("ente")
-                .font(FontUtils.montserratExtraBold(size: 40))
+                .font(EnteFont.montserrat(fixedSize: 40))
                 .foregroundColor(.black)
 
             Text("photos")
-                .font(FontUtils.montserratBold(size: 20))
+                .font(EnteFont.montserrat(fixedSize: 20))
                 .foregroundColor(.white)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)

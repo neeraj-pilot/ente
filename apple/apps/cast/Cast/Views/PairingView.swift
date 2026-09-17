@@ -1,3 +1,4 @@
+import EnteFonts
 import SwiftUI
 import UIKit
 
@@ -24,15 +25,17 @@ struct PairingView: View {
                             VStack(spacing: -5) {
                                 Text("Ready to")
                                     .font(
-                                        FontUtils
-                                            .montserratExtraBold(size: geometry.size.width * 0.035)
+                                        EnteFont.montserrat(
+                                            fixedSize: geometry.size.width * 0.035
+                                        )
                                     )
                                     .foregroundColor(.white)
 
                                 Text("Connect?")
                                     .font(
-                                        FontUtils
-                                            .montserratExtraBold(size: geometry.size.width * 0.065)
+                                        EnteFont.montserrat(
+                                            fixedSize: geometry.size.width * 0.065
+                                        )
                                     )
                                     .foregroundColor(.white)
                             }
@@ -110,7 +113,12 @@ struct PairingView: View {
                                 .frame(height: geometry.size.height * 0.06)
 
                             Text("Visit ente.com/cast for help")
-                                .font(FontUtils.interMedium(size: geometry.size.width * 0.012))
+                                .font(
+                                    EnteFont.inter(
+                                        fixedSize: geometry.size.width * 0.012,
+                                        weight: .medium
+                                    )
+                                )
                                 .foregroundColor(.white)
 
                             Spacer()
@@ -189,7 +197,12 @@ struct InstructionStep: View {
             }
 
             Text(text)
-                .font(FontUtils.interMedium(size: geometry.size.width * 0.012))
+                .font(
+                    EnteFont.inter(
+                        fixedSize: geometry.size.width * 0.012,
+                        weight: .medium
+                    )
+                )
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
         }

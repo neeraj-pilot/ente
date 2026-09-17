@@ -36,3 +36,7 @@ include(":ensu")
 project(":ensu").projectDir = file("apps/ensu")
 
 include(":ensu:app", ":ensu:rust")
+
+include(":fonts")
+
+project(":fonts").projectDir = file("packages/fonts")

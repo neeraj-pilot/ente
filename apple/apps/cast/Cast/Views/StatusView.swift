@@ -1,3 +1,4 @@
+import EnteFonts
 import SwiftUI
 
 struct StatusView: View {
@@ -27,13 +28,13 @@ struct StatusView: View {
                         .padding(.bottom, 16)
 
                     Text(title)
-                        .font(FontUtils.interSemiBold(size: 42))
+                        .font(EnteFont.inter(fixedSize: 42, weight: .semibold))
                         .foregroundColor(.black)
                         .multilineTextAlignment(.center)
 
                     if !message.isEmpty {
                         Text(message)
-                            .font(FontUtils.interRegular(size: 20))
+                            .font(EnteFont.inter(fixedSize: 20))
                             .foregroundColor(.gray)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 60)
