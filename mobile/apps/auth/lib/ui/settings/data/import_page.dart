@@ -11,6 +11,7 @@ enum ImportType {
   googleAuthenticator,
   aegis,
   twoFas,
+  twoStable,
   bitwarden,
   lastpass,
   proton,
@@ -25,6 +26,7 @@ class ImportCodePage extends StatelessWidget {
     ImportType.plainText,
     ImportType.encrypted,
     ImportType.twoFas,
+    ImportType.twoStable,
     ImportType.aegis,
     ImportType.andOTP,
     ImportType.bitwarden,
@@ -49,6 +51,8 @@ class ImportCodePage extends StatelessWidget {
         return 'Aegis Authenticator';
       case ImportType.twoFas:
         return '2FAS Authenticator';
+      case ImportType.twoStable:
+        return 'Authenticator App (2Stable)';
       case ImportType.bitwarden:
         return 'Bitwarden';
       case ImportType.lastpass:

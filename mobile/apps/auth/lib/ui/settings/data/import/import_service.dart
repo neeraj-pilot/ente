@@ -9,6 +9,7 @@ import 'package:ente_auth/ui/settings/data/import/plain_text_import.dart';
 import 'package:ente_auth/ui/settings/data/import/proton_import.dart';
 import 'package:ente_auth/ui/settings/data/import/raivo_plain_text_import.dart';
 import 'package:ente_auth/ui/settings/data/import/two_fas_import.dart';
+import 'package:ente_auth/ui/settings/data/import/two_stable_import.dart';
 import 'package:ente_auth/ui/settings/data/import_page.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -37,6 +38,9 @@ class ImportService {
         return false;
       case ImportType.twoFas:
         await show2FasImportInstruction(context);
+        return false;
+      case ImportType.twoStable:
+        await showTwoStableImportInstruction(context);
         return false;
       case ImportType.bitwarden:
         await showBitwardenImportInstruction(context);

@@ -2035,6 +2035,7 @@
   "importAccountPageTitle": "Enter account details",
   "importAegisGuide": "Use the \"Export the vault\" option in Aegis's Settings.\n\nIf your vault is encrypted, you will need to enter vault password to decrypt the vault.",
   "importAndOTPGuide": "Export your backup from andOTP using the \"Backup\" option in Settings.\n\nIf your backup is encrypted, you will need to enter the backup password to decrypt it.",
+  "importAuthenticatorAppGuide": "Create a backup in Authenticator App using \"Settings > Import / Export > Create Backup File\", then select the JSON file.",
   "important": "Important",
   "importantNotSupportedForSharedFiles": "Important is not supported for shared files",
   "importBitwardenGuide": "Use the \"Export vault\" option within Bitwarden Tools and import the unencrypted JSON file.",
