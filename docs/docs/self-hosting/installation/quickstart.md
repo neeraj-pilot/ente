@@ -24,7 +24,7 @@ The above `curl` command does the following:
 1. Creates a directory `./my-ente` in working directory.
 2. Starts the containers required to run Ente upon prompting.
 
-New quickstart installations use [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, for local S3-compatible object storage. Existing `my-ente/compose.yaml` files are not rewritten; follow the [migration guide](/self-hosting/administration/object-storage#migrating-a-quickstart-from-minio) before changing an existing MinIO installation.
+New quickstarts use [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, for local S3-compatible object storage; existing `my-ente/compose.yaml` files are unchanged.
 
 You should be able to access Ente Photos at [http://localhost:3000](http://localhost:3000) or [http://machine-ip:3000](http://<machine-ip>:3000).
 

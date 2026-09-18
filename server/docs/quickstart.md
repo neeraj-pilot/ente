@@ -48,7 +48,7 @@ It then starts the following services. Four ports are exposed:
 
 Docker downloads the required images automatically the first time.
 
-The generated Compose file uses [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, for local S3-compatible storage. It retains the `minio` service, volume, and environment variable names for configuration compatibility.
+New quickstarts use [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, while retaining the existing `minio` service, volume, and environment variable names. Existing quickstart directories are unchanged.
 
 You can do a quick smoke test by pinging the API:
 
@@ -107,8 +107,6 @@ This sample setup is only intended to make it easy for people to get started. If
 > [!IMPORTANT]
 >
 > Keep a plaintext backup of your photos until you are sure of what you are doing and have a [backup strategy](https://ente.com/help/self-hosting/faq/backup) worked out.
-
-Existing quickstart installations are not modified by rerunning the script. If your `compose.yaml` still uses MinIO, follow the [MinIO to Silo migration guide](https://ente.com/help/self-hosting/administration/object-storage#migrating-a-quickstart-from-minio) before changing its image.
 
 ## Next steps
 

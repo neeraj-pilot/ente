@@ -18,8 +18,6 @@ Thus, when thinking about backups:
 
 A common oversight is taking a lot of care for backing up the object storage, even going as far as enabling replication and backing up the the multiple object storage volumes, but not applying the same care to the database backup.
 
-Before migrating object-storage software, stop writes and capture PostgreSQL and object storage as one consistent recovery point. A rollback must restore both parts from that same point.
-
 While the actual encrypted photos are indeed stored in the object storage, **this encrypted data will not be usable without the database** since the database contains information like a file specific encryption key.
 
 Viewed differently, to decrypt your data you need three pieces of information:
