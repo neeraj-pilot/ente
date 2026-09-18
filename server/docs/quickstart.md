@@ -44,9 +44,11 @@ It then starts the following services. Four ports are exposed:
 | web      | `:3000` | Ente Photos web app    |
 | web      | `:3002` | Ente public albums app |
 | postgres |         | Database               |
-| minio    | `:3200` | Object storage         |
+| minio    | `:3200` | Silo object storage    |
 
 Docker downloads the required images automatically the first time.
+
+The generated Compose file uses [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, for local S3-compatible storage. It retains the `minio` service, volume, and environment variable names for configuration compatibility.
 
 You can do a quick smoke test by pinging the API:
 
@@ -105,6 +107,8 @@ This sample setup is only intended to make it easy for people to get started. If
 > [!IMPORTANT]
 >
 > Keep a plaintext backup of your photos until you are sure of what you are doing and have a [backup strategy](https://ente.com/help/self-hosting/faq/backup) worked out.
+
+Existing quickstart installations are not modified by rerunning the script. If your `compose.yaml` still uses MinIO, follow the [MinIO to Silo migration guide](https://ente.com/help/self-hosting/administration/object-storage#migrating-a-quickstart-from-minio) before changing its image.
 
 ## Next steps
 

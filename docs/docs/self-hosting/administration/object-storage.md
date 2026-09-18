@@ -7,7 +7,7 @@ description: Configure Object Storage for storing files along with some troubles
 
 Ente relies on [S3-compatible](https://docs.aws.amazon.com/s3/) cloud storage for storing files (photos, thumbnails and videos) as objects.
 
-Ente ships MinIO as S3-compatible storage by default in quickstart and Docker Compose for quick testing.
+New Ente quickstart installations use [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, as local S3-compatible storage. The generated Compose file retains the `minio` service, volume, and environment variable names for configuration compatibility.
 
 This document outlines configuration of S3 buckets and enabling replication for further usage.
 
@@ -19,7 +19,7 @@ There are three components involved in uploading a file:
 
 1.  The client (e.g. the web app or the mobile app)
 2.  Ente's server (museum)
-3.  The S3-compatible object storage (e.g. MinIO in the default quickstart)
+3.  The S3-compatible object storage (e.g. Silo in the default quickstart)
 
 A file upload flows as follows:
 
@@ -39,7 +39,7 @@ The S3-compatible buckets have to be configured in `museum.yaml` file.
 Some of the common configuration that can be done at top-level are:
 
 1. **SSL Configuration:** If you need to configure SSL (i. e., the buckets are accessible via HTTPS), you'll need to set `s3.are_local_buckets` to `false`.
-2. **Path-style URLs:** Disabling `s3.are_local_buckets` also switches to the subdomain-style URLs for the buckets. However, some S3 providers such as MinIO do not support this.
+2. **Path-style URLs:** Disabling `s3.are_local_buckets` also switches to the subdomain-style URLs for the buckets. However, some S3 providers such as Silo and MinIO do not support this.
 
     Set `s3.use_path_style_urls` to `true` for such cases.
 
@@ -91,9 +91,30 @@ b2-eu-cen:
     bucket: b2-eu-cen
 ```
 
+## Migrating a quickstart from MinIO
+
+This applies to quickstart installations that use the local `minio-data` volume. It does not apply when Museum uses an external S3 provider.
+
+Do not change the image while Ente is accepting writes:
+
+1. Prevent new client activity and allow any in-flight uploads to finish.
+2. Stop the Compose project without removing its volumes by running `docker compose stop`.
+3. Back up `museum.yaml`, PostgreSQL, and the complete `minio-data` volume as one recovery point. Verify that you can restore it before proceeding.
+4. In `compose.yaml`, replace the `image` of the existing `minio` service. Keep its service name, command, credentials, ports, and volume unchanged:
+
+    ```yaml
+    minio:
+        image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46
+    ```
+
+5. Start the Compose project and verify an existing download, a new upload, and the new file's download before resuming normal use.
+6. Retain the pre-migration recovery point until the migrated installation has been operating successfully.
+
+To roll back, stop the services and restore both PostgreSQL and `minio-data` from the same pre-migration recovery point before restoring the old MinIO image. Do not point an older MinIO image at a volume after Silo has accepted writes.
+
 ### Using the mobile app or another device
 
-The quickstart's sample sets `endpoint: localhost:3200`. This works for the museum container itself (thanks to the `socat` service in `compose.yaml`), but museum also hands this address back to clients as part of pre-signed upload URLs. On a phone or any machine other than the server, `localhost` resolves to the device itself, so uploads never reach MinIO and fail silently. Museum logs `OBJECT_SIZE_FETCH_FAILED: dial tcp …: i/o timeout` on commit.
+The quickstart's sample sets `endpoint: localhost:3200`. This works for the museum container itself (thanks to the `socat` service in `compose.yaml`), but museum also hands this address back to clients as part of pre-signed upload URLs. On a phone or any machine other than the server, `localhost` resolves to the device itself, so uploads never reach the object store and fail silently. Museum logs `OBJECT_SIZE_FETCH_FAILED: dial tcp …: i/o timeout` on commit.
 
 Set `endpoint` to an address that is reachable **both** from the museum container and from your clients. On a LAN, the server's IP works:
 
@@ -140,9 +161,9 @@ Assuming you have AWS CLI on your system and that you have configured it with yo
 aws s3api put-bucket-cors --bucket YOUR_S3_BUCKET --cors-configuration /path/to/cors.json
 ```
 
-### MinIO
+### Silo and MinIO
 
-Assuming you have configured an alias for MinIO account using the command:
+Silo includes the same `mc` command used to administer MinIO. Assuming you have configured an alias using:
 
 ```sh
 mc alias set storage-account-alias minio-endpoint minio-key minio-secret
@@ -151,9 +172,9 @@ mc alias set storage-account-alias minio-endpoint minio-key minio-secret
 where,
 
 1. `storage-account-alias` is a valid storage account alias name
-2. `minio-endpoint` is the endpoint where MinIO is being served without the protocol (http or https). Example: `localhost:3200`
-3. `minio-key` is the MinIO username defined in `MINIO_ROOT_USER`
-4. `minio-secret` is the MinIO password defined in `MINIO_PASSWORD`
+2. `minio-endpoint` is the endpoint where Silo or MinIO is being served without the protocol (http or https). Example: `localhost:3200`
+3. `minio-key` is the username defined in `MINIO_ROOT_USER`
+4. `minio-secret` is the password defined in `MINIO_ROOT_PASSWORD`
 
 To set the `AllowedOrigins` Header, you can use the following command:.
 
