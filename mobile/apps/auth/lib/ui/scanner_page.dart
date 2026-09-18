@@ -312,6 +312,7 @@ class ScannerPageState extends State<ScannerPage> {
       if (!mounted || _hasCompletedScan) {
         return;
       }
+      setState(() {});
       await controller?.pause();
       shouldResumeCamera = true;
       if (!mounted || _hasCompletedScan) {
