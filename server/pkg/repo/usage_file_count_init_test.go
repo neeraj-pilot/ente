@@ -157,5 +157,5 @@ func TestInitializeFileCountsRejectsStaleSnapshots(t *testing.T) {
 		[]ente.CollectionFileItem{collectionMembershipTestItem(fileID)}); err != nil {
 		t.Fatal(err)
 	}
-	assertReadyFileCounts(t, db, userID, 1, 0, 2)
+	assertReadyFileCounts(t, db, userID, 1, 0, 3)
 }

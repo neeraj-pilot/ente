@@ -1000,6 +1000,7 @@ func main() {
 	adminAPI.PUT("/user/subscription", adminHandler.UpdateSubscription)
 	adminAPI.POST("/queue/re-queue", adminHandler.ReQueueItem)
 	adminAPI.POST("/user/init-file-counts", adminHandler.InitializeFileCounts)
+	adminAPI.POST("/user/init-file-app", adminHandler.InitializeFileApp)
 	adminAPI.POST("/user/bonus", adminHandler.UpdateBonus)
 
 	userEntityController := &userEntityCtrl.Controller{Repo: userEntityRepo}
