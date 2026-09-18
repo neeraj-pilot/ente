@@ -7,7 +7,7 @@ description: Configure Object Storage for storing files along with some troubles
 
 Ente relies on [S3-compatible](https://docs.aws.amazon.com/s3/) cloud storage for storing files (photos, thumbnails and videos) as objects.
 
-Ente ships MinIO as S3-compatible storage by default in quickstart and Docker Compose for quick testing.
+New Ente quickstart installations use [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, as local S3-compatible storage.
 
 This document outlines configuration of S3 buckets and enabling replication for further usage.
 
@@ -19,7 +19,7 @@ There are three components involved in uploading a file:
 
 1.  The client (e.g. the web app or the mobile app)
 2.  Ente's server (museum)
-3.  The S3-compatible object storage (e.g. MinIO in the default quickstart)
+3.  The S3-compatible object storage (e.g. Silo in the default quickstart)
 
 A file upload flows as follows:
 
@@ -90,6 +90,12 @@ b2-eu-cen:
     region: eu-central-2
     bucket: b2-eu-cen
 ```
+
+:::note Existing MinIO quickstarts
+
+Existing quickstart installations are unchanged. To switch an existing MinIO installation to Silo, stop writes, back up PostgreSQL and `minio-data` together, change only the image to `pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46`, and verify an existing download plus a new upload and download. Roll back by restoring both backups from the same recovery point.
+
+:::
 
 ### Using the mobile app or another device
 

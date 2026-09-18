@@ -44,9 +44,11 @@ It then starts the following services. Four ports are exposed:
 | web      | `:3000` | Ente Photos web app    |
 | web      | `:3002` | Ente public albums app |
 | postgres |         | Database               |
-| minio    | `:3200` | Object storage         |
+| minio    | `:3200` | Silo object storage    |
 
 Docker downloads the required images automatically the first time.
+
+New quickstarts use [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, while retaining the existing `minio` service, volume, and environment variable names. Existing quickstart directories are unchanged.
 
 You can do a quick smoke test by pinging the API:
 
