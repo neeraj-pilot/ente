@@ -57,6 +57,34 @@ public struct MenuGroup<Content: View>: View {
     }
 }
 
+public struct PropertyRow: View {
+    @Environment(\.entePalette) private var palette
+    private let label: String
+    private let value: String
+
+    public init(_ label: String, value: String) {
+        self.label = label
+        self.value = value
+    }
+
+    public var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: EnteSpacing.md) {
+            Text(label)
+                .font(EnteTypography.mini)
+                .foregroundStyle(palette.mutedText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(value)
+                .font(EnteTypography.body)
+                .foregroundStyle(palette.text)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(EnteSpacing.md)
+        .frame(minHeight: 48)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 public struct EnteDivider: View {
     @Environment(\.entePalette) private var palette
 

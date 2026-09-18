@@ -48,6 +48,7 @@ public val LocalEntePalette: ProvidableCompositionLocal<Palette> = staticComposi
 public object EnteSpacing {
     public val xs: Dp = 4.dp
     public val md: Dp = 12.dp
+    public val lg: Dp = 16.dp
     public val xl: Dp = 20.dp
 }
 

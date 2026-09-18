@@ -1,5 +1,6 @@
 package io.ente.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +21,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
@@ -75,6 +77,31 @@ public fun MenuGroup(modifier: Modifier = Modifier, content: @Composable () -> U
         shape = RoundedCornerShape(EnteRadius.button),
     ) {
         Column { content() }
+    }
+}
+
+@Composable
+public fun PropertyRow(label: String, value: String, modifier: Modifier = Modifier) {
+    val palette = LocalEntePalette.current
+    Row(
+        modifier.fillMaxWidth().heightIn(min = 48.dp).padding(EnteSpacing.md).semantics(
+            mergeDescendants = true
+        ) {},
+        horizontalArrangement = Arrangement.spacedBy(EnteSpacing.md),
+    ) {
+        Text(
+            label,
+            Modifier.weight(1f).alignByBaseline(),
+            style = EnteTypography.mini,
+            color = palette.mutedText,
+        )
+        Text(
+            value,
+            Modifier.weight(1f).alignByBaseline(),
+            textAlign = TextAlign.End,
+            style = EnteTypography.body,
+            color = palette.text,
+        )
     }
 }
 
