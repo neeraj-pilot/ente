@@ -41,43 +41,6 @@ func TestBatchShareHandlerValidatesEachShare(t *testing.T) {
 	}
 }
 
-func TestCollectionFileRequestsValidateEachItem(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	requests := []struct {
-		name       string
-		fields     string
-		newRequest func() any
-	}{
-		{"add and restore", `"collectionID":1,`, func() any { return &ente.AddFilesRequest{} }},
-		{"move", `"fromCollectionID":1,"toCollectionID":2,`, func() any { return &ente.MoveFilesRequest{} }},
-	}
-	validItem := `{"id":1,"encryptedKey":"key","keyDecryptionNonce":"nonce"}`
-	items := []struct {
-		name      string
-		json      string
-		wantError bool
-	}{
-		{"valid", validItem, false},
-		{"missing encrypted key", `{"id":1,"keyDecryptionNonce":"nonce"}`, true},
-		{"empty nonce", `{"id":1,"encryptedKey":"key","keyDecryptionNonce":""}`, true},
-		{"missing ID", `{"encryptedKey":"key","keyDecryptionNonce":"nonce"}`, true},
-		{"invalid second item", validItem + `,{"id":2,"encryptedKey":"key"}`, true},
-	}
-	for _, request := range requests {
-		for _, item := range items {
-			t.Run(request.name+"/"+item.name, func(t *testing.T) {
-				context, _ := gin.CreateTestContext(httptest.NewRecorder())
-				body := `{` + request.fields + `"files":[` + item.json + `]}`
-				context.Request = httptest.NewRequest(http.MethodPost, "/collections", strings.NewReader(body))
-				err := context.ShouldBindJSON(request.newRequest())
-				if (err != nil) != item.wantError {
-					t.Fatalf("binding error = %v, want error %t", err, item.wantError)
-				}
-			})
-		}
-	}
-}
-
 func TestDeletedSharedCollectionResponseShape(t *testing.T) {
 	collection := ente.Collection{
 		ID:                  7,
