@@ -147,7 +147,7 @@ type JoinCollectionViaLinkRequest struct {
 
 type AddFilesRequest struct {
 	CollectionID int64                `json:"collectionID" binding:"required"`
-	Files        []CollectionFileItem `json:"files" binding:"required"`
+	Files        []CollectionFileItem `json:"files" binding:"required,dive"`
 }
 
 type CopyFileSyncRequest struct {
@@ -196,5 +196,5 @@ type CollectionFileItem struct {
 type MoveFilesRequest struct {
 	FromCollectionID int64                `json:"fromCollectionID" binding:"required"`
 	ToCollectionID   int64                `json:"toCollectionID" binding:"required"`
-	Files            []CollectionFileItem `json:"files" binding:"required"`
+	Files            []CollectionFileItem `json:"files" binding:"required,dive"`
 }
