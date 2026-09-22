@@ -91,12 +91,6 @@ b2-eu-cen:
     bucket: b2-eu-cen
 ```
 
-:::note Existing MinIO quickstarts
-
-Existing quickstart installations are unchanged. To switch an existing MinIO installation to Silo, stop writes, back up PostgreSQL and `minio-data` together, change only the image to `pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46`, and verify an existing download plus a new upload and download. Roll back by restoring both backups from the same recovery point.
-
-:::
-
 ### Using the mobile app or another device
 
 The quickstart's sample sets `endpoint: localhost:3200`. This works for the museum container itself (thanks to the `socat` service in `compose.yaml`), but museum also hands this address back to clients as part of pre-signed upload URLs. On a phone or any machine other than the server, `localhost` resolves to the device itself, so uploads never reach the object store and fail silently. Museum logs `OBJECT_SIZE_FETCH_FAILED: dial tcp …: i/o timeout` on commit.
