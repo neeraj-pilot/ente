@@ -69,11 +69,6 @@ func (repo *FileRepository) Create(
 	if err != nil {
 		return file, -1, stacktrace.Propagate(err, "")
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE collections SET updation_time = $1
-			WHERE collection_id = $2`, file.UpdationTime, file.CollectionID)
-	if err != nil {
-		return file, -1, stacktrace.Propagate(err, "")
-	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO object_keys(file_id, o_type, object_key, size, datacenters)
 			VALUES($1, $2, $3, $4, $5)`, fileID, ente.FILE, file.File.ObjectKey, fileSize, dcsForNewEntry)
 	if err != nil {
@@ -99,16 +94,20 @@ func (repo *FileRepository) Create(
 	if err != nil {
 		return file, -1, stacktrace.Propagate(err, "")
 	}
-	usage, err := repo.updateUsageForFileCreation(ctx, tx, file.OwnerID, usageDiff, app)
-	if err != nil {
-		return file, -1, stacktrace.Propagate(err, "")
-	}
-
 	err = repo.markAsNeedingReplication(ctx, tx, file, hotDC)
 	if err != nil {
 		return file, -1, stacktrace.Propagate(err, "")
 	}
 
+	_, err = tx.ExecContext(ctx, `UPDATE collections SET updation_time = $1
+			WHERE collection_id = $2`, file.UpdationTime, file.CollectionID)
+	if err != nil {
+		return file, -1, stacktrace.Propagate(err, "")
+	}
+	usage, err := repo.updateUsageForFileCreation(ctx, tx, file.OwnerID, usageDiff, app)
+	if err != nil {
+		return file, -1, stacktrace.Propagate(err, "")
+	}
 	err = tx.Commit()
 	if err != nil {
 		return file, -1, stacktrace.Propagate(err, "")
@@ -291,11 +290,6 @@ func (repo *FileRepository) Update(file ente.File, fileSize int64, thumbnailSize
 		}
 		updatedCIDs = append(updatedCIDs, cID)
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE collections SET updation_time = $1
-			WHERE collection_id = ANY($2)`, file.UpdationTime, pq.Array(updatedCIDs))
-	if err != nil {
-		return stacktrace.Propagate(err, "")
-	}
 	_, err = tx.ExecContext(ctx, `DELETE FROM object_copies WHERE object_key = ANY($1)`,
 		pq.Array(oldObjects))
 	if err != nil {
@@ -317,10 +311,6 @@ func (repo *FileRepository) Update(file ente.File, fileSize int64, thumbnailSize
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
-	_, err = applyUsageChange(ctx, tx, file.OwnerID, usageChange{StorageDelta: usageDiff})
-	if err != nil {
-		return stacktrace.Propagate(err, "")
-	}
 	for _, objectKey := range stagedObjects {
 		if err = repo.ObjectCleanupRepo.RemoveTempObjectKey(ctx, tx, objectKey, hotDC); err != nil {
 			return stacktrace.Propagate(err, "")
@@ -337,6 +327,15 @@ func (repo *FileRepository) Update(file ente.File, fileSize int64, thumbnailSize
 		}
 	}
 	err = repo.QueueRepo.AddItems(ctx, tx, OutdatedObjectsQueue, oldObjects)
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE collections SET updation_time = $1
+			WHERE collection_id = ANY($2)`, file.UpdationTime, pq.Array(updatedCIDs))
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+	_, err = applyUsageChange(ctx, tx, file.OwnerID, usageChange{StorageDelta: usageDiff})
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
@@ -436,11 +435,6 @@ func (repo *FileRepository) UpdateThumbnail(ctx context.Context, fileID int64, u
 		}
 		updatedCIDs = append(updatedCIDs, cID)
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE collections SET updation_time = $1
-			WHERE collection_id = ANY($2)`, updationTime, pq.Array(updatedCIDs))
-	if err != nil {
-		return stacktrace.Propagate(err, "")
-	}
 	if oldThumbnailObject != nil {
 		_, err = tx.ExecContext(ctx, `DELETE FROM object_copies WHERE object_key = $1`,
 			*oldThumbnailObject)
@@ -454,11 +448,6 @@ func (repo *FileRepository) UpdateThumbnail(ctx context.Context, fileID int64, u
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
-	_, err = applyUsageChange(ctx, tx, userID, usageChange{StorageDelta: usageDiff})
-	if err != nil {
-		return stacktrace.Propagate(err, "")
-	}
-
 	if oldThumbnailObject != nil {
 		if err = repo.ObjectCleanupRepo.RemoveTempObjectKey(ctx, tx, thumbnail.ObjectKey, hotDC); err != nil {
 			return stacktrace.Propagate(err, "")
@@ -473,6 +462,15 @@ func (repo *FileRepository) UpdateThumbnail(ctx context.Context, fileID int64, u
 		if err != nil {
 			return stacktrace.Propagate(err, "")
 		}
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE collections SET updation_time = $1
+			WHERE collection_id = ANY($2)`, updationTime, pq.Array(updatedCIDs))
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+	_, err = applyUsageChange(ctx, tx, userID, usageChange{StorageDelta: usageDiff})
+	if err != nil {
+		return stacktrace.Propagate(err, "")
 	}
 	err = tx.Commit()
 	return stacktrace.Propagate(err, "")
