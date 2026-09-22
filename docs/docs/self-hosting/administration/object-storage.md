@@ -7,7 +7,7 @@ description: Configure Object Storage for storing files along with some troubles
 
 Ente relies on [S3-compatible](https://docs.aws.amazon.com/s3/) cloud storage for storing files (photos, thumbnails and videos) as objects.
 
-Ente ships MinIO as S3-compatible storage by default in quickstart and Docker Compose for quick testing.
+Ente ships [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, as S3-compatible storage by default in the quickstart for quick testing.
 
 This document outlines configuration of S3 buckets and enabling replication for further usage.
 
@@ -19,7 +19,7 @@ There are three components involved in uploading a file:
 
 1.  The client (e.g. the web app or the mobile app)
 2.  Ente's server (museum)
-3.  The S3-compatible object storage (e.g. MinIO in the default quickstart)
+3.  The S3-compatible object storage
 
 A file upload flows as follows:
 
@@ -93,7 +93,7 @@ b2-eu-cen:
 
 ### Using the mobile app or another device
 
-The quickstart's sample sets `endpoint: localhost:3200`. This works for the museum container itself (thanks to the `socat` service in `compose.yaml`), but museum also hands this address back to clients as part of pre-signed upload URLs. On a phone or any machine other than the server, `localhost` resolves to the device itself, so uploads never reach MinIO and fail silently. Museum logs `OBJECT_SIZE_FETCH_FAILED: dial tcp …: i/o timeout` on commit.
+The quickstart's sample sets `endpoint: localhost:3200`. This works for the museum container itself (thanks to the `socat` service in `compose.yaml`), but museum also hands this address back to clients as part of pre-signed upload URLs. On a phone or any machine other than the server, `localhost` resolves to the device itself, so uploads never reach the object store and fail silently. Museum logs `OBJECT_SIZE_FETCH_FAILED: dial tcp …: i/o timeout` on commit.
 
 Set `endpoint` to an address that is reachable **both** from the museum container and from your clients. On a LAN, the server's IP works:
 
