@@ -7,7 +7,7 @@ description: Configure Object Storage for storing files along with some troubles
 
 Ente relies on [S3-compatible](https://docs.aws.amazon.com/s3/) cloud storage for storing files (photos, thumbnails and videos) as objects.
 
-The quickstart ships [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, for local S3-compatible storage.
+Ente ships [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, as S3-compatible storage by default in the quickstart for quick testing.
 
 This document outlines configuration of S3 buckets and enabling replication for further usage.
 
