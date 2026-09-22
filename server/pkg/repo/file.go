@@ -99,8 +99,19 @@ func (repo *FileRepository) Create(
 		return file, -1, stacktrace.Propagate(err, "")
 	}
 
-	_, err = tx.ExecContext(ctx, `UPDATE collections SET updation_time = $1
-			WHERE collection_id = $2`, file.UpdationTime, file.CollectionID)
+	// Allocate under the collection lock so delayed creations advance past its current sync time.
+	err = tx.QueryRowContext(ctx, `UPDATE collections
+		SET updation_time = GREATEST(updation_time + 1, (extract(epoch FROM clock_timestamp()) * 1000000)::bigint)
+		WHERE collection_id = $1 RETURNING updation_time`, file.CollectionID).Scan(&file.UpdationTime)
+	if err != nil {
+		return file, -1, stacktrace.Propagate(err, "")
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE files SET updation_time = $1 WHERE file_id = $2`, file.UpdationTime, file.ID)
+	if err != nil {
+		return file, -1, stacktrace.Propagate(err, "")
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE collection_files SET updation_time = $1
+		WHERE collection_id = $2 AND file_id = $3`, file.UpdationTime, file.CollectionID, file.ID)
 	if err != nil {
 		return file, -1, stacktrace.Propagate(err, "")
 	}
@@ -155,8 +166,18 @@ func (repo *FileRepository) CreateMetaFile(
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE collections SET updation_time = $1
-			WHERE collection_id = $2`, metaFile.UpdationTime, metaFile.CollectionID)
+	err = tx.QueryRowContext(ctx, `UPDATE collections
+		SET updation_time = GREATEST(updation_time + 1, (extract(epoch FROM clock_timestamp()) * 1000000)::bigint)
+		WHERE collection_id = $1 RETURNING updation_time`, metaFile.CollectionID).Scan(&metaFile.UpdationTime)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE files SET updation_time = $1 WHERE file_id = $2`, metaFile.UpdationTime, fileID)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE collection_files SET updation_time = $1
+		WHERE collection_id = $2 AND file_id = $3`, metaFile.UpdationTime, metaFile.CollectionID, fileID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
