@@ -48,8 +48,6 @@ It then starts the following services. Four ports are exposed:
 
 Docker downloads the required images automatically the first time.
 
-New quickstarts use [Silo](https://github.com/pgsty/silo), a maintained MinIO fork, while retaining the existing `minio` service, volume, and environment variable names. Existing quickstart directories are unchanged.
-
 You can do a quick smoke test by pinging the API:
 
 ```sh
