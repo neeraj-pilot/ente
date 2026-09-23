@@ -123,10 +123,10 @@ services:
       - postgres-data:/var/lib/postgresql/data
 
   minio:
-    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46
+    image: pgsty/silo
     ports:
-      - 3200:3200 # Silo API
-      # Uncomment to enable the Silo web UI.
+      - 3200:3200 # MinIO API
+      # Uncomment to enable the MinIO web UI.
       # - 3201:3201
     environment:
       MINIO_ROOT_USER: $minio_user
@@ -170,7 +170,7 @@ s3:
       # These defaults apply to all buckets and can be overridden per bucket.
       # Set this to false for external buckets or buckets using SSL.
       are_local_buckets: true
-      # Set this to false for subdomain-style URLs. Keep it true for Silo with SSL.
+      # Set this to false for subdomain-style URLs. Keep it true for MinIO with SSL.
       use_path_style_urls: true
       b2-eu-cen:
          # Uncomment to override the defaults for this bucket.
