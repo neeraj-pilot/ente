@@ -163,7 +163,6 @@ func setPublicKeyTestAttributes(t *testing.T, handler *UserHandler, userID int64
 	t.Helper()
 	keyAttributes := ente.KeyAttributes{
 		KEKSalt:                  "kek-salt",
-		KEKHash:                  "kek-hash",
 		EncryptedKey:             "encrypted-key",
 		KeyDecryptionNonce:       "key-decryption-nonce",
 		PublicKey:                "target-public-key",
