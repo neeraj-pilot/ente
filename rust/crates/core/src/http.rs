@@ -25,7 +25,7 @@ const LINK_DEVICE_TOKEN: HeaderName = HeaderName::from_static("x-auth-link-devic
 const CAST_ACCESS_TOKEN: HeaderName = HeaderName::from_static("x-cast-access-token");
 const SPACE_SESSION_TOKEN: HeaderName = HeaderName::from_static("x-space-session-token");
 
-#[derive(Error, Debug)]
+#[derive(Error)]
 pub enum Error {
     #[error(transparent)]
     Network(NetworkError),
@@ -33,7 +33,7 @@ pub enum Error {
     #[error("HTTP {status} at {path}")]
     Http { status: u16, path: String },
 
-    #[error("HTTP {status} {code} at {path}")]
+    #[error("HTTP {status} at {path}")]
     Api {
         status: u16,
         path: String,
@@ -44,13 +44,23 @@ pub enum Error {
     Parse(ParseError),
 }
 
+impl std::fmt::Debug for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
+}
+
 #[derive(Error, Debug)]
 #[error(transparent)]
 pub struct NetworkError(reqwest::Error);
 
 #[derive(Error, Debug)]
-#[error(transparent)]
-pub struct ParseError(serde_json::Error);
+#[error("Invalid JSON response ({kind:?}) at line {line} column {column}")]
+pub struct ParseError {
+    kind: serde_json::error::Category,
+    line: usize,
+    column: usize,
+}
 
 impl Error {
     pub fn is_connect(&self) -> bool {
@@ -366,7 +376,13 @@ impl SuccessResponse {
     }
 
     pub async fn json<T: DeserializeOwned>(self) -> Result<T, Error> {
-        serde_json::from_slice(&self.0.bytes().await?).map_err(|e| Error::Parse(ParseError(e)))
+        serde_json::from_slice(&self.0.bytes().await?).map_err(|error| {
+            Error::Parse(ParseError {
+                kind: error.classify(),
+                line: error.line(),
+                column: error.column(),
+            })
+        })
     }
 
     pub async fn text(self) -> Result<String, Error> {
@@ -705,7 +721,7 @@ mod tests {
             Error::Api { status: 401, path, code }
                 if path == "/x" && code == "SESSION_EXPIRED"
         ));
-        assert_eq!(err.to_string(), "HTTP 401 SESSION_EXPIRED at /x");
+        assert_eq!(err.to_string(), "HTTP 401 at /x");
         assert_eq!(err.status_code(), Some(401));
     }
 
