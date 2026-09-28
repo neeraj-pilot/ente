@@ -87,7 +87,7 @@ func (r *RateLimitMiddleware) Stop() {
 func (r *RateLimitMiddleware) GlobalRateLimiter() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !r.Increment() {
-		recordRateLimitRejection(rateLimitScopeProcessGlobal, c.Request.Method, processGlobalRateLimitURL)
+			recordRateLimitRejection(rateLimitScopeProcessGlobal, c.Request.Method, processGlobalRateLimitURL)
 			if r.count%100 == 0 {
 				go r.discordCtrl.NotifyPotentialAbuse(fmt.Sprintf("Global ratelimit (%d) breached %d", r.limit, r.count))
 			}
