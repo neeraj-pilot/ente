@@ -4,6 +4,7 @@ pub mod error;
 pub mod flow;
 pub mod login;
 pub mod models;
+pub mod signup;
 pub mod types;
 
 pub use auth::KeyAttributes;

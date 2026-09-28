@@ -6,19 +6,18 @@ use zeroize::Zeroizing;
 
 use crate::{
     auth::{
-        self, GeneratedSrpSetup, KeyDerivationStrength, generate_keys_with_strength,
-        generate_srp_setup_with_login_key, get_recovery_key,
+        self, GeneratedSrpSetup, KeyDerivationStrength, generate_srp_setup_with_login_key,
+        get_recovery_key,
     },
     client::AccountsClient,
     error::{Error, Result},
-    login::{LoginFlow, LoginStep, decode_plain_token},
+    login::{LoginFlow, LoginStep},
     models::{
         AuthResponse, ConfigurePasskeyRecoveryRequest, EnableTwoFactorRequest, KeyAttributes,
         RemoveTwoFactorRequest, SetRecoveryKeyRequest, SetupSrpRequest, SrpAttributes,
         TwoFactorAuthorizationResponse, TwoFactorRecoveryResponse, TwoFactorType,
         UpdateSrpAndKeysRequest, UpdatedKeyAttr,
     },
-    types::AccountSecrets,
 };
 
 pub use crate::{login::build_passkey_verification_url, types::AuthenticatedAccount};
@@ -589,59 +588,11 @@ where
         verification: AuthResponse,
         key_derivation_strength: KeyDerivationStrength,
     ) -> Result<AuthenticatedAccount> {
-        let token = verification.token.clone().ok_or_else(|| {
-            Error::Protocol("Signup verification did not return a session token".into())
-        })?;
-
-        self.client.set_auth_token(Some(token.clone()));
-        let session_validity = self.client.get_session_validity().await?;
-        if verification.key_attributes.is_some()
-            || verification.encrypted_token.is_some()
-            || verification.is_mfa_required()
-            || verification.is_passkey_required()
-            || session_validity.has_set_keys
-            || session_validity.key_attributes.is_some()
-        {
-            return Err(Error::AccountAlreadyExists);
-        }
-
-        let key_gen_result = generate_keys_with_strength(&password, key_derivation_strength)?;
-        let srp_user_id = Uuid::new_v4();
-        let srp_setup =
-            generate_srp_setup_with_login_key(&key_gen_result.login_key, &srp_user_id.to_string())?;
-        let key_attributes = key_gen_result.key_attributes.clone();
-
-        self.client
-            .set_user_key_attributes(key_attributes.clone())
-            .await?;
-        self.complete_signup_srp(&srp_user_id, &srp_setup).await?;
-
-        let remote_srp_attributes = self.client.get_srp_attributes(&email).await?;
-        validate_remote_srp_attributes(
-            &remote_srp_attributes,
-            &srp_user_id,
-            &srp_setup,
-            &key_attributes,
-        )?;
-
-        let secrets = AccountSecrets {
-            token: decode_plain_token(&token)?.into_vec(),
-            master_key: b64::decode(&key_gen_result.private_key_attributes.key)?,
-            secret_key: b64::decode(&key_gen_result.private_key_attributes.secret_key)?,
-            public_key: b64::decode(&key_attributes.public_key)?,
-        };
-
-        Ok(AuthenticatedAccount {
-            user_id: verification.id,
-            key_attributes,
-            secrets,
-            recovery_key: Some(
-                key_gen_result
-                    .private_key_attributes
-                    .recovery_key
-                    .into_string(),
-            ),
-        })
+        crate::signup::Signup::verified(email, verification)?
+            .prepare_with_strength(self.client, &password, key_derivation_strength)
+            .await?
+            .finish(self.client)
+            .await
     }
 
     async fn verify_email_otp(
@@ -670,39 +621,6 @@ where
                 Err(error) => return Err(error),
             }
         }
-    }
-
-    async fn complete_signup_srp(
-        &self,
-        srp_user_id: &Uuid,
-        srp_setup: &GeneratedSrpSetup,
-    ) -> Result<()> {
-        let mut srp_session = auth::SrpSession::new(
-            &srp_user_id.to_string(),
-            &srp_setup.srp_salt,
-            &srp_setup.login_sub_key,
-        )?;
-        let srp_a = b64::encode(&pad_left(&srp_session.public_a(), SRP_A_LEN));
-
-        let response = self
-            .client
-            .setup_srp(&SetupSrpRequest {
-                srp_user_id: srp_user_id.to_string(),
-                srp_salt: b64::encode(&srp_setup.srp_salt),
-                srp_verifier: b64::encode(&srp_setup.srp_verifier),
-                srp_a,
-            })
-            .await?;
-
-        let srp_b = b64::decode(&response.srp_b)?;
-        let srp_m1 = b64::encode(&srp_session.compute_m1(&srp_b)?);
-        let complete = self
-            .client
-            .complete_srp_setup(&response.setup_id, &srp_m1)
-            .await?;
-        let srp_m2 = b64::decode(&complete.srp_m2)?;
-        srp_session.verify_m2(&srp_m2)?;
-        Ok(())
     }
 
     async fn complete_srp_update(
@@ -756,41 +674,6 @@ fn pad_left(data: &[u8], len: usize) -> Vec<u8> {
     let mut padded = vec![0u8; len - data.len()];
     padded.extend_from_slice(data);
     padded
-}
-
-fn validate_remote_srp_attributes(
-    remote: &SrpAttributes,
-    srp_user_id: &Uuid,
-    srp_setup: &GeneratedSrpSetup,
-    key_attributes: &KeyAttributes,
-) -> Result<()> {
-    let expected_salt = b64::encode(&srp_setup.srp_salt);
-    let mut mismatches = Vec::new();
-
-    if remote.srp_user_id != *srp_user_id {
-        mismatches.push("srpUserID");
-    }
-    if remote.srp_salt != expected_salt {
-        mismatches.push("srpSalt");
-    }
-    if remote.kek_salt != key_attributes.kek_salt {
-        mismatches.push("kekSalt");
-    }
-    if remote.mem_limit != key_attributes.mem_limit {
-        mismatches.push("memLimit");
-    }
-    if remote.ops_limit != key_attributes.ops_limit {
-        mismatches.push("opsLimit");
-    }
-
-    if !mismatches.is_empty() {
-        return Err(Error::Protocol(format!(
-            "Remote SRP attributes mismatched after signup: {}",
-            mismatches.join(", ")
-        )));
-    }
-
-    Ok(())
 }
 
 fn encrypt_two_factor_secret(
@@ -1612,6 +1495,7 @@ mod tests {
                 })
                 .to_string(),
             )
+            .expect(2)
             .create_async()
             .await;
 

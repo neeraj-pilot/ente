@@ -208,7 +208,7 @@ fn build_authenticated_account(
     })
 }
 
-pub(crate) fn decode_plain_token(token: &str) -> Result<SecretVec> {
+fn decode_plain_token(token: &str) -> Result<SecretVec> {
     let bytes = b64::decode_url_safe(token)
         .or_else(|_| b64::decode(token))
         .map_err(|e| Error::Decode(format!("token: {e}")))?;

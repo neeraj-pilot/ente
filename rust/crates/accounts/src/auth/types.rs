@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use ente_core::crypto::{SecretString, SecretVec};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KeyAttributes {
     pub kek_salt: String,

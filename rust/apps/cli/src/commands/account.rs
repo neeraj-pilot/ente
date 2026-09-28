@@ -138,8 +138,11 @@ impl AuthFlowUi for DialoguerAuthFlowUi {
         println!("\nPasskey verification required");
         println!("Open this URL in your browser to verify your passkey:\n{url}");
 
-        if !self.passkey_presented && can_open_automatically(url) && open::that(url).is_err() {
-            log::error!("failed to open browser; open the displayed verification URL manually");
+        if !self.passkey_presented
+            && can_open_automatically(url)
+            && let Err(error) = open::that(url)
+        {
+            log::error!("failed to open browser: {error}");
         }
         self.passkey_presented = true;
 

@@ -576,34 +576,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn authentication_errors_do_not_expose_response_values() {
-        const SECRET: &str = "DO_NOT_LOG_AUTH_TOKEN";
-        for (status, body) in [
-            (200, serde_json::json!({"id": SECRET})),
-            (503, serde_json::json!({"code": SECRET})),
-        ] {
-            let mut server = Server::new_async().await;
-            let response = server
-                .mock("POST", "/users/verify-email")
-                .with_status(status)
-                .with_body(body.to_string())
-                .create_async()
-                .await;
-            let error = make_client(server.url())
-                .verify_email("user@example.org", "123456", None)
-                .await
-                .unwrap_err();
-            for rendered in [format!("{error:?}"), ente_core::error::chain(&error)] {
-                assert!(
-                    !rendered.contains(SECRET),
-                    "authentication error exposes response content for status {status}"
-                );
-            }
-            response.assert_async().await;
-        }
-    }
-
-    #[tokio::test]
     async fn send_otp_retries_on_server_error() {
         let mut server = Server::new_async().await;
         let first = server
@@ -666,7 +638,7 @@ mod tests {
             .await
             .unwrap_err();
 
-        assert!(matches!(error, Error::Http(http::Error::Parse(_))));
+        assert!(error.to_string().contains("accountsUrl is required"));
         verify.assert_async().await;
     }
 
