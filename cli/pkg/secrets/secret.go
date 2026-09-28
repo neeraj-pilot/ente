@@ -77,7 +77,7 @@ func GetSecretFromSecretText(secretFilePath string) []byte {
 		}
 		key := make([]byte, keyLength)
 		rand.Read(key)
-		err = writeSecretFile(secretFilePath, key)
+		err = createSecretFile(secretFilePath, key)
 		if err != nil {
 			log.Fatal(fmt.Errorf("error writing to secret file: %w", err))
 		}
@@ -93,7 +93,7 @@ func GetSecretFromSecretText(secretFilePath string) []byte {
 	return secret
 }
 
-func writeSecretFile(path string, secret []byte) error {
+func createSecretFile(path string, secret []byte) error {
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err

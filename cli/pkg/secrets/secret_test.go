@@ -59,23 +59,21 @@ func TestGetSecretFromSecretTextPreservesExistingFileMode(t *testing.T) {
 	}
 }
 
-func TestWriteSecretFileDoesNotOverwriteExistingFile(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows does not preserve POSIX file modes")
-	}
-
+func TestCreateSecretFileDoesNotOverwriteExistingFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "secret.txt")
 	want := bytes.Repeat([]byte{1}, keyLength)
 	if err := os.WriteFile(path, want, 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(path, 0644); err != nil {
-		t.Fatal(err)
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(path, 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	err := writeSecretFile(path, bytes.Repeat([]byte{2}, keyLength))
+	err := createSecretFile(path, bytes.Repeat([]byte{2}, keyLength))
 	if !os.IsExist(err) {
-		t.Fatalf("writeSecretFile() error = %v, want file-exists error", err)
+		t.Fatalf("createSecretFile() error = %v, want file-exists error", err)
 	}
 
 	got, err := os.ReadFile(path)
@@ -86,11 +84,13 @@ func TestWriteSecretFileDoesNotOverwriteExistingFile(t *testing.T) {
 		t.Fatal("existing secret was overwritten")
 	}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := info.Mode().Perm(); got != 0644 {
-		t.Fatalf("existing secret file mode = %04o, want 0644", got)
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := info.Mode().Perm(); got != 0644 {
+			t.Fatalf("existing secret file mode = %04o, want 0644", got)
+		}
 	}
 }
