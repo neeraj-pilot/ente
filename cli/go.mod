@@ -2,6 +2,8 @@ module github.com/ente/cli
 
 go 1.26.0
 
+toolchain go1.26.8
+
 require (
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/google/uuid v1.3.1
