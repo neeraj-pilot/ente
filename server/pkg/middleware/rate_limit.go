@@ -25,6 +25,7 @@ type rateLimitScope string
 
 const (
 	rateLimitScopeIP            rateLimitScope = "ip"
+	rateLimitScopeCollection    rateLimitScope = "collection"
 	rateLimitScopeUser          rateLimitScope = "user"
 	rateLimitScopeRouteGlobal   rateLimitScope = "route_global"
 	rateLimitScopeProcessGlobal rateLimitScope = "process_global"
@@ -110,8 +111,8 @@ func (r *RateLimitMiddleware) APIRateLimitMiddleware(urlSanitizer func(_ *gin.Co
 
 		rateLimiter := r.getLimiter(requestPath, c.Request.Method)
 		if rateLimiter != nil {
-			key := r.getRateLimitKey(c, requestPath)
-			if r.isRateLimited(c, rateLimiter, key, requestPath, rateLimitScopeIP, fmt.Sprintf("🌐 IP rate limit: %s", requestPath)) {
+			key, scope := r.getRateLimitKey(c, requestPath)
+			if r.isRateLimited(c, rateLimiter, key, requestPath, scope, fmt.Sprintf("🌐 IP rate limit: %s", requestPath)) {
 				return
 			}
 		}
@@ -185,21 +186,21 @@ func globalRateLimitKey(reqPath string) string {
 	return reqPath
 }
 
-func (r *RateLimitMiddleware) getRateLimitKey(c *gin.Context, reqPath string) string {
+func (r *RateLimitMiddleware) getRateLimitKey(c *gin.Context, reqPath string) (string, rateLimitScope) {
 	if !isPublicCollectionUploadURLPath(reqPath) {
-		return fmt.Sprintf("%s-%s", network.GetClientIP(c), reqPath)
+		return fmt.Sprintf("%s-%s", network.GetClientIP(c), reqPath), rateLimitScopeIP
 	}
 	value, ok := c.Get(auth.PublicAccessKey)
 	if !ok {
 		log.WithField("path", reqPath).Warn("public access context missing for collection scoped rate limit")
-		return fmt.Sprintf("%s-%s", network.GetClientIP(c), reqPath)
+		return fmt.Sprintf("%s-%s", network.GetClientIP(c), reqPath), rateLimitScopeIP
 	}
 	accessContext, ok := value.(ente.PublicAccessContext)
 	if !ok {
 		log.WithField("path", reqPath).Warn("invalid public access context for collection scoped rate limit")
-		return fmt.Sprintf("%s-%s", network.GetClientIP(c), reqPath)
+		return fmt.Sprintf("%s-%s", network.GetClientIP(c), reqPath), rateLimitScopeIP
 	}
-	return fmt.Sprintf("collection:%d-%s", accessContext.CollectionID, reqPath)
+	return fmt.Sprintf("collection:%d-%s", accessContext.CollectionID, reqPath), rateLimitScopeCollection
 }
 
 func isPublicCollectionUploadURLPath(reqPath string) bool {
