@@ -6,11 +6,12 @@ use zeroize::Zeroizing;
 
 use crate::{
     auth::{
-        self, DecryptedSecrets, GeneratedSrpSetup, KeyDerivationStrength, derive_kek,
-        generate_keys_with_strength, generate_srp_setup_with_login_key, get_recovery_key,
+        self, GeneratedSrpSetup, KeyDerivationStrength, generate_keys_with_strength,
+        generate_srp_setup_with_login_key, get_recovery_key,
     },
     client::AccountsClient,
     error::{Error, Result},
+    login::{LoginFlow, LoginStep, decode_plain_token},
     models::{
         AuthResponse, ConfigurePasskeyRecoveryRequest, EnableTwoFactorRequest, KeyAttributes,
         RemoveTwoFactorRequest, SetRecoveryKeyRequest, SetupSrpRequest, SrpAttributes,
@@ -19,6 +20,8 @@ use crate::{
     },
     types::AccountSecrets,
 };
+
+pub use crate::{login::build_passkey_verification_url, types::AuthenticatedAccount};
 
 const SRP_A_LEN: usize = 512;
 
@@ -171,24 +174,6 @@ pub enum SessionValidity {
     },
 }
 
-pub struct AuthenticatedAccount {
-    pub user_id: i64,
-    pub key_attributes: KeyAttributes,
-    pub secrets: AccountSecrets,
-    pub recovery_key: Option<String>,
-}
-
-impl fmt::Debug for AuthenticatedAccount {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AuthenticatedAccount")
-            .field("user_id", &self.user_id)
-            .field("key_attributes", &self.key_attributes)
-            .field("secrets", &self.secrets)
-            .field("recovery_key", &"[REDACTED]")
-            .finish()
-    }
-}
-
 pub struct SetupTwoFactorResult {
     pub secret_code: String,
     pub qr_code: String,
@@ -262,33 +247,73 @@ where
     }
 
     pub async fn login(&mut self, params: LoginParams) -> Result<AuthenticatedAccount> {
-        let srp_attrs = self.client.get_srp_attributes(&params.email).await?;
-
-        let (auth_response, kek) = if srp_attrs.is_email_mfa_enabled {
-            self.client
-                .send_otp(&params.email, OtpPurpose::Login.as_api_purpose())
-                .await?;
-            let response = self
-                .verify_email_otp(&params.email, OtpPurpose::Login, None)
-                .await?;
-            let response = self.resolve_second_factor(response).await?;
-            let kek = derive_kek(
-                &params.password,
-                &srp_attrs.kek_salt,
-                srp_attrs.mem_limit,
-                srp_attrs.ops_limit,
-            )?;
-            (response, kek)
-        } else {
-            let (response, kek) = self
-                .client
-                .login_with_srp(&params.password, &srp_attrs)
-                .await?;
-            let response = self.resolve_second_factor(response).await?;
-            (response, kek)
-        };
-
-        self.build_authenticated_account(auth_response, &kek)
+        let (mut flow, mut step) = LoginFlow::start(self.client, params.email.clone()).await?;
+        loop {
+            step = match step {
+                LoginStep::EmailCode => {
+                    let mut resent = false;
+                    loop {
+                        let code =
+                            self.ui
+                                .read_email_otp(&params.email, OtpPurpose::Login, resent)?;
+                        match flow.submit_code(self.client, &code).await {
+                            Ok(next) => break next,
+                            Err(Error::IncorrectEmailVerificationCode) => {
+                                self.ui.report_retryable_error(
+                                    "Incorrect email verification code. Try again.",
+                                )?;
+                                resent = false;
+                            }
+                            Err(Error::EmailVerificationCodeExpired) => {
+                                flow.resend_code(self.client).await?;
+                                resent = true;
+                            }
+                            Err(error) => return Err(error),
+                        }
+                    }
+                }
+                LoginStep::Password => flow.submit_password(self.client, &params.password).await?,
+                LoginStep::SecondFactor { totp, passkey } => {
+                    let method = match (totp, passkey) {
+                        (true, true) => self.ui.choose_second_factor(&[
+                            SecondFactorMethod::Totp,
+                            SecondFactorMethod::Passkey,
+                        ])?,
+                        (true, false) => SecondFactorMethod::Totp,
+                        (false, true) => SecondFactorMethod::Passkey,
+                        (false, false) => {
+                            return Err(Error::Protocol("Missing second factor".into()));
+                        }
+                    };
+                    match method {
+                        SecondFactorMethod::Totp => loop {
+                            let code = self.ui.read_totp_code(TotpPurpose::Login)?;
+                            match flow.submit_code(self.client, &code).await {
+                                Ok(next) => break next,
+                                Err(Error::IncorrectTotp) => {
+                                    self.ui.report_retryable_error(
+                                        "Incorrect TOTP code. Try again.",
+                                    )?;
+                                }
+                                Err(error) => return Err(error),
+                            }
+                        },
+                        SecondFactorMethod::Passkey => {
+                            self.ui.present_passkey_verification(
+                                &flow.passkey_url(self.client, "ente-cli://passkey")?,
+                            )?;
+                            loop {
+                                self.ui.wait_for_passkey_verification()?;
+                                if let Some(next) = flow.poll_passkey(self.client).await? {
+                                    break next;
+                                }
+                            }
+                        }
+                    }
+                }
+                LoginStep::Complete(account) => return Ok(*account),
+            };
+        }
     }
 
     pub async fn setup_two_factor(
@@ -537,32 +562,6 @@ where
         self.client.check_passkey_status(session_id).await
     }
 
-    fn build_authenticated_account(
-        &self,
-        auth_response: AuthResponse,
-        kek: &[u8],
-    ) -> Result<AuthenticatedAccount> {
-        let key_attributes = auth_response
-            .key_attributes
-            .clone()
-            .ok_or(Error::MissingKeyAttributes)?;
-        let secrets = decrypt_auth_response(&auth_response, &key_attributes, kek)?;
-        let public_key = b64::decode(&key_attributes.public_key)?;
-        let recovery_key = get_recovery_key(&secrets.master_key, &key_attributes).ok();
-
-        Ok(AuthenticatedAccount {
-            user_id: auth_response.id,
-            key_attributes,
-            secrets: AccountSecrets {
-                token: secrets.token.into_vec(),
-                master_key: secrets.master_key.as_bytes().to_vec(),
-                secret_key: secrets.secret_key.as_bytes().to_vec(),
-                public_key,
-            },
-            recovery_key,
-        })
-    }
-
     async fn create_account_with_strength(
         &mut self,
         params: CreateAccountParams,
@@ -673,77 +672,6 @@ where
         }
     }
 
-    async fn resolve_second_factor(&mut self, auth_response: AuthResponse) -> Result<AuthResponse> {
-        let has_totp = auth_response.get_two_factor_session_id().is_some();
-        let has_passkey = auth_response.is_passkey_required();
-
-        let method = match (has_totp, has_passkey) {
-            (false, false) => return Ok(auth_response),
-            (true, false) => SecondFactorMethod::Totp,
-            (false, true) => SecondFactorMethod::Passkey,
-            (true, true) => self
-                .ui
-                .choose_second_factor(&[SecondFactorMethod::Totp, SecondFactorMethod::Passkey])?,
-        };
-
-        match method {
-            SecondFactorMethod::Totp => self.verify_totp(&auth_response).await,
-            SecondFactorMethod::Passkey => self.verify_passkey(&auth_response).await,
-        }
-    }
-
-    async fn verify_totp(&mut self, auth_response: &AuthResponse) -> Result<AuthResponse> {
-        let session_id = auth_response
-            .get_two_factor_session_id()
-            .ok_or_else(|| Error::Protocol("No 2FA session ID".into()))?;
-
-        loop {
-            let code = self.ui.read_totp_code(TotpPurpose::Login)?;
-            match self.client.verify_totp(session_id, &code).await {
-                Ok(response) => return Ok(response),
-                Err(Error::IncorrectTotp) => {
-                    self.ui
-                        .report_retryable_error("Incorrect TOTP code. Try again.")?;
-                }
-                Err(error) => return Err(error),
-            }
-        }
-    }
-
-    async fn verify_passkey(&mut self, auth_response: &AuthResponse) -> Result<AuthResponse> {
-        let passkey_session_id = auth_response
-            .passkey_session_id
-            .as_ref()
-            .filter(|session_id| !session_id.is_empty())
-            .ok_or_else(|| Error::Protocol("No passkey session ID".into()))?;
-
-        #[expect(
-            clippy::expect_used,
-            reason = "AuthResponse validation requires accountsUrl for passkey sessions"
-        )]
-        let accounts_url = auth_response
-            .accounts_url
-            .as_deref()
-            .expect("accountsUrl is required when passkeySessionID is present");
-
-        let verification_url = build_passkey_verification_url(
-            accounts_url,
-            passkey_session_id,
-            self.client.client_package(),
-            "ente-cli://passkey",
-            None,
-        );
-
-        self.ui.present_passkey_verification(&verification_url)?;
-
-        loop {
-            self.ui.wait_for_passkey_verification()?;
-            if let Some(response) = self.client.check_passkey_status(passkey_session_id).await? {
-                return Ok(response);
-            }
-        }
-    }
-
     async fn complete_signup_srp(
         &self,
         srp_user_id: &Uuid,
@@ -820,31 +748,6 @@ where
     }
 }
 
-pub fn build_passkey_verification_url(
-    accounts_url: &str,
-    passkey_session_id: &str,
-    client_package: &str,
-    redirect: &str,
-    recover: Option<&str>,
-) -> String {
-    let mut params = vec![
-        ("clientPackage", client_package),
-        ("passkeySessionID", passkey_session_id),
-        ("redirect", redirect),
-    ];
-    if let Some(recover) = recover {
-        params.push(("recover", recover));
-    }
-
-    let query = params
-        .into_iter()
-        .map(|(key, value)| format!("{key}={}", urlencoding::encode(value)))
-        .collect::<Vec<_>>()
-        .join("&");
-
-    format!("{accounts_url}/passkeys/verify?{query}")
-}
-
 fn pad_left(data: &[u8], len: usize) -> Vec<u8> {
     if data.len() >= len {
         return data.to_vec();
@@ -853,32 +756,6 @@ fn pad_left(data: &[u8], len: usize) -> Vec<u8> {
     let mut padded = vec![0u8; len - data.len()];
     padded.extend_from_slice(data);
     padded
-}
-
-fn decode_plain_token(token: &str) -> Result<SecretVec> {
-    let bytes = b64::decode_url_safe(token)
-        .or_else(|_| b64::decode(token))
-        .map_err(|e| Error::Decode(format!("token: {e}")))?;
-    Ok(SecretVec::new(bytes))
-}
-
-fn decrypt_auth_response(
-    auth_response: &AuthResponse,
-    key_attributes: &KeyAttributes,
-    kek: &[u8],
-) -> Result<DecryptedSecrets> {
-    if let Some(encrypted_token) = auth_response.encrypted_token.as_deref() {
-        auth::decrypt_secrets(kek, key_attributes, encrypted_token)
-    } else if let Some(token) = auth_response.token.as_deref() {
-        let (master_key, secret_key) = auth::decrypt_keys_only(kek, key_attributes)?;
-        Ok(DecryptedSecrets {
-            master_key,
-            secret_key,
-            token: decode_plain_token(token)?,
-        })
-    } else {
-        Err(Error::Protocol("No token in response".into()))
-    }
 }
 
 fn validate_remote_srp_attributes(
@@ -1016,6 +893,8 @@ mod tests {
         last_totp_secret: Option<String>,
         passkey_presented: bool,
         retryable_errors: Vec<String>,
+        email_resent: Vec<bool>,
+        second_factor_choices: usize,
     }
 
     impl ScriptedUi {
@@ -1028,6 +907,8 @@ mod tests {
                 last_totp_secret: None,
                 passkey_presented: false,
                 retryable_errors: Vec::new(),
+                email_resent: Vec::new(),
+                second_factor_choices: 0,
             }
         }
     }
@@ -1037,8 +918,9 @@ mod tests {
             &mut self,
             _email: &str,
             _purpose: OtpPurpose,
-            _resent: bool,
+            resent: bool,
         ) -> Result<String> {
+            self.email_resent.push(resent);
             self.email_otps
                 .pop_front()
                 .ok_or_else(|| Error::InvalidInput("No scripted email OTP available".into()))
@@ -1064,6 +946,7 @@ mod tests {
             &mut self,
             methods: &[SecondFactorMethod],
         ) -> Result<SecondFactorMethod> {
+            self.second_factor_choices += 1;
             if let Some(choice) = self.chosen_second_factor {
                 Ok(choice)
             } else {
@@ -1126,15 +1009,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn login_with_email_mfa_and_totp_decrypts_account() {
+    async fn login_retries_email_and_totp_without_reselecting_second_factor() {
         let password = "hunter2";
         let (key_attributes, encrypted_token, recovery_key, _, _) =
             build_login_response(password, "plain-auth-token");
 
         let mut server = Server::new_async().await;
         let mut ui = ScriptedUi::new();
-        ui.email_otps.push_back("123456".into());
-        ui.login_totps.push_back("654321".into());
+        ui.email_otps = ["expired", "wrong", "123456"].map(String::from).into();
+        ui.login_totps = ["wrong", "654321"].map(String::from).into();
+        ui.chosen_second_factor = Some(SecondFactorMethod::Totp);
 
         let srp_attrs = server
             .mock("GET", Matcher::Any)
@@ -1162,24 +1046,47 @@ mod tests {
         let ott = server
             .mock("POST", "/users/ott")
             .with_status(200)
+            .expect(2)
             .create_async()
             .await;
 
+        let expired_email = server
+            .mock("POST", "/users/verify-email")
+            .match_body(Matcher::PartialJson(serde_json::json!({"ott": "expired"})))
+            .with_status(410)
+            .create_async()
+            .await;
+        let incorrect_email = server
+            .mock("POST", "/users/verify-email")
+            .match_body(Matcher::PartialJson(serde_json::json!({"ott": "wrong"})))
+            .with_status(400)
+            .create_async()
+            .await;
         let verify_email = server
             .mock("POST", "/users/verify-email")
+            .match_body(Matcher::PartialJson(serde_json::json!({"ott": "123456"})))
             .with_status(200)
             .with_body(
                 serde_json::json!({
                     "id": 77,
                     "twoFactorSessionID": "session-1",
+                    "passkeySessionID": "passkey-1",
+                    "accountsUrl": "https://accounts.ente.io",
                 })
                 .to_string(),
             )
             .create_async()
             .await;
 
+        let incorrect_totp = server
+            .mock("POST", "/users/two-factor/verify")
+            .match_body(Matcher::PartialJson(serde_json::json!({"code": "wrong"})))
+            .with_status(400)
+            .create_async()
+            .await;
         let verify_totp = server
             .mock("POST", "/users/two-factor/verify")
+            .match_body(Matcher::PartialJson(serde_json::json!({"code": "654321"})))
             .with_status(200)
             .with_body(
                 serde_json::json!({
@@ -1206,9 +1113,21 @@ mod tests {
         assert_eq!(result.user_id, 77);
         assert_eq!(result.secrets.token, b"plain-auth-token");
         assert_eq!(result.recovery_key.as_deref(), Some(recovery_key.as_str()));
+        assert_eq!(ui.email_resent, [false, true, false]);
+        assert_eq!(ui.second_factor_choices, 1);
+        assert_eq!(
+            ui.retryable_errors,
+            [
+                "Incorrect email verification code. Try again.",
+                "Incorrect TOTP code. Try again.",
+            ]
+        );
 
         srp_attrs.assert_async().await;
         ott.assert_async().await;
+        expired_email.assert_async().await;
+        incorrect_email.assert_async().await;
+        incorrect_totp.assert_async().await;
         verify_email.assert_async().await;
         verify_totp.assert_async().await;
     }
