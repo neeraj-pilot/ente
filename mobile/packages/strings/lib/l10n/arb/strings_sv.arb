@@ -1993,7 +1993,6 @@
   },
   "importSuccessTitle": "Hurra!",
   "importTypeEnteEncrypted": "Ente krypterad export",
-  "importTypeOpenAuthenticator": "Open Authenticator",
   "incorrectCode": "Felaktig kod",
   "@incorrectCode": {
     "description": "Error message when code is incorrect"

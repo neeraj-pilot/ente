@@ -144,6 +144,5 @@
   "@weakStrength": {
     "description": "Weak password strength label"
   },
-  "yes": "Jā",
-  "importTypeOpenAuthenticator": "Open Authenticator"
+  "yes": "Jā"
 }

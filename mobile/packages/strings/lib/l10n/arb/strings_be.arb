@@ -947,7 +947,6 @@
   },
   "importSuccessTitle": "Ура!",
   "importTypeEnteEncrypted": "Шыфраванне экспартавання з Ente",
-  "importTypeOpenAuthenticator": "Open Authenticator",
   "incorrectCode": "Няправільны код",
   "@incorrectCode": {
     "description": "Error message when code is incorrect"

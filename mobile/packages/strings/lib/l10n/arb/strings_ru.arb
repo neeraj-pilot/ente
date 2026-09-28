@@ -1628,7 +1628,6 @@
   },
   "importSuccessTitle": "Ура!",
   "importTypeEnteEncrypted": "Зашифрованный экспорт из Ente",
-  "importTypeOpenAuthenticator": "Open Authenticator",
   "incorrectCode": "Неверный код",
   "@incorrectCode": {
     "description": "Error message when code is incorrect"

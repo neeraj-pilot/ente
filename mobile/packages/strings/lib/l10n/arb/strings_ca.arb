@@ -959,7 +959,6 @@
   },
   "importSuccessTitle": "Visca!",
   "importTypeEnteEncrypted": "Exportació xifrada d'Ente",
-  "importTypeOpenAuthenticator": "Open Authenticator",
   "incorrectCode": "Codi incorrecte",
   "@incorrectCode": {
     "description": "Error message when code is incorrect"

@@ -59,6 +59,5 @@
   "verify": "سەلماندن",
   "verifyEmail": "ئیمەیڵ بسەلمێنە",
   "weakStrength": "لاواز",
-  "weHaveSentCodeTo": "کۆدێکمان نارد بۆ {email}",
-  "importTypeOpenAuthenticator": "Open Authenticator"
+  "weHaveSentCodeTo": "کۆدێکمان نارد بۆ {email}"
 }

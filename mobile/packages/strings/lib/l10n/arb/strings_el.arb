@@ -731,7 +731,6 @@
   },
   "importSuccessTitle": "Ζήτω!",
   "importTypeEnteEncrypted": "Κρυπτογραφημένη Ente εξαγωγή",
-  "importTypeOpenAuthenticator": "Open Authenticator",
   "incorrectCode": "Εσφαλμένος κωδικός",
   "@incorrectCode": {
     "description": "Error message when code is incorrect"

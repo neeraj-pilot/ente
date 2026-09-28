@@ -559,7 +559,6 @@
     }
   },
   "importTypeEnteEncrypted": "Krypteret Ente eksport",
-  "importTypeOpenAuthenticator": "Open Authenticator",
   "incorrectCode": "Forkert kode",
   "@incorrectCode": {
     "description": "Error message when code is incorrect"

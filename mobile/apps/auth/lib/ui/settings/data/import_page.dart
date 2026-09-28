@@ -60,7 +60,7 @@ class ImportCodePage extends StatelessWidget {
       case ImportType.andOTP:
         return 'andOTP';
       case ImportType.openAuthenticator:
-        return context.strings.importTypeOpenAuthenticator;
+        return 'Open Authenticator';
       case ImportType.otpAuth:
         return 'OTP Auth';
     }

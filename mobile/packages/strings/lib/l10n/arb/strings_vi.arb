@@ -1829,7 +1829,6 @@
     }
   },
   "importSuccessTitle": "Tuyệt!",
-  "importTypeOpenAuthenticator": "Open Authenticator",
   "incorrectCode": "Mã không chính xác",
   "@incorrectCode": {
     "description": "Error message when code is incorrect"

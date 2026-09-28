@@ -1,3 +1,4 @@
+import 'package:ente_auth/models/code.dart';
 import 'package:ente_auth/ui/settings/data/import/import_file_cleanup.dart';
 import 'package:ente_auth/ui/settings/data/import/import_flow.dart';
 import 'package:ente_auth/ui/settings/data/import/openauthenticator_import_parser.dart';
@@ -14,7 +15,7 @@ Future<void> showOpenAuthenticatorImportInstruction(
   final l10n = context.strings;
   await showFileImportInstruction(
     context: context,
-    title: l10n.importTypeOpenAuthenticator,
+    title: 'Open Authenticator',
     body: l10n.importOpenAuthenticatorGuide,
     actionLabel: l10n.selectFile,
     semanticsIdentifier: 'auth_import_instruction_open_authenticator',
@@ -39,24 +40,9 @@ Future<int?> _processBackup(
   String path,
   ProgressDialog dialog,
 ) async {
-  final jsonString = await readPickedImportFileAsString(path);
-
-  // Validate the shape before asking for a password, so an unrelated file
-  // fails fast instead of looking like a wrong password.
-  try {
-    decodeOpenAuthenticatorBackup(jsonString);
-  } on InvalidOpenAuthenticatorBackupException {
-    if (!context.mounted) return null;
-    await dialog.hide();
-    if (!context.mounted) return null;
-    await showErrorDialog(
-      context,
-      context.strings.sorry,
-      context.strings.importFailureDesc,
-    );
-    return null;
-  }
-
+  final backup = decodeOpenAuthenticatorBackup(
+    await readPickedImportFileAsString(path),
+  );
   while (true) {
     if (!context.mounted) return null;
     final password = await promptForImportPassword(
@@ -66,57 +52,20 @@ Future<int?> _processBackup(
     if (password == null) return null;
 
     await dialog.show();
-    final result = await compute(_decryptBackupInBackground, {
-      'jsonString': jsonString,
-      'password': password,
-    });
-
-    switch (result['status']) {
-      case 'incorrect_password':
-        await dialog.hide();
-        if (!context.mounted) return null;
-        await showErrorDialog(
-          context,
-          context.strings.incorrectPasswordTitle,
-          context.strings.pleaseCheckPasswordAndTryAgain,
-        );
-        continue;
-      case 'entry_error':
-        throwImportEntryParseError(
-          result['entry'],
-          result['error'] ?? 'Could not decrypt entry',
-        );
-      case 'ok':
-        final entries = (result['entries'] as List)
-            .cast<Map<String, Object?>>();
-        return saveImportedCodes(parseOpenAuthenticatorEntries(entries));
-      default:
-        throw StateError('Unexpected Open Authenticator decrypt status');
+    try {
+      final codes = await compute(_decryptBackup, (backup, password));
+      return await saveImportedCodes(codes);
+    } on IncorrectOpenAuthenticatorPasswordException {
+      await dialog.hide();
+      if (!context.mounted) return null;
+      await showErrorDialog(
+        context,
+        context.strings.incorrectPasswordTitle,
+        context.strings.pleaseCheckPasswordAndTryAgain,
+      );
     }
   }
 }
 
-/// Runs on a background isolate; the parser and its exceptions never leave it.
-Map<String, Object?> _decryptBackupInBackground(Map<String, String> params) {
-  final jsonString = params['jsonString'];
-  final password = params['password'];
-  if (jsonString == null || password == null) {
-    throw ArgumentError('Missing Open Authenticator decryption params');
-  }
-
-  final backup = decodeOpenAuthenticatorBackup(jsonString);
-  try {
-    return {
-      'status': 'ok',
-      'entries': decryptOpenAuthenticatorBackup(backup, password: password),
-    };
-  } on IncorrectOpenAuthenticatorPasswordException {
-    return {'status': 'incorrect_password'};
-  } on OpenAuthenticatorEntryParseException catch (error) {
-    return {
-      'status': 'entry_error',
-      'entry': error.entry,
-      'error': error.error.toString(),
-    };
-  }
-}
+List<Code> _decryptBackup((Map<String, dynamic>, String) params) =>
+    decryptOpenAuthenticatorBackup(params.$1, password: params.$2);
