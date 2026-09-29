@@ -168,7 +168,6 @@ func (r *RateLimitMiddleware) isRateLimited(c *gin.Context, rateLimiter *limiter
 }
 
 func shouldNotifyPotentialAbuse(scope rateLimitScope, requestPath string) bool {
-	// SRP attributes rejections are monitored via metrics instead of direct Discord messages.
 	return scope != rateLimitScopeIP || requestPath != "/users/srp/attributes"
 }
 
