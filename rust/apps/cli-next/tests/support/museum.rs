@@ -1,14 +1,10 @@
-use ente_accounts::{
-    AccountsClient, AccountsClientConfig, AuthFlow, AuthFlowUi, AuthenticatedAccount,
-    CreateAccountParams, OtpPurpose, SecondFactorMethod, TotpPurpose,
-};
+use ente_accounts::{AccountsClient, AccountsClientConfig, AuthenticatedAccount, signup::Signup};
 use ente_core::{
     crypto::{PublicKey, blob, sealed, secretbox, stream},
     io::Md5Writer,
 };
 use ente_test_support::{HARDCODED_OTT, Museum, TestResult};
 use uuid::Uuid;
-use zeroize::Zeroizing;
 
 use super::*;
 
@@ -505,15 +501,16 @@ async fn create_account(origin: &str, email: &str) -> AuthenticatedAccount {
         AccountsClient::new(AccountsClientConfig::new("io.ente.photos").with_origin(origin))
             .unwrap();
     client.send_otp(email, "signup").await.unwrap();
-    AuthFlow::new(&client, &mut NoPrompts)
-        .create_account_with_otp(
-            CreateAccountParams {
-                email: email.into(),
-                password: Zeroizing::new(PASSWORD.into()),
-                source: Some("testAccount".into()),
-            },
-            HARDCODED_OTT,
-        )
+    let response = client
+        .verify_email(email, HARDCODED_OTT, Some("testAccount"))
+        .await
+        .unwrap();
+    Signup::verified(email.into(), response)
+        .unwrap()
+        .prepare(&client, PASSWORD)
+        .await
+        .unwrap()
+        .finish(&client)
         .await
         .unwrap()
 }
@@ -646,33 +643,4 @@ async fn set_album_metadata(
         .unwrap()
         .error_for_status()
         .unwrap();
-}
-
-struct NoPrompts;
-
-impl AuthFlowUi for NoPrompts {
-    fn read_email_otp(&mut self, _: &str, _: OtpPurpose, _: bool) -> ente_accounts::Result<String> {
-        unreachable!()
-    }
-    fn read_totp_code(&mut self, _: TotpPurpose) -> ente_accounts::Result<String> {
-        unreachable!()
-    }
-    fn report_retryable_error(&mut self, _: &str) -> ente_accounts::Result<()> {
-        unreachable!()
-    }
-    fn choose_second_factor(
-        &mut self,
-        _: &[SecondFactorMethod],
-    ) -> ente_accounts::Result<SecondFactorMethod> {
-        unreachable!()
-    }
-    fn present_passkey_verification(&mut self, _: &str) -> ente_accounts::Result<()> {
-        unreachable!()
-    }
-    fn wait_for_passkey_verification(&mut self) -> ente_accounts::Result<()> {
-        unreachable!()
-    }
-    fn present_totp_secret(&mut self, _: &str, _: &str) -> ente_accounts::Result<()> {
-        unreachable!()
-    }
 }
