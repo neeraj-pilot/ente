@@ -196,10 +196,12 @@ func (c *ObjectCleanupController) DeleteAllObjectsWithPrefix(prefix string, dc s
 		if !aws.BoolValue(output.IsTruncated) {
 			break
 		}
-		continuationToken = output.NextContinuationToken
-		if continuationToken == nil {
-			break
+		nextContinuationToken := output.NextContinuationToken
+		if aws.StringValue(nextContinuationToken) == "" ||
+			aws.StringValue(nextContinuationToken) == aws.StringValue(continuationToken) {
+			return errors.New("truncated object listing did not provide a new continuation token")
 		}
+		continuationToken = nextContinuationToken
 	}
 	for _, key := range keys {
 		err := c.DeleteObjectFromDataCenter(key, dc)
