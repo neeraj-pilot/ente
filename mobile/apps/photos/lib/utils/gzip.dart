@@ -12,7 +12,7 @@ class ChaChaEncryptionResult {
   ChaChaEncryptionResult({required this.encData, required this.header});
 }
 
-Uint8List _unGzipUInt8List(Uint8List compressedData, int? maxOutputBytes) {
+Uint8List gunzipBytes(Uint8List compressedData, {int? maxOutputBytes}) {
   final output = _GzipOutputSink(maxOutputBytes);
   final decoder = gzip.decoder.startChunkedConversion(output);
   decoder.add(compressedData);
@@ -77,7 +77,10 @@ Map<String, dynamic> decryptAndUnzipJsonSync(
     "key": key,
     "header": CryptoUtil.base642bin(header),
   });
-  final decompressedData = _unGzipUInt8List(decryptedData, maxOutputBytes);
+  final decompressedData = gunzipBytes(
+    decryptedData,
+    maxOutputBytes: maxOutputBytes,
+  );
   final json = utf8.decode(decompressedData);
   return jsonDecode(json);
 }
