@@ -9,7 +9,7 @@ use crate::{
         KeyDerivationStrength, SrpSession, generate_keys_with_strength,
         generate_srp_setup_with_login_key, get_recovery_key,
     },
-    models::{AuthResponse, SetupSrpRequest, SrpAttributes},
+    models::{AuthResponse, SetupSrpRequest},
 };
 
 #[derive(Clone, Serialize, Deserialize, ZeroizeOnDrop)]
@@ -52,7 +52,7 @@ impl Signup {
         })
     }
 
-    pub fn authorize(&self, client: &AccountsClient) {
+    fn authorize(&self, client: &AccountsClient) {
         client.set_auth_token(Some(b64::encode_url_safe(&self.token)));
     }
 
@@ -126,7 +126,7 @@ impl Signup {
             return Err(error);
         }
         let remote = client.get_srp_attributes(&self.email).await?;
-        validate_remote_srp_attributes(&remote, keys)?;
+        remote.validate_setup(keys.srp_user_id, &keys.srp_salt, &keys.attributes, "signup")?;
         Ok(AuthenticatedAccount {
             user_id: self.user_id,
             key_attributes: keys.attributes.clone(),
@@ -162,36 +162,6 @@ async fn complete_signup_srp(client: &AccountsClient, keys: &PreparedKeys) -> Re
         .complete_srp_setup(&response.setup_id, &srp_m1)
         .await?;
     srp_session.verify_m2(&b64::decode(&complete.srp_m2)?)?;
-    Ok(())
-}
-
-fn validate_remote_srp_attributes(remote: &SrpAttributes, keys: &PreparedKeys) -> Result<()> {
-    let expected_salt = b64::encode(&keys.srp_salt);
-    let mut mismatches = Vec::new();
-
-    if remote.srp_user_id != keys.srp_user_id {
-        mismatches.push("srpUserID");
-    }
-    if remote.srp_salt != expected_salt {
-        mismatches.push("srpSalt");
-    }
-    if remote.kek_salt != keys.attributes.kek_salt {
-        mismatches.push("kekSalt");
-    }
-    if remote.mem_limit != keys.attributes.mem_limit {
-        mismatches.push("memLimit");
-    }
-    if remote.ops_limit != keys.attributes.ops_limit {
-        mismatches.push("opsLimit");
-    }
-
-    if !mismatches.is_empty() {
-        return Err(Error::Protocol(format!(
-            "Remote SRP attributes mismatched after signup: {}",
-            mismatches.join(", ")
-        )));
-    }
-
     Ok(())
 }
 

@@ -18,8 +18,6 @@ use crate::{
     },
 };
 
-const SRP_A_LEN: usize = 512;
-
 pub struct ChangePasswordParams {
     pub email: String,
     pub password: Zeroizing<String>,
@@ -40,32 +38,16 @@ impl fmt::Debug for ChangePasswordParams {
     }
 }
 
+#[derive(Debug)]
 pub struct ChangePasswordResult {
     pub key_attributes: KeyAttributes,
     pub srp_attributes: SrpAttributes,
 }
 
-impl fmt::Debug for ChangePasswordResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ChangePasswordResult")
-            .field("key_attributes", &self.key_attributes)
-            .field("srp_attributes", &self.srp_attributes)
-            .finish()
-    }
-}
-
+#[derive(Debug)]
 pub struct CheckSessionValidityParams {
     pub email: String,
     pub local_srp_attributes: SrpAttributes,
-}
-
-impl fmt::Debug for CheckSessionValidityParams {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CheckSessionValidityParams")
-            .field("email", &self.email)
-            .field("local_srp_attributes", &self.local_srp_attributes)
-            .finish()
-    }
 }
 
 #[derive(Debug)]
@@ -163,29 +145,12 @@ async fn change_password_with_strength(
 
     let srp_attributes = client.get_srp_attributes(&params.email).await?;
 
-    let expected_salt = b64::encode(&srp_setup.srp_salt);
-    let mut mismatches = Vec::new();
-    if srp_attributes.srp_user_id != srp_user_id {
-        mismatches.push("srpUserID");
-    }
-    if srp_attributes.srp_salt != expected_salt {
-        mismatches.push("srpSalt");
-    }
-    if srp_attributes.kek_salt != updated_key_attributes.kek_salt {
-        mismatches.push("kekSalt");
-    }
-    if srp_attributes.mem_limit != updated_key_attributes.mem_limit {
-        mismatches.push("memLimit");
-    }
-    if srp_attributes.ops_limit != updated_key_attributes.ops_limit {
-        mismatches.push("opsLimit");
-    }
-    if !mismatches.is_empty() {
-        return Err(Error::Protocol(format!(
-            "Remote SRP attributes mismatched after password change: {}",
-            mismatches.join(", ")
-        )));
-    }
+    srp_attributes.validate_setup(
+        srp_user_id,
+        &srp_setup.srp_salt,
+        &updated_key_attributes,
+        "password change",
+    )?;
 
     Ok(ChangePasswordResult {
         key_attributes: updated_key_attributes,
@@ -306,7 +271,7 @@ async fn complete_srp_update(
         &srp_setup.srp_salt,
         &srp_setup.login_sub_key,
     )?;
-    let srp_a = b64::encode(&pad_left(&srp_session.public_a(), SRP_A_LEN));
+    let srp_a = b64::encode(&srp_session.public_a());
 
     let setup = client
         .setup_srp(&SetupSrpRequest {
@@ -332,16 +297,6 @@ async fn complete_srp_update(
     let srp_m2 = b64::decode(&response.srp_m2)?;
     srp_session.verify_m2(&srp_m2)?;
     Ok(response)
-}
-
-fn pad_left(data: &[u8], len: usize) -> Vec<u8> {
-    if data.len() >= len {
-        return data.to_vec();
-    }
-
-    let mut padded = vec![0u8; len - data.len()];
-    padded.extend_from_slice(data);
-    padded
 }
 
 fn encrypt_two_factor_secret(

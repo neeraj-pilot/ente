@@ -7,6 +7,9 @@ pub mod models;
 pub mod signup;
 pub mod types;
 
+#[cfg(test)]
+mod test_support;
+
 pub use auth::KeyAttributes;
 pub use client::AccountsClient;
 pub use error::{Error, Result};
