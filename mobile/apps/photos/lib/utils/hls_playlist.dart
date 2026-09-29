@@ -8,13 +8,15 @@ final _allowedTag = RegExp(
 );
 
 String reconstructHlsPlaylist(String template, String segmentUrl) {
+  if (RegExp(r'\r(?!\n)').hasMatch(template)) {
+    throw const FormatException('Invalid HLS playlist');
+  }
   final result = <String>[];
   final segmentUrlBytes = utf8.encode(segmentUrl).length;
   var outputBytes = 0;
   var hasKey = false;
   var hasSegment = false;
-  for (final match in RegExp(r'([^\n]*?)(?:\r?\n|$)').allMatches(template)) {
-    var line = match[1]!;
+  for (var line in LineSplitter.split(template)) {
     if (line.isEmpty || (line.startsWith('#') && !line.startsWith('#EXT'))) {
       continue;
     }
