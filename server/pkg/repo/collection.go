@@ -773,8 +773,9 @@ func (repo *CollectionRepository) AddFiles(
 	for _, file := range files {
 		fileIDs = append(fileIDs, file.ID)
 	}
-	if err := lockFiles(ctx, tx, fileOwnerID, fileIDs); err != nil {
-		return stacktrace.Propagate(err, "")
+	fileApps, err := lockFileApps(ctx, tx, fileOwnerID, fileIDs)
+	if err != nil {
+		return err
 	}
 	updationTime := time.Microseconds()
 	trashedOrDeletedFileIDs, err := repo.TrashRepo.getFilesInTrashOrDeleted(ctx, tx, fileOwnerID, fileIDs)
@@ -787,10 +788,17 @@ func (repo *CollectionRepository) AddFiles(
 	if err := upsertCollectionFiles(ctx, tx, collectionID, collectionOwnerID, files, fileOwnerID, updationTime); err != nil {
 		return stacktrace.Propagate(err, "")
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE collections SET updation_time = $1
-		 WHERE collection_id = $2`, updationTime, collectionID)
-	if err != nil {
+	var app ente.App
+	if err := tx.QueryRowContext(ctx, `UPDATE collections SET updation_time = $1
+		WHERE collection_id = $2 AND owner_id = $3
+		RETURNING app`, updationTime, collectionID, collectionOwnerID).Scan(&app); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return stacktrace.Propagate(ente.ErrPermissionDenied, "collection is not owned by user")
+		}
 		return stacktrace.Propagate(err, "")
+	}
+	if err := invalidateFileApp(ctx, tx, fileOwnerID, fileApps, app); err != nil {
+		return stacktrace.Propagate(err, "failed to guard file app initialization")
 	}
 	err = tx.Commit()
 	return stacktrace.Propagate(err, "")
@@ -862,8 +870,9 @@ func (repo *CollectionRepository) RestoreFiles(ctx context.Context, userID int64
 		return stacktrace.Propagate(err, "")
 	}
 	defer tx.Rollback()
-	if err := lockFiles(ctx, tx, userID, fileIDs); err != nil {
-		return stacktrace.Propagate(err, "")
+	fileApps, err := lockFileApps(ctx, tx, userID, fileIDs)
+	if err != nil {
+		return err
 	}
 	updationTime := time.Microseconds()
 	_, canRestoreAllFiles, err := repo.TrashRepo.getFilesInTrashState(ctx, tx, userID, fileIDs)
@@ -908,6 +917,9 @@ func (repo *CollectionRepository) RestoreFiles(ctx context.Context, userID int64
 		}); err != nil {
 			return stacktrace.Propagate(err, "failed to update file counts")
 		}
+	}
+	if err := invalidateFileApp(ctx, tx, userID, fileApps, app); err != nil {
+		return stacktrace.Propagate(err, "failed to guard file app initialization")
 	}
 	return stacktrace.Propagate(tx.Commit(), "")
 }
@@ -987,8 +999,9 @@ func (repo *CollectionRepository) MoveFiles(ctx context.Context,
 	for _, file := range fileItems {
 		fileIDs = append(fileIDs, file.ID)
 	}
-	if err := lockFiles(ctx, tx, fileOwner, fileIDs); err != nil {
-		return stacktrace.Propagate(err, "")
+	fileApps, err := lockFileApps(ctx, tx, fileOwner, fileIDs)
+	if err != nil {
+		return err
 	}
 	updationTime := time.Microseconds()
 	trashedOrDeletedFileIDs, err := repo.TrashRepo.getFilesInTrashOrDeleted(ctx, tx, fileOwner, fileIDs)
@@ -1007,10 +1020,21 @@ func (repo *CollectionRepository) MoveFiles(ctx context.Context,
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE collections SET updation_time = $1
-		 WHERE (collection_id = $2 or collection_id = $3 )`, updationTime, toCollectionID, fromCollectionID)
-	if err != nil {
+	var toApp ente.App
+	if err := tx.QueryRowContext(ctx, `WITH updated AS (
+		UPDATE collections SET updation_time = $1
+		WHERE (collection_id = $2 OR collection_id = $3) AND owner_id = $4
+		RETURNING collection_id, app
+	)
+	SELECT app FROM updated WHERE collection_id = $2`,
+		updationTime, toCollectionID, fromCollectionID, collectionOwner).Scan(&toApp); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return stacktrace.Propagate(ente.ErrPermissionDenied, "collection is not owned by user")
+		}
 		return stacktrace.Propagate(err, "")
+	}
+	if err := invalidateFileApp(ctx, tx, fileOwner, fileApps, toApp); err != nil {
+		return stacktrace.Propagate(err, "failed to guard file app initialization")
 	}
 	return stacktrace.Propagate(tx.Commit(), "")
 }
