@@ -4,6 +4,7 @@ import 'package:ente_auth/events/codes_updated_event.dart';
 import 'package:ente_auth/models/all_icon_data.dart';
 import 'package:ente_auth/models/code.dart';
 import 'package:ente_auth/models/code_display.dart';
+import 'package:ente_auth/services/favicon_service.dart';
 import 'package:ente_auth/store/code_display_store.dart';
 import 'package:ente_auth/ui/components/custom_icon_widget.dart';
 import 'package:ente_auth/ui/custom_icon_page.dart';
@@ -53,6 +54,7 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
   late TextEditingController _accountController;
   late TextEditingController _secretController;
   late TextEditingController _notesController;
+  late TextEditingController _domainsController;
   late TextEditingController _digitsController;
   late TextEditingController _periodController;
   late List<String> selectedTags = [...?widget.code?.display.tags];
@@ -78,6 +80,9 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
     );
     _secretController = TextEditingController(text: widget.code?.secret);
     _notesController = TextEditingController(text: widget.code?.display.note);
+    _domainsController = TextEditingController(
+      text: widget.code?.display.domains.join(', '),
+    );
     _digitsController = TextEditingController(
       text: widget.code != null
           ? widget.code!.digits.toString()
@@ -131,6 +136,7 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
     _accountController.dispose();
     _secretController.dispose();
     _notesController.dispose();
+    _domainsController.dispose();
     _digitsController.dispose();
     _periodController.dispose();
     showAdvancedOptions.dispose();
@@ -170,7 +176,10 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
                           onTap: navigateToCustomIconPage,
                           child: Padding(
                             padding: const EdgeInsets.all(Spacing.sm),
-                            child: CustomIconWidget(iconData: _customIconID),
+                            child: CustomIconWidget(
+                              iconData: _customIconID,
+                              domains: widget.code!.display.domains,
+                            ),
                           ),
                         ),
                       ),
@@ -209,6 +218,21 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
                       label: l10n.account,
                       isClearable: true,
                       maxLength: _textLimit,
+                      textInputAction: TextInputAction.next,
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.lg),
+                  Semantics(
+                    identifier: 'auth_manual_domains',
+                    child: TextInputComponent(
+                      controller: _domainsController,
+                      label: l10n.websiteDomains,
+                      hintText: 'example.com, login.example.org',
+                      isClearable: true,
+                      maxLength: 2550,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      keyboardType: TextInputType.url,
                       textInputAction: TextInputAction.next,
                     ),
                   ),
@@ -520,10 +544,20 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
       return;
     }
 
-    await _saveCode();
+    final List<String> domains;
+    try {
+      domains = parseDomains(_domainsController.text);
+    } on FormatException {
+      _showIncorrectDetailsDialog(
+        context,
+        message: context.strings.invalidWebsiteDomains,
+      );
+      return;
+    }
+    await _saveCode(domains);
   }
 
-  Future<void> _saveCode() async {
+  Future<void> _saveCode(List<String> domains) async {
     try {
       if (!mounted) return;
       final account = _accountController.text.trim();
@@ -540,6 +574,7 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
           widget.code?.display.copyWith(tags: selectedTags) ??
           CodeDisplay(tags: selectedTags);
       display.note = notes;
+      display.domains = domains;
       if (widget.code != null) {
         if (widget.code!.display.iconID != _customIconID.toLowerCase()) {
           display.iconID = _customIconID.toLowerCase();

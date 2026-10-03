@@ -912,6 +912,7 @@ class _HomePageState extends State<HomePage> {
                                     child: IconUtils.instance.getIcon(
                                       context,
                                       iconData.trim(),
+                                      domains: code.display.domains,
                                       width: IconSizes.small,
                                     ),
                                   );

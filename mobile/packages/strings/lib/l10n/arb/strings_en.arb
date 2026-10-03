@@ -1,4 +1,7 @@
 {
+  "useFavicons": "Use website icons",
+  "websiteDomains": "Website domains",
+  "invalidWebsiteDomains": "Enter up to 10 domain names separated by commas, such as example.com, login.example.org. Leave out https:// and paths.",
   "bringMemoriesTogether": "Bring your memories together",
   "@bringMemoriesTogether": {
     "description": "Title on the Local Gallery photo permission screen"

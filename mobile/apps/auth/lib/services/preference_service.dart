@@ -1,4 +1,5 @@
 import 'package:ente_auth/events/icons_changed_event.dart';
+import 'package:ente_auth/services/favicon_service.dart';
 import 'package:ente_auth/utils/debug_build_flags.dart';
 import 'package:ente_events/event_bus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,6 +31,7 @@ class PreferenceService {
   static const kCompactMode = "vi.compactMode";
   static const kMenubarMode = "menubar_mode";
   static const kAppInstallTime = "appInstallTime";
+  static const kUseFavicons = 'use_favicons';
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -69,6 +71,14 @@ class PreferenceService {
 
   Future<void> setShowLargeIcons(bool value) async {
     await _prefs.setBool(kShouldShowLargeIconsKey, value);
+    Bus.instance.fire(IconsChangedEvent());
+  }
+
+  bool shouldUseFavicons() => _prefs.getBool(kUseFavicons) ?? false;
+
+  Future<void> setUseFavicons(bool value) async {
+    await _prefs.setBool(kUseFavicons, value);
+    if (!value) faviconClient.clear();
     Bus.instance.fire(IconsChangedEvent());
   }
 
