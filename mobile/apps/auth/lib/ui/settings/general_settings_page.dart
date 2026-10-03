@@ -47,7 +47,6 @@ class GeneralSettingsPage extends StatelessWidget {
           items: [
             _toggleItem(
               title: l10n.useFavicons,
-              subtitle: l10n.useFaviconsDescription,
               value: PreferenceService.instance.shouldUseFavicons,
               onChanged: () => PreferenceService.instance.setUseFavicons(
                 !PreferenceService.instance.shouldUseFavicons(),
@@ -137,14 +136,11 @@ class GeneralSettingsPage extends StatelessWidget {
 
   SettingsItem _toggleItem({
     required String title,
-    String? subtitle,
     required ValueGetter<bool> value,
     required Future<void> Function() onChanged,
   }) {
     return SettingsItem(
       title: title,
-      subtitle: subtitle,
-      subtitleMaxLines: 2,
       showChevron: false,
       trailing: ToggleSwitchComponent.async(value: value, onChanged: onChanged),
     );
