@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:xml/xml_events.dart';
 
 Future<Uint8List?> normalizeFavicon(Uint8List bytes) async {
   if (bytes.isEmpty || bytes.length > 2 * 1024 * 1024) return null;
@@ -85,8 +87,44 @@ Future<ui.Image> _raster(Uint8List bytes) async {
 }
 
 Future<ui.Image> _svg(Uint8List bytes) async {
-  if (bytes.length > 256 * 1024) throw const FormatException('SVG too large');
-  final loader = SvgBytesLoader(bytes);
+  if (bytes.length > 64 * 1024) throw const FormatException('SVG too large');
+  final source = utf8.decode(bytes);
+  var elements = 0, depth = 0;
+  var clipDepth = -1, clipElements = 0;
+  for (final event in parseEvents(
+    source,
+    validateNesting: true,
+    validateDocument: true,
+  )) {
+    if (event is XmlDoctypeEvent && event.internalSubset != null) {
+      throw const FormatException('Unsupported SVG declaration');
+    } else if (event is XmlStartElementEvent) {
+      final properties = event.attributes.expand(
+        (attribute) => attribute.localName == 'style'
+            ? attribute.value
+                  .split(';')
+                  .map((item) => item.split(':').first.trim())
+            : [attribute.localName],
+      );
+      if (++elements > 256 ||
+          depth >= 16 ||
+          (clipDepth >= 0 &&
+              (event.localName == 'clipPath' || ++clipElements > 1)) ||
+          const {'image', 'use', 'pattern', 'mask'}.contains(event.localName) ||
+          properties.any(const {'mask', 'stroke-dasharray'}.contains)) {
+        throw const FormatException('Unsupported SVG complexity');
+      }
+      if (event.localName == 'clipPath' && !event.isSelfClosing) {
+        clipDepth = depth;
+        clipElements = 0;
+      }
+      if (!event.isSelfClosing) depth++;
+    } else if (event is XmlEndElementEvent) {
+      depth--;
+      if (depth == clipDepth) clipDepth = -1;
+    }
+  }
+  final loader = SvgStringLoader(source);
   ui.Picture? original, scaled;
   try {
     final info = await vg.loadPicture(loader, null);
