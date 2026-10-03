@@ -1,4 +1,9 @@
 {
+  "useFavicons": "Use website icons",
+  "useFaviconsDescription": "Fetch website icons from DuckDuckGo, with Kagi as a fallback. Each lookup shares the requested domain and reveals your IP address to the provider.",
+  "websiteDomains": "Website domains",
+  "websiteDomainsDescription": "Optional. Separate domains with commas; the first available icon is used when website icons are enabled in Settings.",
+  "invalidWebsiteDomains": "Enter up to 10 domain names separated by commas, such as example.com, login.example.org. Leave out https:// and paths.",
   "bringMemoriesTogether": "Bring your memories together",
   "@bringMemoriesTogether": {
     "description": "Title on the Local Gallery photo permission screen"

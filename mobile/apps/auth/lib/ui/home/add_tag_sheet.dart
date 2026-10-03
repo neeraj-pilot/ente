@@ -147,6 +147,7 @@ class _AddTagSheetState extends State<AddTagSheet> {
                               child: IconUtils.instance.getIcon(
                                 context,
                                 iconData.trim(),
+                                domains: code.display.domains,
                                 width: 28,
                               ),
                             ),

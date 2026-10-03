@@ -13,6 +13,7 @@ class CodeDisplay {
   int position;
   String iconSrc;
   String iconID;
+  List<String> domains;
 
   CodeDisplay({
     this.pinned = false,
@@ -24,6 +25,7 @@ class CodeDisplay {
     this.position = 0,
     this.iconSrc = '',
     this.iconID = '',
+    this.domains = const [],
   });
 
   bool get isCustomIcon => (iconSrc != '' && iconID != '');
@@ -38,6 +40,7 @@ class CodeDisplay {
     int? position,
     String? iconSrc,
     String? iconID,
+    List<String>? domains,
   }) {
     final bool updatedPinned = pinned ?? this.pinned;
     final bool updatedTrashed = trashed ?? this.trashed;
@@ -59,6 +62,7 @@ class CodeDisplay {
       position: updatedPosition,
       iconSrc: updatedIconSrc,
       iconID: updatedIconID,
+      domains: domains ?? this.domains,
     );
   }
 
@@ -76,6 +80,7 @@ class CodeDisplay {
       position: json['position'] ?? 0,
       iconSrc: json['iconSrc'] ?? 'ente',
       iconID: json['iconID'] ?? '',
+      domains: List<String>.from(json['domains'] ?? []),
     );
   }
 
@@ -120,6 +125,7 @@ class CodeDisplay {
       'position': position,
       'iconSrc': iconSrc,
       'iconID': iconID,
+      if (domains.isNotEmpty) 'domains': domains,
     };
   }
 
@@ -133,7 +139,8 @@ class CodeDisplay {
         other.lastUsedAt == lastUsedAt &&
         other.tapCount == tapCount &&
         other.note == note &&
-        listEquals(other.tags, tags);
+        listEquals(other.tags, tags) &&
+        listEquals(other.domains, domains);
   }
 
   @override
@@ -143,6 +150,7 @@ class CodeDisplay {
         lastUsedAt.hashCode ^
         tapCount.hashCode ^
         note.hashCode ^
-        tags.hashCode;
+        tags.hashCode ^
+        Object.hashAll(domains);
   }
 }

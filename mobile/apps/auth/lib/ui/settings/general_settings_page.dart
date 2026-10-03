@@ -46,6 +46,14 @@ class GeneralSettingsPage extends StatelessWidget {
           dividerPadding: const EdgeInsets.only(left: Spacing.lg),
           items: [
             _toggleItem(
+              title: l10n.useFavicons,
+              subtitle: l10n.useFaviconsDescription,
+              value: PreferenceService.instance.shouldUseFavicons,
+              onChanged: () => PreferenceService.instance.setUseFavicons(
+                !PreferenceService.instance.shouldUseFavicons(),
+              ),
+            ),
+            _toggleItem(
               title: l10n.showLargeIcons,
               value: PreferenceService.instance.shouldShowLargeIcons,
               onChanged: () => PreferenceService.instance.setShowLargeIcons(
@@ -129,11 +137,14 @@ class GeneralSettingsPage extends StatelessWidget {
 
   SettingsItem _toggleItem({
     required String title,
+    String? subtitle,
     required ValueGetter<bool> value,
     required Future<void> Function() onChanged,
   }) {
     return SettingsItem(
       title: title,
+      subtitle: subtitle,
+      subtitleMaxLines: 4,
       showChevron: false,
       trailing: ToggleSwitchComponent.async(value: value, onChanged: onChanged),
     );
