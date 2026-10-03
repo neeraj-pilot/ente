@@ -228,7 +228,6 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
                       controller: _domainsController,
                       label: l10n.websiteDomains,
                       hintText: 'example.com, login.example.org',
-                      message: l10n.websiteDomainsDescription,
                       isClearable: true,
                       maxLength: 2550,
                       autocorrect: false,

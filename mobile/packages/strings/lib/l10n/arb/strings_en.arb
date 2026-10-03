@@ -1,7 +1,6 @@
 {
   "useFavicons": "Use website icons",
   "websiteDomains": "Website domains",
-  "websiteDomainsDescription": "Optional. Separate domains with commas; the first available icon is used when website icons are enabled in Settings.",
   "invalidWebsiteDomains": "Enter up to 10 domain names separated by commas, such as example.com, login.example.org. Leave out https:// and paths.",
   "bringMemoriesTogether": "Bring your memories together",
   "@bringMemoriesTogether": {
