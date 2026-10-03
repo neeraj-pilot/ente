@@ -1,13 +1,10 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:ente_auth/services/favicon/image.dart';
-import 'package:ente_auth/services/favicon/svg.dart';
-import 'package:pool/pool.dart';
 
 final faviconClient = FaviconClient();
 
@@ -41,8 +38,9 @@ class FaviconClient {
     _dio.httpClientAdapter =
         adapter ??
         IOHttpClientAdapter(
-          createHttpClient: () =>
-              HttpClient()..findProxy = HttpClient.findProxyFromEnvironment,
+          createHttpClient: () => HttpClient()
+            ..maxConnectionsPerHost = 4
+            ..findProxy = HttpClient.findProxyFromEnvironment,
         );
   }
 
@@ -57,7 +55,6 @@ class FaviconClient {
     ),
   );
   final DateTime Function() _now;
-  final _pool = Pool(4);
   final _cache = <String, _CachedIcon>{};
 
   Future<Uint8List?> fetch(String domains) {
@@ -76,18 +73,9 @@ class FaviconClient {
     }
     final entry = _CachedIcon();
     _cache[key] = entry;
-    final result = normalized.length == 1
-        ? _pool.withResource(
-            () => entry.cancel.isCancelled
-                ? Future<Uint8List?>.value()
-                : _fetch(normalized.single, entry.cancel),
-          )
-        : _firstAvailable(normalized, entry.cancel);
-    entry.result = result.then((icon) {
+    entry.result = _fetch(normalized, entry.cancel).then((icon) {
       entry.expires = _now().add(
-        icon == null || normalized.length > 1
-            ? const Duration(minutes: 10)
-            : const Duration(days: 1),
+        icon == null ? const Duration(minutes: 10) : const Duration(days: 1),
       );
       return entry.cancel.isCancelled ? null : icon;
     });
@@ -104,48 +92,28 @@ class FaviconClient {
   void dispose() {
     clear();
     _dio.close(force: true);
-    unawaited(_pool.close());
   }
 
-  Future<Uint8List?> _firstAvailable(
-    List<String> domains,
-    CancelToken cancel,
-  ) async {
+  Future<Uint8List?> _fetch(List<String> domains, CancelToken cancel) async {
     final deadline = Timer(const Duration(seconds: 20), cancel.cancel);
     try {
       for (final domain in domains) {
-        if (cancel.isCancelled) return null;
-        final icon = await Future.any([
-          fetch(domain),
-          cancel.whenCancel.then<Uint8List?>((_) => null),
-        ]);
-        if (icon != null) return icon;
-      }
-      return null;
-    } finally {
-      deadline.cancel();
-    }
-  }
-
-  Future<Uint8List?> _fetch(String domain, CancelToken cancel) async {
-    final deadline = Timer(const Duration(seconds: 20), cancel.cancel);
-    try {
-      for (final url in [
-        Uri.https('icons.duckduckgo.com', '/ip3/$domain.ico'),
-        Uri.https('news.kagi.com', '/api/favicon-proxy', {
-          'domain': domain,
-          'quality': 'best',
-        }),
-      ]) {
-        if (cancel.isCancelled) return null;
-        try {
-          final bytes = await _download(url, cancel);
-          final raster = await Isolate.run(() => normalizeFavicon(bytes));
+        for (final url in [
+          Uri.https('icons.duckduckgo.com', '/ip3/$domain.ico'),
+          Uri.https('news.kagi.com', '/api/favicon-proxy', {
+            'domain': domain,
+            'quality': 'best',
+          }),
+        ]) {
           if (cancel.isCancelled) return null;
-          final icon = raster ?? await normalizeSvgFavicon(bytes);
-          if (icon != null) return cancel.isCancelled ? null : icon;
-        } catch (_) {
-          continue;
+          try {
+            final bytes = await _download(url, cancel);
+            if (cancel.isCancelled) return null;
+            final icon = await normalizeFavicon(bytes);
+            if (icon != null) return cancel.isCancelled ? null : icon;
+          } catch (_) {
+            continue;
+          }
         }
       }
       return null;

@@ -144,7 +144,7 @@ class GeneralSettingsPage extends StatelessWidget {
     return SettingsItem(
       title: title,
       subtitle: subtitle,
-      subtitleMaxLines: 4,
+      subtitleMaxLines: 2,
       showChevron: false,
       trailing: ToggleSwitchComponent.async(value: value, onChanged: onChanged),
     );

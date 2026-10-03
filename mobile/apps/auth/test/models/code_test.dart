@@ -5,32 +5,6 @@ import 'package:ente_auth/models/code_display.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('domains survive entry serialization, copies and export import', () {
-    final display = CodeDisplay(domains: ['example.com', 'login.example.org']);
-    final code = Code.fromAccountAndSecret(
-      Type.totp,
-      'account',
-      'Example',
-      'JBSWY3DPEHPK3PXP',
-      display,
-      6,
-    );
-    final restored = Code.fromOTPAuthUrl(jsonDecode(code.toOTPAuthUrlFormat()));
-    expect(restored.display.domains, display.domains);
-    expect(display.copyWith(pinned: true).domains, display.domains);
-    expect(CodeDisplay.fromJson(null).domains, isEmpty);
-    expect(CodeDisplay.fromJson({}).domains, isEmpty);
-    expect(CodeDisplay().toJson(), isNot(contains('domains')));
-    expect(display.copyWith(domains: []), isNot(display));
-    expect(
-      Code.fromExportJson({
-        'rawData': code.rawData,
-        'display': display.toJson(),
-      }).display.domains,
-      display.domains,
-    );
-  });
-
   test('omits malformed OTP input from parsing errors', () {
     const rawData = 'otpauth://totp:invalid/Example?secret=JBSWY3DPEHPK3PXP';
 

@@ -111,7 +111,6 @@ dependencies:
   path_provider: 2.1.5
   pinput: 5.0.2
   pointycastle: 3.9.1
-  pool: 1.5.2
   protobuf: 4.2.0
   qr_flutter: 4.1.0
   saf_stream: 2.0.0
@@ -137,7 +136,6 @@ dependencies:
   win32: 5.15.0
   window_manager: 0.5.1
   xdg_directories: 1.1.0
-  xml: 6.6.1
 
 dev_dependencies:
   flutter_lints: 6.0.0
