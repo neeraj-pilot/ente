@@ -20,6 +20,7 @@ import 'package:ente_auth/ui/components/note_dialog.dart';
 import 'package:ente_auth/ui/home/shortcuts.dart';
 import 'package:ente_auth/ui/share/code_share.dart';
 import 'package:ente_auth/ui/utils/icon_utils.dart';
+import 'package:ente_auth/utils/code_format.dart';
 import 'package:ente_auth/utils/dialog_util.dart';
 import 'package:ente_auth/utils/toast_util.dart';
 import 'package:ente_auth/utils/totp_util.dart';
@@ -1139,18 +1140,7 @@ class _CodeWidgetState extends State<CodeWidget> {
     if (_hideCode) {
       code = code.replaceAll(RegExp(r'\S'), '•');
     }
-    switch (code.length) {
-      case 6:
-        return "${code.substring(0, 3)} ${code.substring(3, 6)}";
-      case 7:
-        return "${code.substring(0, 3)} ${code.substring(3, 4)} ${code.substring(4, 7)}";
-      case 8:
-        return "${code.substring(0, 3)} ${code.substring(3, 5)} ${code.substring(5, 8)}";
-      case 9:
-        return "${code.substring(0, 3)} ${code.substring(3, 6)} ${code.substring(6, 9)}";
-      default:
-        return code;
-    }
+    return formatCode(code);
   }
 }
 

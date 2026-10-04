@@ -159,6 +159,12 @@ Photos:
 Auth:
 
 - `io.ente.auth` -> `Auth App Store`
+- `io.ente.auth.watchkitapp` -> `Auth Watch App Store`
+
+Create the Auth Watch App ID and its App Store profile before the first release
+that embeds the Watch app. The Watch app uses the existing Auth App Store Connect
+record and distribution certificate. CI supplies `AUTH_WATCH_PROFILE_SPECIFIER`
+for manual signing; local development uses automatic signing.
 
 Locker:
 

@@ -157,6 +157,20 @@ jobs:
             - name: Generate checksums
               run: cd artifacts && sha256sum ente-auth-*.apk > SHA256SUMS-android
 
+            - name: Build Wear OS bundle
+              run: cd wear && ./gradlew :app:bundleRelease
+              env:
+                  SIGNING_KEY_PATH: ${{ runner.temp }}/ente_auth_key.jks
+                  SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS_AUTH }}
+                  SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD_AUTH }}
+                  SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD_AUTH }}
+
+            - name: Save Wear OS bundle for the Wear OS release track
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: auth-wear-aab
+                  path: mobile/apps/auth/wear/app/build/outputs/bundle/release/app-release.aab
+
             - name: Upload checksum snippet
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
               with:
@@ -760,7 +774,8 @@ jobs:
                       CODE_SIGN_STYLE=Manual \
                       CODE_SIGN_IDENTITY="Apple Distribution" \
                       DEVELOPMENT_TEAM="${APPLE_TEAM_ID}" \
-                      APP_STORE_PROFILE_SPECIFIER="Auth App Store"
+                      APP_STORE_PROFILE_SPECIFIER="Auth App Store" \
+                      AUTH_WATCH_PROFILE_SPECIFIER="Auth Watch App Store"
 
                   xcodebuild -exportArchive \
                       -archivePath build/ios/archive/Runner.xcarchive \

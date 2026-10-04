@@ -10,11 +10,13 @@ class AuthSettingsPageScaffold extends StatelessWidget {
     required this.children,
     this.subtitle,
     this.backButton,
+    this.bottomNavigationBar,
   });
 
   final String title;
   final String? subtitle;
   final Widget? backButton;
+  final Widget? bottomNavigationBar;
   final List<Widget> children;
 
   @override
@@ -30,6 +32,7 @@ class AuthSettingsPageScaffold extends StatelessWidget {
           title: title,
           subtitle: subtitle,
           backButton: backButton,
+          bottomNavigationBar: bottomNavigationBar,
           padding: EdgeInsets.fromLTRB(Spacing.lg, 0, rightPadding, Spacing.lg),
           children: children,
         );

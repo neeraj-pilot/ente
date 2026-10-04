@@ -15,6 +15,7 @@ import 'package:ente_auth/services/local_backup_service.dart';
 import 'package:ente_auth/services/notification_service.dart';
 import 'package:ente_auth/services/preference_service.dart';
 import 'package:ente_auth/services/update_service.dart';
+import 'package:ente_auth/services/watch/service.dart';
 import 'package:ente_auth/services/window_listener_service.dart';
 import 'package:ente_auth/store/authenticator_db.dart';
 import 'package:ente_auth/store/code_display_store.dart';
@@ -140,6 +141,7 @@ Future<void> _runInForeground() async {
     _logger.info("Starting app in foreground");
     try {
       await _init(false, via: 'mainMethod');
+      await WatchService.initialize();
     } catch (e, s) {
       _logger.severe("Failed to init", e, s);
       rethrow;
@@ -151,6 +153,7 @@ Future<void> _runInForeground() async {
         builder: (args) => App(locale: locale, savedThemeMode: savedThemeMode),
         debugShowCheckedModeBanner: false,
         lockScreen: LockScreen(configuration),
+        onLockStateChanged: WatchService.appLockChanged,
         enabled: await LockScreenSettings.instance.shouldShowLockScreen(),
         locale: locale,
         lightTheme: lightThemeData,

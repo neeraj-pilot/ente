@@ -56,6 +56,87 @@ After updating Flutter dependencies, run `pod install` from `ios/` on macOS and 
 
 The architecture that powers end-to-end encrypted storage and sync of your tokens has been documented [here](../../../architecture/README.md#token-encryption).
 
+### Watch companions
+
+Watch sharing is opt-in for each TOTP or Steam entry. The phone is the only editor.
+It sends full encrypted snapshots: additions and edits replace the prior values,
+and absent entries are deleted. HOTP is excluded because two offline generators
+cannot safely share a mutable counter. Watches generate codes offline from their
+own clock. Open both apps after changing selected accounts to sync.
+
+The Flutter service owns consent and exports only while the app is unlocked and
+in the foreground. `ios/AuthNative` and `android/auth-native` own enrollment,
+encryption, storage, receipts, and platform transport. Flutter adapters do not
+own the vault. Each enrollment has a new key, and snapshots bind the enrollment,
+protocol version, and monotonically increasing revision. A receipt is sent only
+after an authenticated snapshot is stored. Corrupt watch storage requires an
+explicit erase and new enrollment; it cannot reset the revision under an old key.
+
+Apple Watch uses WatchConnectivity and CryptoKit HPKE. The feature requires
+iOS 17/watchOS 10; the phone app keeps its existing minimum OS version. New pairs
+use hybrid X-Wing on iOS/watchOS 26, or P-256 on older supported systems. The watch
+key uses `WhenPasscodeSetThisDeviceOnly` Keychain accessibility.
+
+Wear OS uses the Data Layer, X25519 HPKE through Tink, and optional X-Wing only
+after a successful provider probe on both devices. The chosen suite is fixed
+for that enrollment. The watch requires Android 11/API 30, a screen lock, and
+hardware-backed Android Keystore. Its wrapping key requires an unlocked device
+and device-credential authentication within 36 hours. If authentication expires,
+lock and unlock the watch. The phone adapter requires Android 8/API 26.
+One Wear watch can be enrolled at a time; stop sharing before replacing it.
+An open setup request from another connected watch pauses new exports to the
+current watch while it is disconnected. Reconnect the current watch and retry
+from the phone to resume its updates, or finish replacing it.
+
+Both watches exclude their local state from backup. The paired-app channel
+authenticates the sender; HPKE base mode alone does not. No Ente login key is
+copied to the watch. Logout queues an empty snapshot and invalidates outstanding
+vault exports. Stopping sharing retires the watch key. An offline watch cannot
+be erased remotely until it reconnects. Losing a watch therefore requires
+rotating the affected services' two-factor secrets.
+On Apple, an inactive paired watch receives its logout reset only after Auth runs
+again with that watch active. Reinstall and phone-transfer flows also need to
+exchange fresh enrollment status; they do not provide an immediate remote wipe.
+
+Only the `playstore` Android flavor depends on the watch module. Missing or
+outdated Play Services makes watch sync unavailable without preventing phone
+startup. Build `fdroid` and `independent` with the existing
+`--dart-define=cronetHttpNoPlay=true` option to exclude Cronet's Play dependency
+as well. Their existing open-source Tink dependency from secure storage remains;
+they do not include the watch module or its newer Tink version. Downstream
+F-Droid's recipe must add `mobile/apps/auth/wear` to `rm` and remove the unused
+Wear SDK declaration during `prebuild`, alongside its existing Cronet removal:
+
+```yaml
+- sed -i -e '/play-services-wearable/d' android/auth-native/build.gradle
+```
+
+The unused native module remains configured but is not a dependency of the
+F-Droid app. This recipe change needs downstream review; APK exclusion alone
+does not prove acceptance by the full F-Droid build and source scanner.
+
+From this directory, build the companions with:
+
+```sh
+flutter build ios --simulator --debug
+cd wear
+./gradlew :app:assembleDebug
+```
+
+The Wear project has its own wrapper and reads the version from Auth's pubspec.
+Its version code is `1_000_000_000 + phoneBuildNumber`, reserving a separate Play
+range. Release builds use the phone's signing key; package names and signing
+identities must match for Data Layer delivery. CI saves the signed Wear AAB for
+the separate Wear OS track. Set up that track and confirm the reserved version
+range in Play Console before publishing. Apple releases also need the watch
+App ID and provisioning profile described in
+[Apple signing](../../../.github/docs/apple-signing.md).
+
+Before release, verify enrollment, offline add/update/delete reconciliation, credential
+expiry, wrist removal, passcode removal, phone/watch restore and transfer, and
+background delivery on real Apple Watch and Wear OS hardware. A simulator cannot
+prove hardware key protection or an OEM's lock behavior.
+
 ## 🌍 Translate
 
 [![Crowdin](https://badges.crowdin.net/ente-photos-app/localized.svg)](https://crowdin.com/project/ente-photos-app)
