@@ -111,7 +111,7 @@ class _HomePageState extends State<HomePage> {
   StreamSubscription<IconsChangedEvent>? _iconsChangedEvent;
   StreamSubscription<MultiSelectActionRequestedEvent>?
   _multiSelectActionSubscription;
-  String selectedTag = "";
+  String selectedTag = PreferenceService.instance.lastSelectedTag;
   bool _isTrashOpen = false;
   bool hasTrashedCodes = false;
   bool hasNonTrashedCodes = false;
@@ -913,6 +913,7 @@ class _HomePageState extends State<HomePage> {
                                       context,
                                       iconData.trim(),
                                       domains: code.display.domains,
+                                      isCustomIcon: code.display.isCustomIcon,
                                       width: IconSizes.small,
                                     ),
                                   );
@@ -1143,6 +1144,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _applyFilteringAndRefresh() {
+    PreferenceService.instance.lastSelectedTag = selectedTag;
     if (_searchText.isNotEmpty && _showSearchBox && _allCodes != null) {
       final String val = _searchText.toLowerCase();
       // Show issuer matches first so searches for an email provider rank its
@@ -1772,7 +1774,7 @@ class _HomePageState extends State<HomePage> {
         final list = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!anyCodeHasError) ...[
+            if (!anyCodeHasError || selectedTag.isNotEmpty || _isTrashOpen) ...[
               SizedBox(
                 height: 48,
                 child: HorizontalScrollArea(
@@ -2071,12 +2073,11 @@ class _HomePageState extends State<HomePage> {
         showShareDialog(context, Code.fromOTPAuthUrl(link.codeUri));
         return;
       case DebugCodeDeepLinkAction.showIcons:
-        final code = Code.fromOTPAuthUrl(link.codeUri);
         unawaited(
           Navigator.of(context).push(
-            MaterialPageRoute<void>(
+            MaterialPageRoute<IconSelection>(
               builder: (_) => CustomIconPage(
-                currentIcon: code.issuer,
+                currentIcon: null,
                 allIcons: IconUtils.instance.getAllIcons(),
               ),
             ),

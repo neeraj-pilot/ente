@@ -5,7 +5,6 @@ import "package:ente_components/ente_components.dart";
 import "package:ente_lock_screen/local_authentication_service.dart";
 import "package:ente_strings/ente_strings.dart";
 import 'package:flutter/material.dart';
-import "package:flutter/services.dart";
 import "package:flutter_svg/flutter_svg.dart";
 import "package:hugeicons/hugeicons.dart";
 import "package:local_auth/local_auth.dart";
@@ -29,7 +28,6 @@ import 'package:photos/services/hidden_service.dart';
 import "package:photos/services/video_preview_service.dart";
 import "package:photos/states/detail_page_state.dart";
 import "package:photos/theme/colors.dart";
-import "package:photos/ui/actions/collection/collection_sharing_actions.dart";
 import "package:photos/ui/actions/file/file_actions.dart";
 import 'package:photos/ui/collections/collection_action_sheet.dart';
 import "package:photos/ui/common/photo_library_add_permission.dart";
@@ -42,7 +40,6 @@ import "package:photos/ui/viewer/file_details/favorite_widget.dart";
 import "package:photos/ui/viewer/file_details/upload_icon_widget.dart";
 import 'package:photos/utils/dialog_util.dart';
 import "package:photos/utils/magic_util.dart";
-import "package:photos/utils/share_util.dart";
 
 String _formatPlaybackSpeed(double speed) {
   return speed == 1.0 ? "1x" : "${speed}x";
@@ -191,9 +188,11 @@ class FileAppBarState extends State<FileAppBar> {
               colors: [
                 Colors.black.withValues(alpha: 0.72),
                 Colors.black.withValues(alpha: 0.6),
+                Colors.black.withValues(alpha: 0.05),
+                Colors.black.withValues(alpha: 0.025),
                 Colors.transparent,
               ],
-              stops: const [0, 0.2, 1],
+              stops: const [0, 0.2, 0.9, 0.95, 1],
             ),
           ),
           child: SafeArea(
@@ -345,15 +344,6 @@ class FileAppBarState extends State<FileAppBar> {
             hugeIcon: HugeIcons.strokeRoundedDownload01,
           ),
         );
-        if (isOwnedByUser && !isFileHidden) {
-          items.add(
-            _fileMenuOption(
-              context.strings.sendLink,
-              value: 14,
-              hugeIcon: HugeIcons.strokeRoundedNavigation03,
-            ),
-          );
-        }
       }
       if (widget.showEditAction &&
           (widget.file.fileType == FileType.image ||
@@ -549,8 +539,6 @@ class FileAppBarState extends State<FileAppBar> {
   ) async {
     if (value == 1) {
       await _download(widget.file);
-    } else if (value == 14) {
-      await _sendLink(widget.file);
     } else if (value == 2) {
       await _toggleFileArchiveStatus(widget.file);
     } else if (value == 3) {
@@ -728,44 +716,6 @@ class FileAppBarState extends State<FileAppBar> {
         await showGenericErrorDialog(context: context, error: e);
       }
     }
-  }
-
-  Future<void> _sendLink(EnteFile file) async {
-    if (!file.isUploaded || !file.isOwner) {
-      showShortToast(
-        context,
-        context.strings.canOnlyCreateLinkForFilesOwnedByYou,
-      );
-      return;
-    }
-    final dialog = createProgressDialog(
-      context,
-      context.strings.creatingLink,
-      isDismissible: true,
-    );
-    await dialog.show();
-    if (!mounted) {
-      await dialog.hide();
-      return;
-    }
-    final Collection? sharedLinkCollection = await CollectionActions(
-      CollectionsService.instance,
-    ).createSharedCollectionLink(context, [file]);
-    if (!mounted) {
-      await dialog.hide();
-      return;
-    }
-    if (sharedLinkCollection == null) {
-      await dialog.hide();
-      return;
-    }
-    final String url = CollectionsService.instance.getPublicUrl(
-      sharedLinkCollection,
-    );
-    await dialog.hide();
-    unawaited(Clipboard.setData(ClipboardData(text: url)));
-    if (!mounted) return;
-    await shareLinkWithDescription(url, context: context);
   }
 
   Future<void> _setAs(EnteFile file) async {

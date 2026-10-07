@@ -1,0 +1,19 @@
+[package]
+name = "ente-auth-frb"
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+ente-icons.workspace = true
+flutter_rust_bridge.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "sync"] }
+
+[features]
+default = []
+flutter = []
+
+[lints]
+workspace = true

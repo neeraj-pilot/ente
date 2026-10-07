@@ -46,13 +46,6 @@ class GeneralSettingsPage extends StatelessWidget {
           dividerPadding: const EdgeInsets.only(left: Spacing.lg),
           items: [
             _toggleItem(
-              title: l10n.useFavicons,
-              value: PreferenceService.instance.shouldUseFavicons,
-              onChanged: () => PreferenceService.instance.setUseFavicons(
-                !PreferenceService.instance.shouldUseFavicons(),
-              ),
-            ),
-            _toggleItem(
               title: l10n.showLargeIcons,
               value: PreferenceService.instance.shouldShowLargeIcons,
               onChanged: () => PreferenceService.instance.setShowLargeIcons(

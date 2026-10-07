@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:ente_auth/ente_theme_data.dart';
 import 'package:ente_auth/models/all_icon_data.dart';
 import 'package:ente_auth/services/favicon_service.dart';
-import 'package:ente_auth/services/preference_service.dart';
 import 'package:ente_auth/theme/ente_theme.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -121,15 +120,15 @@ class IconUtils {
     String provider, {
     double width = 24,
     List<String> domains = const [],
+    bool isCustomIcon = false,
   }) {
     try {
-      if (domains.isNotEmpty &&
-          PreferenceService.instance.shouldUseFavicons()) {
+      if (!isCustomIcon && domains.isNotEmpty) {
         final domainKey = domains.join(',');
         final fallback = getIcon(context, provider, width: width);
         return FutureBuilder<Uint8List?>(
           key: ValueKey(domainKey),
-          future: faviconClient.fetch(domainKey),
+          future: faviconClient.fetch(domains),
           builder: (context, snapshot) => snapshot.data == null
               ? fallback
               : Image.memory(

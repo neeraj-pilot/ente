@@ -3,16 +3,64 @@ import { minimumPostPhotoFrameAspectRatio } from "../styles/tiles";
 export const profilePhotoGap = 6;
 const profilePhotoMinRowHeight = 100;
 
-export const profilePhotoRows = <Tile extends { aspectRatio: number }>(
+interface PhotoRow<Tile> {
+    aspectRatio: number;
+    height: number;
+    width: number;
+    tiles: Tile[];
+}
+
+interface PostPhotoTile {
+    id: string;
+    aspectRatio: number;
+}
+
+interface PostPhotoLayout {
+    width: number;
+    fullWidth?: boolean;
+    rows: PhotoRow<PostPhotoTile>[];
+}
+
+export const postPhotoLayout = (
+    tiles: PostPhotoTile[],
+    width: number,
+    previous?: PostPhotoLayout,
+    postCount?: number,
+): PostPhotoLayout => {
+    const fullWidth =
+        previous?.fullWidth ??
+        (width > 0 && tiles.length > 0
+            ? postCount != undefined && Math.max(postCount, tiles.length) <= 7
+            : undefined);
+    const rows: PhotoRow<PostPhotoTile>[] = [];
+    let retainedCount = 0;
+    if (previous?.width == width) {
+        for (const row of previous.rows) {
+            if (
+                !row.tiles.every(
+                    (tile, index) =>
+                        tiles[retainedCount + index]?.id == tile.id,
+                )
+            )
+                break;
+            rows.push(row);
+            retainedCount += row.tiles.length;
+        }
+    }
+    const remaining = tiles.slice(retainedCount);
+    rows.push(
+        ...(fullWidth
+            ? remaining.flatMap((tile) => profilePhotoRows([tile], width))
+            : profilePhotoRows(remaining, width)),
+    );
+    return { width, fullWidth, rows };
+};
+
+const profilePhotoRows = <Tile extends { aspectRatio: number }>(
     tiles: Tile[],
     width: number,
 ) => {
-    const rows: {
-        aspectRatio: number;
-        height: number;
-        width: number;
-        tiles: Tile[];
-    }[] = [];
+    const rows: PhotoRow<Tile>[] = [];
     if (width <= 0) return rows;
 
     const targetRowHeight = width / 2;
@@ -49,16 +97,19 @@ export const profilePhotoRows = <Tile extends { aspectRatio: number }>(
             0,
         );
         const gaps = (rowSize - 1) * profilePhotoGap;
-        const height = Math.min(
-            (width - gaps) / aspectRatio,
-            tiles.length == 1
-                ? width / minimumPostPhotoFrameAspectRatio
-                : width * 0.75,
-        );
+        let height = (width - gaps) / aspectRatio;
+        if (rowSize == 1)
+            height = Math.min(
+                height,
+                tiles.length == 1
+                    ? width / minimumPostPhotoFrameAspectRatio
+                    : width * 0.75,
+            );
         rows.push({
             aspectRatio,
             height,
-            width: tiles.length == 1 ? width : height * aspectRatio + gaps,
+            width:
+                rowSize > 1 || tiles.length == 1 ? width : height * aspectRatio,
             tiles: rowTiles,
         });
         index += rowSize;

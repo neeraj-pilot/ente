@@ -69,8 +69,8 @@ class Configuration extends BaseConfiguration
 
   @override
   Future<void> logout({bool autoLogout = false}) async {
-    faviconClient.clear();
     _authSecretKey = null;
+    await faviconClient.clear();
     await super.logout();
   }
 

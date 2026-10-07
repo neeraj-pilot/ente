@@ -109,7 +109,7 @@ const SubscriptionCardContentOverlay: React.FC<
                 }}
             >
                 {inFamily ? (
-                    storageLimit ? (
+                    storageLimit !== undefined ? (
                         <UserSubscriptionCardContents
                             userDetails={userDetails}
                             totalStorage={storageLimit}
@@ -228,7 +228,7 @@ const UsageBarSegment: React.FC<UsageBarSegmentProps> = ({
         }}
         style={
             {
-                "--et-width": `${Math.min(usage / storage, 1) * 100}%`,
+                "--et-width": `${storage > 0 ? Math.min(usage / storage, 1) * 100 : 0}%`,
                 "--et-background-color": fillColor,
             } as React.CSSProperties
         }

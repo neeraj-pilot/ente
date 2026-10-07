@@ -65,6 +65,7 @@ export const MLSettings: React.FC<NestedSidebarDrawerVisibilityProps> = ({
     return (
         <>
             <TitledNestedSidebarDrawer
+                maxWidth="440px"
                 {...{ open, onClose }}
                 onRootClose={handleRootClose}
                 title={t("ml_search")}
@@ -140,6 +141,7 @@ const FaceConsentDrawer: React.FC<FaceConsentDrawerProps> = ({
 
     return (
         <TitledNestedSidebarDrawer
+            maxWidth="440px"
             {...{ open, onClose }}
             onRootClose={handleRootClose}
             title={t("ml_consent_title")}

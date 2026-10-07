@@ -1,149 +1,172 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
+import 'package:ente_auth/core/configuration.dart';
+import 'package:ente_auth/services/favicon/cache.dart';
 import 'package:ente_auth/services/favicon/image.dart';
+import 'package:ente_auth/src/rust/api/icons.dart';
+import 'package:ente_auth/src/rust/frb_generated.dart';
+import 'package:ente_pure_utils/ente_pure_utils.dart';
+import 'package:flutter/foundation.dart' show SynchronousFuture;
 
 final faviconClient = FaviconClient();
 
 final _labelPattern = RegExp(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$');
 final _numericHostPattern = RegExp(r'^[\d.]+$');
 
-List<String> parseDomains(String input) {
-  if (input.trim().isEmpty) return const [];
-  if (input.length > 2550) throw const FormatException('Too many domains');
-  final result = <String>[];
-  for (final part in input.split(',')) {
-    final domain = part.trim().toLowerCase().replaceFirst(RegExp(r'\.$'), '');
-    if (!_validDomain(domain)) {
-      throw const FormatException('Enter domain names separated by commas');
-    }
-    if (!result.contains(domain)) result.add(domain);
+String? normalizeDomain(String input) {
+  final domain = input.trim().toLowerCase().replaceFirst(RegExp(r'\.$'), '');
+  if (domain.isEmpty) return null;
+  if (domain.length > 253 ||
+      !domain.contains('.') ||
+      _numericHostPattern.hasMatch(domain) ||
+      !domain.split('.').every(_labelPattern.hasMatch)) {
+    throw const FormatException('Enter a domain name');
   }
-  if (result.length > 10) throw const FormatException('At most ten domains');
-  return result;
+  return domain;
 }
 
-bool _validDomain(String domain) =>
-    domain.length <= 253 &&
-    domain.contains('.') &&
-    !_numericHostPattern.hasMatch(domain) &&
-    domain.split('.').every(_labelPattern.hasMatch);
-
 class FaviconClient {
-  FaviconClient({HttpClientAdapter? adapter, DateTime Function()? now})
-    : _now = now ?? DateTime.now {
-    _dio.httpClientAdapter =
-        adapter ??
-        IOHttpClientAdapter(
-          createHttpClient: () => HttpClient()
-            ..maxConnectionsPerHost = 4
-            ..findProxy = HttpClient.findProxyFromEnvironment,
-        );
+  late final Future<IconFetcher> _fetcher = _loadFetcher();
+  final _diskCache = FaviconCache();
+  final _cache = <String, CachedFavicon>{};
+  final _pending = <String, _IconLookup>{};
+  final _queue = SimpleTaskQueue(maxConcurrent: 6);
+  bool _clearing = false;
+
+  Future<IconFetcher> _loadFetcher() async {
+    await EnteAuthRust.init();
+    return IconFetcher();
   }
 
-  final _dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 3),
-      receiveTimeout: const Duration(seconds: 10),
-      responseType: ResponseType.stream,
-      followRedirects: false,
-      validateStatus: (status) => status == 200,
-      headers: {'User-Agent': 'EnteAuth-Favicon'},
-    ),
-  );
-  final DateTime Function() _now;
-  final _cache = <String, _CachedIcon>{};
-
-  Future<Uint8List?> fetch(String domains) {
-    final normalized = parseDomains(domains);
+  Future<Uint8List?> fetch(List<String> domains) {
+    if (_clearing) return Future.value();
+    final normalized = <String>{};
+    for (final domain in domains) {
+      try {
+        final value = normalizeDomain(domain);
+        if (value != null) normalized.add(value);
+      } on FormatException {
+        continue;
+      }
+    }
     if (normalized.isEmpty) return Future.value();
-    final key = normalized.join(',');
+    final config = Configuration.instance;
+    final dataKey =
+        config.hasOptedForOfflineMode() && !config.hasConfiguredAccount()
+        ? config.getOfflineSecretKey()
+        : config.getAuthSecretKey();
+    final diskKey = dataKey == null
+        ? null
+        : FaviconCache.key(normalized.join(','), dataKey);
+    final key = diskKey?.id ?? normalized.join(',');
     final cached = _cache.remove(key);
-    if (cached != null &&
-        (cached.expires == null || _now().isBefore(cached.expires!))) {
+    if (cached != null && DateTime.now().isBefore(cached.expires)) {
       _cache[key] = cached;
-      return cached.result;
+      return SynchronousFuture(cached.bytes);
     }
-    cached?.cancel.cancel();
-    if (_cache.length >= 128) {
-      _cache.remove(_cache.keys.first)?.cancel.cancel();
-    }
-    final entry = _CachedIcon();
-    _cache[key] = entry;
-    entry.result = _fetch(normalized, entry.cancel).then((icon) {
-      entry.expires = _now().add(
-        icon == null ? const Duration(minutes: 10) : const Duration(days: 1),
-      );
-      return entry.cancel.isCancelled ? null : icon;
-    });
-    return entry.result;
+    final pending = _pending[key];
+    if (pending != null) return pending.result.future;
+    final entry = _IconLookup(key, normalized, diskKey);
+    _pending[key] = entry;
+    unawaited(_queue.add(() => _run(entry)));
+    return entry.result.future;
   }
 
-  void clear() {
-    for (final entry in _cache.values) {
-      entry.cancel.cancel();
+  Future<void> clear() async {
+    _clearing = true;
+    for (final entry in _pending.values) {
+      entry.cancel();
     }
+    _pending.clear();
     _cache.clear();
-  }
-
-  void dispose() {
-    clear();
-    _dio.close(force: true);
-  }
-
-  Future<Uint8List?> _fetch(List<String> domains, CancelToken cancel) async {
-    final deadline = Timer(const Duration(seconds: 20), cancel.cancel);
     try {
-      for (final domain in domains) {
-        for (final url in [
-          Uri.https('icons.duckduckgo.com', '/ip3/$domain.ico'),
-          Uri.https('news.kagi.com', '/api/favicon-proxy', {
-            'domain': domain,
-            'quality': 'best',
-          }),
-        ]) {
-          if (cancel.isCancelled) return null;
-          try {
-            final bytes = await _download(url, cancel);
-            if (cancel.isCancelled) return null;
-            final icon = await normalizeFavicon(bytes);
-            if (icon != null) return cancel.isCancelled ? null : icon;
-          } catch (_) {
-            continue;
-          }
+      await _diskCache.clear();
+    } finally {
+      _clearing = false;
+    }
+  }
+
+  Future<void> _run(_IconLookup entry) async {
+    if (entry.cancelled) return;
+    try {
+      final diskKey = entry.diskKey;
+      var cached = diskKey == null ? null : await _diskCache.read(diskKey);
+      if (entry.cancelled) return;
+      if (cached == null) {
+        final icon = await _fetch(entry);
+        if (entry.cancelled) return;
+        cached = (
+          bytes: icon,
+          expires: DateTime.now().add(
+            icon == null
+                ? const Duration(minutes: 10)
+                : const Duration(days: 30),
+          ),
+        );
+        if (icon != null && diskKey != null) {
+          await _diskCache.write(diskKey, icon, cached.expires);
+        }
+      }
+      if (entry.cancelled) return;
+      if (_cache.length >= 128) _cache.remove(_cache.keys.first);
+      _cache[entry.key] = cached;
+      entry.result.complete(cached.bytes);
+    } catch (_) {
+      return;
+    } finally {
+      if (!entry.result.isCompleted) entry.result.complete(null);
+      if (identical(_pending[entry.key], entry)) _pending.remove(entry.key);
+    }
+  }
+
+  Future<Uint8List?> _fetch(_IconLookup entry) async {
+    Timer? deadline;
+    var expired = false;
+    try {
+      final fetcher = await _fetcher;
+      if (entry.cancelled) return null;
+      final request = entry.request = fetcher.request();
+      deadline = Timer(const Duration(seconds: 20), () {
+        expired = true;
+        request.cancel();
+      });
+      for (final domain in entry.domains) {
+        if (entry.cancelled || expired) return null;
+        try {
+          final bytes = await request.fetch(url: 'https://$domain/');
+          if (entry.cancelled || expired) return null;
+          if (bytes == null) continue;
+          final icon = await normalizeFavicon(bytes);
+          if (icon != null) return entry.cancelled || expired ? null : icon;
+        } catch (_) {
+          continue;
         }
       }
       return null;
+    } catch (_) {
+      return null;
     } finally {
-      deadline.cancel();
+      deadline?.cancel();
+      entry.request?.dispose();
+      entry.request = null;
     }
-  }
-
-  Future<Uint8List> _download(Uri url, CancelToken cancel) async {
-    final response = await _dio.getUri<ResponseBody>(url, cancelToken: cancel);
-    final body = response.data!;
-    const limit = 2 * 1024 * 1024;
-    if ((int.tryParse(response.headers.value('content-length') ?? '') ?? 0) >
-        limit) {
-      await body.stream.listen(null).cancel();
-      throw const FormatException('Favicon response too large');
-    }
-    final data = BytesBuilder(copy: false);
-    await for (final chunk in body.stream) {
-      if (data.length + chunk.length > limit || cancel.isCancelled) {
-        throw const FormatException('Favicon response too large or cancelled');
-      }
-      data.add(chunk);
-    }
-    return data.takeBytes();
   }
 }
 
-class _CachedIcon {
-  final cancel = CancelToken();
-  DateTime? expires;
-  late final Future<Uint8List?> result;
+class _IconLookup {
+  final String key;
+  final Iterable<String> domains;
+  final FaviconCacheKey? diskKey;
+  final result = Completer<Uint8List?>();
+  bool cancelled = false;
+  IconRequest? request;
+
+  _IconLookup(this.key, this.domains, this.diskKey);
+
+  void cancel() {
+    cancelled = true;
+    request?.cancel();
+    if (!result.isCompleted) result.complete(null);
+  }
 }

@@ -148,6 +148,7 @@ class _AddTagSheetState extends State<AddTagSheet> {
                                 context,
                                 iconData.trim(),
                                 domains: code.display.domains,
+                                isCustomIcon: code.display.isCustomIcon,
                                 width: 28,
                               ),
                             ),

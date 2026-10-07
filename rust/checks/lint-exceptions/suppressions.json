@@ -5,6 +5,11 @@
     "rust/apps/cli/src/sync/download.rs": ["clippy::expect_used"],
     "rust/apps/cli/tests/sync.rs": ["dead_code"],
     "rust/apps/ensu/src-tauri/src/logging.rs": ["clippy::expect_used"],
+    "rust/bindings/frb/auth/src/lib.rs": [
+        "clippy::allow_attributes_without_reason",
+        "clippy::unwrap_used",
+        "unsafe_code"
+    ],
     "rust/bindings/frb/locker/src/lib.rs": [
         "clippy::allow_attributes",
         "clippy::allow_attributes_without_reason",

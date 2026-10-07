@@ -8,6 +8,8 @@ import 'package:ente_strings/ente_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+typedef IconSelection = ({AllIconData? customIcon});
+
 class CustomIconPage extends StatefulWidget {
   const CustomIconPage({
     super.key,
@@ -16,7 +18,7 @@ class CustomIconPage extends StatefulWidget {
   });
 
   final Map<String, AllIconData> allIcons;
-  final String currentIcon;
+  final String? currentIcon;
 
   @override
   State<CustomIconPage> createState() => _CustomIconPageState();
@@ -83,6 +85,35 @@ class _CustomIconPageState extends State<CustomIconPage> {
                   ),
                 ),
               ),
+              if (widget.currentIcon != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: Spacing.sm),
+                  child: Semantics(
+                    button: true,
+                    identifier: 'auth_icon_more_options',
+                    child: EntePopupMenuButton<IconSelection>(
+                      optionsBuilder: () => [
+                        EntePopupMenuOption(
+                          value: (customIcon: null),
+                          label: context.strings.reset,
+                        ),
+                      ],
+                      onSelected: (selection) =>
+                          Navigator.of(context).pop(selection),
+                      child: Tooltip(
+                        message: context.strings.moreOptions,
+                        child: SizedBox.square(
+                          dimension: 36,
+                          child: Icon(
+                            Icons.more_horiz,
+                            size: IconSizes.medium,
+                            color: colors.iconColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
             slivers: [
               if (_showSearchBox)
@@ -159,7 +190,7 @@ class _CustomIconPageState extends State<CustomIconPage> {
     final colors = context.componentColors;
     final title = _filteredIcons.keys.elementAt(index);
     final iconData = _filteredIcons[title]!;
-    final selected = title.toLowerCase() == widget.currentIcon.toLowerCase();
+    final selected = title.toLowerCase() == widget.currentIcon?.toLowerCase();
     final iconWidget = _buildIcon(context, title, iconData);
 
     return Semantics(
@@ -172,7 +203,7 @@ class _CustomIconPageState extends State<CustomIconPage> {
         borderRadius: BorderRadius.circular(Radii.button),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => Navigator.of(context).pop(iconData),
+          onTap: () => Navigator.of(context).pop((customIcon: iconData)),
           child: Container(
             padding: const EdgeInsets.all(Spacing.sm),
             decoration: BoxDecoration(

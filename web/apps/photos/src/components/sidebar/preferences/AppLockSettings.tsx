@@ -1,6 +1,7 @@
 import CheckIcon from "@mui/icons-material/Check";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Stack, TextField, Typography } from "@mui/material";
+import { EnteSwitch } from "ente-base/components/EnteSwitch";
 import { TitledMiniDialog } from "ente-base/components/MiniDialog";
 import { FocusVisibleButton } from "ente-base/components/mui/FocusVisibleButton";
 import { ShowHidePasswordInputAdornment } from "ente-base/components/mui/PasswordInputAdornment";
@@ -13,9 +14,9 @@ import {
     RowButtonDivider,
     RowButtonEndActivityIndicator,
     RowButtonGroup,
-    RowSwitch,
 } from "ente-base/components/RowButton";
 import { errorDialogAttributes } from "ente-base/components/utils/dialog";
+import { RowCard } from "ente-base/components/v2/RowCard";
 import { useBaseContext } from "ente-base/context";
 import log from "ente-base/log";
 import { useAppLockSnapshot } from "ente-new/photos/components/utils/use-snapshot";
@@ -33,11 +34,14 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 type DeviceLockEnableOutcome = "success" | "cancelled" | "failed";
 
-export const AppLockSettings: React.FC<NestedSidebarDrawerVisibilityProps> = ({
-    open,
-    onClose,
-    onRootClose,
-}) => {
+export const AppLockSettings: React.FC<
+    Pick<NestedSidebarDrawerVisibilityProps, "onRootClose"> & {
+        onAuthenticateUser: () => Promise<boolean>;
+    }
+> = ({ onAuthenticateUser, onRootClose }) => {
+    const [open, setOpen] = useState(false);
+    const [isAuthenticating, setIsAuthenticating] = useState(false);
+    const onClose = () => setOpen(false);
     const state = useAppLockSnapshot();
     const isMacOS =
         typeof navigator != "undefined" &&
@@ -174,22 +178,57 @@ export const AppLockSettings: React.FC<NestedSidebarDrawerVisibilityProps> = ({
         setPasswordDialogOpen(false);
     }, []);
 
+    const authenticateAndRun = async (action: () => void) => {
+        if (isAuthenticating) return;
+        setIsAuthenticating(true);
+        try {
+            if (await onAuthenticateUser()) action();
+        } catch (error) {
+            log.error("Failed to authenticate app lock settings", error);
+        } finally {
+            setIsAuthenticating(false);
+        }
+    };
+
     return (
         <>
+            <RowCard
+                title={t("app_lock")}
+                subtitle={
+                    !state.supported ? t("app_lock_not_supported") : undefined
+                }
+                endIcon={
+                    <EnteSwitch
+                        checked={state.enabled}
+                        disabled={
+                            !state.supported ||
+                            isAuthenticating ||
+                            isSettingDeviceLock
+                        }
+                        onChange={() =>
+                            void authenticateAndRun(handleToggleEnabled)
+                        }
+                        slotProps={{ input: { "aria-label": t("app_lock") } }}
+                    />
+                }
+            />
+            {state.enabled && (
+                <Stack sx={{ pl: 2 }}>
+                    <RowCard
+                        title="App lock options"
+                        onClick={() =>
+                            void authenticateAndRun(() => setOpen(true))
+                        }
+                    />
+                </Stack>
+            )}
             <TitledNestedSidebarDrawer
+                maxWidth="440px"
                 {...{ open, onClose }}
                 onRootClose={handleRootClose}
                 title={t("app_lock")}
             >
                 <Stack sx={{ px: "16px", py: "20px", gap: "24px" }}>
-                    <RowButtonGroup>
-                        <RowSwitch
-                            label={t("enabled")}
-                            checked={state.enabled}
-                            onClick={handleToggleEnabled}
-                        />
-                    </RowButtonGroup>
-
                     {state.enabled && (
                         <>
                             <Stack>
@@ -852,6 +891,7 @@ const AutoLockOptionsDrawer: React.FC<AutoLockOptionsDrawerProps> = ({
 
     return (
         <TitledNestedSidebarDrawer
+            maxWidth="440px"
             anchor="left"
             {...{ open, onClose }}
             onRootClose={onRootClose}

@@ -54,15 +54,13 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
   late TextEditingController _accountController;
   late TextEditingController _secretController;
   late TextEditingController _notesController;
-  late TextEditingController _domainsController;
+  late TextEditingController _domainController;
   late TextEditingController _digitsController;
   late TextEditingController _periodController;
   late List<String> selectedTags = [...?widget.code?.display.tags];
   List<String> allTags = [];
   StreamSubscription<CodesUpdatedEvent>? _streamSubscription;
-  bool isCustomIcon = false;
-  String _customIconID = "";
-  late IconType _iconSrc;
+  AllIconData? _customIcon;
   late Algorithm _algorithm;
   late Type _type;
   final ValueNotifier<bool> showAdvancedOptions = ValueNotifier<bool>(false);
@@ -80,8 +78,8 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
     );
     _secretController = TextEditingController(text: widget.code?.secret);
     _notesController = TextEditingController(text: widget.code?.display.note);
-    _domainsController = TextEditingController(
-      text: widget.code?.display.domains.join(', '),
+    _domainController = TextEditingController(
+      text: widget.code?.display.domains.firstOrNull,
     );
     _digitsController = TextEditingController(
       text: widget.code != null
@@ -111,17 +109,16 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
       }
     });
 
-    isCustomIcon = widget.code?.display.isCustomIcon ?? false;
-    if (isCustomIcon) {
-      _customIconID = widget.code?.display.iconID ?? "ente";
-    } else {
-      if (widget.code != null) {
-        _customIconID = widget.code!.issuer;
-      }
+    final display = widget.code?.display;
+    if (display != null && display.isCustomIcon) {
+      _customIcon = AllIconData(
+        title: display.iconID,
+        type: display.iconSrc == 'simpleIcon'
+            ? IconType.simpleIcon
+            : IconType.customIcon,
+        color: null,
+      );
     }
-    _iconSrc = widget.code?.display.iconSrc == "simpleIcon"
-        ? IconType.simpleIcon
-        : IconType.customIcon;
 
     _algorithm = widget.code == null ? Algorithm.sha1 : widget.code!.algorithm;
     _type = widget.code == null ? Type.totp : widget.code!.type;
@@ -136,7 +133,7 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
     _accountController.dispose();
     _secretController.dispose();
     _notesController.dispose();
-    _domainsController.dispose();
+    _domainController.dispose();
     _digitsController.dispose();
     _periodController.dispose();
     showAdvancedOptions.dispose();
@@ -177,8 +174,16 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
                           child: Padding(
                             padding: const EdgeInsets.all(Spacing.sm),
                             child: CustomIconWidget(
-                              iconData: _customIconID,
-                              domains: widget.code!.display.domains,
+                              iconData:
+                                  _customIcon?.title ??
+                                  _issuerController.text.trim(),
+                              domains: _domainController.text.trim().isEmpty
+                                  ? const []
+                                  : [
+                                      _domainController.text,
+                                      ...widget.code!.display.domains.skip(1),
+                                    ],
+                              isCustomIcon: _customIcon != null,
                             ),
                           ),
                         ),
@@ -223,21 +228,6 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
                   ),
                   const SizedBox(height: Spacing.lg),
                   Semantics(
-                    identifier: 'auth_manual_domains',
-                    child: TextInputComponent(
-                      controller: _domainsController,
-                      label: l10n.websiteDomains,
-                      hintText: 'example.com, login.example.org',
-                      isClearable: true,
-                      maxLength: 2550,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      keyboardType: TextInputType.url,
-                      textInputAction: TextInputAction.next,
-                    ),
-                  ),
-                  const SizedBox(height: Spacing.lg),
-                  Semantics(
                     identifier: 'auth_manual_notes',
                     child: TextInputComponent(
                       controller: _notesController,
@@ -251,10 +241,8 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
                   ),
                   const SizedBox(height: Spacing.xl),
                   _buildTags(context),
-                  if (widget.code == null) ...[
-                    const SizedBox(height: Spacing.xl),
-                    _buildAdvancedOptions(context),
-                  ],
+                  const SizedBox(height: Spacing.xl),
+                  _buildAdvancedOptions(context),
                   const SizedBox(height: Spacing.xxl),
                   Semantics(
                     identifier: 'auth_manual_save',
@@ -370,6 +358,7 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
                   : Padding(
                       padding: const EdgeInsets.only(top: Spacing.lg),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           MenuGroupComponent(
                             showDividers: true,
@@ -439,6 +428,21 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
                                 ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: Spacing.lg),
+                          Semantics(
+                            identifier: 'auth_manual_domain',
+                            child: TextInputComponent(
+                              controller: _domainController,
+                              label: context.strings.websiteDomain,
+                              hintText: 'example.com',
+                              isClearable: true,
+                              maxLength: 253,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              keyboardType: TextInputType.url,
+                              textInputAction: TextInputAction.done,
+                            ),
                           ),
                         ],
                       ),
@@ -546,11 +550,19 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
 
     final List<String> domains;
     try {
-      domains = parseDomains(_domainsController.text);
+      final domain = normalizeDomain(_domainController.text);
+      domains = domain == null
+          ? const []
+          : [
+              domain,
+              ...?widget.code?.display.domains
+                  .skip(1)
+                  .where((d) => d != domain),
+            ];
     } on FormatException {
       _showIncorrectDetailsDialog(
         context,
-        message: context.strings.invalidWebsiteDomains,
+        message: context.strings.invalidWebsiteDomain,
       );
       return;
     }
@@ -575,17 +587,12 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
           CodeDisplay(tags: selectedTags);
       display.note = notes;
       display.domains = domains;
-      if (widget.code != null) {
-        if (widget.code!.display.iconID != _customIconID.toLowerCase()) {
-          display.iconID = _customIconID.toLowerCase();
-        } else if (widget.code!.issuer != issuer) {
-          display.iconID = issuer.toLowerCase();
-        }
-      }
-
-      display.iconSrc = _iconSrc == IconType.simpleIcon
-          ? 'simpleIcon'
-          : 'customIcon';
+      display.iconID = _customIcon?.title.toLowerCase() ?? '';
+      display.iconSrc = switch (_customIcon?.type) {
+        IconType.simpleIcon => 'simpleIcon',
+        IconType.customIcon => 'customIcon',
+        null => '',
+      };
 
       if (widget.code != null && widget.code!.secret != secret) {
         ButtonResult? result = await showChoiceActionSheet(
@@ -642,24 +649,15 @@ class _SetupEnterSecretKeyPageState extends State<SetupEnterSecretKeyPage> {
   }
 
   Future<void> navigateToCustomIconPage() async {
-    final allIcons = IconUtils.instance.getAllIcons();
-    String currentIcon;
-    if (widget.code!.display.isCustomIcon) {
-      currentIcon = widget.code!.display.iconID;
-    } else {
-      currentIcon = widget.code!.issuer;
-    }
-    final AllIconData? newCustomIcon = await Navigator.of(context).push(
-      MaterialPageRoute<AllIconData>(
-        builder: (context) {
-          return CustomIconPage(currentIcon: currentIcon, allIcons: allIcons);
-        },
+    final selection = await Navigator.of(context).push<IconSelection>(
+      MaterialPageRoute<IconSelection>(
+        builder: (_) => CustomIconPage(
+          currentIcon: _customIcon?.title,
+          allIcons: IconUtils.instance.getAllIcons(),
+        ),
       ),
     );
-    if (newCustomIcon == null || !mounted) return;
-    setState(() {
-      _customIconID = newCustomIcon.title;
-      _iconSrc = newCustomIcon.type;
-    });
+    if (selection == null || !mounted) return;
+    setState(() => _customIcon = selection.customIcon);
   }
 }

@@ -1,4 +1,8 @@
 {
+    "on": "On",
+    "off": "Off",
+    "account_sessions_one": "{{count}} session",
+    "account_sessions_other": "{{count}} sessions",
     "intro_slide_1_title": "Private backups<br/>for your memories",
     "intro_slide_1": "End-to-end encrypted by default",
     "intro_slide_2_title": "Safely stored<br/>at a fallout shelter",
@@ -955,6 +959,8 @@
     "hide": "Hide",
     "unhide": "Unhide",
     "sort_by": "Sort by",
+    "album_sort_name_asc": "Filename (A–Z)",
+    "album_sort_name_desc": "Filename (Z–A)",
     "newest_first": "Newest first",
     "oldest_first": "Oldest first",
     "most_relevant": "Most relevant",

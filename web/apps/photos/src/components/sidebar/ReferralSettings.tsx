@@ -270,6 +270,7 @@ export const ReferralSettings: React.FC<NestedSidebarDrawerVisibilityProps> = ({
 
     return (
         <TitledNestedSidebarDrawer
+            maxWidth="440px"
             {...{ open }}
             onClose={handleClose}
             onRootClose={handleRootClose}

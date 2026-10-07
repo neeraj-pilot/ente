@@ -74,6 +74,9 @@ jobs:
             - run: cargo codegen frb
               working-directory: rust
 
+            - run: cargo clippy -p ente-auth-frb --features flutter --all-targets --locked
+              working-directory: rust
+
             - run: cargo clippy -p ente-photos-frb --features flutter --all-targets --locked
               working-directory: rust
 
