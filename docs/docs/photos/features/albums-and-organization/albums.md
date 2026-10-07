@@ -133,6 +133,16 @@ Keep your favorite albums at the top by pinning them for quick access.
 - Tap the overflow menu (three dots) in the top right corner
 - Tap **Pin album** or **Unpin album**
 
+## Remove a photo from an album on mobile
+
+You can remove a photo from an album, quick link, or Favorites without deleting it from Ente:
+
+1. Open the photo and select **Info** from the three-dot menu.
+2. In **Albums**, tap the remove button on the album, quick link, or Favorites label.
+3. Confirm the removal if prompted.
+
+If you remove the photo from its last album, it moves to [Uncategorized](/photos/features/albums-and-organization/uncategorized) instead of Trash. The remove button appears only where you have permission to remove the photo.
+
 ## Find albums on web and desktop
 
 Open **All Albums** to search your album names or filter the list. The available filters include:

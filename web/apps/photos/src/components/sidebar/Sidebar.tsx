@@ -1,3 +1,4 @@
+import { Export } from "@/components/Export";
 import { downloadAppDialogAttributes } from "@/components/utils/download";
 import exportService from "@/services/export";
 import { performSidebarAction as performSidebarRegistryAction } from "@/services/search/sidebar-search-registry";
@@ -88,7 +89,7 @@ type SidebarProps = ModalVisibilityProps & {
         collectionSummaryID: number,
         isHiddenCollectionSummary?: boolean,
     ) => Promise<void>;
-    onShowExport: () => void;
+    collectionNameByID: Map<number, string>;
     onAuthenticateUser: () => Promise<boolean>;
 };
 
@@ -101,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onActionHandled,
     onShowPlanSelector,
     onShowCollectionSummary,
-    onShowExport,
+    collectionNameByID,
     onAuthenticateUser,
 }) => {
     const { show: showHelp, props: helpVisibilityProps } = useModalVisibility();
@@ -113,6 +114,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         useModalVisibility();
     const { show: showFreeUpSpace, props: freeUpSpaceVisibilityProps } =
         useModalVisibility();
+    const { show: showExport, props: exportVisibilityProps } =
+        useModalVisibility();
+    const { onClose: closeExport } = exportVisibilityProps;
+
+    useEffect(() => {
+        if (!open) closeExport();
+    }, [open, closeExport]);
+
     const { watchFolderView, setWatchFolderView } = usePhotosAppContext();
     const { showMiniDialog, logout } = useBaseContext();
 
@@ -157,12 +166,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         void (async () => {
             try {
                 if (!(await onAuthenticateUser())) return;
-                onShowExport();
+                showExport();
             } catch (error) {
                 log.error("Failed to authenticate before export", error);
             }
         })();
-    }, [onAuthenticateUser, onShowExport, showMiniDialog]);
+    }, [onAuthenticateUser, showExport, showMiniDialog]);
 
     const performSidebarAction = useCallback(
         async (actionID: SidebarActionID) =>
@@ -230,55 +239,65 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }, [pendingAction]);
 
     return (
-        <RootSidebarDrawer open={open} onClose={onClose} maxWidth="440px">
-            <HeaderSection onCloseSidebar={onClose} />
-            <UserDetailsSection
-                sidebarOpen={open}
-                {...{ onShowPlanSelector }}
+        <>
+            <RootSidebarDrawer open={open} onClose={onClose} maxWidth="440px">
+                <HeaderSection onCloseSidebar={onClose} />
+                <UserDetailsSection
+                    sidebarOpen={open}
+                    {...{ onShowPlanSelector }}
+                />
+                <Stack sx={{ gap: 0.5, mb: 3 }}>
+                    <ShortcutSection
+                        onCloseSidebar={onClose}
+                        {...{
+                            normalCollectionSummaries,
+                            uncategorizedCollectionSummaryID,
+                            onShowCollectionSummary,
+                        }}
+                    />
+                    <UtilitySection
+                        onCloseSidebar={onClose}
+                        {...{
+                            showExport: handleShowExport,
+                            onAuthenticateUser,
+                            onShowPlanSelector,
+                            showAccount,
+                            accountVisibilityProps,
+                            showReferrals,
+                            referralsVisibilityProps,
+                            showPreferences,
+                            preferencesVisibilityProps,
+                            showHelp,
+                            helpVisibilityProps,
+                            showFreeUpSpace,
+                            freeUpSpaceVisibilityProps,
+                            watchFolderView,
+                            onShowWatchFolder: handleOpenWatchFolder,
+                            onCloseWatchFolder: handleCloseWatchFolder,
+                            pendingAccountAction,
+                            onAccountActionHandled: setPendingAccountAction,
+                            pendingPreferencesAction,
+                            onPreferencesActionHandled:
+                                setPendingPreferencesAction,
+                            pendingHelpAction,
+                            onHelpActionHandled: setPendingHelpAction,
+                            pendingFreeUpSpaceAction,
+                            onFreeUpSpaceActionHandled:
+                                setPendingFreeUpSpaceAction,
+                        }}
+                    />
+                    <Divider sx={{ my: "2px" }} />
+                    <ExitSection onLogout={handleLogout} />
+                    <InfoSection />
+                </Stack>
+            </RootSidebarDrawer>
+            <Export
+                {...exportVisibilityProps}
+                open={open && exportVisibilityProps.open}
+                collectionNameByID={collectionNameByID}
+                onRootClose={onClose}
             />
-            <Stack sx={{ gap: 0.5, mb: 3 }}>
-                <ShortcutSection
-                    onCloseSidebar={onClose}
-                    {...{
-                        normalCollectionSummaries,
-                        uncategorizedCollectionSummaryID,
-                        onShowCollectionSummary,
-                    }}
-                />
-                <UtilitySection
-                    onCloseSidebar={onClose}
-                    {...{
-                        onShowExport: handleShowExport,
-                        onAuthenticateUser,
-                        onShowPlanSelector,
-                        showAccount,
-                        accountVisibilityProps,
-                        showReferrals,
-                        referralsVisibilityProps,
-                        showPreferences,
-                        preferencesVisibilityProps,
-                        showHelp,
-                        helpVisibilityProps,
-                        showFreeUpSpace,
-                        freeUpSpaceVisibilityProps,
-                        watchFolderView,
-                        onShowWatchFolder: handleOpenWatchFolder,
-                        onCloseWatchFolder: handleCloseWatchFolder,
-                        pendingAccountAction,
-                        onAccountActionHandled: setPendingAccountAction,
-                        pendingPreferencesAction,
-                        onPreferencesActionHandled: setPendingPreferencesAction,
-                        pendingHelpAction,
-                        onHelpActionHandled: setPendingHelpAction,
-                        pendingFreeUpSpaceAction,
-                        onFreeUpSpaceActionHandled: setPendingFreeUpSpaceAction,
-                    }}
-                />
-                <Divider sx={{ my: "2px" }} />
-                <ExitSection onLogout={handleLogout} />
-                <InfoSection />
-            </Stack>
-        </RootSidebarDrawer>
+        </>
     );
 };
 
@@ -562,10 +581,8 @@ const ShortcutSection: React.FC<ShortcutSectionProps> = ({
 };
 
 type UtilitySectionProps = SectionProps &
-    Pick<
-        SidebarProps,
-        "onShowExport" | "onAuthenticateUser" | "onShowPlanSelector"
-    > & {
+    Pick<SidebarProps, "onAuthenticateUser" | "onShowPlanSelector"> & {
+        showExport: () => void;
         showAccount: () => void;
         accountVisibilityProps: ModalVisibilityProps;
         showReferrals: () => void;
@@ -591,7 +608,7 @@ type UtilitySectionProps = SectionProps &
 
 const UtilitySection: React.FC<UtilitySectionProps> = ({
     onCloseSidebar,
-    onShowExport,
+    showExport,
     onAuthenticateUser,
     onShowPlanSelector,
     showAccount,
@@ -658,7 +675,7 @@ const UtilitySection: React.FC<UtilitySectionProps> = ({
                         <RowButtonEndActivityIndicator />
                     )
                 }
-                onClick={onShowExport}
+                onClick={showExport}
             />
             <Help
                 {...helpVisibilityProps}

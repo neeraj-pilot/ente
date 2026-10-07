@@ -58,7 +58,7 @@ import {
     spaceAppBackgroundColor,
     spaceControlBackground,
     spaceControlBackgroundHover,
-    spaceSurface,
+    spaceHomeSurface,
     spaceSurfaceHover,
     spaceText,
     spaceTextMuted,
@@ -78,7 +78,8 @@ const homeBackground = spaceAppBackgroundColor;
 const green = "#08C225";
 const feedAccentBackground = "#263D2C";
 const feedAccentBackgroundHover = "#2C4B32";
-const feedActionBackground = spaceControlBackground;
+const feedActionBackground = spaceControlBackgroundHover;
+const feedActionBackgroundHover = "#3A3A3A";
 const feedActionForeground = spaceText;
 const feedTimestampForeground = "#D9D9D9";
 const feedSkeletonElementBackground = spaceSurfaceHover;
@@ -88,7 +89,7 @@ const dangerColor = "#F63A3A";
 const feedAvatarSize = 38;
 const feedLikeActionSize = spaceTouchTargetSize;
 const feedActionIconSize = 20;
-const feedHorizontalPadding = "16px";
+const feedHorizontalPadding = "8px";
 const feedMediaLoadRootMargin = "640px 0px";
 const feedLoadMoreRootMargin = "0px 0px 800px 0px";
 const feedRowEnterDurationMs = 460;
@@ -382,7 +383,7 @@ class FeedMotionList extends React.Component<FeedMotionListProps> {
                     sx={{
                         boxSizing: "border-box",
                         minWidth: 0,
-                        pb: "24px",
+                        pb: "12px",
                         position: "relative",
                         width: "100%",
                     }}
@@ -560,7 +561,7 @@ const FeedLikeButton: React.FC<FeedLikeButtonProps> = ({
                 "&:hover": {
                     bgcolor: isLiked
                         ? feedAccentBackgroundHover
-                        : spaceControlBackgroundHover,
+                        : feedActionBackgroundHover,
                 },
                 "@media (prefers-reduced-motion: reduce)": {
                     animation: "none",
@@ -1170,8 +1171,8 @@ const FeedItem: React.FC<FeedItemProps> = ({
             component="article"
             sx={{
                 WebkitTapHighlightColor: "transparent",
-                bgcolor: showFooter ? spaceSurface : "transparent",
-                borderRadius: "16px",
+                bgcolor: showFooter ? spaceHomeSurface : "transparent",
+                borderRadius: "24px",
                 boxSizing: "border-box",
                 display: "flex",
                 flexDirection: "column",
@@ -1184,7 +1185,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                 sx={{
                     aspectRatio: frameAspectRatio,
                     bgcolor: "transparent",
-                    borderRadius: showFooter ? "16px 16px 0 0" : "16px",
+                    borderRadius: showFooter ? "24px 24px 0 0" : "24px",
                     maxWidth: "100%",
                     minWidth: 0,
                     overflow: "hidden",
@@ -1481,6 +1482,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                         }}
                     >
                         <SpacePostAvatar
+                            outerRing
                             ready={isAvatarReady}
                             size={feedAvatarSize}
                             src={displayAvatarUrl}
@@ -1653,7 +1655,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                         alignItems: "center",
                         boxSizing: "border-box",
                         display: "grid",
-                        gap: "6px",
+                        gap: "8px",
                         gridTemplateColumns: "minmax(0, 1fr) auto",
                         minHeight: feedLikeActionSize,
                         p: "8px",
@@ -1670,7 +1672,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                             appearance: "none",
                             bgcolor: feedActionBackground,
                             border: 0,
-                            borderRadius: "12px",
+                            borderRadius: "16px",
                             color: "#C4C4C8",
                             cursor: canOpenPhoto ? "pointer" : "default",
                             fontFamily: '"Inter Variable", Inter, sans-serif',
@@ -1697,7 +1699,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                                 outlineOffset: 2,
                             },
                             "&:not(:disabled):hover": {
-                                bgcolor: spaceControlBackgroundHover,
+                                bgcolor: feedActionBackgroundHover,
                                 color: textBase,
                             },
                         }}
@@ -1738,8 +1740,8 @@ const AddedFriendToast: React.FC<AddedFriendToastProps> = ({
             aria-live="polite"
             sx={{
                 alignItems: "center",
-                bgcolor: spaceSurface,
-                borderRadius: "22px",
+                bgcolor: spaceHomeSurface,
+                borderRadius: "24px",
                 boxShadow: "0 12px 32px rgba(0, 0, 0, 0.18)",
                 boxSizing: "border-box",
                 color: textBase,
@@ -2283,11 +2285,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         flexDirection: "column",
                         gap: 0,
                         justifyContent: showFeedCards ? "flex-start" : "center",
-                        minHeight: "calc(100svh - 64px)",
+                        minHeight: "calc(100svh - 68px)",
                         minWidth: 0,
                         pb: "calc(env(safe-area-inset-bottom) + 112px)",
                         px: feedHorizontalPadding,
-                        pt: showFeedCards ? "16px" : "8px",
+                        pt: showFeedCards ? 0 : "8px",
                         width: "100%",
                     }}
                 >
@@ -2323,10 +2325,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                                         ...item,
                                         id: String(item.postId),
                                         frameAspectRatio:
-                                            spacePostFrameAspectRatio([photo]),
+                                            photo.width && photo.height
+                                                ? photo.width / photo.height
+                                                : 1,
                                     };
                                 })}
-                                renderTile={(item, index, flexGrow) => {
+                                renderTile={(item, index) => {
                                     const photo = {
                                         ...spacePostPhotos(item)[0]!,
                                         postId: item.postId,
@@ -2352,7 +2356,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                                             displayName={item.name}
                                             showAvatar
                                             subtlePhotosBadge
-                                            flexGrow={flexGrow}
                                             index={index}
                                             imageUrl={imageUrl}
                                             isAvatarPending={

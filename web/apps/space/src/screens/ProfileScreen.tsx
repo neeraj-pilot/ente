@@ -75,7 +75,7 @@ const profileAvatarSize = 132;
 const profileCoverHeight =
     profileHeaderHeight + profileAvatarTopOffset + profileAvatarSize / 2;
 const photoPlaceholderBackground = spaceSurface;
-const profileCoverRadius = "12px";
+const profileCoverRadius = "24px";
 const profilePostLoadRootMargin = "800px 0px";
 const publicProfilePostLoadRootMargin = "400px 0px";
 interface ProfilePhotoDimensions {
@@ -549,17 +549,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         });
     };
 
-    const renderPostTile = (
-        item: ProfilePostItem,
-        index: number,
-        flexGrow: number,
-    ) => {
+    const renderPostTile = (item: ProfilePostItem, index: number) => {
         const imageUrl = loadedPostImageURLFor(item);
         const isUnavailable = !viewerPostIndexByID.has(item.id);
         return (
             <SpacePostTile
                 key={item.id}
-                flexGrow={flexGrow}
                 displayName={displayName}
                 imageUrl={imageUrl}
                 index={index}
@@ -610,7 +605,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                         : undefined,
                     mx: "auto",
                     position: "relative",
-                    px: 2,
+                    px: "8px",
                     py: 0,
                     width: "100%",
                     zIndex: 3,
@@ -919,7 +914,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                         alignItems: "center",
                         display: "flex",
                         flexDirection: "column",
-                        px: "16px",
+                        px: "8px",
                         position: "relative",
                         pt: `${profileAvatarTopOffset}px`,
                         textAlign: "center",
@@ -1341,8 +1336,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                                 flexDirection: "column",
                                 gap: "24px",
                                 mt: "6px",
-                                mx: "16px",
-                                width: "calc(100% - 32px)",
+                                mx: "8px",
+                                width: "calc(100% - 16px)",
                             }}
                         >
                             <SpacePostGrid

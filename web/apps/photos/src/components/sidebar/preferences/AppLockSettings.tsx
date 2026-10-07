@@ -1,5 +1,3 @@
-import CheckIcon from "@mui/icons-material/Check";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Stack, TextField, Typography } from "@mui/material";
 import { EnteSwitch } from "ente-base/components/EnteSwitch";
 import { TitledMiniDialog } from "ente-base/components/MiniDialog";
@@ -9,13 +7,9 @@ import {
     TitledNestedSidebarDrawer,
     type NestedSidebarDrawerVisibilityProps,
 } from "ente-base/components/mui/SidebarDrawer";
-import {
-    RowButton,
-    RowButtonDivider,
-    RowButtonEndActivityIndicator,
-    RowButtonGroup,
-} from "ente-base/components/RowButton";
 import { errorDialogAttributes } from "ente-base/components/utils/dialog";
+import { MenuComponent } from "ente-base/components/v2/MenuComponent";
+import { MenuGroupComponent } from "ente-base/components/v2/MenuGroupComponent";
 import { RowCard } from "ente-base/components/v2/RowCard";
 import { useBaseContext } from "ente-base/context";
 import log from "ente-base/log";
@@ -228,7 +222,7 @@ export const AppLockSettings: React.FC<
                 onRootClose={handleRootClose}
                 title={t("app_lock")}
             >
-                <Stack sx={{ px: "16px", py: "20px", gap: "24px" }}>
+                <Stack sx={{ px: 2, py: 1, gap: 1 }}>
                     {state.enabled && (
                         <>
                             <Stack>
@@ -242,78 +236,37 @@ export const AppLockSettings: React.FC<
                                 >
                                     {t("lock_type")}
                                 </Typography>
-                                <RowButtonGroup>
-                                    <RowButton
-                                        label={t("PIN")}
-                                        endIcon={
-                                            state.lockType === "pin" ? (
-                                                <CheckIcon
-                                                    sx={{
-                                                        color: "accent.main",
-                                                    }}
-                                                />
-                                            ) : undefined
-                                        }
+                                <MenuGroupComponent>
+                                    <MenuComponent
+                                        title={t("PIN")}
+                                        selected={state.lockType === "pin"}
                                         onClick={handleSelectPin}
                                     />
-                                    <RowButtonDivider />
-                                    <RowButton
-                                        label={t("app_lock_password")}
-                                        endIcon={
-                                            state.lockType === "password" ? (
-                                                <CheckIcon
-                                                    sx={{
-                                                        color: "accent.main",
-                                                    }}
-                                                />
-                                            ) : undefined
-                                        }
+                                    <MenuComponent
+                                        title={t("app_lock_password")}
+                                        selected={state.lockType === "password"}
                                         onClick={handleSelectPassword}
                                     />
                                     {showDeviceLockOption && (
-                                        <>
-                                            <RowButtonDivider />
-                                            <RowButton
-                                                label={t("device_lock")}
-                                                caption={
-                                                    isSettingDeviceLock
-                                                        ? t("loading")
-                                                        : undefined
-                                                }
-                                                disabled={isSettingDeviceLock}
-                                                endIcon={
-                                                    state.lockType ===
-                                                    "device" ? (
-                                                        <CheckIcon
-                                                            sx={{
-                                                                color: "accent.main",
-                                                            }}
-                                                        />
-                                                    ) : undefined
-                                                }
-                                                onClick={() =>
-                                                    void handleSelectDeviceLock()
-                                                }
-                                            />
-                                        </>
+                                        <MenuComponent
+                                            title={t("device_lock")}
+                                            selected={
+                                                state.lockType === "device"
+                                            }
+                                            loading={isSettingDeviceLock}
+                                            onClick={() =>
+                                                void handleSelectDeviceLock()
+                                            }
+                                        />
                                     )}
-                                </RowButtonGroup>
+                                </MenuGroupComponent>
                             </Stack>
 
-                            <Stack>
-                                <RowButtonGroup>
-                                    <RowButton
-                                        label={t("auto_lock")}
-                                        endIcon={<ChevronRightIcon />}
-                                        caption={autoLockLabel(
-                                            state.autoLockTimeMs,
-                                        )}
-                                        onClick={() =>
-                                            setAutoLockOptionsOpen(true)
-                                        }
-                                    />
-                                </RowButtonGroup>
-                            </Stack>
+                            <RowCard
+                                title={t("auto_lock")}
+                                subtitle={autoLockLabel(state.autoLockTimeMs)}
+                                onClick={() => setAutoLockOptionsOpen(true)}
+                            />
                         </>
                     )}
                 </Stack>
@@ -897,30 +850,19 @@ const AutoLockOptionsDrawer: React.FC<AutoLockOptionsDrawerProps> = ({
             onRootClose={onRootClose}
             title={t("auto_lock")}
         >
-            <Stack sx={{ py: "20px", px: "8px" }}>
-                <RowButtonGroup>
-                    {autoLockOptions.map((option, index) => (
-                        <React.Fragment key={option.ms}>
-                            <RowButton
-                                label={t(option.labelKey)}
-                                disabled={pendingAutoLockMs !== null}
-                                endIcon={
-                                    pendingAutoLockMs === option.ms ? (
-                                        <RowButtonEndActivityIndicator />
-                                    ) : selectedMs === option.ms ? (
-                                        <CheckIcon
-                                            sx={{ color: "accent.main" }}
-                                        />
-                                    ) : undefined
-                                }
-                                onClick={() => setAutoLockTimeValue(option.ms)}
-                            />
-                            {index != autoLockOptions.length - 1 && (
-                                <RowButtonDivider />
-                            )}
-                        </React.Fragment>
+            <Stack sx={{ px: 2, py: 1 }}>
+                <MenuGroupComponent>
+                    {autoLockOptions.map((option) => (
+                        <MenuComponent
+                            key={option.ms}
+                            title={t(option.labelKey)}
+                            disabled={pendingAutoLockMs !== null}
+                            loading={pendingAutoLockMs === option.ms}
+                            selected={selectedMs === option.ms}
+                            onClick={() => setAutoLockTimeValue(option.ms)}
+                        />
                     ))}
-                </RowButtonGroup>
+                </MenuGroupComponent>
             </Stack>
         </TitledNestedSidebarDrawer>
     );

@@ -39,7 +39,6 @@ interface SpacePostTileProps {
     showAvatar?: boolean;
     subtlePhotosBadge?: boolean;
     onLoadAvatar?: () => Promise<string | null>;
-    flexGrow: number;
     imageUrl?: string;
     index: number;
     isAvatarPending?: boolean;
@@ -58,7 +57,6 @@ export const SpacePostTile: React.FC<SpacePostTileProps> = ({
     showAvatar = false,
     subtlePhotosBadge,
     onLoadAvatar,
-    flexGrow,
     imageUrl,
     index,
     isAvatarPending = false,
@@ -134,7 +132,6 @@ export const SpacePostTile: React.FC<SpacePostTileProps> = ({
             sx={{
                 bgcolor: spaceSurface,
                 borderRadius: `${spaceProfilePostRadius}px`,
-                flex: `${flexGrow} 1 0px`,
                 height: "100%",
                 minWidth: 0,
                 overflow: "hidden",
@@ -160,7 +157,7 @@ export const SpacePostTile: React.FC<SpacePostTileProps> = ({
                     appearance: "none",
                     bgcolor: spaceSurface,
                     border: 0,
-                    borderRadius: `${spaceProfilePostRadius}px`,
+                    borderRadius: "inherit",
                     cursor: imageUrl && !isUnavailable ? "pointer" : "default",
                     display: "block",
                     height: "100%",

@@ -15,10 +15,13 @@ Ente Auth natively supports imports from many 2FA providers. In addition to the 
 - Bitwarden
 - Google Authenticator
 - LastPass
+- OTP Auth
 - Proton
 - Raivo OTP
 
 Details as to how codes may be imported from these providers may be found within the app.
+
+To import from OTP Auth, export an encrypted backup in OTP Auth. In Ente Auth's **Import codes** screen, choose **OTP Auth** and select the `.otpauthdb` or `.otpauthdp` file. Single-account `.otpauth` exports are also supported. Enter the export password when prompted.
 
 > [!NOTE]
 >

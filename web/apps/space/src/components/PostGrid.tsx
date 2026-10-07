@@ -1,13 +1,14 @@
 import { Box } from "@mui/material";
 import React from "react";
-import { spacePostFrameAspectRatio } from "utils/post-photos";
-import { postPhotoLayout, profilePhotoGap } from "utils/profile-photo-layout";
+import { minimumPostPhotoFrameAspectRatio } from "styles/tiles";
+
+const gap = 8;
 
 interface PostGridItem {
     id: string;
+    frameAspectRatio?: number;
     width?: number;
     height?: number;
-    frameAspectRatio?: number;
 }
 
 export const SpacePostGrid = <Item extends PostGridItem>({
@@ -17,19 +18,12 @@ export const SpacePostGrid = <Item extends PostGridItem>({
 }: {
     items: Item[];
     postCount?: number;
-    renderTile: (
-        item: Item,
-        index: number,
-        flexGrow: number,
-    ) => React.ReactNode;
+    renderTile: (item: Item, index: number) => React.ReactNode;
 }) => {
     const [width, setWidth] = React.useState(0);
-    const [previousLayout, setLayout] = React.useState(() => ({
-        ...postPhotoLayout([], 0),
-        items,
-        postCount,
-    }));
+    const [fullWidth, setFullWidth] = React.useState<boolean>();
     const gridRef = React.useRef<HTMLDivElement | null>(null);
+
     React.useLayoutEffect(() => {
         const grid = gridRef.current!;
         const observer = new ResizeObserver(([entry]) =>
@@ -40,62 +34,63 @@ export const SpacePostGrid = <Item extends PostGridItem>({
         return () => observer.disconnect();
     }, []);
 
-    const layout =
-        previousLayout.items == items &&
-        previousLayout.width == width &&
-        previousLayout.postCount == postCount
-            ? previousLayout
-            : {
-                  ...postPhotoLayout(
-                      items.map((item) => ({
-                          id: item.id,
-                          aspectRatio:
-                              item.frameAspectRatio ??
-                              spacePostFrameAspectRatio([item]),
-                      })),
-                      width,
-                      previousLayout,
-                      postCount,
-                  ),
-                  items,
-                  postCount,
-              };
-    if (layout != previousLayout) setLayout(layout);
+    if (fullWidth == undefined && width > 0 && items.length > 0)
+        setFullWidth(
+            postCount != undefined && Math.max(postCount, items.length) < 4,
+        );
 
-    const itemsByID = new Map(
-        items.map((item, index) => [item.id, { item, index }]),
-    );
+    const columnCount = fullWidth ? 1 : 2;
+    const columnWidth = (width - (columnCount - 1) * gap) / columnCount;
+    const columnHeights = new Array<number>(columnCount).fill(0);
+    const tiles =
+        width > gap
+            ? items.map((item, index) => {
+                  const column =
+                      fullWidth || columnHeights[0]! <= columnHeights[1]!
+                          ? 0
+                          : 1;
+                  const top = columnHeights[column]!;
+                  const photoAspectRatio =
+                      item.frameAspectRatio ??
+                      (item.width && item.height
+                          ? item.width / item.height
+                          : 1);
+                  const aspectRatio = fullWidth
+                      ? Math.max(
+                            minimumPostPhotoFrameAspectRatio,
+                            photoAspectRatio,
+                        )
+                      : photoAspectRatio;
+                  const height = columnWidth / aspectRatio;
+                  columnHeights[column] = top + height + gap;
+                  return (
+                      <Box
+                          key={item.id}
+                          sx={{
+                              height,
+                              left: column * (columnWidth + gap),
+                              position: "absolute",
+                              top,
+                              width: columnWidth,
+                          }}
+                      >
+                          {renderTile(item, index)}
+                      </Box>
+                  );
+              })
+            : [];
 
     return (
         <Box
             ref={gridRef}
             sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: `${profilePhotoGap}px`,
+                height:
+                    Math.max(0, ...columnHeights) - (tiles.length ? gap : 0),
+                position: "relative",
+                width: "100%",
             }}
         >
-            {layout.rows.map((row) => (
-                <Box
-                    key={row.tiles[0]!.id}
-                    sx={{
-                        display: "flex",
-                        flexShrink: 0,
-                        gap: `${profilePhotoGap}px`,
-                        height: row.height,
-                        width: row.width,
-                    }}
-                >
-                    {row.tiles.map(({ id, aspectRatio }) => {
-                        const { item, index } = itemsByID.get(id)!;
-                        return renderTile(
-                            item,
-                            index,
-                            aspectRatio / row.aspectRatio,
-                        );
-                    })}
-                </Box>
-            ))}
+            {tiles}
         </Box>
     );
 };

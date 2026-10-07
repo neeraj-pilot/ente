@@ -16,7 +16,6 @@ import {
 } from "@/components/Collections/EditAlbumDetailsDialog";
 import { GalleryBarAndListHeader } from "@/components/Collections/GalleryBarAndListHeader";
 import { slideshowFiles } from "@/components/Collections/album-slideshow";
-import { Export } from "@/components/Export";
 import { FamilyManagement } from "@/components/FamilyManagement";
 import type { FileListHeaderOrFooter } from "@/components/FileList";
 import { FileListWithViewer } from "@/components/FileListWithViewer";
@@ -286,8 +285,6 @@ const Page: React.FC = () => {
     const { show: showWhatsNew, props: whatsNewVisibilityProps } =
         useModalVisibility();
     const { show: showFixCreationTime, props: fixCreationTimeVisibilityProps } =
-        useModalVisibility();
-    const { show: showExport, props: exportVisibilityProps } =
         useModalVisibility();
     const {
         show: showAuthenticateUser,
@@ -740,7 +737,6 @@ const Page: React.FC = () => {
             sidebarVisibilityProps.open ||
             planSelectorVisibilityProps.open ||
             fixCreationTimeVisibilityProps.open ||
-            exportVisibilityProps.open ||
             authenticateUserVisibilityProps.open ||
             albumNameInputVisibilityProps.open ||
             editAlbumDetailsVisibilityProps.open ||
@@ -2034,7 +2030,7 @@ const Page: React.FC = () => {
                 onActionHandled={handleSidebarActionHandled}
                 onShowPlanSelector={showPlanSelector}
                 onShowCollectionSummary={handleSidebarShowCollectionSummary}
-                onShowExport={showExport}
+                collectionNameByID={collectionNameByID}
                 onAuthenticateUser={authenticateUser}
             />
             <WhatsNew {...whatsNewVisibilityProps} />
@@ -2163,7 +2159,6 @@ const Page: React.FC = () => {
                     onSubmit={handleEditAlbumDetails}
                 />
             )}
-            <Export {...exportVisibilityProps} {...{ collectionNameByID }} />
             <AuthenticateUser
                 open={authenticateUserVisibilityProps.open}
                 onClose={handleCloseAuthenticateUser}

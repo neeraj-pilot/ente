@@ -116,7 +116,7 @@ export const SpacePostReplyControls: React.FC<SpacePostReplyControlsProps> = ({
                     sx={{
                         bgcolor: controlBackground,
                         border: 0,
-                        borderRadius: "12px",
+                        borderRadius: "16px",
                         boxSizing: "border-box",
                         color: textBase,
                         flex: "1 1 auto",
