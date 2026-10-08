@@ -146,6 +146,17 @@ func (c *Controller) removeMembers(ctx context.Context, adminID int64, logger *l
 		} else if member.Status == ente.INVITED {
 			logger.Info(fmt.Sprintf("revoking invite member_id %d", member.MemberUserID))
 			err = c.RevokeInvite(ctx, adminID, member.ID)
+			if errors.Is(err, ente.ErrBadRequest) {
+				current, lookupErr := c.FamilyRepo.GetMemberById(ctx, member.ID)
+				if lookupErr != nil {
+					return stacktrace.Propagate(lookupErr, "")
+				}
+				if current.Status == ente.ACCEPTED {
+					err = c.RemoveMember(ctx, adminID, member.ID)
+				} else if current.Status != ente.INVITED {
+					err = nil
+				}
+			}
 			if err != nil {
 				return stacktrace.Propagate(err, "")
 			}
