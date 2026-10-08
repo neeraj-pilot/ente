@@ -126,15 +126,23 @@ func (repo *FamilyRepository) AcceptInvite(ctx context.Context, adminID int64, m
 		return stacktrace.Propagate(err, "")
 	}
 	defer tx.Rollback()
-	_, err = tx.ExecContext(ctx, `UPDATE families SET status = $1 WHERE token = $2`, ente.ACCEPTED, token)
-	if err != nil {
-		return stacktrace.Propagate(err, "")
-	}
-	result, err := tx.ExecContext(ctx, `UPDATE users SET family_admin_id = $1 WHERE user_id = $2 and family_admin_id is  null`, adminID, memberID)
+	result, err := tx.ExecContext(ctx, `UPDATE families SET status = $1 WHERE token = $2 AND admin_id = $3 AND member_id = $4 AND status = $5`,
+		ente.ACCEPTED, token, adminID, memberID, ente.INVITED)
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
 	affected, err := result.RowsAffected()
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+	if affected != 1 {
+		return stacktrace.Propagate(ente.ErrInvalidPassword, "invite is no longer pending")
+	}
+	result, err = tx.ExecContext(ctx, `UPDATE users SET family_admin_id = $1 WHERE user_id = $2 and family_admin_id is  null`, adminID, memberID)
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+	affected, err = result.RowsAffected()
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
@@ -180,9 +188,16 @@ func (repo *FamilyRepository) RevokeInvite(ctx context.Context, adminID int64, m
 		return stacktrace.Propagate(err, "")
 	}
 	defer tx.Rollback()
-	_, err = tx.ExecContext(ctx, `UPDATE families set status=$1 WHERE admin_id = $2 AND member_id = $3 AND status = $4`, ente.REVOKED, adminID, memberID, ente.INVITED)
+	result, err := tx.ExecContext(ctx, `UPDATE families set status=$1 WHERE admin_id = $2 AND member_id = $3 AND status = $4`, ente.REVOKED, adminID, memberID, ente.INVITED)
 	if err != nil {
 		return stacktrace.Propagate(err, "")
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+	if affected != 1 {
+		return stacktrace.Propagate(ente.ErrBadRequest, "invite is no longer pending")
 	}
 	return stacktrace.Propagate(tx.Commit(), "failed to commit")
 }
