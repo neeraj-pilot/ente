@@ -834,6 +834,8 @@ class _CodeWidgetState extends State<CodeWidget> {
       child: IconUtils.instance.getIcon(
         context,
         safeDecode(iconData).trim(),
+        domains: widget.code.display.domains,
+        isCustomIcon: widget.code.display.isCustomIcon,
         width: widget.isCompactMode
             ? (_shouldShowLargeIcon ? 32 : 24)
             : (_shouldShowLargeIcon ? 42 : 24),

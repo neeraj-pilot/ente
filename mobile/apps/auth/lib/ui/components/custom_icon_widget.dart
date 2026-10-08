@@ -6,8 +6,15 @@ import 'package:flutter/material.dart';
 
 class CustomIconWidget extends StatelessWidget {
   final String iconData;
+  final List<String> domains;
+  final bool isCustomIcon;
 
-  CustomIconWidget({super.key, required this.iconData});
+  CustomIconWidget({
+    super.key,
+    required this.iconData,
+    this.domains = const [],
+    this.isCustomIcon = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +46,8 @@ class CustomIconWidget extends StatelessWidget {
               child: IconUtils.instance.getIcon(
                 context,
                 safeDecode(iconData).trim(),
+                domains: domains,
+                isCustomIcon: isCustomIcon,
                 width: 50,
               ),
             ),

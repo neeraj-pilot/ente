@@ -20,8 +20,8 @@ pub(crate) fn png(data: &[u8]) -> Option<Vec<u8>> {
         validate_ico(data)?;
     }
     let mut limits = Limits::default();
-    limits.max_image_width = Some(1024);
-    limits.max_image_height = Some(1024);
+    limits.max_image_width = Some(2048);
+    limits.max_image_height = Some(2048);
     limits.max_alloc = Some(16 * 1024 * 1024);
     let mut reader = ImageReader::with_format(Cursor::new(data), format);
     reader.limits(limits.clone());
@@ -31,6 +31,9 @@ pub(crate) fn png(data: &[u8]) -> Option<Vec<u8>> {
     let orientation = decoder.orientation().ok()?;
     let mut image = DynamicImage::from_decoder(decoder).ok()?;
     image.apply_orientation(orientation);
+    if image.width() > 1024 || image.height() > 1024 {
+        image = image.thumbnail(1024, 1024);
+    }
     let mut output = Cursor::new(Vec::new());
     image.write_to(&mut output, ImageFormat::Png).ok()?;
     let output = output.into_inner();
@@ -243,7 +246,7 @@ mod tests {
 
     #[test]
     fn rejects_oversized_dimensions() -> Result<(), image::ImageError> {
-        let image = DynamicImage::new_rgb8(1025, 1);
+        let image = DynamicImage::new_rgb8(2049, 1);
         let mut bytes = Cursor::new(Vec::new());
         image.write_to(&mut bytes, ImageFormat::Png)?;
         assert!(super::png(bytes.get_ref()).is_none());

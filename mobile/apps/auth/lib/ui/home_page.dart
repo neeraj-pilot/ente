@@ -912,6 +912,8 @@ class _HomePageState extends State<HomePage> {
                                     child: IconUtils.instance.getIcon(
                                       context,
                                       iconData.trim(),
+                                      domains: code.display.domains,
+                                      isCustomIcon: code.display.isCustomIcon,
                                       width: IconSizes.small,
                                     ),
                                   );
@@ -2071,12 +2073,11 @@ class _HomePageState extends State<HomePage> {
         showShareDialog(context, Code.fromOTPAuthUrl(link.codeUri));
         return;
       case DebugCodeDeepLinkAction.showIcons:
-        final code = Code.fromOTPAuthUrl(link.codeUri);
         unawaited(
           Navigator.of(context).push(
-            MaterialPageRoute<void>(
+            MaterialPageRoute<IconSelection>(
               builder: (_) => CustomIconPage(
-                currentIcon: code.issuer,
+                currentIcon: null,
                 allIcons: IconUtils.instance.getAllIcons(),
               ),
             ),

@@ -4,6 +4,7 @@ members = [
     "apps/cli",
     "apps/cli-next",
     "apps/ensu/src-tauri",
+    "bindings/frb/auth",
     "bindings/frb/lib",
     "bindings/frb/locker",
     "bindings/frb/log",

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:ente_auth/ente_theme_data.dart';
 import 'package:ente_auth/models/all_icon_data.dart';
+import 'package:ente_auth/services/favicon_service.dart';
 import 'package:ente_auth/theme/ente_theme.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -114,8 +115,31 @@ class IconUtils {
     }
   }
 
-  Widget getIcon(BuildContext context, String provider, {double width = 24}) {
+  Widget getIcon(
+    BuildContext context,
+    String provider, {
+    double width = 24,
+    List<String> domains = const [],
+    bool isCustomIcon = false,
+  }) {
     try {
+      if (!isCustomIcon && domains.isNotEmpty) {
+        final domainKey = domains.join(',');
+        final fallback = getIcon(context, provider, width: width);
+        return FutureBuilder<Uint8List?>(
+          key: ValueKey(domainKey),
+          future: faviconClient.fetch(domains),
+          builder: (context, snapshot) => snapshot.data == null
+              ? fallback
+              : Image.memory(
+                  snapshot.data!,
+                  width: width,
+                  height: width,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => fallback,
+                ),
+        );
+      }
       final providerTitle = _getProviderTitle(provider);
       final List<String> titlesList = [providerTitle];
       titlesList.addAll(

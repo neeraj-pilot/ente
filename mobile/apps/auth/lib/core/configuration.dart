@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:ente_account_deletion/account_deletion.dart';
+import 'package:ente_auth/services/favicon_service.dart';
 import 'package:ente_base/models/database.dart';
 import 'package:ente_configuration/base_configuration.dart';
 import 'package:ente_crypto_api/ente_crypto_api.dart';
@@ -69,6 +70,7 @@ class Configuration extends BaseConfiguration
   @override
   Future<void> logout({bool autoLogout = false}) async {
     _authSecretKey = null;
+    await faviconClient.clear();
     await super.logout();
   }
 

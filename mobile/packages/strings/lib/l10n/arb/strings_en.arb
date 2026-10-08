@@ -1,4 +1,6 @@
 {
+  "websiteDomain": "Website domain",
+  "invalidWebsiteDomain": "Enter a domain name, such as example.com. Leave out https:// and paths.",
   "bringMemoriesTogether": "Bring your memories together",
   "@bringMemoriesTogether": {
     "description": "Title on the Local Gallery photo permission screen"
