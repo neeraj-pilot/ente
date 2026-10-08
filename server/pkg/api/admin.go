@@ -534,6 +534,29 @@ func (h *AdminHandler) InitializeFileCounts(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *AdminHandler) InitializeFileApp(c *gin.Context) {
+	var r ente.AdminOpsForUserRequest
+	if err := handler.BindJSON(c, &r); err != nil {
+		handler.Error(c, stacktrace.Propagate(err, "Bad request"))
+		return
+	}
+	initialized, err := h.UsageRepo.InitializeFileApp(c.Request.Context(), r.UserID)
+	logrus.WithFields(logrus.Fields{
+		"admin_id":    auth.GetUserID(c.Request.Header),
+		"user_id":     r.UserID,
+		"initialized": initialized,
+	}).WithError(err).Info("file app initialization")
+	if err != nil && !errors.Is(err, repo.ErrFileAppIneligible) {
+		handler.Error(c, stacktrace.Propagate(err, "failed to initialize file app provenance"))
+		return
+	}
+	response := gin.H{"initialized": initialized}
+	if err != nil {
+		response["reason"] = err.Error()
+	}
+	c.JSON(http.StatusOK, response)
+}
+
 func (h *AdminHandler) UpdateBonus(c *gin.Context) {
 	var r ente.SupportUpdateBonus
 	if err := handler.BindJSON(c, &r); err != nil {
