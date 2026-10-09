@@ -80,14 +80,21 @@ func (c *Controller) AcceptInvite(ctx context.Context, token string) (ente.Accep
 		if familyMember.Status == ente.INVITED {
 			err = c.FamilyRepo.AcceptInvite(ctx, familyMember.AdminUserID, familyMember.MemberUserID, token)
 			if err != nil {
-				return ente.AcceptInviteResponse{}, stacktrace.Propagate(err, "")
-			}
-			go func() {
-				notificationErr := c.sendNotification(ctx, familyMember.AdminUserID, familyMember.MemberUserID, ente.ACCEPTED, nil)
-				if notificationErr != nil {
-					logrus.WithError(notificationErr).Error("family-plan: accepted notification failed")
+				if !errors.Is(err, ente.ErrInvalidPassword) {
+					return ente.AcceptInviteResponse{}, stacktrace.Propagate(err, "")
 				}
-			}()
+				current, lookupErr := c.FamilyRepo.GetInvite(token)
+				if lookupErr != nil || current.Status != ente.ACCEPTED {
+					return ente.AcceptInviteResponse{}, stacktrace.Propagate(err, "")
+				}
+			} else {
+				go func() {
+					notificationErr := c.sendNotification(ctx, familyMember.AdminUserID, familyMember.MemberUserID, ente.ACCEPTED, nil)
+					if notificationErr != nil {
+						logrus.WithError(notificationErr).Error("family-plan: accepted notification failed")
+					}
+				}()
+			}
 		} else {
 			return ente.AcceptInviteResponse{}, stacktrace.Propagate(ente.ErrInvalidPassword, "invited state is not valid any more: %s ", familyMember.Status)
 		}

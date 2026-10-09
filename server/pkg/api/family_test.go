@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,66 @@ func TestInviteMemberAllowsResendWhenFamilyIsFull(t *testing.T) {
 	}
 	if got := performInviteMemberRequest(t, router, adminID, "not-on-ente@ente.com").Code; got != http.StatusPreconditionFailed {
 		t.Fatalf("unregistered invite status = %d, want %d", got, http.StatusPreconditionFailed)
+	}
+}
+
+func TestFamilyInviteAcceptanceAndRevocationAreExclusive(t *testing.T) {
+	testutil.WithServerRoot(t)
+	db := testutil.RequireTestDB(t)
+	testutil.ResetTables(t, db)
+	t.Cleanup(func() { testutil.ResetTables(t, db) })
+
+	const adminID, revokedMemberID, acceptedMemberID = int64(1), int64(2), int64(3)
+	insertFreeFamilyTestUser(t, db, adminID, "family-admin@ente.com")
+	insertFreeFamilyTestUser(t, db, revokedMemberID, "revoked-member@ente.com")
+	insertFreeFamilyTestUser(t, db, acceptedMemberID, "accepted-member@ente.com")
+	familyRepo := &repo.FamilyRepository{DB: db}
+	ctx := context.Background()
+	if err := familyRepo.CreateFamily(ctx, adminID); err != nil {
+		t.Fatal(err)
+	}
+	for _, invite := range []struct {
+		memberID int64
+		token    string
+	}{{revokedMemberID, "revoked-token"}, {acceptedMemberID, "accepted-token"}} {
+		if _, err := familyRepo.AddMemberInvite(ctx, adminID, invite.memberID, invite.token, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := familyRepo.RevokeInvite(ctx, adminID, revokedMemberID); err != nil {
+		t.Fatal(err)
+	}
+	if err := familyRepo.RevokeInvite(ctx, adminID, revokedMemberID); err != nil {
+		t.Fatalf("revoke already revoked invite: %v", err)
+	}
+	if err := familyRepo.AcceptInvite(ctx, adminID, revokedMemberID, "revoked-token"); !errors.Is(err, ente.ErrInvalidPassword) {
+		t.Fatalf("accept revoked invite: got %v, want invalid invite", err)
+	}
+	if err := familyRepo.AcceptInvite(ctx, adminID, acceptedMemberID, "accepted-token"); err != nil {
+		t.Fatal(err)
+	}
+	if err := familyRepo.RevokeInvite(ctx, adminID, acceptedMemberID); !errors.Is(err, ente.ErrBadRequest) {
+		t.Fatalf("revoke accepted invite: got %v, want invalid state", err)
+	}
+
+	for _, outcome := range []struct {
+		memberID int64
+		token    string
+		status   ente.MemberStatus
+		joined   bool
+	}{{revokedMemberID, "revoked-token", ente.REVOKED, false}, {acceptedMemberID, "accepted-token", ente.ACCEPTED, true}} {
+		invite, err := familyRepo.GetInvite(outcome.token)
+		if err != nil || invite.Status != outcome.status {
+			t.Fatalf("invite %s: status %s, err %v; want %s", outcome.token, invite.Status, err, outcome.status)
+		}
+		var familyAdminID sql.NullInt64
+		if err := db.QueryRowContext(ctx, `SELECT family_admin_id FROM users WHERE user_id = $1`, outcome.memberID).Scan(&familyAdminID); err != nil {
+			t.Fatal(err)
+		}
+		if familyAdminID.Valid != outcome.joined || (outcome.joined && familyAdminID.Int64 != adminID) {
+			t.Fatalf("member %d: family admin %v, want joined=%t", outcome.memberID, familyAdminID, outcome.joined)
+		}
 	}
 }
 
