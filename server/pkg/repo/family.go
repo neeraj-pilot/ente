@@ -197,6 +197,14 @@ func (repo *FamilyRepository) RevokeInvite(ctx context.Context, adminID int64, m
 		return stacktrace.Propagate(err, "")
 	}
 	if affected != 1 {
+		var status ente.MemberStatus
+		lookupErr := tx.QueryRowContext(ctx, `SELECT status FROM families WHERE admin_id = $1 AND member_id = $2`, adminID, memberID).Scan(&status)
+		if lookupErr == nil && status == ente.REVOKED {
+			return nil
+		}
+		if lookupErr != nil && !errors.Is(lookupErr, sql.ErrNoRows) {
+			return stacktrace.Propagate(lookupErr, "")
+		}
 		return stacktrace.Propagate(ente.ErrBadRequest, "invite is no longer pending")
 	}
 	return stacktrace.Propagate(tx.Commit(), "failed to commit")

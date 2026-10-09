@@ -64,6 +64,9 @@ func TestFamilyInviteAcceptanceAndRevocationAreExclusive(t *testing.T) {
 	if err := familyRepo.RevokeInvite(ctx, adminID, revokedMemberID); err != nil {
 		t.Fatal(err)
 	}
+	if err := familyRepo.RevokeInvite(ctx, adminID, revokedMemberID); err != nil {
+		t.Fatalf("revoke already revoked invite: %v", err)
+	}
 	if err := familyRepo.AcceptInvite(ctx, adminID, revokedMemberID, "revoked-token"); !errors.Is(err, ente.ErrInvalidPassword) {
 		t.Fatalf("accept revoked invite: got %v, want invalid invite", err)
 	}
