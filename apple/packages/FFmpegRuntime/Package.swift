@@ -12,8 +12,8 @@ let package = Package(
         .binaryTarget(
             name: "FFmpegRuntime",
             url:
-                "https://github.com/ente/ffmpeg-packaging/releases/download/9.0.2/ios-FFmpegRuntime.xcframework.zip",
-            checksum: "2c3923ac301d3deea5df47ab86d5479c5a95cb09b90eae797910498afd554844"
+                "https://github.com/ente/ffmpeg-packaging/releases/download/9.0.2-1/ios-FFmpegRuntime.xcframework.zip",
+            checksum: "168df3194e3918e70dd233560958cc5849e20e92dadf8587f0cf3adfa4207943"
         )
     ]
 )

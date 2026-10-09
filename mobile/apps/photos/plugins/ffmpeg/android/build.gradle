@@ -7,8 +7,8 @@ plugins {
 group 'io.ente.ffmpeg'
 version '0.0.1'
 
-def release = '9.0.2'
-def checksum = '9cd0d3c53bc81ddfb13076ce9ecb3a55f8cf772e7324d6dd7a02f19c2df043d6'
+def release = '9.0.2-1'
+def checksum = 'b2e8e8ca4f6c6e0cdf0aa719f849e7f9f1ecf05c18387421a3064345d69d4649'
 def localAar = providers.environmentVariable('FFMPEG_AAR').orNull
 def archive = configurations.create('ffmpeg') {
     canBeConsumed = false

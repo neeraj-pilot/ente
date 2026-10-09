@@ -5,20 +5,12 @@ import 'package:ffi/ffi.dart';
 
 final class SessionHandle extends Opaque {}
 
-typedef ProgressCallback = Void Function(Pointer<Void>, Int64, Int32);
-
 final class Bindings {
   Bindings(DynamicLibrary library)
     : sessionNew = library
           .lookupFunction<
-            Pointer<SessionHandle> Function(
-              Pointer<NativeFunction<ProgressCallback>>,
-              Pointer<Void>,
-            ),
-            Pointer<SessionHandle> Function(
-              Pointer<NativeFunction<ProgressCallback>>,
-              Pointer<Void>,
-            )
+            Pointer<SessionHandle> Function(),
+            Pointer<SessionHandle> Function()
           >('ffmpeg_session_new'),
       sessionFree = library
           .lookupFunction<
@@ -30,6 +22,11 @@ final class Bindings {
             Pointer<Utf8> Function(Pointer<SessionHandle>),
             Pointer<Utf8> Function(Pointer<SessionHandle>)
           >('ffmpeg_session_output'),
+      sessionProgress = library
+          .lookupFunction<
+            Int64 Function(Pointer<SessionHandle>),
+            int Function(Pointer<SessionHandle>)
+          >('ffmpeg_session_progress'),
       execute = library
           .lookupFunction<
             Int32 Function(
@@ -57,13 +54,10 @@ final class Bindings {
 
   static final instance = Bindings(_openLibrary());
 
-  final Pointer<SessionHandle> Function(
-    Pointer<NativeFunction<ProgressCallback>>,
-    Pointer<Void>,
-  )
-  sessionNew;
+  final Pointer<SessionHandle> Function() sessionNew;
   final void Function(Pointer<SessionHandle>) sessionFree;
   final Pointer<Utf8> Function(Pointer<SessionHandle>) sessionOutput;
+  final int Function(Pointer<SessionHandle>) sessionProgress;
   final int Function(Pointer<SessionHandle>, int, Pointer<Pointer<Utf8>>)
   execute;
   final void Function(Pointer<SessionHandle>) cancel;

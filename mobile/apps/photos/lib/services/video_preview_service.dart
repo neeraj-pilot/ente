@@ -627,27 +627,17 @@ class VideoPreviewService {
           objectId = result.$1;
           objectSize = result.$2;
 
-          final playlistFrameResult = await ffmpegService
-              .start([
-                '-allowed_extensions',
-                'ALL',
-                '-i',
-                '$prefix/output.m3u8',
-                '-frames:v',
-                '1',
-                '-c',
-                'copy',
-                '$prefix/frame.ts',
-              ])
-              .completed
-              .onError((error, stackTrace) {
-                _logger.warning(
-                  "FFmpeg frame extraction failed",
-                  error,
-                  stackTrace,
-                );
-                return ffmpeg.Result(-1, error.toString());
-              });
+          final playlistFrameResult = await _runFfmpeg([
+            '-allowed_extensions',
+            'ALL',
+            '-i',
+            '$prefix/output.m3u8',
+            '-frames:v',
+            '1',
+            '-c',
+            'copy',
+            '$prefix/frame.ts',
+          ]);
           if (cancelToken.isCancelled) return;
           int? width, height;
           try {

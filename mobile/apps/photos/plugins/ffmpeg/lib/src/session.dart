@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:isolate';
@@ -23,24 +24,14 @@ abstract interface class Session {
 }
 
 final class _NativeSession implements Session {
-  _NativeSession(void Function(Duration) onProgress) {
-    final bindings = Bindings.instance;
-    void progress(Pointer<Void> opaque, int time, int isFinal) {
-      if (!_finished && time >= 0) {
-        onProgress(Duration(microseconds: time));
-      }
-    }
-
-    _callback = NativeCallable<ProgressCallback>.listener(progress);
-    _session = bindings.sessionNew(_callback.nativeFunction, nullptr);
+  _NativeSession(this._onProgress) : _session = Bindings.instance.sessionNew() {
     if (_session == nullptr) {
-      _callback.close();
       throw StateError('Could not allocate an FFmpeg session.');
     }
   }
 
-  late final NativeCallable<ProgressCallback> _callback;
-  late final Pointer<SessionHandle> _session;
+  final void Function(Duration) _onProgress;
+  final Pointer<SessionHandle> _session;
   bool _started = false;
   bool _finished = false;
 
@@ -48,14 +39,26 @@ final class _NativeSession implements Session {
   Future<Result> execute(List<String> arguments) async {
     if (_started) throw StateError('An FFmpeg session runs once.');
     _started = true;
+    Timer? timer;
     try {
       _checkStrings(arguments);
-      return await _executeInWorker(_session.address, arguments);
+      timer = Timer.periodic(
+        const Duration(milliseconds: 500),
+        (_) => _reportProgress(),
+      );
+      final result = await _executeInWorker(_session.address, arguments);
+      _reportProgress();
+      return result;
     } finally {
+      timer?.cancel();
       _finished = true;
-      _callback.close();
       Bindings.instance.sessionFree(_session);
     }
+  }
+
+  void _reportProgress() {
+    final time = Bindings.instance.sessionProgress(_session);
+    if (time >= 0) _onProgress(Duration(microseconds: time));
   }
 
   @override
