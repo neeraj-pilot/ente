@@ -61,8 +61,8 @@ func (repo *UsageRepository) GetStoredFileCounts(ctx context.Context, userID int
 }
 
 func (repo *UsageRepository) CreateTx(ctx context.Context, tx *sql.Tx, userID int64) error {
-	_, err := tx.ExecContext(ctx, `INSERT INTO usage(user_id, storage_consumed, photos_file_count, locker_file_count)
-		VALUES ($1, 0, 0, 0)`, userID)
+	_, err := tx.ExecContext(ctx, `INSERT INTO usage(user_id, storage_consumed, photos_file_count, locker_file_count, file_app_ready)
+		VALUES ($1, 0, 0, 0, TRUE)`, userID)
 	return stacktrace.Propagate(err, "failed to insert usage")
 }
 
