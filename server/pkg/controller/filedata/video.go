@@ -85,7 +85,6 @@ func (c *Controller) validateVideoPreviewSize(ctx context.Context, req *filedata
 	}
 	info := infos[req.FileID]
 	if info == nil || info.FileSize <= 0 {
-		// Legacy files may not have size metadata in files.info yet.
 		infos, err = c.FileRepo.GetFileInfoFromObjectKeys(ctx, fileIDs)
 		if err != nil {
 			return stacktrace.Propagate(err, "failed to get original file size from object keys")
