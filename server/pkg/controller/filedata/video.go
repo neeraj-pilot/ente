@@ -21,6 +21,9 @@ func (c *Controller) InsertVideoPreview(ctx *gin.Context, req *filedata.VidPrevi
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
+	if sizeErr := c.validateVideoPreviewSize(ctx, req, userID); sizeErr != nil {
+		return stacktrace.Propagate(sizeErr, "failed to validate video preview size")
+	}
 	fileOwnerID := userID
 
 	bucketID := c.S3Config.GetBucketID(ente.PreviewVideo)
@@ -72,6 +75,27 @@ func (c *Controller) InsertVideoPreview(ctx *gin.Context, req *filedata.VidPrevi
 		return stacktrace.Propagate(dbInsertErr, "failed to insert or update preview data")
 	}
 	return nil
+}
+
+func (c *Controller) validateVideoPreviewSize(ctx context.Context, req *filedata.VidPreviewRequest, userID int64) error {
+	fileIDs := []int64{req.FileID}
+	infos, err := c.FileRepo.GetFilesInfo(ctx, fileIDs, userID)
+	if err != nil {
+		return stacktrace.Propagate(err, "failed to get original file size")
+	}
+	info := infos[req.FileID]
+	if info == nil || info.FileSize <= 0 {
+		// Legacy files may not have size metadata in files.info yet.
+		infos, err = c.FileRepo.GetFileInfoFromObjectKeys(ctx, fileIDs)
+		if err != nil {
+			return stacktrace.Propagate(err, "failed to get original file size from object keys")
+		}
+		info = infos[req.FileID]
+	}
+	if info == nil {
+		return req.ValidateSize(0)
+	}
+	return req.ValidateSize(info.FileSize)
 }
 
 func (c *Controller) _checkIfDuplicateRequest(ctx *gin.Context, row filedata.Row, fileObjectKey string) (bool, error) {
