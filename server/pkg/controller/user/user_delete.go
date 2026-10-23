@@ -50,7 +50,7 @@ func (c *UserController) GetDeleteChallengeToken(ctx *gin.Context) (*ente.Delete
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
-	encryptedToken, err := crypto.GetEncryptedToken(base64.StdEncoding.EncodeToString([]byte(token)), keyAttributes.PublicKey)
+	encryptedToken, err := crypto.GetEncryptedToken(base64.URLEncoding.EncodeToString([]byte(deleteChallengePrefix+token)), keyAttributes.PublicKey)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
