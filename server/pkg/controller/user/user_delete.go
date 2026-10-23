@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"strings"
 
 	"github.com/ente/museum/ente"
 	enteJWT "github.com/ente/museum/ente/jwt"
@@ -14,6 +15,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
+
+const deleteChallengePrefix = "delete-jwt"
 
 func (c *UserController) GetDeleteChallengeToken(ctx *gin.Context) (*ente.DeleteChallengeResponse, error) {
 	userID := auth.GetUserID(ctx.Request.Header)
@@ -65,7 +68,7 @@ func (c *UserController) GetDeleteChallengeToken(ctx *gin.Context) (*ente.Delete
 
 func (c *UserController) SelfDeleteAccount(ctx *gin.Context, req ente.DeleteAccountRequest) (*ente.DeleteAccountResponse, error) {
 	userID := auth.GetUserID(ctx.Request.Header)
-	claim, err := c.ValidateJWTToken(req.Challenge, enteJWT.DELETE_ACCOUNT)
+	claim, err := c.ValidateJWTToken(strings.TrimPrefix(req.Challenge, deleteChallengePrefix), enteJWT.DELETE_ACCOUNT)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "failed to validate jwt token")
 	}
