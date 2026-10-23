@@ -25,7 +25,7 @@ type UsageController struct {
 	UploadResultCache map[int64]bool
 }
 
-const photosFreeFileLimit = 50_000
+const softPhotosFileLimit = 50_000
 const lockerFreeFileLimit = 100
 const lockerPaidFileLimit = 1000
 const lockerFreeStorageLimit = 1 * 1024 * 1024 * 1024
@@ -163,13 +163,13 @@ func (c *UsageController) canUploadFile(ctx context.Context, userID int64, size 
 		return stacktrace.Propagate(err, "")
 	}
 	if checkPhotoFileLimit && app == ente.Photos && sub.ProductID == ente.FreePlanProductID &&
-		usage.PhotosFileCount != nil && *usage.PhotosFileCount >= photosFreeFileLimit {
+		usage.PhotosFileCount != nil && *usage.PhotosFileCount >= softPhotosFileLimit {
 		isPaid, err := c.BillingCtrl.BillingRepo.IsUserOnPaidPlan(subscriptionAdminID)
 		if err != nil {
 			return stacktrace.Propagate(err, "failed to check paid plan for photo file limit")
 		}
 		if !isPaid {
-			return stacktrace.Propagate(&ente.ErrFileLimitReached, "free Photos accounts are limited to %d files", photosFreeFileLimit)
+			return stacktrace.Propagate(&ente.ErrFileLimitReached, "free Photos accounts are limited to %d files", softPhotosFileLimit)
 		}
 	}
 	newUsage := usage.TotalStorage
