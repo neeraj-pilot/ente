@@ -25,6 +25,7 @@ type UsageController struct {
 	UploadResultCache map[int64]bool
 }
 
+const softPhotosFileLimit = 50_000
 const lockerFreeFileLimit = 100
 const lockerPaidFileLimit = 1000
 const lockerFreeStorageLimit = 1 * 1024 * 1024 * 1024
@@ -51,9 +52,13 @@ func GetLockerLimitsForTier(isPaid bool) LockerLimits {
 	return limits
 }
 
+func (c *UsageController) CanIssueUploadURLs(ctx context.Context, userID int64, size *int64, app ente.App) error {
+	return c.canUploadFile(ctx, userID, size, app, true)
+}
+
 func (c *UsageController) CanUploadFile(ctx context.Context, userID int64, size *int64, app ente.App) error {
 	if app == ente.Locker {
-		return c.canUploadFile(ctx, userID, size, app)
+		return c.canUploadFile(ctx, userID, size, app, false)
 	}
 	if size == nil || *size < hundredMBInBytes {
 		c.mu.Lock()
@@ -70,14 +75,14 @@ func (c *UsageController) CanUploadFile(ctx context.Context, userID int64, size 
 }
 
 func (c *UsageController) checkAndUpdateCache(ctx context.Context, userID int64, size *int64, app ente.App) error {
-	err := c.canUploadFile(ctx, userID, size, app)
+	err := c.canUploadFile(ctx, userID, size, app, false)
 	c.mu.Lock()
 	c.UploadResultCache[userID] = err == nil
 	c.mu.Unlock()
 	return err
 }
 
-func (c *UsageController) canUploadFile(ctx context.Context, userID int64, size *int64, app ente.App) error {
+func (c *UsageController) canUploadFile(ctx context.Context, userID int64, size *int64, app ente.App, checkPhotoFileLimit bool) error {
 	familyAdminID, err := c.UserRepo.GetFamilyAdminID(userID)
 	if err != nil {
 		return stacktrace.Propagate(err, "")
@@ -153,11 +158,21 @@ func (c *UsageController) canUploadFile(ctx context.Context, userID int64, size 
 		return nil
 	}
 
-	usage, err := c.UsageRepo.GetCombinedUsage(ctx, subscriptionUserIDs)
+	usage, err := c.UsageRepo.GetUploadUsage(ctx, userID, subscriptionUserIDs)
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
-	newUsage := usage
+	if checkPhotoFileLimit && app == ente.Photos && sub.ProductID == ente.FreePlanProductID &&
+		usage.PhotosFileCount != nil && *usage.PhotosFileCount >= softPhotosFileLimit {
+		isPaid, err := c.BillingCtrl.BillingRepo.IsUserOnPaidPlan(subscriptionAdminID)
+		if err != nil {
+			return stacktrace.Propagate(err, "failed to check paid plan for photo file limit")
+		}
+		if !isPaid {
+			return stacktrace.Propagate(&ente.ErrFileLimitReached, "free Photos accounts are limited to %d files", softPhotosFileLimit)
+		}
+	}
+	newUsage := usage.TotalStorage
 
 	if size != nil {
 		newUsage += *size
@@ -179,16 +194,13 @@ func (c *UsageController) canUploadFile(ctx context.Context, userID int64, size 
 				}
 			}
 			if lockerUsage == nil || (newUsage-lockerUsage.TotalUsage) > (subStorage+eligibleBonus) {
-				return stacktrace.Propagate(ente.ErrStorageLimitExceeded, "subscription Storage Limit Exceeded (limit %d, usage %d, bonus %d) for admin %d", subStorage, usage, eligibleBonus, subscriptionAdminID)
+				return stacktrace.Propagate(ente.ErrStorageLimitExceeded, "subscription Storage Limit Exceeded (limit %d, usage %d, bonus %d) for admin %d", subStorage, usage.TotalStorage, eligibleBonus, subscriptionAdminID)
 			}
 		}
 	}
 
 	if subscriptionAdminID != userID && memberStorageLimit != nil {
-		memberUsage, memberUsageErr := c.UsageRepo.GetUsage(userID)
-		if memberUsageErr != nil {
-			return stacktrace.Propagate(memberUsageErr, "Couldn't get Members Usage")
-		}
+		memberUsage := usage.UserStorage
 		if size != nil {
 			memberUsage += *size
 		}
