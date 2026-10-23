@@ -31,7 +31,11 @@ func (c *Controller) InsertVideoPreview(ctx *gin.Context, req *filedata.VidPrevi
 	if sizeErr := c.verifySize(bucketID, fileObjectKey, req.ObjectSize); sizeErr != nil {
 		return stacktrace.Propagate(sizeErr, "failed to validate size")
 	}
-	c.observeVideoPreviewSize(ctx, req, userID, log.WithField("req_id", requestid.Get(ctx)))
+	c.observeVideoPreviewSize(ctx, req, userID, log.WithFields(log.Fields{
+		"req_id":              requestid.Get(ctx),
+		"size_check_stage":    "registration",
+		"preview_size_source": "verified",
+	}))
 
 	obj := filedata.S3FileMetadata{
 		Version:          *req.Version,

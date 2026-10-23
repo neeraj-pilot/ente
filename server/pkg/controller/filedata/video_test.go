@@ -95,6 +95,7 @@ func TestWarnVideoPreviewSize(t *testing.T) {
 			logger, hook := logtest.NewNullLogger()
 			warnVideoPreviewSize(log.NewEntry(logger).WithFields(log.Fields{
 				"req_id": "preview-size-request", "user_id": int64(42),
+				"size_check_stage": "registration", "preview_size_source": "verified",
 			}), &enteFileData.VidPreviewRequest{FileID: 7, ObjectSize: tc.preview}, tc.original)
 			if tc.warning == "" {
 				require.Empty(t, hook.AllEntries())
@@ -105,6 +106,8 @@ func TestWarnVideoPreviewSize(t *testing.T) {
 			require.Equal(t, log.WarnLevel, entry.Level)
 			require.Equal(t, tc.warning, entry.Message)
 			require.Equal(t, "preview-size-request", entry.Data["req_id"])
+			require.Equal(t, "registration", entry.Data["size_check_stage"])
+			require.Equal(t, "verified", entry.Data["preview_size_source"])
 			require.Equal(t, int64(42), entry.Data["user_id"])
 			require.Equal(t, int64(7), entry.Data["file_id"])
 			require.Equal(t, tc.original, entry.Data["original_size_bytes"])
@@ -127,12 +130,16 @@ func TestObserveVideoPreviewSizeLookupFailureOnlyWarns(t *testing.T) {
 	c := &Controller{FileRepo: &repo.FileRepository{DB: db}}
 	c.observeVideoPreviewSize(t.Context(), &enteFileData.VidPreviewRequest{
 		FileID: 7, ObjectSize: 200_000_000,
-	}, 42, log.NewEntry(logger).WithField("req_id", "preview-size-request"))
+	}, 42, log.NewEntry(logger).WithFields(log.Fields{
+		"req_id": "preview-size-request", "size_check_stage": "upload_url", "preview_size_source": "declared",
+	}))
 	require.Len(t, hook.AllEntries(), 1)
 	entry := hook.LastEntry()
 	require.Equal(t, log.WarnLevel, entry.Level)
 	require.Equal(t, "could not check video preview size limit", entry.Message)
 	require.Equal(t, "preview-size-request", entry.Data["req_id"])
+	require.Equal(t, "upload_url", entry.Data["size_check_stage"])
+	require.Equal(t, "declared", entry.Data["preview_size_source"])
 	require.Equal(t, int64(42), entry.Data["user_id"])
 	require.Equal(t, int64(7), entry.Data["file_id"])
 	require.Equal(t, int64(200_000_000), entry.Data["preview_size_bytes"])
