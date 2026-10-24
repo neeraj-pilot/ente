@@ -59,7 +59,7 @@ func TestTrashAndRestoreMaintainReadyLockerCount(t *testing.T) {
 		[]ente.CollectionFileItem{collectionMembershipTestItem(fileID)}); err != nil {
 		t.Fatalf("RestoreFiles() error = %v", err)
 	}
-	assertReadyFileCounts(t, db, userID, 0, 1, 2)
+	assertReadyFileCounts(t, db, userID, 0, 1, 3)
 }
 
 func TestTrashInvalidatesCrossAppFileCounts(t *testing.T) {

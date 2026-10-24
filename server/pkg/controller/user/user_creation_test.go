@@ -8,7 +8,7 @@ import (
 	"github.com/ente/museum/pkg/repo"
 )
 
-func TestCreateUserInitializesFileCounts(t *testing.T) {
+func TestCreateUserInitializesFileCountsAndAppProvenance(t *testing.T) {
 	testutil.WithServerRoot(t)
 	db := testutil.RequireTestDB(t)
 	testutil.ResetTables(t, db)
@@ -26,12 +26,16 @@ func TestCreateUserInitializesFileCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	var photos, locker, version int64
-	if err := db.QueryRow(`SELECT photos_file_count, locker_file_count, file_count_source_version
-		FROM usage WHERE user_id = $1`, userID).Scan(&photos, &locker, &version); err != nil {
+	var fileAppReady bool
+	if err := db.QueryRow(`SELECT photos_file_count, locker_file_count, file_count_source_version, file_app_ready
+		FROM usage WHERE user_id = $1`, userID).Scan(&photos, &locker, &version, &fileAppReady); err != nil {
 		t.Fatal(err)
 	}
 	if photos != 0 || locker != 0 || version != 0 {
 		t.Fatalf("file count state = (%d, %d, %d), want (0, 0, 0)", photos, locker, version)
+	}
+	if !fileAppReady {
+		t.Fatal("new account file app provenance is not ready")
 	}
 }
 

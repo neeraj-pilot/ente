@@ -1006,6 +1006,7 @@ func main() {
 	adminAPI.POST("/queue/re-queue", adminHandler.ReQueueItem)
 	adminAPI.POST("/collection/repair-deleted-share", adminHandler.RepairDeletedCollectionShare)
 	adminAPI.POST("/user/init-file-counts", adminHandler.InitializeFileCounts)
+	adminAPI.POST("/user/init-file-app", adminHandler.InitializeFileApp)
 	adminAPI.POST("/user/bonus", adminHandler.UpdateBonus)
 
 	userEntityController := &userEntityCtrl.Controller{Repo: userEntityRepo}
