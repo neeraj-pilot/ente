@@ -322,7 +322,7 @@ func (c *FileController) Update(ctx context.Context, userID int64, file ente.Fil
 }
 
 func (c *FileController) GetUploadURLs(ctx context.Context, userID int64, count int, app ente.App, ignoreLimit bool, client string) ([]ente.UploadURL, error) {
-	err := c.UsageCtrl.CanUploadFile(ctx, userID, nil, app)
+	err := c.UsageCtrl.CanIssueUploadURLs(ctx, userID, nil, app)
 	if err != nil {
 		return []ente.UploadURL{}, stacktrace.Propagate(err, "")
 	}
@@ -353,7 +353,7 @@ func (c *FileController) GetUploadURLs(ctx context.Context, userID int64, count 
 }
 
 func (c *FileController) ValidateUploadEligibility(ctx context.Context, userID int64, app ente.App) error {
-	if err := c.UsageCtrl.CanUploadFile(ctx, userID, nil, app); err != nil {
+	if err := c.UsageCtrl.CanIssueUploadURLs(ctx, userID, nil, app); err != nil {
 		return stacktrace.Propagate(err, "")
 	}
 	return nil
@@ -374,7 +374,7 @@ func (c *FileController) GetUploadURLWithMetadata(ctx context.Context, userID in
 	if err != nil {
 		return ente.UploadURL{}, err
 	}
-	if err := c.UsageCtrl.CanUploadFile(ctx, userID, &req.ContentLength, app); err != nil {
+	if err := c.UsageCtrl.CanIssueUploadURLs(ctx, userID, &req.ContentLength, app); err != nil {
 		return ente.UploadURL{}, stacktrace.Propagate(err, "")
 	}
 	dc := c.S3Config.GetHotDataCenter()
@@ -1106,7 +1106,7 @@ func (c *FileController) GetMultipartUploadURLs(ctx context.Context, userID int6
 	if count <= 0 || count > maxMultipartPartCount {
 		return ente.MultipartUploadURLs{}, stacktrace.Propagate(ente.ErrBadRequest, "multipart upload cannot exceed %d parts", maxMultipartPartCount)
 	}
-	err := c.UsageCtrl.CanUploadFile(ctx, userID, nil, app)
+	err := c.UsageCtrl.CanIssueUploadURLs(ctx, userID, nil, app)
 	if err != nil {
 		return ente.MultipartUploadURLs{}, stacktrace.Propagate(err, "")
 	}
@@ -1194,7 +1194,7 @@ func (c *FileController) GetMultipartUploadURLWithMetadata(ctx context.Context, 
 		}
 	}
 	partLengths := computePartLengths(req.ContentLength, req.PartLength, partCount)
-	if err := c.UsageCtrl.CanUploadFile(ctx, userID, nil, app); err != nil {
+	if err := c.UsageCtrl.CanIssueUploadURLs(ctx, userID, nil, app); err != nil {
 		return ente.MultipartUploadURLs{}, stacktrace.Propagate(err, "")
 	}
 	s3Client := c.S3Config.GetHotS3Client()
