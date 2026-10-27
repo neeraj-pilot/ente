@@ -263,7 +263,7 @@ export const SuggestionFaceList: React.FC<SuggestionFaceListProps> = ({
             {faces.map(({ file, faceID }) => (
                 <SuggestionFace key={faceID}>
                     <FaceCropImageView
-                        placeholderDimension={87}
+                        placeholderDimension={64}
                         {...{ file, faceID }}
                     />
                 </SuggestionFace>
@@ -279,10 +279,14 @@ const SuggestionFaceList_ = styled("div")`
 `;
 
 const SuggestionFace = styled("div")`
-    width: 87px;
-    height: 87px;
-    border-radius: 50%;
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    border-radius: 12px;
     overflow: hidden;
+    & > .MuiSkeleton-root {
+        border-radius: inherit;
+    }
     & > img {
         width: 100%;
         height: 100%;

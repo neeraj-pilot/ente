@@ -12,7 +12,6 @@ import {
     type SxProps,
     type Theme,
 } from "@mui/material";
-import type { LocalUser } from "ente-accounts/services/user";
 import { LoadingButton } from "ente-base/components/mui/LoadingButton";
 import {
     useModalVisibility,
@@ -38,7 +37,7 @@ import { albumDescriptionGraphemeCount } from "ente-new/photos/services/collecti
 import { useFormik } from "formik";
 import { t } from "i18next";
 import React, { useId, useState } from "react";
-import { PickCoverPhotoDialog } from "./PickCoverPhotoDialog";
+import { CoverPickerDialog } from "./CoverPickerDialog";
 
 export interface AlbumDetails {
     name: string;
@@ -50,7 +49,6 @@ type EditAlbumDetailsDialogProps = ModalVisibilityProps & {
     collection: Collection;
     files: EnteFile[];
     initialCoverFile: EnteFile | undefined;
-    user: LocalUser;
     onSubmit: (details: AlbumDetails) => Promise<void>;
 };
 
@@ -60,7 +58,6 @@ export const EditAlbumDetailsDialog: React.FC<EditAlbumDetailsDialogProps> = ({
     collection,
     files,
     initialCoverFile,
-    user,
     onSubmit,
 }) => {
     const { showMiniDialog, onGenericError } = useBaseContext();
@@ -281,11 +278,11 @@ export const EditAlbumDetailsDialog: React.FC<EditAlbumDetailsDialogProps> = ({
                 </Stack>
             </Dialog>
             {canShowCoverEditor && (
-                <PickCoverPhotoDialog
+                <CoverPickerDialog
                     {...pickCoverPhotoVisibilityProps}
                     collection={collection}
                     files={files}
-                    user={user}
+                    currentCoverFile={effectiveCoverFile}
                     canResetToDefault={effectiveCoverID > 0}
                     onUseSelectedPhoto={handleUseSelectedPhoto}
                     onResetToDefault={handleResetToDefault}

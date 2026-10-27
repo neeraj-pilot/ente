@@ -1,9 +1,9 @@
 import { ManagePublicShareOptions } from "@/components/collections/CollectionShare";
-import { PickCoverPhotoDialog } from "@/components/collections/PickCoverPhotoDialog";
+import { CoverPickerDialog } from "@/components/collections/CoverPickerDialog";
+import { PublicLinkField } from "@/components/share/PublicLinkField";
 import { usePublicLinkURL } from "@/components/utils/use-public-link-url";
-import { Copy01Icon, Edit03Icon } from "@hugeicons/core-free-icons";
+import { Edit03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import DoneIcon from "@mui/icons-material/Done";
 import {
     Box,
     IconButton,
@@ -14,15 +14,18 @@ import {
 } from "@mui/material";
 import type { LocalUser } from "ente-accounts/services/user";
 import { FocusVisibleButton } from "ente-base/components/mui/FocusVisibleButton";
-import { useClipboardCopy } from "ente-base/components/utils/hooks";
 import { useModalVisibility } from "ente-base/components/utils/modal";
 import { useBaseContext } from "ente-base/context";
+import log from "ente-base/log";
 import type { Collection, PublicURL } from "ente-media/collection";
 import type { EnteFile } from "ente-media/file";
 import { FileType } from "ente-media/file-type";
 import { ItemCard } from "ente-new/photos/components/Tiles";
 import { useSettingsSnapshot } from "ente-new/photos/components/utils/use-snapshot";
-import { updateCollectionDetails } from "ente-new/photos/services/collection";
+import {
+    removePublicLink,
+    updateCollectionDetails,
+} from "ente-new/photos/services/collection";
 import { openURL } from "ente-new/photos/utils/web";
 import { t } from "i18next";
 import { useState } from "react";
@@ -51,6 +54,7 @@ export const PublicLinkDetails = ({
     const { show: showPickCoverPhoto, props: pickCoverPhotoVisibilityProps } =
         useModalVisibility();
     const { customDomain } = useSettingsSnapshot();
+    const [removeLinkError, setRemoveLinkError] = useState("");
     const [shareState, setShareState] = useState({
         collection,
         publicURL: collection.publicURLs[0],
@@ -86,9 +90,27 @@ export const PublicLinkDetails = ({
         }
     };
 
+    const handleRemovePublicLink = async () => {
+        setBlockingLoad(true);
+        setRemoveLinkError("");
+        try {
+            await removePublicLink(collection);
+            setPublicURL(undefined);
+            void onRemotePull({ silent: true });
+        } catch (e) {
+            log.error("Failed to remove public link", e);
+            setRemoveLinkError(t("generic_error"));
+        } finally {
+            setBlockingLoad(false);
+        }
+    };
+
     return (
         <Box
             sx={{
+                display: "flex",
+                flexDirection: "column",
+                containerType: "inline-size",
                 flex: 1,
                 minHeight: 0,
                 overflow: "auto",
@@ -126,8 +148,18 @@ export const PublicLinkDetails = ({
                 </Typography>
             </Stack>
             <Stack
-                direction="row"
-                sx={{ flexWrap: "wrap", gap: "40px", alignItems: "flex-start" }}
+                sx={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr)",
+                    flex: 1,
+                    gap: "28px",
+                    alignContent: "start",
+                    alignItems: "start",
+                    "@container (min-width: 720px)": {
+                        gridTemplateColumns: "minmax(0, 364px) minmax(0, 1fr)",
+                        columnGap: "44px",
+                    },
+                }}
             >
                 <Stack sx={{ width: "100%", maxWidth: 364, gap: "14px" }}>
                     <Box sx={{ position: "relative" }}>
@@ -167,48 +199,11 @@ export const PublicLinkDetails = ({
                             </Tooltip>
                         )}
                     </Box>
-                    <Stack
-                        direction="row"
-                        sx={(theme) => ({
-                            alignItems: "center",
-                            gap: "8px",
-                            height: 52,
-                            px: "16px",
-                            borderRadius: "16px",
-                            bgcolor: "fill.faint",
-                            ...theme.applyStyles("light", {
-                                bgcolor: "#F4F4F4",
-                            }),
-                        })}
-                    >
-                        <Typography
-                            component="span"
-                            title={resolvedURL}
-                            aria-live="polite"
-                            sx={{
-                                flex: 1,
-                                minWidth: 0,
-                                fontSize: 14,
-                                fontWeight: 500,
-                                lineHeight: "20px",
-                                letterSpacing: 0,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                            }}
-                        >
-                            {resolvedURL?.replace(/^https?:\/\//, "") ??
-                                (error
-                                    ? t("generic_error")
-                                    : isLoading
-                                      ? t("loading")
-                                      : null)}
-                        </Typography>
-                        <CopyLinkButton
-                            key={resolvedURL ?? "pending"}
-                            url={resolvedURL}
-                        />
-                    </Stack>
+                    <PublicLinkField
+                        url={resolvedURL}
+                        isLoading={isLoading}
+                        error={!!error}
+                    />
                     <Typography
                         sx={{
                             color: "text.muted",
@@ -244,17 +239,39 @@ export const PublicLinkDetails = ({
                     >
                         {t("open_album")}
                     </FocusVisibleButton>
+                    {collection.owner.id === user.id && publicURL && (
+                        <FocusVisibleButton
+                            color="critical"
+                            fullWidth
+                            onClick={handleRemovePublicLink}
+                            sx={{
+                                height: 52,
+                                bgcolor: "transparent",
+                                color: "critical.main",
+                                fontSize: 14,
+                                fontWeight: 500,
+                                textDecoration: "underline",
+                                borderRadius: "20px",
+                                "&:hover": { bgcolor: "fill.faintHover" },
+                            }}
+                        >
+                            {t("remove_link")}
+                        </FocusVisibleButton>
+                    )}
+                    {removeLinkError && (
+                        <Typography
+                            role="alert"
+                            variant="small"
+                            sx={{ color: "critical.main" }}
+                        >
+                            {removeLinkError}
+                        </Typography>
+                    )}
                 </Stack>
                 {collection.owner.id === user.id &&
                     publicURL &&
                     resolvedURL && (
-                        <Box
-                            sx={{
-                                flex: "1 1 320px",
-                                minWidth: 0,
-                                maxWidth: 520,
-                            }}
-                        >
+                        <Box sx={{ minWidth: 0 }}>
                             <ManagePublicShareOptions
                                 variant="inline"
                                 {...{
@@ -270,11 +287,11 @@ export const PublicLinkDetails = ({
                     )}
             </Stack>
             {canChangeCover && pickCoverPhotoVisibilityProps.open && (
-                <PickCoverPhotoDialog
+                <CoverPickerDialog
                     {...pickCoverPhotoVisibilityProps}
                     collection={collection}
                     files={files}
-                    user={user}
+                    currentCoverFile={coverFile}
                     canResetToDefault={
                         (collection.pubMagicMetadata?.data.coverID ?? 0) > 0
                     }
@@ -283,39 +300,6 @@ export const PublicLinkDetails = ({
                 />
             )}
         </Box>
-    );
-};
-
-const CopyLinkButton = ({ url }: { url: string | undefined }) => {
-    const [copied, copy] = useClipboardCopy(url ?? "");
-    const label = t(copied ? "copied" : "copy_link");
-    return (
-        <Tooltip title={label}>
-            <span>
-                <IconButton
-                    aria-label={label}
-                    disabled={!url}
-                    onClick={copy}
-                    sx={{
-                        width: 36,
-                        height: 36,
-                        p: 0,
-                        mr: "-6px",
-                        borderRadius: "8px",
-                    }}
-                >
-                    {copied ? (
-                        <DoneIcon sx={{ fontSize: 24, color: "accent.main" }} />
-                    ) : (
-                        <HugeiconsIcon
-                            icon={Copy01Icon}
-                            size={24}
-                            strokeWidth={1.5}
-                        />
-                    )}
-                </IconButton>
-            </span>
-        </Tooltip>
     );
 };
 

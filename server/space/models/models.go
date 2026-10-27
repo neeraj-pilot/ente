@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 type AssetRedirectRequest struct {
 	SpaceID       string `form:"spaceId"`
 	ViewerSpaceID string `form:"viewerSpaceId"`
@@ -384,11 +386,16 @@ type ConversationsResponse struct {
 }
 
 type PostObjectPayload struct {
-	Video          *PostObjectPayload `json:"video,omitempty" binding:"omitempty"`
-	ObjectKey      string             `json:"objectKey" binding:"required"`
-	Size           int64              `json:"size,omitempty" binding:"omitempty,gt=0"`
-	Position       int                `json:"position,omitempty" binding:"gte=0"`
-	MetadataCipher string             `json:"metadataCipher" binding:"required"`
+	Video *PostAssetPayload `json:"video,omitempty" binding:"omitempty"`
+	PostAssetPayload
+}
+
+type PostAssetPayload struct {
+	NestedVideo    *json.RawMessage `json:"video,omitempty"`
+	ObjectKey      string           `json:"objectKey" binding:"required"`
+	Size           int64            `json:"size,omitempty" binding:"omitempty,gt=0"`
+	Position       int              `json:"position,omitempty" binding:"gte=0"`
+	MetadataCipher string           `json:"metadataCipher" binding:"required"`
 }
 
 type PostResponse struct {

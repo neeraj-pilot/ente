@@ -6,12 +6,16 @@ import {
     type albumFilters,
 } from "@/utils/album-filters";
 import type { PeopleSortBy } from "@/utils/people-sort";
-import { Link05Icon, PinIcon, StarIcon } from "@hugeicons/core-free-icons";
+import {
+    ArrowDown01Icon,
+    Link05Icon,
+    PinIcon,
+    StarIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import AddIcon from "@mui/icons-material/Add";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import CloseIcon from "@mui/icons-material/Close";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PeopleIcon from "@mui/icons-material/People";
 import SearchIcon from "@mui/icons-material/Search";
 import {
@@ -68,6 +72,7 @@ export interface GalleryBarImplProps extends GalleryBarPresentationProps {
     onAlbumSearchQueryChange: (query: string) => void;
     onShowAlbumOverview: (filter: AlbumFilter) => void;
     onShowPeopleOverview: () => void;
+    onShowLinksOverview: () => void;
     collectionSummaries: CollectionSummary[];
     visibleAlbumFilters: typeof albumFilters;
     uncategorizedCollectionSummaryID: number;
@@ -94,6 +99,7 @@ export const GalleryBarImpl: React.FC<GalleryBarImplProps> = ({
     onAlbumSearchQueryChange,
     onShowAlbumOverview,
     onShowPeopleOverview,
+    onShowLinksOverview,
     collectionSummaries,
     visibleAlbumFilters,
     uncategorizedCollectionSummaryID,
@@ -117,6 +123,7 @@ export const GalleryBarImpl: React.FC<GalleryBarImplProps> = ({
     const albumListRef = useRef<VariableSizeList | null>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const [peopleSearchQuery, setPeopleSearchQuery] = useState("");
+    const [groupExpanded, setGroupExpanded] = useState(true);
     const searchQuery = mode == "people" ? peopleSearchQuery : albumSearchQuery;
     const setSearchQuery =
         mode == "people" ? setPeopleSearchQuery : onAlbumSearchQueryChange;
@@ -164,6 +171,7 @@ export const GalleryBarImpl: React.FC<GalleryBarImplProps> = ({
     }, [albumFilter]);
     useEffect(() => {
         setPeopleSearchQuery("");
+        setGroupExpanded(true);
     }, [mode]);
 
     useEffect(() => {
@@ -191,7 +199,10 @@ export const GalleryBarImpl: React.FC<GalleryBarImplProps> = ({
                 ? {
                       type: "collections",
                       collectionSummaries: displayedCollectionSummaries,
-                      indented: mode == "albums",
+                      indented:
+                          mode == "albums" ||
+                          mode == "links" ||
+                          mode == "hidden-albums",
                       activeCollectionID: activeCollectionID!,
                       onSelectCollectionID,
                   }
@@ -334,9 +345,12 @@ export const GalleryBarImpl: React.FC<GalleryBarImplProps> = ({
                     sx={{ flexShrink: 0 }}
                 >
                     <CardText>{filter.label()}</CardText>
-                    <ExpandMoreIcon
+                    <Box
+                        component={HugeiconsIcon}
+                        icon={ArrowDown01Icon}
+                        size={16}
+                        strokeWidth={1.8}
                         sx={{
-                            fontSize: 16,
                             color: "text.muted",
                             transform:
                                 displayedAlbumFilter == filter.value
@@ -462,6 +476,11 @@ export const GalleryBarImpl: React.FC<GalleryBarImplProps> = ({
         isSearching,
     ]);
 
+    const isGroupOverview =
+        mode == "links"
+            ? activeCollectionID === undefined
+            : activeCollectionID == PseudoCollectionID.hiddenItems;
+
     const navigation = (
         <Stack
             component="nav"
@@ -476,9 +495,8 @@ export const GalleryBarImpl: React.FC<GalleryBarImplProps> = ({
                 "--gallery-navigation-surface": "#FFFFFF",
                 "--gallery-navigation-hover":
                     "color-mix(in srgb, var(--mui-palette-text-base) 8%, var(--gallery-navigation-surface))",
-                display: collapsed && !mobile ? "none" : "flex",
                 flexShrink: 0,
-                width: mobile ? "100%" : 328,
+                width: "100%",
                 height: "100%",
                 minHeight: 0,
                 px: mobile ? "12px" : "16px",
@@ -680,6 +698,47 @@ export const GalleryBarImpl: React.FC<GalleryBarImplProps> = ({
                         )}
                     </AutoSizer>
                 </Box>
+            ) : mode == "links" || mode == "hidden-albums" ? (
+                <Stack
+                    role="group"
+                    aria-label={t(mode == "links" ? "links" : "section_hidden")}
+                    sx={{ flex: 1, minHeight: 0, minWidth: 0 }}
+                >
+                    <BarCard
+                        aria-current={isGroupOverview ? "page" : undefined}
+                        aria-expanded={isSearching || groupExpanded}
+                        onClick={() => {
+                            setGroupExpanded(
+                                !isGroupOverview || !groupExpanded,
+                            );
+                            if (mode == "links") onShowLinksOverview();
+                            else
+                                onSelectCollectionID(
+                                    PseudoCollectionID.hiddenItems,
+                                );
+                            mobileDrawerProps.onClose();
+                        }}
+                        sx={{ flexShrink: 0, height: rowHeight }}
+                    >
+                        <CardText>
+                            {t(mode == "links" ? "links" : "section_hidden")}
+                        </CardText>
+                        <Box
+                            component={HugeiconsIcon}
+                            icon={ArrowDown01Icon}
+                            size={16}
+                            strokeWidth={1.8}
+                            sx={{
+                                color: "text.muted",
+                                transform:
+                                    isSearching || groupExpanded
+                                        ? undefined
+                                        : "rotate(-90deg)",
+                            }}
+                        />
+                    </BarCard>
+                    {(isSearching || groupExpanded) && items}
+                </Stack>
             ) : (
                 items
             )}

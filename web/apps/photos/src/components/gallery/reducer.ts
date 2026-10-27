@@ -1680,7 +1680,7 @@ const stateByUpdatingFilteredFiles = (state: GalleryState) => {
         const previousLinkID = state.view.selectedLinkID;
         const selectedLinkID = links.some(({ id }) => id == previousLinkID)
             ? state.view.selectedLinkID
-            : links[0]?.id;
+            : undefined;
         state = { ...state, view: { type: "links", selectedLinkID } };
     }
     if (state.isInSearchMode) {

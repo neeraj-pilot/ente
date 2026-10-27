@@ -1,24 +1,18 @@
 import type { RemotePullOpts } from "@/components/gallery";
 import type { SelectedState } from "@/utils/file";
 import AddIcon from "@mui/icons-material/Add";
-import CloseIcon from "@mui/icons-material/Close";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import RemoveIcon from "@mui/icons-material/Remove";
 import {
     Box,
-    Dialog,
-    DialogContent,
     IconButton,
     Stack,
     styled,
     Typography,
-    useMediaQuery,
     type IconButtonProps,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 import { ensureLocalUser } from "ente-accounts/services/user";
 import { ActivityIndicator } from "ente-base/components/mui/ActivityIndicator";
-import type { ModalVisibilityProps } from "ente-base/components/utils/modal";
 import { isSxArray } from "ente-base/components/utils/sx";
 import { useBaseContext } from "ente-base/context";
 import { downloadManager } from "ente-gallery/services/download";
@@ -64,22 +58,19 @@ interface MapFileSource {
     tempHiddenFileIDs: Set<number>;
 }
 
-interface CollectionMapDialogProps
-    extends
-        ModalVisibilityProps,
-        Pick<
-            FileListWithViewerProps,
-            | "onAddSaveGroup"
-            | "onMarkTempDeleted"
-            | "onAddFileToCollection"
-            | "onRemoteFilesPull"
-            | "onVisualFeedback"
-            | "fileNormalCollectionIDs"
-            | "collectionNameByID"
-            | "onSelectCollection"
-            | "onSelectPerson"
-            | "emailByUserID"
-        > {
+interface CollectionMapProps extends Pick<
+    FileListWithViewerProps,
+    | "onAddSaveGroup"
+    | "onMarkTempDeleted"
+    | "onAddFileToCollection"
+    | "onRemoteFilesPull"
+    | "onVisualFeedback"
+    | "fileNormalCollectionIDs"
+    | "collectionNameByID"
+    | "onSelectCollection"
+    | "onSelectPerson"
+    | "emailByUserID"
+> {
     collectionSummary: CollectionSummary;
     files: EnteFile[];
     mapFileSource: MapFileSource;
@@ -999,9 +990,7 @@ function createMarkerIcon(
     });
 }
 
-export const CollectionMapDialog: React.FC<CollectionMapDialogProps> = ({
-    open,
-    onClose,
+export const CollectionMap: React.FC<CollectionMapProps> = ({
     collectionSummary,
     files,
     onRemotePull,
@@ -1020,7 +1009,6 @@ export const CollectionMapDialog: React.FC<CollectionMapDialogProps> = ({
     const { onGenericError } = useBaseContext();
     const mapComponents = useMapComponents();
     const user = useCurrentUser();
-    const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
     const {
         collectionFiles: mapSourceCollectionFiles,
         favoriteFileIDs: syncedFavoriteFileIDs,
@@ -1037,7 +1025,7 @@ export const CollectionMapDialog: React.FC<CollectionMapDialogProps> = ({
         handleToggleFavorite,
         handleFileVisibilityUpdate,
     } = useFavorites(
-        open,
+        true,
         user,
         mapSourceCollectionFiles,
         syncedFavoriteFileIDs,
@@ -1073,7 +1061,6 @@ export const CollectionMapDialog: React.FC<CollectionMapDialogProps> = ({
         mapCenter,
         mapIndex,
         mapPoints,
-        latestFileId,
         filesByID,
         thumbByFileID,
         isLoading,
@@ -1081,17 +1068,11 @@ export const CollectionMapDialog: React.FC<CollectionMapDialogProps> = ({
         removeFiles: removeFilesFromMap,
         updateFileVisibility,
         queueThumbnailFetch,
-    } = useMapData(open, collectionSummary, mapFiles, onGenericError);
+    } = useMapData(true, collectionSummary, mapFiles, onGenericError);
 
     const [visibleFileIDs, setVisibleFileIDs] = useState<number[]>([]);
     const [isVisiblePhotosUpdating, setIsVisiblePhotosUpdating] =
         useState(false);
-
-    useEffect(() => {
-        if (!open) {
-            setIsVisiblePhotosUpdating(false);
-        }
-    }, [open]);
 
     const visibleFiles = useMemo(() => {
         return visibleFileIDs
@@ -1100,7 +1081,7 @@ export const CollectionMapDialog: React.FC<CollectionMapDialogProps> = ({
     }, [visibleFileIDs, filesByID]);
 
     const handleRemotePull = useCallback(
-        () => onRemotePull({ silent: true, source: "map-dialog" }),
+        () => onRemotePull({ silent: true, source: "map-view" }),
         [onRemotePull],
     );
 
@@ -1149,7 +1130,7 @@ export const CollectionMapDialog: React.FC<CollectionMapDialogProps> = ({
         );
     } else if (!mapPoints.length || !mapCenter || !mapIndex) {
         body = (
-            <CenteredBox onClose={onClose} closeLabel={t("close")}>
+            <CenteredBox>
                 <Typography variant="body" sx={{ color: "text.secondary" }}>
                     {t("no_geotagged_photos")}
                 </Typography>
@@ -1162,9 +1143,6 @@ export const CollectionMapDialog: React.FC<CollectionMapDialogProps> = ({
                     collectionSummary={collectionSummary}
                     visibleFiles={visibleFiles}
                     isVisiblePhotosUpdating={isVisiblePhotosUpdating}
-                    latestFileId={latestFileId}
-                    thumbByFileID={thumbByFileID}
-                    onClose={onClose}
                     user={user}
                     favoriteFileIDs={favoriteFileIDs}
                     pendingFavoriteUpdates={pendingFavoriteUpdates}
@@ -1184,7 +1162,6 @@ export const CollectionMapDialog: React.FC<CollectionMapDialogProps> = ({
                     onSelectCollection={onSelectCollection}
                     onSelectPerson={onSelectPerson}
                     emailByUserID={emailByUserID}
-                    onSetOpenFileViewer={setIsFileViewerOpen}
                 />
                 <Box sx={{ width: "100%", height: "100%" }}>
                     <MapCanvas
@@ -1204,32 +1181,11 @@ export const CollectionMapDialog: React.FC<CollectionMapDialogProps> = ({
     }
 
     return (
-        <Dialog
-            fullScreen
-            keepMounted
-            open={open}
-            onClose={onClose}
-            sx={{
-                // Keep PhotoSwipe above the mounted dialog during transitions.
-                ...(isFileViewerOpen && {
-                    zIndex: (theme) =>
-                        `calc(${theme.zIndex.drawer} - 2) !important`,
-                }),
-            }}
+        <Box
+            sx={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}
         >
-            <Box
-                sx={{
-                    position: "relative",
-                    width: "100vw",
-                    height: "100vh",
-                    bgcolor: "background.default",
-                }}
-            >
-                <DialogContent sx={{ padding: "0 !important", height: "100%" }}>
-                    {body}
-                </DialogContent>
-            </Box>
-        </Dialog>
+            {body}
+        </Box>
     );
 };
 
@@ -1237,9 +1193,6 @@ interface CollectionSidebarProps {
     collectionSummary: CollectionSummary;
     visibleFiles: EnteFile[];
     isVisiblePhotosUpdating: boolean;
-    latestFileId: number | undefined;
-    thumbByFileID: Map<number, string>;
-    onClose: () => void;
     user: ReturnType<typeof useCurrentUser>;
     favoriteFileIDs: Set<number>;
     pendingFavoriteUpdates: Set<number>;
@@ -1260,20 +1213,14 @@ interface CollectionSidebarProps {
     onSelectCollection?: FileListWithViewerProps["onSelectCollection"];
     onSelectPerson?: FileListWithViewerProps["onSelectPerson"];
     emailByUserID: FileListWithViewerProps["emailByUserID"];
-    onSetOpenFileViewer?: (open: boolean) => void;
 }
 
-const COVER_IMAGE_HEIGHT = 320;
 const MOBILE_SIDEBAR_HEIGHT = "50%";
-const COVER_HEADER_HEIGHT = COVER_IMAGE_HEIGHT + 34;
 
 function CollectionSidebar({
     collectionSummary,
     visibleFiles,
     isVisiblePhotosUpdating,
-    latestFileId,
-    thumbByFileID,
-    onClose,
     user,
     favoriteFileIDs,
     pendingFavoriteUpdates,
@@ -1291,17 +1238,7 @@ function CollectionSidebar({
     onSelectCollection,
     onSelectPerson,
     emailByUserID,
-    onSetOpenFileViewer,
 }: CollectionSidebarProps) {
-    const [currentDate, setCurrentDate] = useState<string | undefined>(
-        undefined,
-    );
-    const [scrollOffset, setScrollOffset] = useState(0);
-    const shouldShowCover = collectionSummary.type !== "all";
-    const theme = useTheme();
-    const isDarkMode = theme.palette.mode === "dark";
-    const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-
     const emptySelected = useMemo<SelectedState>(
         () => ({
             ownCount: 0,
@@ -1313,87 +1250,37 @@ function CollectionSidebar({
     );
     const noOpSetSelected = useCallback(() => undefined, []);
 
-    const coverImageUrl =
-        (collectionSummary.coverFile &&
-            thumbByFileID.get(collectionSummary.coverFile.id)) ||
-        (latestFileId ? thumbByFileID.get(latestFileId) : undefined);
-    const coverHeader = useMemo(
-        () =>
-            shouldShowCover
-                ? {
-                      component: (
-                          <MapCover
-                              name={collectionSummary.name}
-                              coverImageUrl={coverImageUrl}
-                              totalCount={collectionSummary.fileCount}
-                              onClose={onClose}
-                          />
-                      ),
-                      height: COVER_HEADER_HEIGHT,
-                      extendToInlineEdges: true,
-                  }
-                : undefined,
-        [
-            shouldShowCover,
-            collectionSummary.name,
-            collectionSummary.fileCount,
-            coverImageUrl,
-            onClose,
-        ],
-    );
-
-    const showStickyHeader =
-        !shouldShowCover ||
-        (scrollOffset > COVER_HEADER_HEIGHT && !!currentDate);
-    const visibleDate =
-        currentDate && (scrollOffset > 0 || (shouldShowCover && !isMobile))
-            ? currentDate
-            : undefined;
-
     return (
         <SidebarWrapper>
             <SidebarContainer>
-                <StickyDateHeader
-                    visible={showStickyHeader}
-                    variant={shouldShowCover ? "overlay" : "static"}
-                >
-                    <Box
+                <Stack sx={{ px: "20px", pt: "20px", pb: "20px", gap: "2px" }}>
+                    <Typography
+                        component="h2"
                         sx={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
+                            fontFamily: '"Outfit Variable", sans-serif',
+                            fontSize: "24px",
+                            lineHeight: "32px",
+                            fontWeight: 600,
+                            overflowWrap: "anywhere",
                         }}
                     >
-                        <Box>
-                            <Typography
-                                variant="body"
-                                sx={{ fontWeight: 700, fontSize: "18px" }}
-                            >
-                                {collectionSummary.name}
-                            </Typography>
-                            <Typography
-                                variant="small"
-                                sx={{ color: "text.muted", fontSize: "14px" }}
-                            >
-                                {t("photos_count", {
-                                    count: collectionSummary.fileCount,
-                                })}
-                                {visibleDate && ` · ${visibleDate}`}
-                            </Typography>
-                        </Box>
-                        <IconButton
-                            onClick={onClose}
-                            size="small"
-                            sx={{
-                                color: "text.secondary",
-                                bgcolor: "fill.faint",
-                                "&:hover": { bgcolor: "fill.muted" },
-                            }}
-                        >
-                            <CloseIcon />
-                        </IconButton>
-                    </Box>
-                </StickyDateHeader>
+                        {collectionSummary.type === "all"
+                            ? t("map")
+                            : collectionSummary.name}
+                    </Typography>
+                    <Typography
+                        sx={{
+                            color: "text.muted",
+                            fontSize: "14px",
+                            lineHeight: "20px",
+                            fontWeight: 500,
+                        }}
+                    >
+                        {t("photos_count", {
+                            count: collectionSummary.fileCount,
+                        })}
+                    </Typography>
+                </Stack>
                 <FileListContainer>
                     {visibleFiles.length > 0 ? (
                         <FileListWithViewer
@@ -1420,22 +1307,11 @@ function CollectionSidebar({
                             activeCollectionID={collectionSummary.id}
                             selected={emptySelected}
                             setSelected={noOpSetSelected}
-                            onSetOpenFileViewer={onSetOpenFileViewer}
-                            listBorderRadius={isMobile ? "0" : "0 0 32px 32px"}
-                            header={coverHeader}
-                            onScroll={setScrollOffset}
-                            onVisibleDateChange={setCurrentDate}
+                            listBorderRadius="0"
+                            gridLayout="map"
                         />
                     ) : isVisiblePhotosUpdating ? null : (
                         <EmptyStateContainer>
-                            {shouldShowCover && (
-                                <MapCover
-                                    name={collectionSummary.name}
-                                    coverImageUrl={coverImageUrl}
-                                    totalCount={collectionSummary.fileCount}
-                                    onClose={onClose}
-                                />
-                            )}
                             <EmptyStateMessage>
                                 <Typography
                                     variant="body"
@@ -1454,7 +1330,6 @@ function CollectionSidebar({
                     )}
                 </FileListContainer>
             </SidebarContainer>
-            {isDarkMode && <SidebarGradient />}
         </SidebarWrapper>
     );
 }
@@ -1856,72 +1731,9 @@ const FloatingIconButton: React.FC<IconButtonProps> = ({ sx, ...props }) => {
     return <IconButton {...props} sx={mergedSx} />;
 };
 
-interface CenteredBoxProps extends React.PropsWithChildren {
-    onClose?: () => void;
-    closeLabel?: string;
+function CenteredBox({ children }: React.PropsWithChildren) {
+    return <CenteredBoxContainer>{children}</CenteredBoxContainer>;
 }
-
-function CenteredBox({ children, onClose, closeLabel }: CenteredBoxProps) {
-    return (
-        <CenteredBoxContainer>
-            {onClose && (
-                <IconButton
-                    aria-label={closeLabel ?? "Close"}
-                    onClick={onClose}
-                    sx={{ position: "absolute", top: 16, right: 16 }}
-                >
-                    <CloseIcon />
-                </IconButton>
-            )}
-            {children}
-        </CenteredBoxContainer>
-    );
-}
-
-interface MapCoverProps {
-    name: string;
-    coverImageUrl: string | undefined;
-    totalCount: number;
-    onClose: () => void;
-}
-
-const MapCover = React.memo(function MapCover({
-    name,
-    coverImageUrl,
-    totalCount,
-    onClose,
-}: MapCoverProps) {
-    return (
-        <CoverContainer>
-            <CoverImageContainer>
-                <img
-                    src={coverImageUrl}
-                    alt="Cover"
-                    style={{
-                        position: "absolute",
-                        inset: 0,
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        objectPosition: "Center",
-                    }}
-                />
-                <CoverGradientOverlay />
-
-                <CoverCloseButton aria-label="Close" onClick={onClose}>
-                    <CloseIcon sx={{ fontSize: 20 }} />
-                </CoverCloseButton>
-
-                <CoverContentContainer>
-                    <CoverTitle>{name}</CoverTitle>
-                    <CoverSubtitle>
-                        {t("photos_count", { count: totalCount })}
-                    </CoverSubtitle>
-                </CoverContentContainer>
-            </CoverImageContainer>
-        </CoverContainer>
-    );
-});
 
 const MapCanvasContainer = styled(Box)(({ theme }) => ({
     width: "100%",
@@ -1930,67 +1742,6 @@ const MapCanvasContainer = styled(Box)(({ theme }) => ({
         "& .leaflet-bottom.leaflet-right": { bottom: MOBILE_SIDEBAR_HEIGHT },
     },
 }));
-
-const CoverContainer = styled(Box)(({ theme }) => ({
-    width: "100%",
-    flexShrink: 0,
-    paddingTop: "16px",
-    paddingBottom: "16px",
-    [theme.breakpoints.down("md")]: {
-        padding: "8px",
-        paddingTop: "20px",
-        paddingBottom: "12px",
-    },
-}));
-
-const CoverImageContainer = styled(Box)(({ theme }) => ({
-    height: `${COVER_IMAGE_HEIGHT}px`,
-    position: "relative",
-    overflow: "hidden",
-    backgroundColor: "#333",
-    borderRadius: "36px 36px 24px 24px",
-    marginTop: "2px",
-    [theme.breakpoints.down("md")]: { borderRadius: "20px" },
-}));
-
-const CoverGradientOverlay = styled(Box)({
-    position: "absolute",
-    inset: 0,
-    background:
-        "linear-gradient(to bottom, rgba(0,0,0,0.4), transparent 35%, transparent 60%, rgba(0,0,0,0.75))",
-});
-
-const CoverCloseButton = styled(IconButton)({
-    position: "absolute",
-    top: "12px",
-    right: "12px",
-    color: "white",
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
-    "&:hover": { backgroundColor: "rgba(0, 0, 0, 0.5)" },
-});
-
-const CoverContentContainer = styled(Box)({
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: "24px",
-    paddingLeft: "18px",
-    color: "white",
-});
-
-const CoverTitle = styled(Typography)({
-    fontSize: "22px",
-    fontWeight: "bold",
-    marginBottom: "6px",
-    lineHeight: 1.2,
-});
-
-const CoverSubtitle = styled(Typography)({
-    color: "rgba(255, 255, 255, 0.85)",
-    fontSize: "14px",
-    fontWeight: "500",
-});
 
 const SidebarWrapper = styled(Box)(({ theme }) => ({
     position: "absolute",
@@ -2007,9 +1758,7 @@ const SidebarWrapper = styled(Box)(({ theme }) => ({
         bottom: 16,
         right: "auto",
         height: "auto",
-        width: "30%",
-        maxWidth: "600px",
-        minWidth: "450px",
+        width: "460px",
     },
 }));
 
@@ -2017,68 +1766,28 @@ const SidebarContainer = styled(Box)(({ theme }) => ({
     position: "relative",
     width: "100%",
     height: "100%",
-    backgroundColor: theme.vars.palette.background.paper,
-    boxShadow: theme.shadows[10],
+    backgroundColor: "#f4f4f4",
+    border: `1px solid ${theme.vars.palette.stroke.faint}`,
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-    borderRadius: "24px 24px 0 0",
-    [theme.breakpoints.up("md")]: { borderRadius: "48px" },
+    borderRadius: "20px 20px 0 0",
+    fontSize: "14px",
+    lineHeight: "20px",
+    fontWeight: 500,
+    [theme.breakpoints.up("md")]: { borderRadius: "20px" },
+    ...theme.applyStyles("dark", {
+        backgroundColor: theme.vars.palette.background.paper,
+    }),
 }));
 
-const SidebarGradient = styled(Box)(({ theme }) => ({
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "80px",
-    background:
-        "linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.65) 2%, rgba(0,0,0,0) 100%)",
-    pointerEvents: "none",
-    [theme.breakpoints.up("md")]: {
-        height: "150px",
-        borderRadius: "0 0 48px 48px",
-    },
-}));
-
-const FileListContainer = styled(Box)(({ theme }) => ({
+const FileListContainer = styled(Box)({
     flex: 1,
     minHeight: 0,
     position: "relative",
     display: "flex",
     flexDirection: "column",
-    paddingLeft: "8px",
-    paddingRight: "8px",
-    paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)",
-    [theme.breakpoints.up("md")]: {
-        paddingLeft: "16px",
-        paddingRight: "16px",
-        paddingBottom: "18px",
-    },
-}));
-
-const StickyDateHeader = styled(Box)<{
-    visible: boolean;
-    variant: "overlay" | "static";
-}>(({ theme, visible, variant }) => {
-    const isStatic = variant === "static";
-    return {
-        position: isStatic ? "relative" : "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10,
-        backgroundColor: theme.vars.palette.background.paper,
-        padding: "28px 24px 24px 24px",
-        borderBottom: `1px solid ${theme.vars.palette.divider}`,
-        opacity: isStatic || visible ? 1 : 0,
-        transform: isStatic || visible ? "translateY(0)" : "translateY(-10px)",
-        pointerEvents: isStatic || visible ? "auto" : "none",
-        transition: isStatic
-            ? "none"
-            : "opacity 0.25s ease-out, transform 0.25s ease-out",
-        [theme.breakpoints.down("md")]: { padding: "24px 20px 20px 20px" },
-    };
+    paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)",
 });
 
 const CenteredBoxContainer = styled(Box)({

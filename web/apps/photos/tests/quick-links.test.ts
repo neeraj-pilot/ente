@@ -66,7 +66,7 @@ describe("quick link membership", () => {
 });
 
 describe("Links navigation", () => {
-    test("selects the latest link and clears stale photo search state", () => {
+    test("opens the overview and clears stale photo search state", () => {
         const state = galleryReducer(
             {
                 ...mounted(),
@@ -76,12 +76,31 @@ describe("Links navigation", () => {
             },
             { type: "showLinks" },
         );
-        expect(state.view).toEqual({ type: "links", selectedLinkID: 2 });
+        expect(state.view).toEqual({
+            type: "links",
+            selectedLinkID: undefined,
+        });
         expect(state.selectedCollectionSummaryID).toBeUndefined();
         expect(state.filteredFiles).toEqual([]);
         expect(state.searchResults).toBeUndefined();
         expect(state.isInSearchMode).toBe(false);
         expect(state.isRecomputingSearchResults).toBe(false);
+    });
+
+    test("returns to the overview when the Links group is selected again", () => {
+        let state = galleryReducer(mounted(), {
+            type: "selectLink",
+            collectionID: 1,
+        });
+        state = galleryReducer(state, { type: "showLinks" });
+        state = galleryReducer(state, {
+            type: "setCollections",
+            collections: [link(1), link(2), link(3)],
+        });
+        expect(state.view).toEqual({
+            type: "links",
+            selectedLinkID: undefined,
+        });
     });
 
     test("preserves selection when the list refreshes", () => {
@@ -114,7 +133,10 @@ describe("Links navigation", () => {
                 collections:
                     change == "removed" ? [link(1)] : [link(1), updated],
             });
-            expect(state.view).toEqual({ type: "links", selectedLinkID: 1 });
+            expect(state.view).toEqual({
+                type: "links",
+                selectedLinkID: undefined,
+            });
         },
     );
 
@@ -132,7 +154,10 @@ describe("Links navigation", () => {
             type: "setCollections",
             collections: [link(3)],
         });
-        expect(state.view).toEqual({ type: "links", selectedLinkID: 3 });
+        expect(state.view).toEqual({
+            type: "links",
+            selectedLinkID: undefined,
+        });
     });
 
     test("does not open a hidden link by an explicit ID", () => {
@@ -142,7 +167,10 @@ describe("Links navigation", () => {
             type: "selectLink",
             collectionID: 3,
         });
-        expect(state.view).toEqual({ type: "links", selectedLinkID: 1 });
+        expect(state.view).toEqual({
+            type: "links",
+            selectedLinkID: undefined,
+        });
     });
 
     test("supports returning to Home and People", () => {

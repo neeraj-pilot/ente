@@ -568,8 +568,7 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
                       ),
                     ),
                     actions: [
-                      if (widget.person != null &&
-                          flagService.enableMemoryShareLink &&
+                      if (flagService.enableMemoryShareLink &&
                           !isLocalGalleryMode)
                         // TODO: Replace with an Ente component when it supports this pressed overlay.
                         SizedBox.square(
@@ -817,13 +816,12 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
     if (!flagService.enableMemoryShareLink ||
         isLocalGalleryMode ||
         timeline == null ||
-        person == null ||
         !timeline.isEligible ||
         timeline.entries.isEmpty) {
       return;
     }
     final l10n = context.strings;
-    final name = person.data.name.trim();
+    final name = person?.data.name.trim() ?? "";
     var title = l10n.facesTimelineAppBarTitle;
     if (name.isNotEmpty) {
       title = l10n.memoryLaneCardTitle(
@@ -839,9 +837,9 @@ class _MemoryLanePageV2State extends State<MemoryLanePageV2> {
             .getOrCreateMemoryLaneLink(
               entries: timeline.entries,
               title: title,
-              personId: person.remoteID,
-              personName: person.data.name,
-              birthDate: person.data.birthDate,
+              personId: person?.remoteID,
+              personName: person?.data.name,
+              birthDate: person?.data.birthDate,
             );
         await dialog.hide();
         if (!mounted) return;

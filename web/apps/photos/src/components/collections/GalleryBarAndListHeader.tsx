@@ -5,8 +5,13 @@ import {
     type CollectionShareProps,
 } from "@/components/collections/CollectionShare";
 import type { FileListHeaderOrFooter } from "@/components/FileList";
+import {
+    AlbumsHeader,
+    albumsHeaderHeight,
+} from "@/components/gallery/AlbumsHeader";
 import { PeopleHeader } from "@/components/gallery/PeopleHeader";
 import type { GalleryBarMode } from "@/components/gallery/reducer";
+import { Box } from "@mui/material";
 import { useModalVisibility } from "ente-base/components/utils/modal";
 import type { Collection } from "ente-media/collection";
 import {
@@ -18,6 +23,7 @@ import {
     type CollectionSummary,
 } from "ente-new/photos/services/collection-summary";
 import type { Person } from "ente-new/photos/services/ml/people";
+import { t } from "i18next";
 import React, { useCallback, useEffect, useState } from "react";
 import { AlbumCastDialog } from "./AlbumCastDialog";
 import {
@@ -29,11 +35,13 @@ type GalleryBarAndListHeaderProps = {
     mode: GalleryBarMode;
     shouldHide: boolean;
     collectionSummary: CollectionSummary | undefined;
+    albums: CollectionSummary[];
     activeCollection: Collection | undefined;
     activePerson: Person | undefined;
     people: Person[];
     setActiveCollectionID: (collectionID: number) => void;
     onSelectPerson: (personID: string) => void;
+    onBackToPeople: () => void;
     setFileListHeader: (header: FileListHeaderOrFooter) => void;
     hasActiveFileSelection: boolean;
 } & Pick<
@@ -58,6 +66,7 @@ export const GalleryBarAndListHeader: React.FC<
     mode,
     user,
     collectionSummary,
+    albums,
     activeCollection,
     setActiveCollectionID,
     setBlockingLoad,
@@ -75,6 +84,7 @@ export const GalleryBarAndListHeader: React.FC<
     onCollectionSlideshow,
     setFileListHeader,
     onBackToAlbums,
+    onBackToPeople,
 }) => {
     const { show: showCollectionShare, props: collectionShareVisibilityProps } =
         useModalVisibility();
@@ -112,27 +122,45 @@ export const GalleryBarAndListHeader: React.FC<
             (activeCollection ||
                 collectionSummary.id <= PseudoCollectionID.all);
 
+        const showAlbums =
+            collectionSummary?.type == "hiddenItems" ||
+            collectionSummary?.type == "archiveItems";
+
         setFileListHeader({
             component: shouldRenderCollectionHeader ? (
-                <CollectionHeader
-                    {...{
-                        activeCollection,
-                        setActiveCollectionID,
-                        isActiveCollectionDownloadInProgress,
-                        onRemotePull,
-                        onAddSaveGroup,
-                        onShowMap,
-                        onCollectionSlideshow,
-                        onBackToAlbums,
-                    }}
-                    collectionSummary={collectionSummary}
-                    onCollectionShare={openCollectionShare}
-                    onCollectionManageLink={openCollectionManageLink}
-                    onCollectionCast={showCollectionCast}
-                    onEditAlbumDetails={onEditAlbumDetails}
-                    hasActiveFileSelection={hasActiveFileSelection}
-                    onDescriptionHeightChange={setDescriptionHeight}
-                />
+                <Box sx={{ width: "100%" }}>
+                    {showAlbums && (
+                        <AlbumsHeader
+                            title={t(
+                                collectionSummary.type == "hiddenItems"
+                                    ? "hidden_albums"
+                                    : "section_archive",
+                            )}
+                            albums={albums}
+                            onSelectAlbum={setActiveCollectionID}
+                            onBack={onBackToAlbums}
+                        />
+                    )}
+                    <CollectionHeader
+                        {...{
+                            activeCollection,
+                            setActiveCollectionID,
+                            isActiveCollectionDownloadInProgress,
+                            onRemotePull,
+                            onAddSaveGroup,
+                            onShowMap,
+                            onCollectionSlideshow,
+                            onBackToAlbums,
+                        }}
+                        collectionSummary={collectionSummary}
+                        onCollectionShare={openCollectionShare}
+                        onCollectionManageLink={openCollectionManageLink}
+                        onCollectionCast={showCollectionCast}
+                        onEditAlbumDetails={onEditAlbumDetails}
+                        hasActiveFileSelection={hasActiveFileSelection}
+                        onDescriptionHeightChange={setDescriptionHeight}
+                    />
+                </Box>
             ) : mode != "people" && collectionSummary ? (
                 <GalleryItemsHeaderAdapter>
                     <GalleryItemsSummary
@@ -142,6 +170,7 @@ export const GalleryBarAndListHeader: React.FC<
                 </GalleryItemsHeaderAdapter>
             ) : activePerson ? (
                 <PeopleHeader
+                    onBack={onBackToPeople}
                     person={activePerson}
                     people={people}
                     onSelectPerson={onSelectPerson}
@@ -149,13 +178,17 @@ export const GalleryBarAndListHeader: React.FC<
             ) : (
                 <></>
             ),
-            height: 72 + (albumDescription ? descriptionHeight : 0),
+            height:
+                72 +
+                (showAlbums ? (albums.length ? albumsHeaderHeight : 78) : 0) +
+                (albumDescription ? descriptionHeight : 0),
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         shouldHide,
         mode,
         collectionSummary,
+        albums,
         activeCollection,
         isActiveCollectionDownloadInProgress,
         activePerson,
@@ -169,6 +202,7 @@ export const GalleryBarAndListHeader: React.FC<
         onShowMap,
         onCollectionSlideshow,
         onBackToAlbums,
+        onBackToPeople,
         onEditAlbumDetails,
         albumDescription,
         descriptionHeight,

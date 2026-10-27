@@ -115,6 +115,7 @@ const renderSearch = (
         onAlbumSearchQueryChange: vi.fn(),
         onShowAlbumOverview: vi.fn(),
         onShowPeopleOverview: vi.fn(),
+        onShowLinksOverview: vi.fn(),
         onShowCollectionSummary: vi.fn(),
         onSelectCollectionID: vi.fn(),
         onCreateAlbum: vi.fn(),
@@ -241,8 +242,18 @@ describe("Hidden and Archive sidebars", () => {
             expect(html).toContain('aria-label="search_in_albums"');
             expect(html).toContain('aria-label="Family"');
             expect(html).toContain('aria-label="Holiday album"');
+            const buttons = (html.match(/<button\b[^>]*>/g) ?? []).join("");
             for (const label of ["Uncategorized", "Hidden", "Archive", "Trash"])
-                expect(html).not.toContain(`aria-label="${label}"`);
+                expect(buttons).not.toContain(`aria-label="${label}"`);
+            if (mode == "hidden-albums")
+                expect(html).toContain('role="group" aria-label="Hidden"');
         },
     );
+
+    test("keeps the Hidden group available when there are no albums", () => {
+        const html = renderSearch("", "ente", "hidden-albums", []);
+        expect(html).toContain('role="group" aria-label="Hidden"');
+        expect(html).toContain('aria-expanded="true"');
+        expect(html).toContain(">Hidden<");
+    });
 });

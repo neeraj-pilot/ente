@@ -1,8 +1,6 @@
 // TODO: Audit this file (the code here is mostly fine, but needs revisiting
 // the file it depends on have been audited and their interfaces fixed).
 /* eslint-disable react-hooks/exhaustive-deps */
-import type { AddToAlbumPhase } from "@/components/AlbumAddedNotification";
-import { AlbumAddedNotification } from "@/components/AlbumAddedNotification";
 import { AuthenticateUser } from "@/components/AuthenticateUser";
 import {
     CollectionSelector,
@@ -22,7 +20,7 @@ import {
 import { Upload } from "@/components/Upload";
 import { WhatsNew } from "@/components/WhatsNew";
 import { AlbumSlideshow } from "@/components/collections/AlbumSlideshow";
-import { CollectionMapDialog } from "@/components/collections/CollectionMapDialog";
+import { CollectionMap } from "@/components/collections/CollectionMap";
 import {
     EditAlbumDetailsDialog,
     type AlbumDetails,
@@ -81,6 +79,7 @@ import { isSessionInvalid } from "ente-accounts/services/session";
 import { ensureLocalUser } from "ente-accounts/services/user";
 import { isDesktop } from "ente-base/app";
 import type { MiniDialogAttributes } from "ente-base/components/MiniDialog";
+import { Notification } from "ente-base/components/Notification";
 import { SingleInputDialog } from "ente-base/components/SingleInputDialog";
 import { TranslucentLoadingOverlay } from "ente-base/components/loaders";
 import { errorDialogAttributes } from "ente-base/components/utils/dialog";
@@ -324,9 +323,8 @@ const Page: React.FC = () => {
         show: showEditAlbumDetails,
         props: editAlbumDetailsVisibilityProps,
     } = useModalVisibility();
-    const { show: showCollectionMap, props: collectionMapVisibilityProps } =
-        useModalVisibility();
-    const closeCollectionMap = collectionMapVisibilityProps.onClose;
+    const [isMapView, setIsMapView] = useState(false);
+    const closeCollectionMap = useCallback(() => setIsMapView(false), []);
 
     const handleShowCollectionMap = useCallback(() => {
         void (async () => {
@@ -338,16 +336,14 @@ const Page: React.FC = () => {
                     return;
                 }
             }
-            showCollectionMap();
+            setIsMapView(true);
         })();
-    }, [mapEnabled, onGenericError, showCollectionMap]);
+    }, [mapEnabled, onGenericError]);
 
-    const [addToAlbumProgress, setAddToAlbumProgress] = useState<{
+    const [albumAddedNotification, setAlbumAddedNotification] = useState<{
         open: boolean;
-        phase: AddToAlbumPhase;
-        albumId?: number;
         albumName?: string;
-    }>({ open: false, phase: "processing" });
+    }>({ open: false });
     const [publicLinkToast, setPublicLinkToast] = useState<{
         open: boolean;
         url?: string;
@@ -1207,10 +1203,8 @@ const Page: React.FC = () => {
                         silent: true,
                         source: "single-file-add-new-album",
                     });
-                    setAddToAlbumProgress({
+                    setAlbumAddedNotification({
                         open: true,
-                        phase: "done",
-                        albumId: collection.id,
                         albumName: collection.name,
                     });
                     setOpenCollectionSelector(false);
@@ -1506,6 +1500,7 @@ const Page: React.FC = () => {
         searchOption: SearchOption | undefined,
         options?: { shouldExitSearchMode?: boolean },
     ) => {
+        setIsMapView(false);
         if (searchOption) {
             const type = searchOption.suggestion.type;
             if (type == "sidebarAction") {
@@ -1562,6 +1557,7 @@ const Page: React.FC = () => {
 
     const handleShowCollectionSummaryWithID = useCallback(
         (collectionSummaryID: number | undefined) => {
+            setIsMapView(false);
             setCleanupView(undefined);
             // Museum deletes collection contents asynchronously; pull on entry.
             if (collectionSummaryID == PseudoCollectionID.trash) {
@@ -1596,6 +1592,7 @@ const Page: React.FC = () => {
 
     const handleShowCleanupView = useCallback(
         (view: "large-files" | "duplicates") => {
+            setIsMapView(false);
             setSelected({
                 ownCount: 0,
                 count: 0,
@@ -1639,10 +1636,22 @@ const Page: React.FC = () => {
             return false;
         }
         onNavigate?.();
+        setIsMapView(false);
         setCleanupView(undefined);
         dispatch({ type: "showPeople" });
         return true;
     };
+
+    const handleBackToPeople = useCallback(() => {
+        setCleanupView(undefined);
+        setSelected({
+            ownCount: 0,
+            count: 0,
+            collectionID: 0,
+            context: undefined,
+        });
+        dispatch({ type: "showPeople" });
+    }, []);
 
     const handleShowAlbumOverview = (filter: AlbumFilter) => {
         setCleanupView(undefined);
@@ -1776,6 +1785,7 @@ const Page: React.FC = () => {
 
     const handleSelectCollection = useCallback(
         (collectionID: number) => {
+            setIsMapView(false);
             closeCollectionMap();
             dispatch({
                 type: "showCollectionSummary",
@@ -1788,6 +1798,7 @@ const Page: React.FC = () => {
     const handleSelectPerson = useCallback(
         (personID: string) => {
             setCleanupView(undefined);
+            setIsMapView(false);
             closeCollectionMap();
             dispatch({ type: "showPerson", personID });
         },
@@ -2061,7 +2072,7 @@ const Page: React.FC = () => {
 
             const handleSelect = async (collection: Collection) => {
                 try {
-                    setAddToAlbumProgress({ open: true, phase: "processing" });
+                    setAlbumAddedNotification({ open: false });
                     showLoadingBar();
                     await performCollectionOp(
                         "add",
@@ -2073,10 +2084,8 @@ const Page: React.FC = () => {
                         silent: true,
                         source: "single-file-add-to-album",
                     });
-                    setAddToAlbumProgress({
+                    setAlbumAddedNotification({
                         open: true,
-                        phase: "done",
-                        albumId: collection.id,
                         albumName: collection.name,
                     });
                 } catch (e) {
@@ -2150,6 +2159,25 @@ const Page: React.FC = () => {
                   dispatch({ type: "selectLink", collectionID })
             : handleShowCollectionSummaryWithID;
 
+    const collectionMap = activeCollectionSummary && (
+        <CollectionMap
+            collectionSummary={activeCollectionSummary}
+            files={activeCollection ? activeCollectionFiles : filteredFiles}
+            mapFileSource={mapFileSource}
+            onRemotePull={remotePull}
+            onAddSaveGroup={onAddSaveGroup}
+            onMarkTempDeleted={handleMarkTempDeleted}
+            onAddFileToCollection={handleAddSingleFileToCollection}
+            onRemoteFilesPull={remoteFilesPull}
+            onVisualFeedback={handleVisualFeedback}
+            fileNormalCollectionIDs={fileNormalCollectionIDs}
+            collectionNameByID={collectionNameByID}
+            emailByUserID={state.emailByUserID}
+            onSelectCollection={handleSelectCollection}
+            onSelectPerson={handleSelectPerson}
+        />
+    );
+
     return (
         <>
             <FullScreenDropZone
@@ -2195,19 +2223,37 @@ const Page: React.FC = () => {
                     isInSearchMode={isInSearchMode}
                     isSettingsOpen={sidebarVisibilityProps.open}
                     mode={barMode}
-                    onChangeMode={handleChangeBarMode}
+                    isMapView={isMapView}
+                    isMapSelected={
+                        isMapView &&
+                        activeCollectionID === PseudoCollectionID.all
+                    }
+                    onChangeMode={(mode) => {
+                        const changed = handleChangeBarMode(mode);
+                        if (changed) setIsMapView(false);
+                        return changed;
+                    }}
                     onSidebar={showSidebar}
                     onUpload={openUploader}
-                    onHome={() =>
+                    onShowMap={() => {
                         handleShowCollectionSummaryWithID(
                             PseudoCollectionID.all,
-                        )
-                    }
+                        );
+                        handleShowCollectionMap();
+                    }}
+                    onHome={() => {
+                        setIsMapView(false);
+                        handleShowCollectionSummaryWithID(
+                            PseudoCollectionID.all,
+                        );
+                    }}
                     onSelectSearchOption={handleSelectSearchOption}
                     onSelectPeople={handleShowPeople}
                     onSelectPerson={handleSelectPerson}
                     galleryNavigation={
-                        isCleanupViewOpen
+                        isCleanupViewOpen ||
+                        (isMapView &&
+                            activeCollectionID === PseudoCollectionID.all)
                             ? undefined
                             : {
                                   activeCollectionID:
@@ -2220,6 +2266,8 @@ const Page: React.FC = () => {
                                   onAlbumSearchQueryChange: setAlbumSearchQuery,
                                   onShowAlbumOverview: handleShowAlbumOverview,
                                   onShowPeopleOverview: handleShowPeople,
+                                  onShowLinksOverview: () =>
+                                      handleChangeBarMode("links"),
                                   collectionSummaries:
                                       sidebarCollectionSummaries,
                                   visibleAlbumFilters: sidebarAlbumFilters,
@@ -2276,9 +2324,10 @@ const Page: React.FC = () => {
                         ) : null
                     }
                 >
-                    {!isCleanupViewOpen && (
+                    {!isMapView && !isCleanupViewOpen && (
                         <>
                             <GalleryBarAndListHeader
+                                albums={sidebarCollectionSummaries}
                                 {...{
                                     user,
                                     activeCollection,
@@ -2292,6 +2341,7 @@ const Page: React.FC = () => {
                                     onAddSaveGroup,
                                 }}
                                 onBackToAlbums={handleBackToAlbums}
+                                onBackToPeople={handleBackToPeople}
                                 mode={barMode}
                                 shouldHide={isInSearchMode}
                                 setActiveCollectionID={selectGalleryCollection}
@@ -2307,7 +2357,9 @@ const Page: React.FC = () => {
                             />
                         </>
                     )}
-                    {cleanupView === "duplicates" ? (
+                    {isMapView ? (
+                        collectionMap
+                    ) : cleanupView === "duplicates" ? (
                         <DuplicatesView onRemoteFilesPull={remoteFilesPull} />
                     ) : cleanupView === "large-files" ? (
                         <LargeFilesView onRemoteFilesPull={remoteFilesPull} />
@@ -2326,7 +2378,18 @@ const Page: React.FC = () => {
                                 onRemotePull={remotePull}
                                 coverFile={selectedLinkSummary?.coverFile}
                             />
-                        ) : null
+                        ) : (
+                            <AlbumsOverview
+                                albums={sidebarCollectionSummaries}
+                                title={t("links")}
+                                filter="links"
+                                searchQuery={albumSearchQuery}
+                                sortBy={collectionsSortBy}
+                                onSelectAlbum={selectGalleryCollection}
+                                onCreateAlbum={showAlbumNameInput}
+                                onRemotePull={remotePull}
+                            />
+                        )
                     ) : !isInSearchMode &&
                       !isFirstLoad &&
                       !state.collectionFiles.length &&
@@ -2372,7 +2435,6 @@ const Page: React.FC = () => {
                             footer={fileListFooter}
                             user={user}
                             files={filteredFiles}
-                            onShowMap={handleShowCollectionMap}
                             enableDownload={true}
                             disableGrouping={
                                 state.searchSuggestion?.type == "clip" ||
@@ -2505,29 +2567,6 @@ const Page: React.FC = () => {
                             onClose={closeSlideshow}
                         />
                     )}
-                {activeCollectionSummary && (
-                    <CollectionMapDialog
-                        {...collectionMapVisibilityProps}
-                        collectionSummary={activeCollectionSummary}
-                        files={
-                            activeCollection
-                                ? activeCollectionFiles
-                                : filteredFiles
-                        }
-                        mapFileSource={mapFileSource}
-                        onRemotePull={remotePull}
-                        onAddSaveGroup={onAddSaveGroup}
-                        onMarkTempDeleted={handleMarkTempDeleted}
-                        onAddFileToCollection={handleAddSingleFileToCollection}
-                        onRemoteFilesPull={remoteFilesPull}
-                        onVisualFeedback={handleVisualFeedback}
-                        fileNormalCollectionIDs={fileNormalCollectionIDs}
-                        collectionNameByID={collectionNameByID}
-                        emailByUserID={state.emailByUserID}
-                        onSelectCollection={handleSelectCollection}
-                        onSelectPerson={handleSelectPerson}
-                    />
-                )}
                 {activeCollection && editAlbumDetailsVisibilityProps.open && (
                     <EditAlbumDetailsDialog
                         key={activeCollection.id}
@@ -2535,7 +2574,6 @@ const Page: React.FC = () => {
                         collection={activeCollection}
                         files={activeCollectionFiles}
                         initialCoverFile={activeCollectionSummary?.coverFile}
-                        user={user}
                         onSubmit={handleEditAlbumDetails}
                     />
                 )}
@@ -2544,42 +2582,44 @@ const Page: React.FC = () => {
                     onClose={handleCloseAuthenticateUser}
                     onAuthenticate={handleAuthenticate}
                 />
-                <SingleInputDialog
-                    {...albumNameInputVisibilityProps}
-                    variant="v2"
-                    title={t("new_album")}
-                    label={t("album_name")}
-                    submitButtonTitle={t("create")}
-                    onClose={() => {
-                        // Do not leak a cancelled add into the next album creation.
-                        pendingSingleFileAdd.current = undefined;
-                        postCreateAlbumHidden.current = false;
-                        setPostCreateAlbumOp(undefined);
-                        albumNameInputVisibilityProps.onClose();
-                    }}
-                    onSubmit={handleAlbumNameSubmit}
-                />
-                <QuickLinkCreatedNotification
-                    open={publicLinkToast.open}
-                    onCopy={() => {
-                        if (publicLinkToast.url) {
-                            void navigator.clipboard.writeText(
-                                publicLinkToast.url,
-                            );
-                        }
-                    }}
-                    onClose={() =>
-                        setPublicLinkToast((prev) => ({ ...prev, open: false }))
-                    }
-                />
             </FullScreenDropZone>
-            <AlbumAddedNotification
-                open={addToAlbumProgress.open}
+            <SingleInputDialog
+                {...albumNameInputVisibilityProps}
+                title={t("new_album")}
+                label={t("album_name")}
+                submitButtonTitle={t("create")}
+                onClose={() => {
+                    // Do not leak a cancelled add into the next album creation.
+                    pendingSingleFileAdd.current = undefined;
+                    postCreateAlbumHidden.current = false;
+                    setPostCreateAlbumOp(undefined);
+                    albumNameInputVisibilityProps.onClose();
+                }}
+                onSubmit={handleAlbumNameSubmit}
+            />
+            <QuickLinkCreatedNotification
+                open={publicLinkToast.open}
+                onCopy={() => {
+                    if (publicLinkToast.url) {
+                        void navigator.clipboard.writeText(publicLinkToast.url);
+                    }
+                }}
                 onClose={() =>
-                    setAddToAlbumProgress((s) => ({ ...s, open: false }))
+                    setPublicLinkToast((prev) => ({ ...prev, open: false }))
                 }
-                phase={addToAlbumProgress.phase}
-                albumName={addToAlbumProgress.albumName}
+            />
+            <Notification
+                open={albumAddedNotification.open}
+                onClose={() =>
+                    setAlbumAddedNotification((s) => ({ ...s, open: false }))
+                }
+                keepOpenOnClick
+                attributes={{
+                    color: "inherit",
+                    startIcon: null,
+                    title: t("added_to_album"),
+                    caption: albumAddedNotification.albumName,
+                }}
             />
             <EditLocationDialog
                 {...editLocationVisibilityProps}

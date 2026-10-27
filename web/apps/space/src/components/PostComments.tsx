@@ -209,7 +209,8 @@ const CommentRow: React.FC<{
     const canOpenActions = !disabled && !comment.deleted;
     const reactions = commentReactionGroups(comment.reactions, ownReaction);
     const reactionColumns = Math.min(reactions.length, 6);
-    const largeEmoji = isEmojiOnlyComment(comment.text ?? "");
+    const largeEmoji =
+        !comment.parentId && isEmojiOnlyComment(comment.text ?? "");
     const previousReaction = React.useRef(ownReaction);
     const [poppingReaction, setPoppingReaction] = React.useState<string>();
     React.useEffect(() => {
@@ -662,6 +663,7 @@ export const PostComments: React.FC<{
     >();
     const ignoreMouseAwayUntil = React.useRef(0);
     const menuPointerTarget = React.useRef<Element | null>(null);
+    const reactionsPointerTarget = React.useRef<Element | null>(null);
     const actionAnchor = React.useMemo(() => {
         if (action?.type != "menu") return undefined;
         return {
@@ -974,13 +976,14 @@ export const PostComments: React.FC<{
             }
             onReact={(emoji) => react(comment, emoji)}
             onReply={() => replyTo(comment)}
-            onOpenReactions={() =>
+            onOpenReactions={() => {
+                reactionsPointerTarget.current = null;
                 setAction({
                     type: "reactions",
                     commentId: comment.commentId,
                     open: true,
-                })
-            }
+                });
+            }}
             onOpenActions={(anchor, source) => {
                 menuPointerTarget.current = null;
                 ignoreMouseAwayUntil.current =
@@ -1388,6 +1391,30 @@ export const PostComments: React.FC<{
                 }
             >
                 <Box
+                    onPointerDownCapture={(event) => {
+                        reactionsPointerTarget.current =
+                            event.target instanceof Element
+                                ? event.target.closest("button")
+                                : null;
+                    }}
+                    onPointerCancel={() => {
+                        reactionsPointerTarget.current = null;
+                    }}
+                    onClickCapture={(event) => {
+                        const target =
+                            event.target instanceof Element
+                                ? event.target.closest("button")
+                                : null;
+                        if (
+                            event.detail &&
+                            (!target ||
+                                target != reactionsPointerTarget.current)
+                        ) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                        }
+                        reactionsPointerTarget.current = null;
+                    }}
                     sx={{
                         position: "absolute",
                         inset: "24px 0 0",

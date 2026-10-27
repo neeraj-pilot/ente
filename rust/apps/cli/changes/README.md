@@ -1,4 +1,4 @@
-For each user facing change, create a new `arbitrary-slug.md`, e.g.:
+For each user facing change (excluding dependency-only updates), create a new `arbitrary-slug.md`, e.g.:
 
 ```md
 - Added support for exporting Auth codes.
