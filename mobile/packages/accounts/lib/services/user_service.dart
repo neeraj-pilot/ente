@@ -29,6 +29,7 @@ import 'package:ente_crypto_api/ente_crypto_api.dart';
 import 'package:ente_events/event_bus.dart';
 import 'package:ente_events/models/user_details_changed_event.dart';
 import 'package:ente_network/network.dart';
+import 'package:ente_pure_utils/auth_payload.dart';
 import 'package:ente_strings/ente_strings.dart';
 import "package:ente_ui/components/alert_bottom_sheet.dart";
 import 'package:ente_ui/components/progress_dialog.dart';
@@ -1060,7 +1061,11 @@ class UserService {
         "${_config.getHttpEndpoint()}/users/two-factor/remove",
         data: {
           "sessionID": sessionID,
-          "secret": secret,
+          "proof": twoFactorRecoveryProof(
+            twoFactorTypeToString(type),
+            sessionID,
+            secret,
+          ),
           "twoFactorType": twoFactorTypeToString(type),
         },
       );

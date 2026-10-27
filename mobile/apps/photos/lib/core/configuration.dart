@@ -8,6 +8,7 @@ import 'package:ente_account_deletion/account_deletion.dart';
 import 'package:ente_contacts/contacts.dart';
 import "package:ente_crypto/ente_crypto.dart";
 import 'package:ente_lock_screen/lock_screen_host.dart';
+import 'package:ente_pure_utils/auth_payload.dart';
 import 'package:ente_pure_utils/ente_pure_utils.dart';
 import "package:flutter/services.dart";
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -454,6 +455,7 @@ class Configuration implements LockScreenHost, AccountDeletionHost {
       CryptoUtil.base642bin(attributes.publicKey),
       secretKey,
     );
+    validateAuthToken(token);
     await setToken(CryptoUtil.bin2base64(token, urlSafe: true));
     return keyEncryptionKey;
   }
@@ -517,6 +519,7 @@ class Configuration implements LockScreenHost, AccountDeletionHost {
       CryptoUtil.base642bin(attributes.publicKey),
       secretKey,
     );
+    validateAuthToken(token);
     await setToken(CryptoUtil.bin2base64(token, urlSafe: true));
   }
 

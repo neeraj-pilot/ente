@@ -6,6 +6,7 @@ import "dart:math";
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:dio/dio.dart';
 import 'package:ente_crypto/ente_crypto.dart';
+import 'package:ente_pure_utils/auth_payload.dart';
 import "package:ente_pure_utils/ente_pure_utils.dart";
 import "package:ente_strings/ente_strings.dart";
 import "package:flutter/foundation.dart";
@@ -988,7 +989,11 @@ class UserService {
     try {
       final responseData = await _gateway.removeTwoFactor(
         sessionID: sessionID,
-        secret: secret,
+        proof: twoFactorRecoveryProof(
+          twoFactorTypeToString(type),
+          sessionID,
+          secret,
+        ),
         twoFactorType: twoFactorTypeToString(type),
       );
       await _saveConfiguration(responseData);

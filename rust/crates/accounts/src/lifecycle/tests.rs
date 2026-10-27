@@ -159,7 +159,7 @@ async fn configure_passkey_recovery_accepts_hex_recovery_key() {
 }
 
 #[tokio::test]
-async fn two_factor_recovery_preserves_secret_encoding() {
+async fn two_factor_recovery_sends_only_proof() {
     let keys =
         auth::generate_keys_with_strength("pw", auth::KeyDerivationStrength::Interactive).unwrap();
     let recovery_key_hex = keys.private_key_attributes.recovery_key.into_string();
@@ -168,43 +168,63 @@ async fn two_factor_recovery_preserves_secret_encoding() {
     let mut server = Server::new_async().await;
     let client = make_client(server.url());
 
-    for (factor, secret) in [
-        (TwoFactorType::Totp, TOTP_SECRET),
-        (TwoFactorType::Passkey, PASSKEY_SECRET),
+    for (factor, secret, proof) in [
+        (
+            TwoFactorType::Totp,
+            TOTP_SECRET,
+            "GLPadofZrER+5+7OLkqiNxlmyS6XzaKGdsMeHg1lnvU=",
+        ),
+        (
+            TwoFactorType::Passkey,
+            PASSKEY_SECRET,
+            "PxcSH0NrKUX3u330jU6TtYp/I/mT4087vajBXIdPh0I=",
+        ),
     ] {
         let encrypted = secretbox::encrypt(&b64::decode(secret).unwrap(), &recovery_key);
-        let remove = server
-            .mock("POST", "/users/two-factor/remove")
-            .match_body(Matcher::Json(serde_json::json!({
-                "sessionId": "recovery-session",
-                "secret": secret,
-                "twoFactorType": factor,
-            })))
-            .with_status(200)
-            .with_body(
-                serde_json::json!({
-                    "id": 1,
-                    "keyAttributes": keys.key_attributes,
-                    "encryptedToken": "encrypted-token",
+        for status in [200, 400] {
+            let sent = Arc::new(Mutex::new(None));
+            let captured = Arc::clone(&sent);
+            let remove = server
+                .mock("POST", "/users/two-factor/remove")
+                .match_request(move |request| {
+                    *captured.lock().unwrap() =
+                        Some(parse_request_body::<serde_json::Value>(request));
+                    true
                 })
-                .to_string(),
-            )
-            .create_async()
-            .await;
+                .with_status(status)
+                .with_body(
+                    serde_json::json!({
+                        "id": 1,
+                        "keyAttributes": keys.key_attributes,
+                        "encryptedToken": "encrypted-token",
+                    })
+                    .to_string(),
+                )
+                .expect(1)
+                .create_async()
+                .await;
 
-        recover_two_factor(
-            &client,
-            factor,
-            "recovery-session",
-            &TwoFactorRecoveryResponse {
-                encrypted_secret: b64::encode(&encrypted.encrypted_data),
-                secret_decryption_nonce: b64::encode(encrypted.nonce.as_bytes()),
-            },
-            &recovery_key_hex,
-        )
-        .await
-        .unwrap();
-        remove.assert_async().await;
+            let result = recover_two_factor(
+                &client,
+                factor,
+                "recovery-session",
+                &TwoFactorRecoveryResponse {
+                    encrypted_secret: b64::encode(&encrypted.encrypted_data),
+                    secret_decryption_nonce: b64::encode(encrypted.nonce.as_bytes()),
+                },
+                &recovery_key_hex,
+            )
+            .await;
+            assert_eq!(result.is_ok(), status == 200, "{factor:?}: {result:?}");
+            assert_eq!(
+                *sent.lock().unwrap(),
+                Some(serde_json::json!({
+                    "sessionId": "recovery-session", "twoFactorType": factor,
+                    "proof": proof,
+                }))
+            );
+            remove.assert_async().await;
+        }
     }
 }
 

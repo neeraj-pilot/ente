@@ -21,8 +21,14 @@ class AccountDeletionService {
     required String reasonCategory,
     String? feedback,
   }) async {
+    const prefix = 'delete-jwt';
+    if (!challenge.startsWith(prefix) || challenge.length <= prefix.length) {
+      throw const FormatException(
+        'Invalid deletion challenge. The server may need upgrading.',
+      );
+    }
     final data = <String, dynamic>{
-      'challenge': challenge,
+      'challenge': challenge.substring(prefix.length),
       'reasonCategory': reasonCategory,
     };
     if (feedback != null && feedback.isNotEmpty) {

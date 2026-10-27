@@ -1,3 +1,4 @@
+import { parseDeleteAccountChallenge } from "ente-accounts/services/crypto";
 import { ensureSavedKeyAttributes } from "ente-accounts/services/user";
 import { boxSealOpenBytes, decryptBox } from "ente-base/crypto";
 import type { KeyPair } from "ente-base/crypto/types";
@@ -79,7 +80,7 @@ export const getAccountDeleteChallenge = async () => {
 export const decryptDeleteAccountChallenge = async (
     encryptedChallenge: string,
 ) =>
-    new TextDecoder().decode(
+    parseDeleteAccountChallenge(
         await boxSealOpenBytes(encryptedChallenge, await ensureUserKeyPair()),
     );
 

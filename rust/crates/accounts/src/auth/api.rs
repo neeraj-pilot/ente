@@ -213,13 +213,16 @@ pub fn decrypt_secrets(
     let sealed_token =
         b64::decode(encrypted_token).map_err(|e| Error::Decode(format!("encrypted_token: {e}")))?;
 
-    let token = sealed::open(&sealed_token, &secret_key.public_key(), &secret_key)
-        .map_err(|_| Error::InvalidKeyAttributes)?;
+    let token = SecretVec::new(
+        sealed::open(&sealed_token, &secret_key.public_key(), &secret_key)
+            .map_err(|_| Error::InvalidKeyAttributes)?,
+    );
+    super::validate_auth_token(&token)?;
 
     Ok(DecryptedSecrets {
         master_key,
         secret_key,
-        token: SecretVec::new(token),
+        token,
     })
 }
 
@@ -227,6 +230,33 @@ pub fn decrypt_secrets(
 mod tests {
     use super::*;
     use crate::auth::{KeyDerivationStrength, generate_keys_with_strength};
+
+    #[test]
+    fn decrypt_secrets_rejects_substituted_payloads() {
+        let generated =
+            generate_keys_with_strength("pw", KeyDerivationStrength::Interactive).unwrap();
+        let public_key = crypto::PublicKey::try_from_slice(
+            &b64::decode(&generated.key_attributes.public_key).unwrap(),
+        )
+        .unwrap();
+        for payload in [
+            vec![7; 32],
+            b"delete-jwtheader.payload.signature".to_vec(),
+            [b"wrong-type".as_slice(), &[7; 32]].concat(),
+            [b"auth-token".as_slice(), &[7; 31]].concat(),
+            [b"auth-token".as_slice(), &[7; 33]].concat(),
+        ] {
+            let encrypted_token = b64::encode(&sealed::seal(&payload, &public_key).unwrap());
+            assert!(
+                decrypt_secrets(
+                    &generated.key_encryption_key,
+                    &generated.key_attributes,
+                    &encrypted_token,
+                )
+                .is_err()
+            );
+        }
+    }
 
     #[test]
     fn test_derive_srp_credentials() {
@@ -256,7 +286,7 @@ mod tests {
         let gen_result =
             generate_keys_with_strength(password, KeyDerivationStrength::Interactive).unwrap();
 
-        let token = b"auth_token_12345";
+        let token = b"auth-token01234567890123456789012345678901";
         let public_key = b64::decode(&gen_result.key_attributes.public_key).unwrap();
         let sealed_token = sealed::seal(
             token,

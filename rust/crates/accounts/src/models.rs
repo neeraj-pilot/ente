@@ -344,7 +344,7 @@ pub struct TwoFactorRecoveryResponse {
 #[serde(rename_all = "camelCase")]
 pub struct RemoveTwoFactorRequest {
     pub session_id: String,
-    pub secret: String,
+    pub proof: String,
     pub two_factor_type: TwoFactorType,
 }
 

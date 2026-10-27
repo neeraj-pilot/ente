@@ -10,7 +10,10 @@ export {
     encryptBox,
     generateKey,
     generateKeyPair,
+    parseDeleteAccountChallenge,
     recoveryKeyFromMnemonicOrHex,
+    twoFactorRecoveryProof,
+    validateAuthToken,
 } from "ente-prelogin-wasm";
 export type { DerivedKey } from "./kdf";
 

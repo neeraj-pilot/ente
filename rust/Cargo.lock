@@ -2440,6 +2440,7 @@ dependencies = [
  "ente-test-support",
  "getrandom 0.4.3",
  "hex",
+ "hmac 0.13.0",
  "mockito",
  "serde",
  "serde_json",

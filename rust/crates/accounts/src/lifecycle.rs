@@ -253,15 +253,17 @@ pub async fn recover_two_factor(
     let recovery_key = auth::recovery_key_from_mnemonic_or_hex(recovery_key_mnemonic_or_hex)?;
     let encrypted_secret = b64::decode(&recovery_response.encrypted_secret)?;
     let nonce = b64::decode(&recovery_response.secret_decryption_nonce)?;
-    let secret = secretbox::decrypt(
-        &encrypted_secret,
-        &crypto::Nonce::try_from_slice(&nonce)?,
-        &crypto::Key::try_from_slice(&recovery_key)?,
-    )
-    .map_err(|_| Error::IncorrectRecoveryKey)?;
+    let secret = SecretVec::new(
+        secretbox::decrypt(
+            &encrypted_secret,
+            &crypto::Nonce::try_from_slice(&nonce)?,
+            &crypto::Key::try_from_slice(&recovery_key)?,
+        )
+        .map_err(|_| Error::IncorrectRecoveryKey)?,
+    );
     let request = RemoveTwoFactorRequest {
         session_id: session_id.to_string(),
-        secret: b64::encode(&secret),
+        proof: auth::two_factor_recovery_proof(&secret, two_factor_type, session_id)?,
         two_factor_type,
     };
     client.remove_two_factor(&request).await

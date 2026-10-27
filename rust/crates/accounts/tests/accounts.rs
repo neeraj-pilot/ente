@@ -3,7 +3,9 @@
 
 use ente_accounts::{
     AccountsClient, AccountsClientConfig, TwoFactorSetup,
+    lifecycle::recover_two_factor,
     login::{LoginFlow, LoginStep},
+    models::TwoFactorType,
     signup::Signup,
 };
 use ente_test_support::account_fixture::current_totp;
@@ -60,6 +62,26 @@ async fn run(endpoint: String) -> TestResult {
     assert_eq!(login.secrets.master_key, created.secrets.master_key);
     assert_eq!(client.email().await.unwrap(), email);
     assert!(client.get_two_factor_status().await.unwrap());
+
+    let recovery_client = accounts_client(endpoint);
+    recovery_client.send_otp(&email, "login").await?;
+    let response = recovery_client
+        .verify_email(&email, HARDCODED_OTT, None)
+        .await?;
+    let session_id = response.get_two_factor_session_id().unwrap();
+    let recovery = recovery_client
+        .get_two_factor_recovery(session_id, TwoFactorType::Totp)
+        .await?;
+    let recovered = recover_two_factor(
+        &recovery_client,
+        TwoFactorType::Totp,
+        session_id,
+        &recovery,
+        &setup.recovery_key,
+    )
+    .await?;
+    assert_eq!(recovered.id, created.user_id);
+    assert!(!client.get_two_factor_status().await?);
     Ok(())
 }
 

@@ -74,6 +74,20 @@ export const boxSealOpenBytes = async (
         keyPair.privateKey,
     );
 
+export const validateAuthToken = async (token: Uint8Array): Promise<void> =>
+    (await wasm()).authValidateToken(token);
+
+export const parseDeleteAccountChallenge = async (
+    plaintext: Uint8Array,
+): Promise<string> => (await wasm()).authParseDeleteAccountChallenge(plaintext);
+
+export const twoFactorRecoveryProof = async (
+    twoFactorType: "totp" | "passkey",
+    sessionID: string,
+    secret: string,
+): Promise<string> =>
+    (await wasm()).authTwoFactorRecoveryProof(twoFactorType, sessionID, secret);
+
 const toB64String = (value: Uint8Array | string): string => {
     if (typeof value == "string") return value;
     let binary = "";

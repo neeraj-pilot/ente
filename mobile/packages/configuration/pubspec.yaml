@@ -16,6 +16,8 @@ dependencies:
     path: ../../packages/events
   ente_logging:
     path: ../../packages/logging
+  ente_pure_utils:
+    path: ../ente_pure_utils
   flutter:
     sdk: flutter
   # Version 9.2.4 leaves lock-screen keys behind after an app reinstall.

@@ -1,5 +1,6 @@
 mod api;
 mod key_gen;
+mod payload;
 mod recovery;
 mod srp;
 mod types;
@@ -21,3 +22,5 @@ pub use key_gen::{
 pub use recovery::{get_recovery_key, recovery_key_from_mnemonic_or_hex, recovery_key_to_mnemonic};
 
 pub use types::{KeyAttributes, KeyGenResult, PrivateKeyAttributes, SrpAttributes};
+
+pub use payload::{parse_delete_account_challenge, two_factor_recovery_proof, validate_auth_token};

@@ -14,6 +14,7 @@ import 'package:ente_events/models/endpoint_updated_event.dart';
 import 'package:ente_events/models/signed_in_event.dart';
 import 'package:ente_events/models/signed_out_event.dart';
 import 'package:ente_logging/logging.dart';
+import 'package:ente_pure_utils/auth_payload.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as p;
@@ -233,6 +234,7 @@ abstract class BaseConfiguration {
       secretKey,
     );
     _logger.info('appToken done');
+    validateAuthToken(token);
     await setToken(CryptoUtil.bin2base64(token, urlSafe: true));
     return keyEncryptionKey;
   }
@@ -281,6 +283,7 @@ abstract class BaseConfiguration {
       CryptoUtil.base642bin(attributes.publicKey),
       secretKey,
     );
+    validateAuthToken(token);
     await setToken(CryptoUtil.bin2base64(token, urlSafe: true));
   }
 

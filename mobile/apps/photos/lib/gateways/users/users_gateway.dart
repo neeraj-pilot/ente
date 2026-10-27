@@ -270,14 +270,14 @@ class UsersGateway {
 
   Future<Map<String, dynamic>> removeTwoFactor({
     required String sessionID,
-    required String secret,
+    required String proof,
     required String twoFactorType,
   }) async {
     final response = await _publicDio.post(
       "$_endpoint/users/two-factor/remove",
       data: {
         "sessionID": sessionID,
-        "secret": secret,
+        "proof": proof,
         "twoFactorType": twoFactorType,
       },
     );

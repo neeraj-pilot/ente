@@ -5,6 +5,39 @@ use serde::Serialize;
 use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen(js_name = authValidateToken)]
+pub fn auth_validate_token(token: &[u8]) -> Result<(), AccountsError> {
+    auth::validate_auth_token(token).map_err(Into::into)
+}
+
+#[wasm_bindgen(js_name = authParseDeleteAccountChallenge)]
+pub fn auth_parse_delete_account_challenge(plaintext: &[u8]) -> Result<String, AccountsError> {
+    auth::parse_delete_account_challenge(plaintext).map_err(Into::into)
+}
+
+#[wasm_bindgen(js_name = authTwoFactorRecoveryProof)]
+pub fn auth_two_factor_recovery_proof(
+    two_factor_type: &str,
+    session_id: &str,
+    secret_b64: &str,
+) -> Result<String, AccountsError> {
+    use ente_accounts::models::TwoFactorType;
+    let two_factor_type = match two_factor_type {
+        "totp" => TwoFactorType::Totp,
+        "passkey" => TwoFactorType::Passkey,
+        _ => {
+            return Err(
+                ente_accounts::Error::InvalidInput("Invalid second factor type".into()).into(),
+            );
+        }
+    };
+    Ok(auth::two_factor_recovery_proof(
+        &b64::decode(secret_b64).map_err(ente_accounts::Error::from)?,
+        two_factor_type,
+        session_id,
+    )?)
+}
+
 #[derive(Serialize, Tsify)]
 #[serde(rename_all = "camelCase")]
 pub struct GeneratedSrpSetup {

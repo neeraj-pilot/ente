@@ -2,6 +2,7 @@ import {
     boxSealOpenBytes,
     decryptBox,
     toB64URLSafe,
+    validateAuthToken,
 } from "ente-accounts/services/crypto";
 import type { SRPSetupAttributes } from "ente-accounts/services/srp";
 import type { KeyAttributes } from "ente-accounts/services/user";
@@ -27,9 +28,12 @@ export const decryptSpaceBootstrapAuthToken = async (
         masterKey,
     );
 
-    return toB64URLSafe(
-        await boxSealOpenBytes(encryptedToken, { publicKey, privateKey }),
-    );
+    const token = await boxSealOpenBytes(encryptedToken, {
+        publicKey,
+        privateKey,
+    });
+    await validateAuthToken(token);
+    return toB64URLSafe(token);
 };
 
 export const putSpaceSignupKeyAttributes = async (

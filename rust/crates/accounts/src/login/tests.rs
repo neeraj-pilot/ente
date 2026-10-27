@@ -162,7 +162,7 @@ async fn login_retries_email_and_totp() {
     let public_key = b64::decode(&key_attributes.public_key).unwrap();
     let encrypted_token = b64::encode(
         &crypto::sealed::seal(
-            b"plain-auth-token",
+            b"auth-token01234567890123456789012345678901",
             &crypto::PublicKey::try_from_slice(&public_key).unwrap(),
         )
         .unwrap(),
@@ -295,7 +295,10 @@ async fn login_retries_email_and_totp() {
     };
 
     assert_eq!(result.user_id, 77);
-    assert_eq!(result.secrets.token, b"plain-auth-token");
+    assert_eq!(
+        result.secrets.token,
+        b"auth-token01234567890123456789012345678901"
+    );
     assert_eq!(result.recovery_key.as_deref(), Some(recovery_key.as_str()));
 
     srp_attrs.assert_async().await;

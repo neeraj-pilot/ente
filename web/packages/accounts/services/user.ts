@@ -14,6 +14,8 @@ import {
     generateKey,
     generateKeyPair,
     toB64URLSafe,
+    twoFactorRecoveryProof,
+    validateAuthToken,
 } from "ente-accounts/services/crypto";
 import { generateInteractiveKeyAttributes } from "ente-accounts/services/key-attributes";
 import {
@@ -323,9 +325,12 @@ export const decryptAndStoreTokenIfNeeded = async (
         masterKey,
     );
 
-    const token = await toB64URLSafe(
-        await boxSealOpenBytes(encryptedToken, { publicKey, privateKey }),
-    );
+    const tokenBytes = await boxSealOpenBytes(encryptedToken, {
+        publicKey,
+        privateKey,
+    });
+    await validateAuthToken(tokenBytes);
+    const token = await toB64URLSafe(tokenBytes);
 
     updateSavedLocalUser({ token, encryptedToken: undefined });
     return saveAuthToken(token);
@@ -446,7 +451,7 @@ export const recoverTwoFactorFinish = async (
     const { id, keyAttributes, encryptedToken } = await removeTwoFactor(
         twoFactorType,
         sessionID,
-        twoFactorSecret,
+        await twoFactorRecoveryProof(twoFactorType, sessionID, twoFactorSecret),
     );
     await resetSavedLocalUserTokens(id, encryptedToken);
     updateSavedLocalUser({
@@ -461,12 +466,12 @@ export const recoverTwoFactorFinish = async (
 const removeTwoFactor = async (
     twoFactorType: TwoFactorType,
     sessionID: string,
-    secret: string,
+    proof: string,
 ): Promise<TwoFactorAuthorizationResponse> => {
     const res = await fetch(await apiURL("/users/two-factor/remove"), {
         method: "POST",
         headers: publicRequestHeaders(),
-        body: JSON.stringify({ twoFactorType, sessionID, secret }),
+        body: JSON.stringify({ twoFactorType, sessionID, proof }),
     });
     ensureOk(res);
     return TwoFactorAuthorizationResponse.parse(await res.json());
