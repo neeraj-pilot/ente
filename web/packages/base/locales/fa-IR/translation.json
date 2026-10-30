@@ -336,7 +336,6 @@
     "logout_message": "آیا برای خروج، مطمئن هستید؟",
     "delete_account": "حذف حساب کاربری",
     "delete_account_multi_app_warning": "",
-    "delete_account_manually_message": "",
     "change_email": "",
     "active_sessions": "",
     "active_sessions_hint": "",

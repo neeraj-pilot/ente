@@ -1250,9 +1250,23 @@ export const getOrCreateDefaultHiddenCollection = async () =>
     (await savedDefaultHiddenCollection()) ?? createDefaultHiddenCollection();
 
 const savedDefaultHiddenCollection = async () =>
-    (await savedCollections()).find((collection) =>
-        isDefaultHiddenCollection(collection),
+    findUserDefaultHiddenCollection(
+        await savedCollections(),
+        ensureLocalUser().id,
     );
+
+const findUserDefaultHiddenCollection = (
+    collections: readonly Collection[],
+    userID: number,
+) =>
+    collections
+        .filter(
+            (collection) =>
+                collection.owner.id == userID &&
+                isDefaultHiddenCollection(collection),
+        )
+        .sort((a, b) => a.id - b.id)
+        .at(0);
 
 const createDefaultHiddenCollection = () =>
     createCollection(defaultHiddenCollectionName, "album", {
@@ -1499,7 +1513,7 @@ export const movePendingRemovalActionsToUncategorized = async (
         if (isSourceHidden) {
             if (!defaultHiddenCollection) {
                 defaultHiddenCollection =
-                    collections.find(isDefaultHiddenCollection) ??
+                    findUserDefaultHiddenCollection(collections, userID) ??
                     (await createDefaultHiddenCollection());
             }
             targetCollection = defaultHiddenCollection;

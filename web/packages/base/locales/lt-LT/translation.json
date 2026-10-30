@@ -336,7 +336,6 @@
     "logout_message": "Ar tikrai norite atsijungti?",
     "delete_account": "Ištrinti paskyrą",
     "delete_account_multi_app_warning": "Tai ištrins jūsų „Ente Auth“, „Ente“ nuotraukos“ ir „Ente“ spintelės“ paskyras.",
-    "delete_account_manually_message": "<p>Iš savo registruoto el. pašto adreso siųskite el. laišką adresu <a>{{emailID}}</a>.</p><p>Jūsų prašymas bus apdorotas per 72 valandas.</p>",
     "change_email": "Keisti el. paštą",
     "active_sessions": "Aktyvūs seansai",
     "active_sessions_hint": "Tai – įrenginiai, kuriuose šiuo metu esate prisijungę.",

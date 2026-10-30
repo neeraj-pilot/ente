@@ -7,7 +7,7 @@ pub use ente_photos::ml_db::{
     FaceWithoutEmbedding, FdStatus, PreviewInfo,
 };
 use ente_photos::ml_store;
-pub use ente_photos::ml_store::{FillOutcome, FillState, Index};
+pub use ente_photos::ml_store::{FillOutcome, FillState, Index, MeanSuggestion};
 use flutter_rust_bridge::frb;
 
 use super::vecdb_api::{
@@ -104,6 +104,13 @@ pub struct _ClusterSummary {
     pub count: i64,
 }
 
+#[frb(mirror(MeanSuggestion))]
+pub struct _MeanSuggestion {
+    pub cluster_id: String,
+    pub distance: f64,
+    pub person_cluster_id: String,
+}
+
 #[frb(mirror(FdStatus))]
 pub struct _FdStatus {
     pub file_id: i64,
@@ -158,6 +165,50 @@ impl From<ml_store::FillReport> for FillReport {
             skipped: report.skipped as u32,
             resumed: report.resumed,
         }
+    }
+}
+
+pub struct FaceClusteringPlan {
+    pub faces: u32,
+    pub unclustered_faces: u32,
+    pub missing_files: u32,
+    pub invalid_faces: u32,
+}
+
+impl From<ml_store::FaceClusteringPlan> for FaceClusteringPlan {
+    fn from(plan: ml_store::FaceClusteringPlan) -> Self {
+        Self {
+            faces: plan.faces as u32,
+            unclustered_faces: plan.unclustered_faces as u32,
+            missing_files: plan.missing_files as u32,
+            invalid_faces: plan.invalid_faces as u32,
+        }
+    }
+}
+
+pub struct ClusteredBucket {
+    pub clustered_faces: u32,
+    pub processed_faces: u32,
+}
+
+impl From<ml_store::ClusteredBucket> for ClusteredBucket {
+    fn from(bucket: ml_store::ClusteredBucket) -> Self {
+        Self {
+            clustered_faces: bucket.clustered_faces as u32,
+            processed_faces: bucket.processed_faces as u32,
+        }
+    }
+}
+
+#[frb(opaque)]
+pub struct FaceClusteringRun {
+    inner: ml_store::FaceClusteringRun,
+}
+
+impl FaceClusteringRun {
+    #[frb(sync)]
+    pub fn plan(&self) -> FaceClusteringPlan {
+        self.inner.plan().into()
     }
 }
 
@@ -228,6 +279,101 @@ impl MlStore {
 
     pub fn drop_clusters_and_person_table(&self, faces: bool) -> Result<(), MlDbError> {
         Ok(self.inner.drop_clusters_and_person_table(faces)?)
+    }
+
+    pub fn start_face_clustering(
+        &self,
+        file_creation_times: HashMap<i64, i64>,
+        rejected_cluster_ids: HashMap<String, Vec<String>>,
+        distance_threshold: f64,
+    ) -> Result<FaceClusteringRun, MlDbError> {
+        let request = ml_store::FaceClusteringRequest {
+            file_creation_times,
+            rejected_cluster_ids: rejected_cluster_ids
+                .into_iter()
+                .map(|(face_id, cluster_ids)| (face_id, cluster_ids.into_iter().collect()))
+                .collect(),
+            distance_threshold,
+        };
+        Ok(FaceClusteringRun {
+            inner: self.inner.start_face_clustering(request)?,
+        })
+    }
+
+    pub fn cluster_next_bucket(
+        &self,
+        run: &mut FaceClusteringRun,
+    ) -> Result<Option<ClusteredBucket>, MlDbError> {
+        Ok(self
+            .inner
+            .cluster_next_bucket(&mut run.inner)?
+            .map(Into::into))
+    }
+
+    pub fn recluster_faces(
+        &self,
+        face_ids: Vec<String>,
+        file_creation_times: HashMap<i64, i64>,
+        distance_threshold: f64,
+    ) -> Result<HashMap<String, String>, MlDbError> {
+        Ok(self
+            .inner
+            .recluster_faces(&face_ids, &file_creation_times, distance_threshold)?)
+    }
+
+    pub fn refresh_cluster_averages(
+        &self,
+        cluster_face_counts: HashMap<String, i64>,
+        ignored_cluster_ids: Vec<String>,
+        min_cluster_size: i64,
+    ) -> Result<HashSet<String>, MlDbError> {
+        let ignored_cluster_ids = ignored_cluster_ids.into_iter().collect();
+        Ok(self.inner.refresh_cluster_averages(
+            &cluster_face_counts,
+            &ignored_cluster_ids,
+            min_cluster_size,
+        )?)
+    }
+
+    pub fn search_cluster_centroids(
+        &self,
+        cluster_ids: Vec<String>,
+        allowed_cluster_ids: Vec<String>,
+        limit: u32,
+        max_distance: f32,
+    ) -> Result<Vec<Vec<VecDbMatch>>, MlDbError> {
+        Ok(self
+            .inner
+            .search_cluster_centroids(
+                &cluster_ids,
+                allowed_cluster_ids,
+                limit as usize,
+                max_distance,
+            )?
+            .into_iter()
+            .map(to_api_matches)
+            .collect())
+    }
+
+    pub fn suggest_clusters_by_mean(
+        &self,
+        person_cluster_ids: Vec<String>,
+        candidate_cluster_ids: Vec<String>,
+        max_distance: f64,
+        ignored_by_person_cluster: HashMap<String, Vec<String>>,
+    ) -> Result<Vec<MeanSuggestion>, MlDbError> {
+        let ignored_by_person_cluster = ignored_by_person_cluster
+            .into_iter()
+            .map(|(person_cluster_id, cluster_ids)| {
+                (person_cluster_id, cluster_ids.into_iter().collect())
+            })
+            .collect();
+        Ok(self.inner.suggest_clusters_by_mean(
+            &person_cluster_ids,
+            &candidate_cluster_ids,
+            max_distance,
+            &ignored_by_person_cluster,
+        )?)
     }
 
     pub fn clear_all(&self) -> Result<(), MlDbError> {

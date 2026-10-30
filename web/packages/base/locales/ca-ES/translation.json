@@ -336,7 +336,6 @@
     "logout_message": "Estàs segur que vols tancar la sessió?",
     "delete_account": "Esborra el compte",
     "delete_account_multi_app_warning": "Això esborrarà el teu compte d'Ente Auth, Ente Photos i Ente Locker.",
-    "delete_account_manually_message": "<p>Si us plau, envia un correu a <a>{{emailID}}</a> des de la teva adreça de correu registrada.</p><p>La teva sol·licitud es processarà en un termini de 72 hores.</p>",
     "change_email": "Canvia el correu",
     "active_sessions": "Sessions actives",
     "active_sessions_hint": "Aquests són els dispositius on actualment tens la sessió iniciada",

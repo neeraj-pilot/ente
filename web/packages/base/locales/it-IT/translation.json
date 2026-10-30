@@ -336,7 +336,6 @@
     "logout_message": "Sei sicuro di volerti disconnettere?",
     "delete_account": "Elimina account",
     "delete_account_multi_app_warning": "Questa operazione eliminerà il tuo account Ente Auth, Ente Photos e Ente Locker.",
-    "delete_account_manually_message": "<p>Per favore invia una email a <a>{{emailID}}</a> dal tuo indirizzo email registrato.</p><p>La tua richiesta verrà elaborata entro 72 ore.</p>",
     "change_email": "Cambia email",
     "active_sessions": "Sessioni attive",
     "active_sessions_hint": "Questi sono i dispositivi da cui sei attualmente connesso",

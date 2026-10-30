@@ -96,6 +96,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    override fun onCleared() {
+        store.dispose()
+        super.onCleared()
+    }
+
     @Suppress("DEPRECATION")
     private fun getAppVersion(application: Application): String {
         val packageManager = application.packageManager

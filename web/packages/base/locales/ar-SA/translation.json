@@ -336,7 +336,6 @@
     "logout_message": "هل أنت متأكد من أنك تريد تسجيل الخروج؟",
     "delete_account": "حذف الحساب",
     "delete_account_multi_app_warning": "",
-    "delete_account_manually_message": "<p>يرجى إرسال بريد إلكتروني إلى <a>{{emailID}}</a> من عنوان بريدك الإلكتروني المسجل.</p><p>ستتم معالجة طلبك خلال 72 ساعة.</p>",
     "change_email": "تغيير البريد الإلكتروني",
     "active_sessions": "",
     "active_sessions_hint": "",

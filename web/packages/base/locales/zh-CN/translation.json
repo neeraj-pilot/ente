@@ -336,7 +336,6 @@
     "logout_message": "您确定要退出登录吗？",
     "delete_account": "删除账户",
     "delete_account_multi_app_warning": "这将删除您的 Ente Auth、Ente Photos 和 Ente Locker 账户。",
-    "delete_account_manually_message": "<p>请从您注册的电子邮箱向 <a>{{emailID}}</a> 发送一封电子邮件。</p><p>您的请求将在 72 小时内处理。</p>",
     "change_email": "更改电子邮件",
     "active_sessions": "活跃会话",
     "active_sessions_hint": "以下是您当前登录的设备",

@@ -336,7 +336,6 @@
     "logout_message": "Ertu viss um að þú viljir skrá þig út?",
     "delete_account": "Eyða aðgangi",
     "delete_account_multi_app_warning": "",
-    "delete_account_manually_message": "",
     "change_email": "Breyta netfangi",
     "active_sessions": "",
     "active_sessions_hint": "",

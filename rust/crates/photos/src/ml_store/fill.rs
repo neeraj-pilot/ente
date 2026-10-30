@@ -169,7 +169,7 @@ impl MlStore {
             }),
             (true, _) | (false, FillState::Stale) => {
                 state::mark_stale(&self.db, index)?;
-                self.with_index(index, VecDb::reset)?;
+                self.index_write(index, VecDb::reset)?;
                 state::mark_filling(&self.db, index)?;
                 Ok(Start::Fresh)
             }

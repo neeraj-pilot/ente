@@ -1,5 +1,6 @@
 use ente_core::crypto::{self, SecretVec, secretbox};
 use ente_core::{b64, otp};
+use serde::Serialize;
 use std::{
     fmt,
     time::{SystemTime, UNIX_EPOCH},
@@ -41,7 +42,8 @@ impl fmt::Debug for ChangePasswordParams {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChangePasswordResult {
     pub key_attributes: KeyAttributes,
     pub srp_attributes: SrpAttributes,
@@ -53,7 +55,12 @@ pub struct CheckSessionValidityParams {
     pub local_srp_attributes: SrpAttributes,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(
+    tag = "status",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 #[cfg_attr(
     target_pointer_width = "64",
     expect(
@@ -66,6 +73,7 @@ pub enum SessionValidity {
     Valid,
     ValidButPasswordChanged {
         updated_key_attributes: KeyAttributes,
+        #[serde(rename = "updatedSRPAttributes")]
         updated_srp_attributes: SrpAttributes,
     },
 }
@@ -121,8 +129,7 @@ impl TwoFactorSetup {
             .map_err(|_| Error::InvalidInput("system clock is before the Unix epoch".into()))?
             .as_secs();
         verify_totp(&self.secret_code, code, time)?;
-        let request = encrypt_two_factor_secret(&self.secret_code, &self.recovery_key, code)?;
-        client.enable_two_factor(&request).await
+        enable_two_factor(client, &self.secret_code, &self.recovery_key, code).await
     }
 }
 
@@ -196,7 +203,11 @@ pub async fn check_session_validity(
     };
 
     if let Some(remote_key_attributes) = remote.key_attributes {
-        let remote_srp_attributes = client.get_srp_attributes(&params.email).await?;
+        let remote_srp_attributes = match client.get_srp_attributes(&params.email).await {
+            Ok(attributes) => attributes,
+            Err(Error::SrpNotConfigured) => return Ok(SessionValidity::Valid),
+            Err(error) => return Err(error),
+        };
         if remote_srp_attributes.kek_salt != params.local_srp_attributes.kek_salt {
             return Ok(SessionValidity::ValidButPasswordChanged {
                 updated_key_attributes: remote_key_attributes,
@@ -267,6 +278,33 @@ pub async fn recover_two_factor(
     client.remove_two_factor(&request).await
 }
 
+pub async fn enable_two_factor(
+    client: &AccountsClient,
+    secret: &str,
+    recovery_key: &str,
+    code: &str,
+) -> Result<()> {
+    let request = encrypt_two_factor_secret(secret, recovery_key, code)?;
+    client.enable_two_factor(&request).await
+}
+
+pub async fn passkey_management_url(client: &AccountsClient, recovery_key: &str) -> Result<String> {
+    if !client
+        .get_two_factor_recovery_status()
+        .await?
+        .is_passkey_recovery_enabled
+    {
+        let secret = Zeroizing::new(b64::encode(crypto::Key::generate().as_bytes()));
+        configure_passkey_recovery(client, &secret, recovery_key).await?;
+    }
+    let response = client.get_accounts_token().await?;
+    Ok(format!(
+        "{}/passkeys?token={}",
+        response.accounts_url,
+        urlencoding::encode(&response.accounts_token)
+    ))
+}
+
 pub async fn configure_passkey_recovery(
     client: &AccountsClient,
     secret: &str,
@@ -327,11 +365,10 @@ async fn complete_srp_update(
 
 fn encrypt_two_factor_secret(
     secret_code: &str,
-    recovery_key_hex: &str,
+    recovery_key: &str,
     code: &str,
 ) -> Result<EnableTwoFactorRequest> {
-    let recovery_key =
-        hex::decode(recovery_key_hex).map_err(|e| Error::Decode(format!("recovery_key: {e}")))?;
+    let recovery_key = auth::recovery_key_from_mnemonic_or_hex(recovery_key)?;
     let encrypted = secretbox::encrypt(
         &b64::decode(secret_code)?,
         &crypto::Key::try_from_slice(&recovery_key)?,

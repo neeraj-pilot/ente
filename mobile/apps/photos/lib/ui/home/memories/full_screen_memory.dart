@@ -1546,7 +1546,6 @@ Future<void> _shareMemory(
   );
   if (currentIndex == null) return;
   final canShowMemoryShareLinkOption =
-      flagService.enableMemoryShareLink &&
       !(isLocalGalleryMode && !Configuration.instance.hasConfiguredAccount());
   final result = await showMemoryShareSelectionSheet(
     context,

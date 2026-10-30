@@ -1,5 +1,7 @@
+#[cfg(not(target_arch = "wasm32"))]
+use ente_core::Session;
 use ente_core::{
-    Session, b64,
+    b64,
     crypto::{self, Header, Key, blob},
     http,
 };
@@ -29,6 +31,7 @@ pub struct File {
     pub duration_seconds: Option<u64>,
     pub width: Option<u32>,
     pub height: Option<u32>,
+    pub size: Option<u64>,
     pub visibility: Option<Visibility>,
     pub key: Key,
     pub header: Header,
@@ -211,6 +214,11 @@ pub fn interpret(
         duration_seconds: metadata.duration,
         width: public.w,
         height: public.h,
+        size: remote
+            .extra
+            .get("info")
+            .and_then(|info| info.get("fileSize"))
+            .and_then(serde_json::Value::as_u64),
         visibility: if remote.owner_id == user_id {
             Some(Visibility::from_value(private.visibility)?)
         } else {

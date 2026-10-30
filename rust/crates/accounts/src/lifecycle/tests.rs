@@ -176,7 +176,7 @@ async fn two_factor_recovery_preserves_secret_encoding() {
         let remove = server
             .mock("POST", "/users/two-factor/remove")
             .match_body(Matcher::Json(serde_json::json!({
-                "sessionId": "recovery-session",
+                "sessionID": "recovery-session",
                 "secret": secret,
                 "twoFactorType": factor,
             })))
@@ -192,14 +192,26 @@ async fn two_factor_recovery_preserves_secret_encoding() {
             .create_async()
             .await;
 
+        let envelope = TwoFactorRecoveryResponse {
+            encrypted_secret: b64::encode(&encrypted.encrypted_data),
+            secret_decryption_nonce: b64::encode(encrypted.nonce.as_bytes()),
+        };
+        assert!(matches!(
+            recover_two_factor(
+                &client,
+                factor,
+                "recovery-session",
+                &envelope,
+                &hex::encode(crypto::Key::generate().as_bytes()),
+            )
+            .await,
+            Err(Error::IncorrectRecoveryKey)
+        ));
         recover_two_factor(
             &client,
             factor,
             "recovery-session",
-            &TwoFactorRecoveryResponse {
-                encrypted_secret: b64::encode(&encrypted.encrypted_data),
-                secret_decryption_nonce: b64::encode(encrypted.nonce.as_bytes()),
-            },
+            &envelope,
             &recovery_key_hex,
         )
         .await
@@ -329,4 +341,50 @@ async fn change_password_updates_srp_and_keys() {
     setup_srp.assert_async().await;
     update_srp.assert_async().await;
     get_srp_attributes.assert_async().await;
+}
+
+#[tokio::test]
+async fn passkey_management_only_configures_recovery_when_needed() {
+    let recovery_key = [7; 32];
+    let mnemonic = auth::recovery_key_to_mnemonic(&recovery_key).unwrap();
+    for enabled in [false, true] {
+        let mut server = Server::new_async().await;
+        let status = server
+            .mock("GET", "/users/two-factor/recovery-status")
+            .with_body(serde_json::json!({"isPasskeyRecoveryEnabled": enabled}).to_string())
+            .create_async()
+            .await;
+        let configure = server
+            .mock("POST", "/users/two-factor/passkeys/configure-recovery")
+            .expect(usize::from(!enabled))
+            .match_request(move |request| {
+                let payload: ConfigurePasskeyRecoveryPayload = parse_request_body(request);
+                let decrypted = secretbox::decrypt(
+                    &b64::decode(&payload.user_secret_cipher).unwrap(),
+                    &crypto::Nonce::try_from_slice(
+                        &b64::decode(&payload.user_secret_nonce).unwrap(),
+                    )
+                    .unwrap(),
+                    &crypto::Key::try_from_slice(&recovery_key).unwrap(),
+                )
+                .unwrap();
+                decrypted.len() == 32 && b64::encode(&decrypted) == payload.secret
+            })
+            .create_async()
+            .await;
+        let token = server
+            .mock("GET", "/users/accounts-token")
+            .with_body(r#"{"accountsUrl":"https://accounts.ente.io","accountsToken":"a+b/="}"#)
+            .create_async()
+            .await;
+        assert_eq!(
+            passkey_management_url(&make_client(server.url()), &mnemonic)
+                .await
+                .unwrap(),
+            "https://accounts.ente.io/passkeys?token=a%2Bb%2F%3D"
+        );
+        status.assert_async().await;
+        configure.assert_async().await;
+        token.assert_async().await;
+    }
 }

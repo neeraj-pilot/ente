@@ -336,7 +336,6 @@
     "logout_message": "Weet u zeker dat u wilt uitloggen?",
     "delete_account": "Account verwijderen",
     "delete_account_multi_app_warning": "Dit verwijdert uw Ente Auth, Ente Photos en Ente Locker account.",
-    "delete_account_manually_message": "<p>Stuur een e-mail naar <a>{{emailID}}</a> vanaf uw geregistreerde e-mailadres.</p><p>Uw aanvraag wordt binnen 72 uur verwerkt.</p>",
     "change_email": "E-mail wijzigen",
     "active_sessions": "Actieve sessies",
     "active_sessions_hint": "Dit zijn de apparaten waarop u momenteel bent ingelogd",
