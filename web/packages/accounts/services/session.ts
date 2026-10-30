@@ -51,9 +51,7 @@ export const checkSessionValidity = async () => {
     );
     if (
         result.status === "validButPasswordChanged" &&
-        (result.updatedSRPAttributes.kekSalt ===
-            originalKeyAttributes?.kekSalt ||
-            (!localSRPAttributes && !originalKeyAttributes))
+        result.updatedSRPAttributes.kekSalt === originalKeyAttributes?.kekSalt
     ) {
         saveSRPAttributes(result.updatedSRPAttributes);
         return { status: "valid" as const };

@@ -129,13 +129,13 @@ test.each([true, false])(
 );
 
 test.each([
-    [true, true, "validButPasswordChanged"],
-    [false, true, "validButPasswordChanged"],
-    [true, false, "validButPasswordChanged"],
-    [false, false, "valid"],
+    [true, true],
+    [false, true],
+    [true, false],
+    [false, false],
 ])(
-    "session check with SRP cache %s and original keys %s returns %s",
-    async (hasSRP, hasOriginal, status) => {
+    "password change elsewhere is detected with SRP cache %s and original keys %s",
+    async (hasSRP, hasOriginal) => {
         if (!hasSRP) localStorage.removeItem("srpAttributes");
         if (!hasOriginal) localStorage.removeItem("originalKeyAttributes");
         const result = {
@@ -148,15 +148,9 @@ test.each([
         };
         rustCheckSessionValidity.mockResolvedValue(result);
 
-        await expect(checkSessionValidity()).resolves.toEqual(
-            status === "valid" ? { status } : result,
-        );
+        await expect(checkSessionValidity()).resolves.toEqual(result);
         expect(savedSRPAttributes()).toEqual(
-            status === "valid"
-                ? result.updatedSRPAttributes
-                : hasSRP
-                  ? originalSRPAttributes
-                  : undefined,
+            hasSRP ? originalSRPAttributes : undefined,
         );
     },
 );
