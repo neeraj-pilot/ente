@@ -102,7 +102,6 @@ async fn run(endpoint: String) -> TestResult {
     let changed = change_password(
         &recovery_client,
         ChangePasswordParams {
-            email: email.clone(),
             password: Zeroizing::new(new_password.clone()),
             master_key: SecretVec::new(recovered.secrets.master_key.clone()),
             key_attributes: recovered.key_attributes.clone(),
@@ -125,24 +124,17 @@ async fn run(endpoint: String) -> TestResult {
     else {
         panic!("existing session did not detect the password change");
     };
-    assert_eq!(
-        updated_key_attributes.kek_salt,
-        changed.key_attributes.kek_salt
-    );
-    assert_eq!(
-        updated_srp_attributes.srp_user_id,
-        changed.srp_attributes.srp_user_id
-    );
+    assert_eq!(updated_key_attributes.kek_salt, changed.kek_salt);
 
     let login_client = accounts_client(endpoint);
     assert!(matches!(
         login_client
-            .login_with_srp(&password, &changed.srp_attributes)
+            .login_with_srp(&password, &updated_srp_attributes)
             .await,
         Err(Error::IncorrectPassword)
     ));
     let (response, kek) = login_client
-        .login_with_srp(&new_password, &changed.srp_attributes)
+        .login_with_srp(&new_password, &updated_srp_attributes)
         .await?;
     let changed_login = unlock(&response, &kek)?;
     assert_eq!(changed_login.secrets.master_key, created.secrets.master_key);
@@ -157,10 +149,9 @@ async fn run(endpoint: String) -> TestResult {
     assert_eq!(recovered_client.email().await?, email);
 
     let reset_password = format!("Reset-{}!", Uuid::new_v4().simple());
-    let reset = change_password(
+    change_password(
         &recovered_client,
         ChangePasswordParams {
-            email: email.clone(),
             password: Zeroizing::new(reset_password.clone()),
             master_key: SecretVec::new(recovered.secrets.master_key.clone()),
             key_attributes: recovered.key_attributes.clone(),
@@ -173,15 +164,16 @@ async fn run(endpoint: String) -> TestResult {
             &client,
             CheckSessionValidityParams {
                 email: email.clone(),
-                local_srp_attributes: changed.srp_attributes,
+                local_srp_attributes: updated_srp_attributes,
             },
         )
         .await?,
         SessionValidity::Invalid
     ));
     assert_eq!(recovered_client.email().await?, email);
+    let reset_srp_attributes = login_client.get_srp_attributes(&email).await?;
     let (response, kek) = login_client
-        .login_with_srp(&reset_password, &reset.srp_attributes)
+        .login_with_srp(&reset_password, &reset_srp_attributes)
         .await?;
     assert_eq!(
         unlock(&response, &kek)?.secrets.master_key,

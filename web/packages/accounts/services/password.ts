@@ -1,10 +1,12 @@
+import log from "ente-base/log";
 import {
     readMasterKeyFromSession,
     type SessionStorageCrypto,
 } from "ente-base/session-storage";
 import { ComlinkWorker } from "ente-base/worker/comlink-worker";
-import { saveKeyAttributes, saveSRPAttributes } from "./accounts-db";
+import { saveKeyAttributes } from "./accounts-db";
 import type { PasswordWorker } from "./password.worker";
+import { getAndSaveSRPAttributes } from "./srp";
 import { ensureLocalUser, ensureSavedKeyAttributes } from "./user";
 
 export const changePassword = async (
@@ -23,9 +25,14 @@ export const changePassword = async (
     try {
         const updated = await (
             await worker.remote
-        ).changePassword(password, masterKey, keyAttributes, email);
-        saveSRPAttributes(updated.srpAttributes);
-        saveKeyAttributes(updated.keyAttributes);
+        ).changePassword(password, masterKey, keyAttributes);
+        saveKeyAttributes(updated);
+        void getAndSaveSRPAttributes(email).catch((error: unknown) =>
+            log.warn(
+                "Failed to refresh SRP attributes after password change",
+                error,
+            ),
+        );
     } finally {
         worker.terminate();
     }
