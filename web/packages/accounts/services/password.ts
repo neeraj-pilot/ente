@@ -1,19 +1,16 @@
-import log from "ente-base/log";
 import {
     readMasterKeyFromSession,
     type SessionStorageCrypto,
 } from "ente-base/session-storage";
 import { ComlinkWorker } from "ente-base/worker/comlink-worker";
-import { saveKeyAttributes } from "./accounts-db";
+import { saveKeyAttributes, saveOriginalKeyAttributes } from "./accounts-db";
 import type { PasswordWorker } from "./password.worker";
-import { getAndSaveSRPAttributes } from "./srp";
-import { ensureLocalUser, ensureSavedKeyAttributes } from "./user";
+import { ensureSavedKeyAttributes } from "./user";
 
 export const changePassword = async (
     password: string,
     decryptBox: SessionStorageCrypto["decryptBox"],
 ) => {
-    const { email } = ensureLocalUser();
     const keyAttributes = ensureSavedKeyAttributes();
     const masterKey = await readMasterKeyFromSession(decryptBox);
     if (!masterKey) throw new Error("Master key not found in session");
@@ -23,16 +20,11 @@ export const changePassword = async (
         new Worker(new URL("password.worker.ts", import.meta.url)),
     );
     try {
-        const updated = await (
+        const { interactiveKeyAttributes, remoteKeyAttributes } = await (
             await worker.remote
         ).changePassword(password, masterKey, keyAttributes);
-        saveKeyAttributes(updated);
-        void getAndSaveSRPAttributes(email).catch((error: unknown) =>
-            log.warn(
-                "Failed to refresh SRP attributes after password change",
-                error,
-            ),
-        );
+        saveKeyAttributes(interactiveKeyAttributes);
+        saveOriginalKeyAttributes(remoteKeyAttributes);
     } finally {
         worker.terminate();
     }

@@ -4,7 +4,7 @@ import { ensureAuthToken } from "ente-base/token";
 import { changePassword } from "ente-prelogin-wasm";
 import { withAccountsClient } from "./accounts-client";
 import { generateInteractiveKeyAttributes } from "./key-attributes";
-import type { KeyAttributes } from "./user";
+import { RemoteKeyAttributes, type KeyAttributes } from "./user";
 
 export class PasswordWorker {
     async changePassword(
@@ -18,10 +18,13 @@ export class PasswordWorker {
             masterKey,
         );
         const token = await ensureAuthToken();
-        await withAccountsClient((client) =>
+        const response = await withAccountsClient((client) =>
             changePassword(client, token, password, masterKey, keyAttributes),
         );
-        return interactiveKeyAttributes;
+        return {
+            interactiveKeyAttributes,
+            remoteKeyAttributes: RemoteKeyAttributes.parse(response),
+        };
     }
 }
 

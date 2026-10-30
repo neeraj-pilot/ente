@@ -1,6 +1,7 @@
 import {
     savedOriginalKeyAttributes,
     savedSRPAttributes,
+    saveSRPAttributes,
 } from "ente-accounts/services/accounts-db";
 import { isNamedError } from "ente-base/error";
 import log from "ente-base/log";
@@ -36,7 +37,7 @@ const SessionValidityResponse = z.object({
 
 export const checkSessionValidity = async () => {
     const token = await ensureAuthToken();
-    return SessionValidity.parse(
+    const result = SessionValidity.parse(
         await withAccountsClient((client) =>
             rustCheckSessionValidity(
                 client,
@@ -46,6 +47,15 @@ export const checkSessionValidity = async () => {
             ),
         ),
     );
+    if (
+        result.status === "validButPasswordChanged" &&
+        result.updatedSRPAttributes.kekSalt ===
+            savedOriginalKeyAttributes()?.kekSalt
+    ) {
+        saveSRPAttributes(result.updatedSRPAttributes);
+        return { status: "valid" as const };
+    }
+    return result;
 };
 
 export const isSessionInvalid = async (): Promise<boolean> => {

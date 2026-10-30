@@ -1,25 +1,28 @@
+import {
+    replaceSavedLocalUser,
+    savedKeyAttributes,
+    savedOriginalKeyAttributes,
+    savedSRPAttributes,
+    saveKeyAttributes,
+    saveOriginalKeyAttributes,
+    saveSRPAttributes,
+} from "ente-accounts/services/accounts-db";
 import { changePassword } from "ente-accounts/services/password";
 import { PasswordWorker } from "ente-accounts/services/password.worker";
+import { checkSessionValidity } from "ente-accounts/services/session";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const {
     generateInteractiveKeyAttributes,
-    getAndSaveSRPAttributes,
-    keyAttributes,
     rustChangePassword,
-    saveKeyAttributes,
-    warn,
+    rustCheckSessionValidity,
 } = vi.hoisted(() => ({
     generateInteractiveKeyAttributes: vi.fn(),
-    getAndSaveSRPAttributes: vi.fn(),
-    keyAttributes: { kekSalt: "old-salt" },
     rustChangePassword: vi.fn(),
-    saveKeyAttributes: vi.fn(),
-    warn: vi.fn(),
+    rustCheckSessionValidity: vi.fn(),
 }));
 
 vi.mock("comlink", () => ({ expose: vi.fn() }));
-vi.mock("ente-base/log", () => ({ default: { warn } }));
 vi.mock("ente-base/log-web", () => ({
     logUnhandledErrorsAndRejectionsInWorker: vi.fn(),
 }));
@@ -39,18 +42,38 @@ vi.mock("ente-accounts/services/accounts-client", () => ({
     withAccountsClient: (operation: (client: unknown) => Promise<unknown>) =>
         operation({}),
 }));
-vi.mock("ente-accounts/services/accounts-db", () => ({ saveKeyAttributes }));
 vi.mock("ente-accounts/services/key-attributes", () => ({
     generateInteractiveKeyAttributes,
 }));
-vi.mock("ente-accounts/services/srp", () => ({ getAndSaveSRPAttributes }));
-vi.mock("ente-accounts/services/user", () => ({
-    ensureLocalUser: () => ({ email: "user@example.org" }),
-    ensureSavedKeyAttributes: () => keyAttributes,
+vi.mock("ente-prelogin-wasm", () => ({
+    changePassword: rustChangePassword,
+    checkSessionValidity: rustCheckSessionValidity,
 }));
-vi.mock("ente-prelogin-wasm", () => ({ changePassword: rustChangePassword }));
 
-const updated = { kekSalt: "new-local-salt" };
+const original = {
+    kekSalt: "old-salt",
+    encryptedKey: "encrypted-key",
+    keyDecryptionNonce: "key-nonce",
+    publicKey: "public-key",
+    encryptedSecretKey: "encrypted-secret-key",
+    secretKeyDecryptionNonce: "secret-key-nonce",
+    memLimit: 65536,
+    opsLimit: 2,
+};
+const updated = { ...original, kekSalt: "new-local-salt" };
+const remote = { ...original, kekSalt: "new-remote-salt" };
+const updatedSRPAttributes = {
+    kekSalt: remote.kekSalt,
+    memLimit: remote.memLimit,
+    opsLimit: remote.opsLimit,
+    srpUserID: "srp-user-id",
+    srpSalt: "srp-salt",
+    isEmailMFAEnabled: true,
+};
+const originalSRPAttributes = {
+    ...updatedSRPAttributes,
+    kekSalt: original.kekSalt,
+};
 const change = () => changePassword("new-password", vi.fn());
 
 afterEach(() => vi.unstubAllGlobals());
@@ -58,23 +81,52 @@ afterEach(() => vi.unstubAllGlobals());
 beforeEach(() => {
     vi.resetAllMocks();
     vi.stubGlobal("Worker", vi.fn());
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+    });
+    replaceSavedLocalUser({ id: 1, email: "user@example.org", token: "token" });
+    saveKeyAttributes(original);
+    saveOriginalKeyAttributes(original);
+    saveSRPAttributes(originalSRPAttributes);
     generateInteractiveKeyAttributes.mockResolvedValue(updated);
-    rustChangePassword.mockResolvedValue({ kekSalt: "new-remote-salt" });
-    getAndSaveSRPAttributes.mockResolvedValue(undefined);
+    rustChangePassword.mockResolvedValue(remote);
+    rustCheckSessionValidity.mockResolvedValue({
+        status: "validButPasswordChanged",
+        updatedKeyAttributes: remote,
+        updatedSRPAttributes,
+    });
 });
 
-test("SRP refresh failure preserves a successful password change", async () => {
-    const refreshError = new Error("offline");
-    getAndSaveSRPAttributes.mockRejectedValue(refreshError);
-
+test("password change saves keys and the next session check reconciles SRP", async () => {
     await expect(change()).resolves.toBeUndefined();
 
     expect(generateInteractiveKeyAttributes).toHaveBeenCalledBefore(
         rustChangePassword,
     );
-    expect(saveKeyAttributes).toHaveBeenCalledWith(updated);
-    expect(saveKeyAttributes).toHaveBeenCalledBefore(getAndSaveSRPAttributes);
-    expect(warn).toHaveBeenCalledWith(expect.any(String), refreshError);
+    expect(savedKeyAttributes()).toEqual(updated);
+    expect(savedOriginalKeyAttributes()).toEqual(remote);
+    expect(savedSRPAttributes()).toEqual(originalSRPAttributes);
+
+    await expect(checkSessionValidity()).resolves.toEqual({ status: "valid" });
+    expect(savedSRPAttributes()).toEqual(updatedSRPAttributes);
+});
+
+test("a subsequent password change elsewhere is still detected", async () => {
+    await change();
+    const result = {
+        status: "validButPasswordChanged",
+        updatedKeyAttributes: { ...remote, kekSalt: "another-salt" },
+        updatedSRPAttributes: {
+            ...updatedSRPAttributes,
+            kekSalt: "another-salt",
+        },
+    };
+    rustCheckSessionValidity.mockResolvedValue(result);
+
+    await expect(checkSessionValidity()).resolves.toEqual(result);
+    expect(savedSRPAttributes()).toEqual(originalSRPAttributes);
 });
 
 test("local key preparation failure does not change the password", async () => {
@@ -84,7 +136,8 @@ test("local key preparation failure does not change the password", async () => {
     await expect(change()).rejects.toBe(error);
 
     expect(rustChangePassword).not.toHaveBeenCalled();
-    expect(saveKeyAttributes).not.toHaveBeenCalled();
+    expect(savedKeyAttributes()).toEqual(original);
+    expect(savedOriginalKeyAttributes()).toEqual(original);
 });
 
 test("failed password update preserves the existing local keys", async () => {
@@ -93,6 +146,7 @@ test("failed password update preserves the existing local keys", async () => {
 
     await expect(change()).rejects.toBe(error);
 
-    expect(saveKeyAttributes).not.toHaveBeenCalled();
-    expect(getAndSaveSRPAttributes).not.toHaveBeenCalled();
+    expect(savedKeyAttributes()).toEqual(original);
+    expect(savedOriginalKeyAttributes()).toEqual(original);
+    expect(savedSRPAttributes()).toEqual(originalSRPAttributes);
 });
