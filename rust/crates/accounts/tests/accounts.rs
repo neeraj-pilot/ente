@@ -7,7 +7,7 @@ use ente_accounts::{
     lifecycle::{
         change_password, check_session_validity, passkey_management_url, recover_two_factor,
     },
-    login::{LoginFlow, LoginStep, recover_account, unlock},
+    login::{LoginFlow, LoginStep},
     models::TwoFactorType,
     signup::Signup,
 };
@@ -23,7 +23,7 @@ fn accounts() -> TestResult {
 }
 
 async fn run(endpoint: String) -> TestResult {
-    let endpoint = &endpoint;
+    let endpoint = &endpoint.replace("127.0.0.1", "localhost");
     let email = format!(
         "accounts-e2e-{}{HARDCODED_OTT_EMAIL_SUFFIX}",
         Uuid::new_v4()
@@ -86,9 +86,9 @@ async fn run(endpoint: String) -> TestResult {
     .await?;
     assert_eq!(recovered.id, created.user_id);
     let response = recovered.into();
-    let recovered = ente_accounts::login::unlock_with_password(&response, &password)?;
+    let recovered = recovery_client.unlock_with_password(&response, &password)?;
     let restored =
-        ente_accounts::login::unlock_with_master_key(&response, &created.secrets.master_key)?;
+        recovery_client.unlock_with_master_key(&response, &created.secrets.master_key)?;
     assert_eq!(restored.secrets.token, recovered.secrets.token);
     assert_eq!(restored.recovery_key, recovered.recovery_key);
     let recovery_client =
@@ -144,13 +144,13 @@ async fn run(endpoint: String) -> TestResult {
     let (response, kek) = login_client
         .login_with_srp(&new_password, &changed.srp_attributes)
         .await?;
-    let changed_login = unlock(&response, &kek)?;
+    let changed_login = login_client.unlock(&response, &kek)?;
     assert_eq!(changed_login.secrets.master_key, created.secrets.master_key);
     login_client.send_otp(&email, "login", false).await?;
     let response = login_client
         .verify_email(&email, HARDCODED_OTT, None)
         .await?;
-    let recovered = recover_account(&response, &created.recovery_key)?;
+    let recovered = login_client.recover_account(&response, &created.recovery_key)?;
     assert_eq!(recovered.secrets.secret_key, created.secrets.secret_key);
     let recovered_client =
         login_client.with_auth_token(b64::encode_url_safe(&recovered.secrets.token));
@@ -184,7 +184,7 @@ async fn run(endpoint: String) -> TestResult {
         .login_with_srp(&reset_password, &reset.srp_attributes)
         .await?;
     assert_eq!(
-        unlock(&response, &kek)?.secrets.master_key,
+        login_client.unlock(&response, &kek)?.secrets.master_key,
         created.secrets.master_key
     );
 
@@ -196,6 +196,21 @@ async fn run(endpoint: String) -> TestResult {
             .await?
             .is_passkey_recovery_enabled
     );
+    let session = ente_core::Session::new(
+        ente_core::http::ApiConfig {
+            auth: Some(ente_core::http::Auth::User(b64::encode_url_safe(
+                &recovered.secrets.token,
+            ))),
+            client_package: Some("io.ente.photos".into()),
+            ..ente_core::http::ApiConfig::new(endpoint.clone())
+        },
+        recovered.user_id,
+        ente_core::crypto::Key::try_from_slice(&recovered.secrets.master_key)?,
+        ente_core::crypto::Key::try_from_slice(&hex::decode(&recovered.recovery_key)?)?,
+        ente_core::crypto::SecretKey::try_from_slice(&recovered.secrets.secret_key)?,
+    )?;
+    let challenge = ente_accounts::deletion::get_delete_challenge(&session).await?;
+    ente_accounts::deletion::delete_account(&session, &challenge, "not_listed", None).await?;
     Ok(())
 }
 
