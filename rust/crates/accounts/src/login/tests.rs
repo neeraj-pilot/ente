@@ -406,13 +406,9 @@ fn recovery_unlocks_the_same_account_for_hex_and_mnemonic() {
     .unwrap();
     let recovery_key = &*keys.private_key_attributes.recovery_key;
     let mnemonic = auth::recovery_key_to_mnemonic(&hex::decode(recovery_key).unwrap()).unwrap();
+    let client = make_client("https://api.ente.com".into());
     for value in [recovery_key, mnemonic.as_str()] {
-        let account = recover_account(
-            &make_client("https://api.ente.com".into()),
-            &response,
-            value,
-        )
-        .unwrap();
+        let account = client.recover_account(&response, value).unwrap();
         assert_eq!(account.secrets.token, token);
         assert_eq!(
             b64::encode(&account.secrets.master_key),
@@ -424,11 +420,7 @@ fn recovery_unlocks_the_same_account_for_hex_and_mnemonic() {
         );
     }
     assert!(matches!(
-        recover_account(
-            &make_client("https://api.ente.com".into()),
-            &response,
-            &hex::encode([0; 32])
-        ),
+        client.recover_account(&response, &hex::encode([0; 32])),
         Err(Error::IncorrectRecoveryKey)
     ));
 }
@@ -462,13 +454,9 @@ fn encrypted_tokens_require_the_login_tag_on_enforced_endpoints() {
             }))
             .unwrap();
             for result in [
-                unlock(&client, &response, &kek),
-                unlock_with_master_key(&client, &response, &master_key),
-                recover_account(
-                    &client,
-                    &response,
-                    &keys.private_key_attributes.recovery_key,
-                ),
+                client.unlock(&response, &kek),
+                client.unlock_with_master_key(&response, &master_key),
+                client.recover_account(&response, &keys.private_key_attributes.recovery_key),
             ] {
                 if tagged || origin == "https://self-hosted.example" {
                     assert_eq!(result.unwrap().secrets.token, token);
@@ -478,10 +466,7 @@ fn encrypted_tokens_require_the_login_tag_on_enforced_endpoints() {
             }
             response.encrypted_token = None;
             response.token = Some(b64::encode_url_safe(&token));
-            assert_eq!(
-                unlock(&client, &response, &kek).unwrap().secrets.token,
-                token
-            );
+            assert_eq!(client.unlock(&response, &kek).unwrap().secrets.token, token);
         }
     }
 }

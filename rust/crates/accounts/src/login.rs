@@ -1,6 +1,6 @@
 use ente_core::{
     b64,
-    crypto::{Key, SecretKey, SecretVec, sealed},
+    crypto::{Key, Nonce, SecretKey, SecretVec, sealed, secretbox},
 };
 
 use crate::{
@@ -71,7 +71,7 @@ impl LoginFlow {
             return Err(Error::InvalidInput("Password is not expected".into()));
         };
         if let Some(response) = response {
-            let account = unlock_with_password(client, response, password)?;
+            let account = client.unlock_with_password(response, password)?;
             self.state = State::Complete;
             Ok(LoginStep::Complete(Box::new(account)))
         } else {
@@ -166,7 +166,7 @@ impl LoginFlow {
             return Ok(LoginStep::SecondFactor { totp, passkey });
         }
         if let Some(kek) = kek {
-            let account = unlock(client, &response, &kek)?;
+            let account = client.unlock(&response, &kek)?;
             self.state = State::Complete;
             Ok(LoginStep::Complete(Box::new(account)))
         } else {
@@ -201,135 +201,121 @@ pub fn build_passkey_verification_url(
     format!("{accounts_url}/passkeys/verify?{query}")
 }
 
-pub fn unlock_with_password(
-    client: &AccountsClient,
-    auth_response: &AuthResponse,
-    password: &str,
-) -> Result<AuthenticatedAccount> {
-    let attributes = auth_response
-        .key_attributes
-        .as_ref()
-        .ok_or(Error::MissingKeyAttributes)?;
-    let kek = derive_kek(
-        password,
-        &attributes.kek_salt,
-        attributes.mem_limit,
-        attributes.ops_limit,
-    )?;
-    unlock(client, auth_response, &kek)
-}
-
-pub fn unlock(
-    client: &AccountsClient,
-    auth_response: &AuthResponse,
-    kek: &[u8],
-) -> Result<AuthenticatedAccount> {
-    let key_attributes = auth_response
-        .key_attributes
-        .as_ref()
-        .ok_or(Error::MissingKeyAttributes)?;
-    let (master_key, secret_key) = auth::decrypt_keys_only(kek, key_attributes)?;
-    finish_unlock(
-        client,
-        auth_response,
-        key_attributes,
-        master_key,
-        secret_key,
-    )
-}
-
-pub fn recover_account(
-    client: &AccountsClient,
-    auth_response: &AuthResponse,
-    recovery_key: &str,
-) -> Result<AuthenticatedAccount> {
-    let attributes = auth_response
-        .key_attributes
-        .as_ref()
-        .ok_or(Error::MissingKeyAttributes)?;
-    let recovery_key = auth::recovery_key_from_mnemonic_or_hex(recovery_key)?;
-    let encrypted = attributes
-        .master_key_encrypted_with_recovery_key
-        .as_ref()
-        .ok_or(Error::MissingField(
-            "master_key_encrypted_with_recovery_key",
-        ))?;
-    let nonce = attributes
-        .master_key_decryption_nonce
-        .as_ref()
-        .ok_or(Error::MissingField("master_key_decryption_nonce"))?;
-    let master_key = SecretVec::new(
-        ente_core::crypto::secretbox::decrypt(
-            &b64::decode(encrypted)?,
-            &ente_core::crypto::Nonce::try_from_slice(&b64::decode(nonce)?)?,
-            &Key::try_from_slice(&recovery_key)?,
-        )
-        .map_err(|_| Error::IncorrectRecoveryKey)?,
-    );
-    unlock_with_master_key(client, auth_response, &master_key)
-}
-
-pub fn unlock_with_master_key(
-    client: &AccountsClient,
-    auth_response: &AuthResponse,
-    master_key: &[u8],
-) -> Result<AuthenticatedAccount> {
-    let key_attributes = auth_response
-        .key_attributes
-        .as_ref()
-        .ok_or(Error::MissingKeyAttributes)?;
-    let master_key = Key::try_from_slice(master_key)?;
-    let secret_key = auth::decrypt_secret_key(&master_key, key_attributes)?;
-    finish_unlock(
-        client,
-        auth_response,
-        key_attributes,
-        master_key,
-        secret_key,
-    )
-}
-
-fn finish_unlock(
-    client: &AccountsClient,
-    auth_response: &AuthResponse,
-    key_attributes: &KeyAttributes,
-    master_key: Key,
-    secret_key: SecretKey,
-) -> Result<AuthenticatedAccount> {
-    if auth_response.is_mfa_required() || auth_response.is_passkey_required() {
-        return Err(Error::InvalidInput(
-            "Second factor verification is required".into(),
-        ));
+impl AccountsClient {
+    pub fn unlock_with_password(
+        &self,
+        auth_response: &AuthResponse,
+        password: &str,
+    ) -> Result<AuthenticatedAccount> {
+        let attributes = auth_response
+            .key_attributes
+            .as_ref()
+            .ok_or(Error::MissingKeyAttributes)?;
+        let kek = derive_kek(
+            password,
+            &attributes.kek_salt,
+            attributes.mem_limit,
+            attributes.ops_limit,
+        )?;
+        self.unlock(auth_response, &kek)
     }
-    let token = if let Some(encrypted_token) = &auth_response.encrypted_token {
-        let token = SecretVec::new(
-            sealed::open(
-                &b64::decode(encrypted_token)?,
-                &secret_key.public_key(),
-                &secret_key,
+
+    pub fn unlock(&self, auth_response: &AuthResponse, kek: &[u8]) -> Result<AuthenticatedAccount> {
+        let key_attributes = auth_response
+            .key_attributes
+            .as_ref()
+            .ok_or(Error::MissingKeyAttributes)?;
+        let (master_key, secret_key) = auth::decrypt_keys_only(kek, key_attributes)?;
+        self.finish_unlock(auth_response, key_attributes, master_key, secret_key)
+    }
+
+    pub fn recover_account(
+        &self,
+        auth_response: &AuthResponse,
+        recovery_key: &str,
+    ) -> Result<AuthenticatedAccount> {
+        let attributes = auth_response
+            .key_attributes
+            .as_ref()
+            .ok_or(Error::MissingKeyAttributes)?;
+        let recovery_key = auth::recovery_key_from_mnemonic_or_hex(recovery_key)?;
+        let encrypted = attributes
+            .master_key_encrypted_with_recovery_key
+            .as_ref()
+            .ok_or(Error::MissingField(
+                "master_key_encrypted_with_recovery_key",
+            ))?;
+        let nonce = attributes
+            .master_key_decryption_nonce
+            .as_ref()
+            .ok_or(Error::MissingField("master_key_decryption_nonce"))?;
+        let master_key = SecretVec::new(
+            secretbox::decrypt(
+                &b64::decode(encrypted)?,
+                &Nonce::try_from_slice(&b64::decode(nonce)?)?,
+                &Key::try_from_slice(&recovery_key)?,
             )
-            .map_err(|_| Error::InvalidKeyAttributes)?,
+            .map_err(|_| Error::IncorrectRecoveryKey)?,
         );
-        payload::validate_auth_token(&client.api, &token)?;
-        token
-    } else if let Some(token) = &auth_response.token {
-        decode_plain_token(token)?
-    } else {
-        return Err(Error::Protocol("No token in response".into()));
-    };
-    let public_key = b64::decode(&key_attributes.public_key)?;
-    let recovery_key = get_recovery_key(&master_key, key_attributes)?;
-    Ok(AuthenticatedAccount {
-        user_id: auth_response.id,
-        key_attributes: key_attributes.clone(),
-        secrets: AccountSecrets {
-            token: token.into_vec(),
-            master_key: master_key.as_bytes().to_vec(),
-            secret_key: secret_key.as_bytes().to_vec(),
-            public_key,
-        },
-        recovery_key,
-    })
+        self.unlock_with_master_key(auth_response, &master_key)
+    }
+
+    pub fn unlock_with_master_key(
+        &self,
+        auth_response: &AuthResponse,
+        master_key: &[u8],
+    ) -> Result<AuthenticatedAccount> {
+        let key_attributes = auth_response
+            .key_attributes
+            .as_ref()
+            .ok_or(Error::MissingKeyAttributes)?;
+        let master_key = Key::try_from_slice(master_key)?;
+        let secret_key = auth::decrypt_secret_key(&master_key, key_attributes)?;
+        self.finish_unlock(auth_response, key_attributes, master_key, secret_key)
+    }
+
+    fn finish_unlock(
+        &self,
+        auth_response: &AuthResponse,
+        key_attributes: &KeyAttributes,
+        master_key: Key,
+        secret_key: SecretKey,
+    ) -> Result<AuthenticatedAccount> {
+        if auth_response.is_mfa_required() || auth_response.is_passkey_required() {
+            return Err(Error::InvalidInput(
+                "Second factor verification is required".into(),
+            ));
+        }
+        let token = if let Some(encrypted_token) = &auth_response.encrypted_token {
+            let token = SecretVec::new(
+                sealed::open(
+                    &b64::decode(encrypted_token)?,
+                    &secret_key.public_key(),
+                    &secret_key,
+                )
+                .map_err(|_| Error::InvalidKeyAttributes)?,
+            );
+            payload::validate_auth_token(&self.api, &token)?;
+            token
+        } else if let Some(token) = &auth_response.token {
+            decode_plain_token(token)?
+        } else {
+            return Err(Error::Protocol("No token in response".into()));
+        };
+        let public_key = b64::decode(&key_attributes.public_key)?;
+        let recovery_key = get_recovery_key(&master_key, key_attributes)?;
+        Ok(AuthenticatedAccount {
+            user_id: auth_response.id,
+            key_attributes: key_attributes.clone(),
+            secrets: AccountSecrets {
+                token: token.into_vec(),
+                master_key: master_key.as_bytes().to_vec(),
+                secret_key: secret_key.as_bytes().to_vec(),
+                public_key,
+            },
+            recovery_key,
+        })
+    }
 }
 
 fn decode_plain_token(token: &str) -> Result<SecretVec> {

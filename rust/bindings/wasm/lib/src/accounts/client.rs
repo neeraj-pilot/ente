@@ -1,4 +1,4 @@
-use ente_accounts::{auth, lifecycle, login, signup};
+use ente_accounts::{auth, lifecycle, signup};
 use ente_core::{b64, crypto::SecretVec};
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen as swb;
@@ -186,7 +186,9 @@ pub fn unlock_account(
     #[wasm_bindgen(unchecked_param_type = "unknown")] response: JsValue,
     kek: &str,
 ) -> Result<JsValue, Error> {
-    let account = login::unlock(&client.0, &swb::from_value(response)?, &decode(kek)?)?;
+    let account = client
+        .0
+        .unlock(&swb::from_value(response)?, &decode(kek)?)?;
     unlocked_account(account)
 }
 
@@ -196,11 +198,9 @@ pub fn unlock_account_with_master_key(
     #[wasm_bindgen(unchecked_param_type = "unknown")] response: JsValue,
     master_key: &str,
 ) -> Result<JsValue, Error> {
-    let account = login::unlock_with_master_key(
-        &client.0,
-        &swb::from_value(response)?,
-        &decode(master_key)?,
-    )?;
+    let account = client
+        .0
+        .unlock_with_master_key(&swb::from_value(response)?, &decode(master_key)?)?;
     unlocked_account(account)
 }
 
@@ -264,7 +264,9 @@ pub fn recover_account(
     #[wasm_bindgen(unchecked_param_type = "unknown")] response: JsValue,
     recovery_key: &str,
 ) -> Result<JsValue, Error> {
-    let account = login::recover_account(&client.0, &swb::from_value(response)?, recovery_key)?;
+    let account = client
+        .0
+        .recover_account(&swb::from_value(response)?, recovery_key)?;
     unlocked_account(account)
 }
 

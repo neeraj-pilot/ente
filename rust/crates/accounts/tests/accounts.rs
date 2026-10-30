@@ -7,7 +7,7 @@ use ente_accounts::{
     lifecycle::{
         change_password, check_session_validity, passkey_management_url, recover_two_factor,
     },
-    login::{LoginFlow, LoginStep, recover_account, unlock},
+    login::{LoginFlow, LoginStep},
     models::TwoFactorType,
     signup::Signup,
 };
@@ -86,13 +86,9 @@ async fn run(endpoint: String) -> TestResult {
     .await?;
     assert_eq!(recovered.id, created.user_id);
     let response = recovered.into();
-    let recovered =
-        ente_accounts::login::unlock_with_password(&recovery_client, &response, &password)?;
-    let restored = ente_accounts::login::unlock_with_master_key(
-        &recovery_client,
-        &response,
-        &created.secrets.master_key,
-    )?;
+    let recovered = recovery_client.unlock_with_password(&response, &password)?;
+    let restored =
+        recovery_client.unlock_with_master_key(&response, &created.secrets.master_key)?;
     assert_eq!(restored.secrets.token, recovered.secrets.token);
     assert_eq!(restored.recovery_key, recovered.recovery_key);
     let recovery_client =
@@ -148,13 +144,13 @@ async fn run(endpoint: String) -> TestResult {
     let (response, kek) = login_client
         .login_with_srp(&new_password, &changed.srp_attributes)
         .await?;
-    let changed_login = unlock(&login_client, &response, &kek)?;
+    let changed_login = login_client.unlock(&response, &kek)?;
     assert_eq!(changed_login.secrets.master_key, created.secrets.master_key);
     login_client.send_otp(&email, "login", false).await?;
     let response = login_client
         .verify_email(&email, HARDCODED_OTT, None)
         .await?;
-    let recovered = recover_account(&login_client, &response, &created.recovery_key)?;
+    let recovered = login_client.recover_account(&response, &created.recovery_key)?;
     assert_eq!(recovered.secrets.secret_key, created.secrets.secret_key);
     let recovered_client =
         login_client.with_auth_token(b64::encode_url_safe(&recovered.secrets.token));
@@ -188,7 +184,7 @@ async fn run(endpoint: String) -> TestResult {
         .login_with_srp(&reset_password, &reset.srp_attributes)
         .await?;
     assert_eq!(
-        unlock(&login_client, &response, &kek)?.secrets.master_key,
+        login_client.unlock(&response, &kek)?.secrets.master_key,
         created.secrets.master_key
     );
 
