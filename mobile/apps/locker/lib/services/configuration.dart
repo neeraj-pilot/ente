@@ -9,6 +9,8 @@ import 'package:locker/services/favorites_service.dart';
 import 'package:locker/services/files/offline/offline_file_storage.dart';
 import 'package:locker/src/rust/third_party/ente_frb_lib/account_deletion.dart'
     as account_deletion;
+import 'package:locker/src/rust/third_party/ente_frb_lib/recovery.dart'
+    as recovery;
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -67,6 +69,10 @@ class Configuration extends BaseConfiguration
     reason: reason,
     feedback: feedback,
   );
+
+  @override
+  String recoveryKeyToMnemonic(String recoveryKeyHex) =>
+      recovery.recoveryKeyToMnemonic(recoveryKeyHex: recoveryKeyHex);
 
   @override
   Future<void> logout({bool autoLogout = false}) async {

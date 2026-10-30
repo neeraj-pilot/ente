@@ -1,7 +1,11 @@
+use std::collections::{HashMap, HashSet};
+
 use ente_location::{CityMatch, Coordinate};
 
 use super::calendar::{LocalDate, MICROS_PER_DAY, MICROS_PER_SECOND};
+use super::output::{ClipMemoryType, PeopleMemoryType};
 use crate::location::LocationIndex;
+use crate::ml_store::Result;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MemoryFile {
@@ -17,17 +21,42 @@ pub struct MemoryFile {
 pub struct MemoriesRequest {
     pub files: Vec<MemoryFile>,
     pub excluded_collection_ids: Vec<i64>,
+    pub people: Vec<MemoryPerson>,
+    pub me_person_id: Option<String>,
+    pub shows_unnamed_people: bool,
+    pub shown_people: Vec<ShownPerson>,
     pub shown_trips: Vec<ShownTrip>,
     pub cached_trips: Vec<CachedTrip>,
+    pub shown_clip_memories: Vec<ShownClipMemory>,
     pub surface_all: bool,
     pub local_gallery_mode: bool,
     pub seed: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MemoryPerson {
+    pub id: String,
+    pub is_ignored: bool,
+    pub birth_date: Option<LocalDate>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShownPerson {
+    pub person_id: String,
+    pub memory_type: PeopleMemoryType,
+    pub last_time_shown: i64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShownTrip {
     pub key: Option<String>,
     pub location: Coordinate,
+    pub last_time_shown: i64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShownClipMemory {
+    pub kind: ClipMemoryType,
     pub last_time_shown: i64,
 }
 
@@ -62,10 +91,35 @@ impl Period {
     }
 }
 
-pub trait PhotoSignals {
+pub struct MlInputs<'m> {
+    pub clip: &'m dyn ClipVectors,
+    pub face_weights: HashMap<i64, u32>,
+    pub people: PeopleInputs,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PeopleInputs {
+    pub face_counts: HashMap<i64, u32>,
+    pub person_file_ids: HashMap<String, HashSet<i64>>,
+    pub unnamed_clusters: Vec<UnnamedCluster>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnnamedCluster {
+    pub id: String,
+    pub face_count: u32,
+    pub file_ids: HashSet<i64>,
+}
+
+pub trait ClipVectors {
+    fn matches(&self, query: &[f32], min_similarity: f32) -> Result<Vec<(i64, f32)>>;
+    fn vector(&self, file_id: i64) -> Result<Option<Vec<f32>>>;
+}
+
+pub(super) trait PhotoSignals {
     fn face_weight(&self, file_id: i64) -> u32;
     fn nostalgia(&self, file_id: i64) -> Option<f32>;
-    fn similarity(&self, file_id: i64, other_file_id: i64) -> Option<f32>;
+    fn similarity(&self, file_id: i64, other_file_id: i64) -> Result<Option<f32>>;
 }
 
 pub trait CityLookup {

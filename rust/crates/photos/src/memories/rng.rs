@@ -13,7 +13,7 @@ impl Rng {
         }
     }
 
-    fn below(&mut self, bound: usize) -> usize {
+    pub(super) fn below(&mut self, bound: usize) -> usize {
         ((u128::from(self.next_u64()) * bound as u128) >> 64) as usize
     }
 

@@ -7,7 +7,7 @@ ente-assets.workspace = true
 ente-core.workspace = true
 ente-ensu-crypto.workspace = true
 ente-image.workspace = true
-ort = { workspace = true, features = ["std", "api-27", "tracing"], optional = true }
+ort = { workspace = true, features = ["std", "api-31", "tracing"], optional = true }
 regex.workspace = true
 rubato = { version = "5.0.0", optional = true }
 rusqlite = { workspace = true, default-features = true, optional = true }

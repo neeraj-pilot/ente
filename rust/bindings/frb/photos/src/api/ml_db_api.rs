@@ -7,7 +7,10 @@ pub use ente_photos::ml_db::{
     FaceWithoutEmbedding, FdStatus, PreviewInfo,
 };
 use ente_photos::ml_store;
-pub use ente_photos::ml_store::{FillOutcome, FillState, Index, MeanSuggestion};
+pub use ente_photos::ml_store::{
+    FaceDistance, FillOutcome, FillState, Index, MeanSuggestion, MedianQuery, MedianSuggestion,
+    PersonFaces,
+};
 use flutter_rust_bridge::frb;
 
 use super::vecdb_api::{
@@ -109,6 +112,30 @@ pub struct _MeanSuggestion {
     pub cluster_id: String,
     pub distance: f64,
     pub person_cluster_id: String,
+}
+
+#[frb(mirror(MedianQuery))]
+pub struct _MedianQuery {
+    pub person_cluster_ids: Vec<String>,
+    pub candidate_cluster_ids: Vec<String>,
+}
+
+#[frb(mirror(MedianSuggestion))]
+pub struct _MedianSuggestion {
+    pub cluster_id: String,
+    pub distance: f64,
+}
+
+#[frb(mirror(PersonFaces))]
+pub struct _PersonFaces {
+    pub person_id: String,
+    pub face_ids: Vec<String>,
+}
+
+#[frb(mirror(FaceDistance))]
+pub struct _FaceDistance {
+    pub face_id: String,
+    pub distance: f64,
 }
 
 #[frb(mirror(FdStatus))]
@@ -374,6 +401,38 @@ impl MlStore {
             max_distance,
             &ignored_by_person_cluster,
         )?)
+    }
+
+    pub fn suggest_clusters_by_median(
+        &self,
+        queries: Vec<MedianQuery>,
+        sample_size: u32,
+        max_distance: f64,
+        good_distance: f64,
+    ) -> Result<Vec<Vec<MedianSuggestion>>, MlDbError> {
+        Ok(self.inner.suggest_clusters_by_median(
+            &queries,
+            sample_size as usize,
+            max_distance,
+            good_distance,
+        )?)
+    }
+
+    pub fn distances_to_person_averages(
+        &self,
+        requests: Vec<PersonFaces>,
+    ) -> Result<Vec<Option<Vec<FaceDistance>>>, MlDbError> {
+        Ok(self.inner.distances_to_person_averages(&requests)?)
+    }
+
+    pub fn max_similarities_to_persons(
+        &self,
+        cluster_id: String,
+        person_ids: Vec<String>,
+    ) -> Result<HashMap<String, f64>, MlDbError> {
+        Ok(self
+            .inner
+            .max_similarities_to_persons(&cluster_id, &person_ids.into_iter().collect())?)
     }
 
     pub fn clear_all(&self) -> Result<(), MlDbError> {

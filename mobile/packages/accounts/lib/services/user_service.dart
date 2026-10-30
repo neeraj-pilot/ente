@@ -923,11 +923,14 @@ class UserService {
       if (!context.mounted) {
         return;
       }
-      if (e == const AccountsError.incorrectRecoveryKey()) {
+      if (e == const AccountsError.incorrectRecoveryKey() ||
+          e == const AccountsError.malformedRecoveryKey()) {
         await showAlertBottomSheet(
           context,
           title: context.strings.incorrectRecoveryKey,
-          message: context.strings.theRecoveryKeyYouEnteredIsIncorrect,
+          message: e == const AccountsError.malformedRecoveryKey()
+              ? context.strings.invalidRecoveryKey
+              : context.strings.theRecoveryKeyYouEnteredIsIncorrect,
           assetPath: 'assets/warning-grey.png',
         );
       } else if (e == const AccountsError.sessionExpired()) {

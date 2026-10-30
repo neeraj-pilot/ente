@@ -10,6 +10,7 @@ use crate::memories::output::{BaseMemory, Memory, MemoryKind, TripMemory};
 use crate::memories::photo::Photo;
 use crate::memories::places::Places;
 use crate::memories::selector::Selector;
+use crate::ml_store::Result;
 
 const TRIP_SURFACE_SLOTS: usize = 2;
 const TRIP_SHOW_TIMEOUT_DAYS: i64 = 40 * UPDATE_FREQUENCY_DAYS;
@@ -80,7 +81,7 @@ pub(in crate::memories) fn memories(
     request: &MemoriesRequest,
     places: &Places,
     selector: &mut Selector,
-) -> Vec<Memory> {
+) -> Result<Vec<Memory>> {
     let cutoff = period.now - MINIMUM_TRIP_AGE_DAYS * MICROS_PER_DAY;
     let trips: Vec<&Trip> = analysis
         .trips
@@ -113,7 +114,7 @@ fn surface_all(
     period: Period,
     places: &Places,
     selector: &mut Selector,
-) -> Vec<Memory> {
+) -> Result<Vec<Memory>> {
     let last_date_to_show = period.now + UPDATE_FREQUENCY_DAYS * MICROS_PER_DAY;
     let bases = analysis.bases.iter().map(|base| {
         let photos: Vec<&Photo> = base.members.iter().map(|member| member.photo).collect();
@@ -133,9 +134,9 @@ fn surface_all(
             selector,
             period.now,
             last_date_to_show,
-        ));
+        )?);
     }
-    memories
+    Ok(memories)
 }
 
 fn scheduled<'a, 'p>(
@@ -234,7 +235,7 @@ fn trip_memory(
     selector: &mut Selector,
     first_date_to_show: i64,
     last_date_to_show: i64,
-) -> Memory {
+) -> Result<Memory> {
     let photos: Vec<&Photo> = trip.members.iter().map(|member| member.photo).collect();
     let kind = MemoryKind::Trip(TripMemory {
         location: trip.location,
@@ -242,12 +243,12 @@ fn trip_memory(
         year: trip.year(),
         key: trip.key.clone(),
     });
-    Memory::new(
+    Ok(Memory::new(
         kind,
-        &selector.best(photos, None),
+        &selector.best(photos, None)?,
         first_date_to_show,
         last_date_to_show,
-    )
+    ))
 }
 
 fn anniversary_distance_days(trip: &Trip, period: Period) -> i64 {

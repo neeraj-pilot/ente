@@ -113,11 +113,20 @@ pub(crate) fn normalized_mean(embeddings: &[Vec<f32>]) -> Option<Vec<f32>> {
     Some(normalized(scaled(sum, 1.0 / embeddings.len() as f64)))
 }
 
+pub(crate) fn weighted_sum(terms: &[(&[f32], f64)]) -> Option<Vec<f32>> {
+    let (first, _) = terms.first()?;
+    let mut sum = vec![0.0; first.len()];
+    for &(vector, weight) in terms {
+        add_scaled(&mut sum, vector, weight);
+    }
+    Some(sum)
+}
+
 pub(crate) fn distance(a: &[f32], b: &[f32]) -> f64 {
     1.0 - dot(a, b)
 }
 
-fn dot(a: &[f32], b: &[f32]) -> f64 {
+pub(crate) fn dot(a: &[f32], b: &[f32]) -> f64 {
     debug_assert_eq!(a.len(), b.len());
     let (a_chunks, a_rest) = a.as_chunks::<SIMD_LANES>();
     let (b_chunks, b_rest) = b.as_chunks::<SIMD_LANES>();
@@ -189,7 +198,7 @@ mod tests {
 
     use super::{
         CLUSTER_ID_LENGTH, CLUSTER_ID_PREFIX, Clustering, Face, IncrementalFace, dot,
-        new_cluster_id, newest_first, normalized_mean, recluster,
+        new_cluster_id, newest_first, normalized_mean, recluster, weighted_sum,
     };
 
     pub(super) fn direction(degrees: f32) -> Vec<f32> {
@@ -317,6 +326,17 @@ mod tests {
     #[test]
     fn normalized_mean_of_no_embeddings_is_none() {
         assert_eq!(normalized_mean(&[]), None);
+    }
+
+    #[test]
+    fn weighted_sum_adds_each_vector_scaled_by_its_weight() {
+        let sum = weighted_sum(&[(&[1.0, 0.0], 0.25), (&[0.0, 2.0], 0.75)]).unwrap();
+        assert_close(&sum, &[0.25, 1.5]);
+    }
+
+    #[test]
+    fn weighted_sum_of_no_vectors_is_none() {
+        assert_eq!(weighted_sum(&[]), None);
     }
 
     #[test]

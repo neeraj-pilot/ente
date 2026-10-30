@@ -100,6 +100,28 @@ impl MlDb {
         Ok(group_into(rows))
     }
 
+    pub fn get_cluster_to_indexed_face_ids(
+        &self,
+        cluster_ids: &HashSet<String>,
+    ) -> Result<HashMap<String, Vec<String>>> {
+        if cluster_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let cluster_id_list: Vec<&String> = cluster_ids.iter().collect();
+        let rows: Vec<(String, String)> = self.read_chunked_in(
+            r#"
+                SELECT fc.cluster_id, fc.face_id
+                FROM face_clusters fc
+                INNER JOIN faces fe
+                    ON fc.face_id = fe.face_id
+                WHERE fc.cluster_id IN ({})
+                "#,
+            &cluster_id_list,
+            pair,
+        )?;
+        Ok(group_into(rows))
+    }
+
     pub fn get_cluster_id_for_face_id(&self, face_id: &str) -> Result<Option<String>> {
         self.read_optional(
             "SELECT cluster_id FROM face_clusters WHERE face_id = ?",

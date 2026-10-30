@@ -74,3 +74,17 @@ fn voice_error(operation: &str, error: impl Into<TranscriptionError>) -> crate::
 }
 
 pub type Result<T> = std::result::Result<T, TranscriptionError>;
+
+fn environment() -> Result<ort::environment::Environment> {
+    static ENVIRONMENT: std::sync::Mutex<Option<ort::environment::Environment>> =
+        std::sync::Mutex::new(None);
+    let mut current = ENVIRONMENT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(environment) = current.as_ref() {
+        return Ok(environment.clone());
+    }
+    let environment = ort::init().build()?;
+    *current = Some(environment.clone());
+    Ok(environment)
+}

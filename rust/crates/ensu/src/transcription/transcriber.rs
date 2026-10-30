@@ -244,15 +244,17 @@ fn ensure_loaded<'a>(
 }
 
 fn load_plan(model_dir: &Path, plan: LoadPlan<'_>) -> Result<Parakeet> {
-    use ort::session::builder::GraphOptimizationLevel;
+    use ort::session::builder::{AutoDevicePolicy, GraphOptimizationLevel};
     let directory = match plan {
         LoadPlan::Source { save_to: None } => model_dir,
         LoadPlan::Cached { directory } => directory,
         LoadPlan::Source {
             save_to: Some(directory),
         } => {
+            let environment = super::environment()?;
             for name in GRAPHS {
-                let session = ort::session::Session::builder()?
+                let session = ort::session::Session::builder(&environment)?
+                    .with_auto_device(AutoDevicePolicy::PreferCPU)?
                     .with_optimization_level(GraphOptimizationLevel::Level3)?
                     .with_optimized_model_path(directory.join(name))?
                     .with_parallel_execution(true)?

@@ -53,6 +53,8 @@ abstract class BaseConfiguration {
 
   List<String> get secureStorageKeys;
 
+  String recoveryKeyToMnemonic(String recoveryKeyHex);
+
   List<String> get lockScreenSecureStorageKeys => const [];
 
   Future<void> init(List<EnteBaseDatabase> dbs) async {

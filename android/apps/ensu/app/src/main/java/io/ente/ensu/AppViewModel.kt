@@ -3,6 +3,7 @@ package io.ente.ensu
 import android.app.Application
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.content.pm.PackageInfoCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.ente.ensu.chat.ChatRepository
@@ -101,7 +102,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
     }
 
-    @Suppress("DEPRECATION")
     private fun getAppVersion(application: Application): String {
         val packageManager = application.packageManager
         val packageName = application.packageName
@@ -109,15 +109,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
             } else {
-                packageManager.getPackageInfo(packageName, 0)
+                @Suppress("DEPRECATION") packageManager.getPackageInfo(packageName, 0)
             }
         val versionName = packageInfo.versionName ?: "unknown"
-        val versionCode =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode
-            } else {
-                packageInfo.versionCode.toLong()
-            }
+        val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
         return "$versionName+$versionCode"
     }
 }

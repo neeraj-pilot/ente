@@ -2,7 +2,10 @@ use std::path::Path;
 
 use ort::{
     inputs,
-    session::{Session, SessionOutputs, builder::GraphOptimizationLevel},
+    session::{
+        Session, SessionOutputs,
+        builder::{AutoDevicePolicy, GraphOptimizationLevel},
+    },
     value::{DynValue, TensorRef},
 };
 use regex::{Captures, regex};
@@ -117,7 +120,9 @@ impl Parakeet {
 }
 
 fn load_session(path: &Path) -> Result<Session> {
-    Ok(Session::builder()?
+    let environment = super::environment()?;
+    Ok(Session::builder(&environment)?
+        .with_auto_device(AutoDevicePolicy::PreferCPU)?
         .with_optimization_level(GraphOptimizationLevel::Level3)?
         .with_parallel_execution(true)?
         .with_execution_providers([ort::ep::CPU::default().build()])?
@@ -208,8 +213,13 @@ fn argmax(values: &[f32]) -> Result<usize> {
     Ok(best)
 }
 
+fn attaches_to_previous_word(piece: &str) -> bool {
+    regex!(r"\A[\p{P}--[¿¡\p{Ps}\p{Pi}]]").is_match(piece)
+}
+
 fn render(emissions: &[Emission], vocabulary: &[String]) -> Transcript {
     let mut transcript = Transcript::default();
+    let mut after_standalone_marker = false;
     for (index, emission) in emissions.iter().enumerate() {
         let piece = vocabulary[emission.token].replace('▁', " ");
         let start = emission.frame as f32 * FRAME_SECONDS;
@@ -218,9 +228,14 @@ fn render(emissions: &[Emission], vocabulary: &[String]) -> Transcript {
             .map_or(start + 0.05, |next| next.frame as f32 * FRAME_SECONDS);
         transcript.text.push_str(&piece);
         if piece.trim().is_empty() {
+            after_standalone_marker = true;
             continue;
         }
-        if piece.starts_with(' ') || transcript.words.is_empty() {
+        let starts_word = piece.starts_with(' ')
+            || transcript.words.is_empty()
+            || (after_standalone_marker && !attaches_to_previous_word(&piece));
+        after_standalone_marker = false;
+        if starts_word {
             transcript.words.push(TimedWord {
                 text: piece.trim().to_owned(),
                 start,
@@ -326,9 +341,40 @@ mod tests {
         let vocabulary = vec!["▁Hello".into(), "▁".into(), "世界".into(), "!".into()];
         let continuation = render(&emissions, &vocabulary);
         assert_eq!(continuation.text, "Hello 世界!");
-        assert_eq!(continuation.words.len(), 1);
-        assert_eq!(continuation.words[0].text, "Hello世界!");
-        assert_eq!(continuation.words[0].end, 7.0 * FRAME_SECONDS + 0.05 - 0.25);
+        assert_eq!(continuation.words.len(), 2);
+        assert_eq!(continuation.words[0].text, "Hello");
+        assert_eq!(continuation.words[0].end, 5.0 * FRAME_SECONDS - 0.25);
+        assert_eq!(continuation.words[1].text, "世界!");
+        assert_eq!(continuation.words[1].start, 6.0 * FRAME_SECONDS - 0.25);
+        assert_eq!(continuation.words[1].end, 7.0 * FRAME_SECONDS + 0.05 - 0.25);
+    }
+
+    #[test]
+    fn standalone_markers_start_words_unless_closing_punctuation_follows() {
+        let vocabulary = vec![
+            "▁at".into(),
+            "▁".into(),
+            "1".into(),
+            "0".into(),
+            "р".into(),
+            "$".into(),
+            "5".into(),
+            ",".into(),
+            "¿".into(),
+            "qué".into(),
+        ];
+        let tokens = [0, 1, 2, 3, 1, 4, 1, 5, 6, 1, 7, 1, 8, 9];
+        let emissions: Vec<_> = tokens
+            .into_iter()
+            .enumerate()
+            .map(|(frame, token)| Emission { token, frame })
+            .collect();
+        let words: Vec<_> = render(&emissions, &vocabulary)
+            .words
+            .into_iter()
+            .map(|word| word.text)
+            .collect();
+        assert_eq!(words, ["at", "10", "р", "$5,", "¿qué"]);
     }
 
     #[test]
