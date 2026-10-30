@@ -303,7 +303,6 @@ async fn change_password_updates_srp_and_keys() {
             "email".into(),
             "user@example.org".into(),
         ))
-        .with_status(503)
         .expect(0)
         .create_async()
         .await;

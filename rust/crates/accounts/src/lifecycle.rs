@@ -43,7 +43,7 @@ impl fmt::Debug for ChangePasswordParams {
 #[derive(Debug)]
 pub struct CheckSessionValidityParams {
     pub email: String,
-    pub local_srp_attributes: SrpAttributes,
+    pub local_srp_attributes: Option<SrpAttributes>,
 }
 
 #[derive(Debug, Serialize)]
@@ -187,7 +187,11 @@ pub async fn check_session_validity(
             Err(Error::SrpNotConfigured) => return Ok(SessionValidity::Valid),
             Err(error) => return Err(error),
         };
-        if remote_srp_attributes.kek_salt != params.local_srp_attributes.kek_salt {
+        if params
+            .local_srp_attributes
+            .as_ref()
+            .is_none_or(|local| remote_srp_attributes.kek_salt != local.kek_salt)
+        {
             return Ok(SessionValidity::ValidButPasswordChanged {
                 updated_key_attributes: remote_key_attributes,
                 updated_srp_attributes: remote_srp_attributes,

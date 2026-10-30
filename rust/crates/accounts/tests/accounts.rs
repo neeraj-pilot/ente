@@ -109,11 +109,23 @@ async fn run(endpoint: String) -> TestResult {
         },
     )
     .await?;
+    assert!(matches!(
+        check_session_validity(
+            &recovery_client,
+            CheckSessionValidityParams {
+                email: email.clone(),
+                local_srp_attributes: None,
+            },
+        )
+        .await?,
+        SessionValidity::ValidButPasswordChanged { updated_key_attributes, .. }
+            if updated_key_attributes.kek_salt == changed.kek_salt
+    ));
     let validity = check_session_validity(
         &client,
         CheckSessionValidityParams {
             email: email.clone(),
-            local_srp_attributes: original_srp_attributes,
+            local_srp_attributes: Some(original_srp_attributes),
         },
     )
     .await?;
@@ -164,7 +176,7 @@ async fn run(endpoint: String) -> TestResult {
             &client,
             CheckSessionValidityParams {
                 email: email.clone(),
-                local_srp_attributes: updated_srp_attributes,
+                local_srp_attributes: Some(updated_srp_attributes),
             },
         )
         .await?,

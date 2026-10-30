@@ -85,6 +85,7 @@ beforeEach(() => {
     vi.stubGlobal("localStorage", {
         getItem: (key: string) => storage.get(key) ?? null,
         setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
     });
     replaceSavedLocalUser({ id: 1, email: "user@example.org", token: "token" });
     saveKeyAttributes(original);
@@ -99,35 +100,66 @@ beforeEach(() => {
     });
 });
 
-test("password change saves keys and the next session check reconciles SRP", async () => {
-    await expect(change()).resolves.toBeUndefined();
+test.each([true, false])(
+    "password change reconciles SRP (cached: %s)",
+    async (cached) => {
+        if (!cached) localStorage.removeItem("srpAttributes");
+        await expect(change()).resolves.toBeUndefined();
 
-    expect(generateInteractiveKeyAttributes).toHaveBeenCalledBefore(
-        rustChangePassword,
-    );
-    expect(savedKeyAttributes()).toEqual(updated);
-    expect(savedOriginalKeyAttributes()).toEqual(remote);
-    expect(savedSRPAttributes()).toEqual(originalSRPAttributes);
+        expect(generateInteractiveKeyAttributes).toHaveBeenCalledBefore(
+            rustChangePassword,
+        );
+        expect(savedKeyAttributes()).toEqual(updated);
+        expect(savedOriginalKeyAttributes()).toEqual(remote);
+        expect(savedSRPAttributes()).toEqual(
+            cached ? originalSRPAttributes : undefined,
+        );
 
-    await expect(checkSessionValidity()).resolves.toEqual({ status: "valid" });
-    expect(savedSRPAttributes()).toEqual(updatedSRPAttributes);
-});
+        await expect(checkSessionValidity()).resolves.toEqual({
+            status: "valid",
+        });
+        expect(rustCheckSessionValidity).toHaveBeenCalledWith(
+            expect.anything(),
+            "token",
+            "user@example.org",
+            cached ? originalSRPAttributes : undefined,
+        );
+        expect(savedSRPAttributes()).toEqual(updatedSRPAttributes);
+    },
+);
 
-test("a subsequent password change elsewhere is still detected", async () => {
-    await change();
-    const result = {
-        status: "validButPasswordChanged",
-        updatedKeyAttributes: { ...remote, kekSalt: "another-salt" },
-        updatedSRPAttributes: {
-            ...updatedSRPAttributes,
-            kekSalt: "another-salt",
-        },
-    };
-    rustCheckSessionValidity.mockResolvedValue(result);
+test.each([
+    [true, true, "validButPasswordChanged"],
+    [false, true, "validButPasswordChanged"],
+    [true, false, "validButPasswordChanged"],
+    [false, false, "valid"],
+])(
+    "session check with SRP cache %s and original keys %s returns %s",
+    async (hasSRP, hasOriginal, status) => {
+        if (!hasSRP) localStorage.removeItem("srpAttributes");
+        if (!hasOriginal) localStorage.removeItem("originalKeyAttributes");
+        const result = {
+            status: "validButPasswordChanged",
+            updatedKeyAttributes: { ...remote, kekSalt: "another-salt" },
+            updatedSRPAttributes: {
+                ...updatedSRPAttributes,
+                kekSalt: "another-salt",
+            },
+        };
+        rustCheckSessionValidity.mockResolvedValue(result);
 
-    await expect(checkSessionValidity()).resolves.toEqual(result);
-    expect(savedSRPAttributes()).toEqual(originalSRPAttributes);
-});
+        await expect(checkSessionValidity()).resolves.toEqual(
+            status === "valid" ? { status } : result,
+        );
+        expect(savedSRPAttributes()).toEqual(
+            status === "valid"
+                ? result.updatedSRPAttributes
+                : hasSRP
+                  ? originalSRPAttributes
+                  : undefined,
+        );
+    },
+);
 
 test("local key preparation failure does not change the password", async () => {
     const error = new Error("key preparation failed");

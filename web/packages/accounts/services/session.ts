@@ -37,20 +37,23 @@ const SessionValidityResponse = z.object({
 
 export const checkSessionValidity = async () => {
     const token = await ensureAuthToken();
+    const localSRPAttributes = savedSRPAttributes();
+    const originalKeyAttributes = savedOriginalKeyAttributes();
     const result = SessionValidity.parse(
         await withAccountsClient((client) =>
             rustCheckSessionValidity(
                 client,
                 token,
                 ensureLocalUser().email,
-                savedSRPAttributes()!,
+                localSRPAttributes,
             ),
         ),
     );
     if (
         result.status === "validButPasswordChanged" &&
-        result.updatedSRPAttributes.kekSalt ===
-            savedOriginalKeyAttributes()?.kekSalt
+        (result.updatedSRPAttributes.kekSalt ===
+            originalKeyAttributes?.kekSalt ||
+            (!localSRPAttributes && !originalKeyAttributes))
     ) {
         saveSRPAttributes(result.updatedSRPAttributes);
         return { status: "valid" as const };
