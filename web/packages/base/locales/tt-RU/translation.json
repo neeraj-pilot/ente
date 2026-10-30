@@ -336,7 +336,6 @@
     "logout_message": "Чыгарга теләвегезне раслыйсызмы?",
     "delete_account": "Аккаунтны бетерү",
     "delete_account_multi_app_warning": "Бу сезнең Ente Auth, Ente Photos һәм Ente Locker аккаунтыгызны бетерәчәк.",
-    "delete_account_manually_message": "<p>Зинһар, теркәлгән email адресыгыздан <a>{{emailID}}</a> адресына хат җибәрегез.</p><p>Соравыгыз 72 сәгать эчендә каралачак.</p>",
     "change_email": "Email адресын үзгәртү",
     "active_sessions": "Актив сессияләр",
     "active_sessions_hint": "Болар — сез хәзерге вакытта кергән җайланмалар",

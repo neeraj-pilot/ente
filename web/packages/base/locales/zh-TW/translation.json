@@ -336,7 +336,6 @@
     "logout_message": "確定要登出嗎？",
     "delete_account": "刪除帳戶",
     "delete_account_multi_app_warning": "這將刪除您的 Ente Auth、Ente Photos 與 Ente Locker 帳戶。",
-    "delete_account_manually_message": "<p>請使用您註冊的電子郵件地址寄信至 <a>{{emailID}}</a>。</p><p>您的申請將在 72 小時內處理。</p>",
     "change_email": "更改電子郵件",
     "active_sessions": "已登入的裝置",
     "active_sessions_hint": "以下為您目前登入的裝置",

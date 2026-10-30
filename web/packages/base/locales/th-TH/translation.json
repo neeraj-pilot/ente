@@ -336,7 +336,6 @@
     "logout_message": "คุณแน่ใจไหมว่าจะออกจากระบบ?",
     "delete_account": "บัญชี",
     "delete_account_multi_app_warning": "การกระทำนี้จะลบบัญชี Ente Auth, Ente Photos และ Ente Locker ของคุณ",
-    "delete_account_manually_message": "",
     "change_email": "เปลี่ยนอีเมล",
     "active_sessions": "",
     "active_sessions_hint": "",

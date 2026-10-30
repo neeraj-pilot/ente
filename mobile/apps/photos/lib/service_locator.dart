@@ -20,7 +20,6 @@ import "package:photos/gateways/files/files_gateway.dart";
 import "package:photos/gateways/push/push_gateway.dart";
 import "package:photos/gateways/social/social_gateway.dart";
 import "package:photos/gateways/trash/trash_gateway.dart";
-import "package:photos/gateways/users/passkey_gateway.dart";
 import "package:photos/gateways/users/users_gateway.dart";
 import "package:photos/module/download/gallery_download_queue_service.dart";
 import "package:photos/module/download/manager.dart";
@@ -394,12 +393,6 @@ BillingGateway? _billingGateway;
 BillingGateway get billingGateway {
   _billingGateway ??= BillingGateway(ServiceLocator.instance.enteDio);
   return _billingGateway!;
-}
-
-PasskeyGateway? _passkeyGateway;
-PasskeyGateway get passkeyGateway {
-  _passkeyGateway ??= PasskeyGateway(ServiceLocator.instance.enteDio);
-  return _passkeyGateway!;
 }
 
 UsersGateway? _usersGateway;

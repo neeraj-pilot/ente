@@ -2,15 +2,20 @@
 #![cfg(feature = "museum")]
 
 use ente_accounts::{
-    AccountsClient, AccountsClientConfig, TwoFactorSetup,
-    lifecycle::recover_two_factor,
-    login::{LoginFlow, LoginStep},
+    AccountsClient, AccountsClientConfig, ChangePasswordParams, CheckSessionValidityParams, Error,
+    SessionValidity, TwoFactorSetup,
+    lifecycle::{
+        change_password, check_session_validity, passkey_management_url, recover_two_factor,
+    },
+    login::{LoginFlow, LoginStep, recover_account, unlock},
     models::TwoFactorType,
     signup::Signup,
 };
+use ente_core::{b64, crypto::SecretVec};
 use ente_test_support::account_fixture::current_totp;
 use ente_test_support::{HARDCODED_OTT, HARDCODED_OTT_EMAIL_SUFFIX, Museum, TestResult};
 use uuid::Uuid;
+use zeroize::Zeroizing;
 
 #[test]
 fn accounts() -> TestResult {
@@ -18,14 +23,14 @@ fn accounts() -> TestResult {
 }
 
 async fn run(endpoint: String) -> TestResult {
-    let endpoint = &endpoint;
+    let endpoint = &endpoint.replace("127.0.0.1", "localhost");
     let email = format!(
         "accounts-e2e-{}{HARDCODED_OTT_EMAIL_SUFFIX}",
         Uuid::new_v4()
     );
     let password = format!("Accounts-{}!", Uuid::new_v4().simple());
     let client = accounts_client(endpoint);
-    client.send_otp(&email, "signup").await?;
+    client.send_otp(&email, "signup", false).await?;
     let response = client
         .verify_email(&email, HARDCODED_OTT, Some("testAccount"))
         .await?;
@@ -62,26 +67,154 @@ async fn run(endpoint: String) -> TestResult {
     assert_eq!(login.secrets.master_key, created.secrets.master_key);
     assert_eq!(client.email().await.unwrap(), email);
     assert!(client.get_two_factor_status().await.unwrap());
-
     let recovery_client = accounts_client(endpoint);
-    recovery_client.send_otp(&email, "login").await?;
-    let response = recovery_client
+    recovery_client.send_otp(&email, "login", false).await?;
+    let pending = recovery_client
         .verify_email(&email, HARDCODED_OTT, None)
         .await?;
-    let session_id = response.get_two_factor_session_id().unwrap();
-    let recovery = recovery_client
-        .get_two_factor_recovery(session_id, TwoFactorType::Totp)
+    let session = pending.get_two_factor_session_id().unwrap();
+    let envelope = recovery_client
+        .get_two_factor_recovery(session, TwoFactorType::Totp)
         .await?;
     let recovered = recover_two_factor(
         &recovery_client,
         TwoFactorType::Totp,
-        session_id,
-        &recovery,
-        &setup.recovery_key,
+        session,
+        &envelope,
+        &created.recovery_key,
     )
     .await?;
     assert_eq!(recovered.id, created.user_id);
-    assert!(!client.get_two_factor_status().await?);
+    let response = recovered.into();
+    let recovered =
+        ente_accounts::login::unlock_with_password(&recovery_client, &response, &password)?;
+    let restored = ente_accounts::login::unlock_with_master_key(
+        &recovery_client,
+        &response,
+        &created.secrets.master_key,
+    )?;
+    assert_eq!(restored.secrets.token, recovered.secrets.token);
+    assert_eq!(restored.recovery_key, recovered.recovery_key);
+    let recovery_client =
+        recovery_client.with_auth_token(b64::encode_url_safe(&recovered.secrets.token));
+    assert_eq!(recovery_client.email().await?, email);
+    assert!(!recovery_client.get_two_factor_status().await?);
+    assert_eq!(recovered.secrets.master_key, created.secrets.master_key);
+
+    let original_srp_attributes = client.get_srp_attributes(&email).await?;
+    let new_password = format!("Changed-{}!", Uuid::new_v4().simple());
+    let changed = change_password(
+        &recovery_client,
+        ChangePasswordParams {
+            email: email.clone(),
+            password: Zeroizing::new(new_password.clone()),
+            master_key: SecretVec::new(recovered.secrets.master_key.clone()),
+            key_attributes: recovered.key_attributes.clone(),
+            log_out_other_devices: false,
+        },
+    )
+    .await?;
+    let validity = check_session_validity(
+        &client,
+        CheckSessionValidityParams {
+            email: email.clone(),
+            local_srp_attributes: original_srp_attributes,
+        },
+    )
+    .await?;
+    let SessionValidity::ValidButPasswordChanged {
+        updated_key_attributes,
+        updated_srp_attributes,
+    } = validity
+    else {
+        panic!("existing session did not detect the password change");
+    };
+    assert_eq!(
+        updated_key_attributes.kek_salt,
+        changed.key_attributes.kek_salt
+    );
+    assert_eq!(
+        updated_srp_attributes.srp_user_id,
+        changed.srp_attributes.srp_user_id
+    );
+
+    let login_client = accounts_client(endpoint);
+    assert!(matches!(
+        login_client
+            .login_with_srp(&password, &changed.srp_attributes)
+            .await,
+        Err(Error::IncorrectPassword)
+    ));
+    let (response, kek) = login_client
+        .login_with_srp(&new_password, &changed.srp_attributes)
+        .await?;
+    let changed_login = unlock(&login_client, &response, &kek)?;
+    assert_eq!(changed_login.secrets.master_key, created.secrets.master_key);
+    login_client.send_otp(&email, "login", false).await?;
+    let response = login_client
+        .verify_email(&email, HARDCODED_OTT, None)
+        .await?;
+    let recovered = recover_account(&login_client, &response, &created.recovery_key)?;
+    assert_eq!(recovered.secrets.secret_key, created.secrets.secret_key);
+    let recovered_client =
+        login_client.with_auth_token(b64::encode_url_safe(&recovered.secrets.token));
+    assert_eq!(recovered_client.email().await?, email);
+
+    let reset_password = format!("Reset-{}!", Uuid::new_v4().simple());
+    let reset = change_password(
+        &recovered_client,
+        ChangePasswordParams {
+            email: email.clone(),
+            password: Zeroizing::new(reset_password.clone()),
+            master_key: SecretVec::new(recovered.secrets.master_key.clone()),
+            key_attributes: recovered.key_attributes.clone(),
+            log_out_other_devices: true,
+        },
+    )
+    .await?;
+    assert!(matches!(
+        check_session_validity(
+            &client,
+            CheckSessionValidityParams {
+                email: email.clone(),
+                local_srp_attributes: changed.srp_attributes,
+            },
+        )
+        .await?,
+        SessionValidity::Invalid
+    ));
+    assert_eq!(recovered_client.email().await?, email);
+    let (response, kek) = login_client
+        .login_with_srp(&reset_password, &reset.srp_attributes)
+        .await?;
+    assert_eq!(
+        unlock(&login_client, &response, &kek)?.secrets.master_key,
+        created.secrets.master_key
+    );
+
+    let passkey_url = passkey_management_url(&recovered_client, &created.recovery_key).await?;
+    assert!(passkey_url.contains("/passkeys?token="));
+    assert!(
+        recovered_client
+            .get_two_factor_recovery_status()
+            .await?
+            .is_passkey_recovery_enabled
+    );
+    let session = ente_core::Session::new(
+        ente_core::http::ApiConfig {
+            auth: Some(ente_core::http::Auth::User(b64::encode_url_safe(
+                &recovered.secrets.token,
+            ))),
+            client_package: Some("io.ente.photos".into()),
+            ..ente_core::http::ApiConfig::new(endpoint.clone())
+        },
+        recovered.user_id,
+        ente_core::crypto::Key::try_from_slice(&recovered.secrets.master_key)?,
+        ente_core::crypto::Key::try_from_slice(&hex::decode(&recovered.recovery_key)?)?,
+        ente_core::crypto::SecretKey::try_from_slice(&recovered.secrets.secret_key)?,
+    )?;
+    let challenge = ente_accounts::deletion::get_delete_challenge(&session).await?;
+    ente_accounts::deletion::delete_account(&session, &challenge, "not_listed", None).await?;
     Ok(())
 }
 

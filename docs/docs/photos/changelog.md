@@ -7,6 +7,10 @@ description: Release notes of recent updates to Ente Photos mobile and desktop a
 
 A short summary list of changes to the Ente Photos mobile and desktop apps. For a more descriptive list with screenshots and blog post links, see the [news](https://ente.com/news).
 
+## v1.7.31 (desktop) - Oct 2026
+
+- Updated TLS certificate verification to reject compromised eMudhra certificates.
+
 ## v1.3.66 (mobile) - Oct 2026
 
 - Added a mosaic gallery layout that shows photos in their original proportions.

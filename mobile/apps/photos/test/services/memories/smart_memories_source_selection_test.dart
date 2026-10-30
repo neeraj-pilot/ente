@@ -167,7 +167,7 @@ void main() {
     });
 
     test(
-      "MemoryFileIndex is a broad prefilter for exact date windows",
+      "MemoryFileIndex is a broad prefilter for calendar date windows",
       () async {
         final currentTime = DateTime(2026, 8, 18, 12);
         final source = [
@@ -196,12 +196,12 @@ void main() {
             .expand((memory) => memory.memories)
             .map((memory) => memory.file.uploadedFileID);
         expect(selectedIDs(indexedResult), selectedIDs(fullResult));
-        expect(selectedIDs(indexedResult), [2, 3]);
+        expect(selectedIDs(indexedResult), [1, 2]);
       },
     );
 
     test(
-      "Filler memories preserve year-boundary, leap-day, and time-window matching",
+      "Filler memories preserve year-boundary, leap-day, and calendar-day matching",
       () async {
         final yearBoundaryMemories =
             await TimeMemoriesCalculator.computeFillerMemories(
@@ -258,7 +258,7 @@ void main() {
           sameDayMemories.single.memories.map(
             (memory) => memory.file.uploadedFileID,
           ),
-          [6, 7],
+          [5, 6],
         );
       },
     );

@@ -1,5 +1,6 @@
 import { CreateAlbumDialog } from "@/components/collections/CreateAlbumDialog";
 import { SearchBar, type SearchBarProps } from "@/components/SearchBar";
+import { Sidebar } from "@/components/sidebar/Sidebar";
 import { useIsOffline } from "@/components/utils/use-is-offline";
 import { uploadManager } from "@/services/upload-manager";
 import {
@@ -24,6 +25,7 @@ import {
     useTheme,
 } from "@mui/material";
 import { EnteLogo, EnteLogoBox } from "ente-base/components/EnteLogo";
+import { TranslucentLoadingOverlay } from "ente-base/components/loaders";
 import type { ButtonishProps } from "ente-base/components/mui";
 import { FocusVisibleButton } from "ente-base/components/mui/FocusVisibleButton";
 import { NavbarBase } from "ente-base/components/Navbar";
@@ -33,8 +35,15 @@ import { ut } from "ente-base/i18n";
 import { thumbnailGridPadding } from "ente-new/photos/components/utils/thumbnail-grid-layout";
 import { PseudoCollectionID } from "ente-new/photos/services/collection-summary";
 import { isMLSupported } from "ente-new/photos/services/ml";
+import type { SidebarActionID } from "ente-new/photos/services/search/types";
 import { t } from "i18next";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+    useCallback,
+    useEffect,
+    useImperativeHandle,
+    useState,
+    type ReactNode,
+} from "react";
 
 import type { RemotePullOpts } from ".";
 import {
@@ -65,39 +74,73 @@ type PhotosNavigationShellProps = SearchBarProps & {
     onChangeMode: (mode: GalleryBarMode) => boolean;
 };
 
+export interface PhotosNavigationShellHandle {
+    showSettings: (action?: SidebarActionID) => void;
+}
+
 export const PhotosNavigationShell: React.FC<
     React.PropsWithChildren<
-        PhotosNavigationShellProps & {
+        Omit<PhotosNavigationShellProps, "isSettingsOpen" | "onSidebar"> & {
+            ref?: React.Ref<PhotosNavigationShellHandle>;
             isFirstLoad: boolean;
             alternateHeader: ReactNode;
             galleryNavigation: GalleryNavigation | undefined;
+            collectionNameByID: Map<number, string>;
+            onShowCleanupView: (view: "large-files" | "duplicates") => void;
+            onAuthenticateUser: () => Promise<boolean>;
         }
     >
 > = ({
+    ref,
     isFirstLoad,
     alternateHeader,
     galleryNavigation,
+    collectionNameByID,
+    onShowCleanupView,
+    onAuthenticateUser,
     children,
     ...props
 }) => {
+    const { show: showSidebar, props: sidebarVisibilityProps } =
+        useModalVisibility();
+    const [pendingSidebarAction, setPendingSidebarAction] =
+        useState<SidebarActionID>();
+    const [settingsLoading, setSettingsLoading] = useState(false);
+    const showSettings = useCallback(
+        (action?: SidebarActionID) => {
+            setPendingSidebarAction(action);
+            showSidebar();
+        },
+        [showSidebar],
+    );
+    const handleSidebarActionHandled = useCallback(
+        () => setPendingSidebarAction(undefined),
+        [],
+    );
+    useImperativeHandle(ref, () => ({ showSettings }), [showSettings]);
     const isOffline = useIsOffline();
     const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
-    const [railOpen, setRailOpen] = useState(true);
     const [navigationCollapsed, setNavigationCollapsed] = useState(false);
-    const toggleRail = () => setRailOpen((open) => !open);
     const mobile = useMediaQuery(useTheme().breakpoints.down("md"));
-    const panelOpen =
-        railOpen &&
-        !!galleryNavigation &&
-        !props.isInSearchMode &&
-        !navigationCollapsed;
+    const navigationAvailable = !!galleryNavigation && !props.isInSearchMode;
+    const panelOpen = navigationAvailable && !navigationCollapsed;
     const contentRef = useNavigationContentMotion(
-        `${mobile}-${panelOpen}-${railOpen}`,
+        `${mobile}-${panelOpen}`,
         reduceMotion,
     );
     const { show: showMobileNavigation, props: mobileDrawerProps } =
         useModalVisibility();
     const { onClose: closeMobileNavigation } = mobileDrawerProps;
+    const navigationOpen =
+        navigationAvailable && (mobile ? mobileDrawerProps.open : panelOpen);
+    const toggleNavigation = () => {
+        if (mobile) {
+            if (mobileDrawerProps.open) closeMobileNavigation();
+            else showMobileNavigation();
+        } else {
+            setNavigationCollapsed((collapsed) => !collapsed);
+        }
+    };
     const { onSelectCollectionID } = galleryNavigation ?? {};
     const { onSelectPerson } = props;
     const selectCollection = useCallback(
@@ -123,7 +166,7 @@ export const PhotosNavigationShell: React.FC<
     };
     useEffect(() => {
         setNavigationCollapsed(false);
-    }, [props.mode, props.isInSearchMode]);
+    }, [props.mode, props.isInSearchMode, props.isMapSelected]);
     useEffect(() => {
         if (!mobile) closeMobileNavigation();
     }, [mobile, closeMobileNavigation]);
@@ -167,6 +210,10 @@ export const PhotosNavigationShell: React.FC<
             mobileDrawerProps={mobileDrawerProps}
             onCreateAlbum={openAlbumCreation}
             onSelectCollectionID={selectCollection}
+            onSelectPlace={(place) => {
+                galleryNavigation.onSelectPlace(place);
+                closeMobileNavigation();
+            }}
             onSelectPerson={selectPerson}
         />
     );
@@ -196,7 +243,11 @@ export const PhotosNavigationShell: React.FC<
                 {alternateHeader ?? (
                     <NormalHeaderContents
                         onUpload={props.onUpload}
-                        {...{ railOpen, toggleRail }}
+                        {...{
+                            navigationAvailable,
+                            navigationOpen,
+                            toggleNavigation,
+                        }}
                     />
                 )}
             </NavbarBase>
@@ -207,14 +258,11 @@ export const PhotosNavigationShell: React.FC<
                     minWidth: 0,
                     minHeight: 0,
                     overflow: "clip",
-                    p: {
-                        xs: railOpen ? "0 8px 8px 0" : "0 8px 8px",
-                        sm: railOpen ? "0 11px 11px 0" : "0 11px 11px",
-                    },
+                    p: { xs: "0 8px 8px 0", sm: "0 11px 11px 0" },
                 }}
             >
                 <NavigationSlide
-                    open={railOpen}
+                    open
                     width={{ xs: 56, sm: 72 }}
                     reduceMotion={reduceMotion}
                     rail
@@ -240,6 +288,13 @@ export const PhotosNavigationShell: React.FC<
                         {alternateHeader == null && (
                             <NormalNavigationRail
                                 {...props}
+                                isSettingsOpen={sidebarVisibilityProps.open}
+                                onSidebar={() => showSettings()}
+                                onShowMap={() => {
+                                    props.onShowMap();
+                                    setNavigationCollapsed(false);
+                                    if (mobile) showMobileNavigation();
+                                }}
                                 isHome={
                                     !props.isMapSelected &&
                                     props.mode == "albums" &&
@@ -319,16 +374,28 @@ export const PhotosNavigationShell: React.FC<
                     </Stack>
                 </Stack>
             </Stack>
+            <Sidebar
+                {...sidebarVisibilityProps}
+                pendingAction={pendingSidebarAction}
+                onActionHandled={handleSidebarActionHandled}
+                onShowLargeFiles={() => onShowCleanupView("large-files")}
+                onShowDuplicates={() => onShowCleanupView("duplicates")}
+                collectionNameByID={collectionNameByID}
+                onAuthenticateUser={onAuthenticateUser}
+                setLoading={setSettingsLoading}
+            />
+            {settingsLoading && <TranslucentLoadingOverlay />}
         </Stack>
     );
 };
 
 const NormalHeaderContents: React.FC<
     Pick<PhotosNavigationShellProps, "onUpload"> & {
-        railOpen: boolean;
-        toggleRail: () => void;
+        navigationAvailable: boolean;
+        navigationOpen: boolean;
+        toggleNavigation: () => void;
     }
-> = ({ onUpload, railOpen, toggleRail }) => {
+> = ({ onUpload, navigationAvailable, navigationOpen, toggleNavigation }) => {
     return (
         <Box
             sx={{
@@ -338,14 +405,25 @@ const NormalHeaderContents: React.FC<
                 flex: 1,
             }}
         >
-            <Tooltip title={railOpen ? ut("Hide sidebar") : ut("Show sidebar")}>
+            <Tooltip
+                title={
+                    !navigationAvailable
+                        ? ""
+                        : navigationOpen
+                          ? ut("Hide navigation panel")
+                          : ut("Show navigation panel")
+                }
+            >
                 <FocusVisibleButton
                     color="secondary"
                     aria-label={
-                        railOpen ? ut("Hide sidebar") : ut("Show sidebar")
+                        navigationOpen
+                            ? ut("Hide navigation panel")
+                            : ut("Show navigation panel")
                     }
-                    aria-expanded={railOpen}
-                    onClick={toggleRail}
+                    aria-expanded={navigationOpen}
+                    disabled={!navigationAvailable}
+                    onClick={toggleNavigation}
                     sx={{
                         minWidth: 0,
                         width: 38,
@@ -364,7 +442,7 @@ const NormalHeaderContents: React.FC<
                         <rect x="3" y="4" width="18" height="16" rx="3" />
                         <path
                             d={
-                                railOpen
+                                navigationOpen
                                     ? "M9 4v16M15 10l-2 2 2 2"
                                     : "M9 4v16M13 10l2 2-2 2"
                             }

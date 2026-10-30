@@ -1,14 +1,17 @@
 import { expose } from "comlink";
 import { logUnhandledErrorsAndRejectionsInWorker } from "ente-base/log-web";
-import { deriveSensitiveKey, encryptBox } from "ente-prelogin-wasm";
-import { ensure } from "ente-utils/ensure";
+import { ensureAuthToken } from "ente-base/token";
+import { changePassword } from "ente-prelogin-wasm";
+import { z } from "zod";
+import { withAccountsClient } from "./accounts-client";
 import { generateInteractiveKeyAttributes } from "./key-attributes";
-import {
-    generateSRPSetupAttributes,
-    getSRPAttributes,
-    updateSRPAndKeyAttributes,
-} from "./srp";
-import type { KeyAttributes } from "./user";
+import { RemoteSRPAttributes } from "./srp";
+import { RemoteKeyAttributes, type KeyAttributes } from "./user";
+
+const ChangedPassword = z.object({
+    keyAttributes: RemoteKeyAttributes,
+    srpAttributes: RemoteSRPAttributes,
+});
 
 export class PasswordWorker {
     async changePassword(
@@ -17,34 +20,27 @@ export class PasswordWorker {
         keyAttributes: KeyAttributes,
         email: string,
     ) {
-        const {
-            key: kek,
-            salt: kekSalt,
-            opsLimit,
-            memLimit,
-        } = await deriveSensitiveKey(password);
-        const { encryptedData: encryptedKey, nonce: keyDecryptionNonce } =
-            await encryptBox(masterKey, kek);
-        const updatedKeyAttr = {
-            encryptedKey,
-            keyDecryptionNonce,
-            kekSalt,
-            opsLimit,
-            memLimit,
+        const token = await ensureAuthToken();
+        const updated = ChangedPassword.parse(
+            await withAccountsClient((client) =>
+                changePassword(
+                    client,
+                    token,
+                    email,
+                    password,
+                    masterKey,
+                    keyAttributes,
+                ),
+            ),
+        );
+        return {
+            srpAttributes: updated.srpAttributes,
+            keyAttributes: await generateInteractiveKeyAttributes(
+                password,
+                updated.keyAttributes,
+                masterKey,
+            ),
         };
-
-        await updateSRPAndKeyAttributes(
-            await generateSRPSetupAttributes(kek),
-            updatedKeyAttr,
-        );
-
-        const srpAttributes = ensure(await getSRPAttributes(email));
-        const interactiveKeyAttributes = await generateInteractiveKeyAttributes(
-            password,
-            { ...keyAttributes, ...updatedKeyAttr },
-            masterKey,
-        );
-        return { srpAttributes, keyAttributes: interactiveKeyAttributes };
     }
 }
 

@@ -1,7 +1,6 @@
 package pkg
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/ente/cli/internal"
@@ -108,8 +107,8 @@ func (c *ClICtrl) decryptAccSecretInfo(
 			fmt.Printf("error decrypting token: %v", err)
 			return nil, err
 		}
-		if len(tokenKey) != len("auth-token")+32 || !bytes.HasPrefix(tokenKey, []byte("auth-token")) {
-			return nil, fmt.Errorf("invalid login token: the server may need upgrading")
+		if err := c.Client.ValidateAuthToken(tokenKey); err != nil {
+			return nil, err
 		}
 		break
 	}

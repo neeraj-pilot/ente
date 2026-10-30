@@ -336,7 +336,6 @@
     "logout_message": "Opravdu se chcete odhlásit?",
     "delete_account": "Smazat účet",
     "delete_account_multi_app_warning": "Tímto smažete Váš účet Ente Auth, Ente Photos a Ente Locker.",
-    "delete_account_manually_message": "<p>Pošlete prosím e-mail na <a>{{emailID}}</a> z vaší registrované e-mailové adresy.</p><p>Váš požadavek bude zpracován do 72 hodin.</p>",
     "change_email": "Změnit e-mail",
     "active_sessions": "Aktivní relace",
     "active_sessions_hint": "Toto jsou zařízení, ve kterých jste aktuálně přihlášeni",

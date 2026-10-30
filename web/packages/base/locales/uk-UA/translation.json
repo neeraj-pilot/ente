@@ -336,7 +336,6 @@
     "logout_message": "Ви впевнені, що хочете вийти з облікового запису?",
     "delete_account": "Видалити обліковий запис",
     "delete_account_multi_app_warning": "Це видалить ваші облікові записи Ente Auth, Ente Photos та Ente Locker.",
-    "delete_account_manually_message": "<p>Надішліть листа на <a>{{emailID}}</a> з вашої зареєстрованої поштової адреси.</p><p>Ваш запит буде оброблено протягом 72 годин.</p>",
     "change_email": "Змінити поштову адресу",
     "active_sessions": "Активні сеанси",
     "active_sessions_hint": "Це пристрої, на яких ви зараз увійшли",

@@ -336,7 +336,6 @@
     "logout_message": "کیا آپ واقعی لاگ آؤٹ کرنا چاہتے ہیں؟",
     "delete_account": "اکاؤنٹ حذف کریں",
     "delete_account_multi_app_warning": "یہ آپ کا Ente Auth، Ente Photos اور Ente Locker اکاؤنٹ حذف کر دے گا۔",
-    "delete_account_manually_message": "<p>براہ مہربانی اپنے رجسٹرڈ ای میل سے <a>{{emailID}}</a> پر ای میل بھیجیں۔</p><p>آپ کی درخواست 72 گھنٹوں میں پروسیس کر دی جائے گی۔</p>",
     "change_email": "ای میل تبدیل کریں",
     "active_sessions": "فعال سیشنز",
     "active_sessions_hint": "یہ وہ ڈیوائسز ہیں جہاں آپ فی الحال لاگ ان ہیں",

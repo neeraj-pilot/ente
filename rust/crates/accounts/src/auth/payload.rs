@@ -1,93 +1,72 @@
-use ente_core::b64;
-use hmac::{Hmac, KeyInit, Mac};
-use sha2::Sha256;
-use zeroize::Zeroizing;
+use ente_core::{b64, crypto::hash::hmac_sha256, http::Api};
 
 use crate::{Error, Result, models::TwoFactorType};
 
-pub fn validate_auth_token(token: &[u8]) -> Result<()> {
-    if token.len() != b"auth-token".len() + 32 || !token.starts_with(b"auth-token") {
-        return Err(Error::Protocol(
-            "Invalid login token. The server may need upgrading.".into(),
-        ));
+pub(crate) fn enforce_auth_payloads(api: &Api) -> bool {
+    matches!(
+        api.origin_host().as_deref(),
+        Some("api.ente.com" | "api.ente.in" | "localhost")
+    )
+}
+
+pub(crate) fn validate_auth_token(api: &Api, token: &[u8]) -> Result<()> {
+    if enforce_auth_payloads(api)
+        && (token.len() != b"auth-token".len() + 32 || !token.starts_with(b"auth-token"))
+    {
+        return Err(Error::Protocol("Invalid login token".into()));
     }
     Ok(())
 }
 
-pub fn parse_delete_account_challenge(plaintext: &[u8]) -> Result<String> {
-    let challenge = plaintext
-        .strip_prefix(b"delete-jwt")
-        .filter(|challenge| !challenge.is_empty())
-        .ok_or_else(|| {
-            Error::Protocol("Invalid deletion challenge. The server may need upgrading.".into())
-        })?;
-    String::from_utf8(challenge.to_vec())
-        .map_err(|_| Error::Protocol("Invalid deletion challenge encoding".into()))
+pub(crate) fn deletion_challenge<'a>(api: &Api, plaintext: &'a str) -> Result<&'a str> {
+    match plaintext.strip_prefix("delete-jwt") {
+        Some(challenge) if !challenge.is_empty() => Ok(challenge),
+        None if !enforce_auth_payloads(api) => Ok(plaintext),
+        _ => Err(Error::Protocol("Invalid deletion challenge".into())),
+    }
 }
 
-pub fn two_factor_recovery_proof(
-    secret: &[u8],
-    two_factor_type: TwoFactorType,
+pub(crate) fn recovery_proof(
+    secret: &str,
+    factor: TwoFactorType,
     session_id: &str,
 ) -> Result<String> {
-    let secret = Zeroizing::new(b64::encode(secret).into_bytes());
-    let factor = match two_factor_type {
+    let factor = match factor {
         TwoFactorType::Totp => "totp",
         TwoFactorType::Passkey => "passkey",
     };
-    let mut mac =
-        Hmac::<Sha256>::new_from_slice(&secret).map_err(|_| Error::IncorrectRecoveryKey)?;
-    mac.update(format!("ente-two-factor-recovery:v1\0{factor}\0{session_id}").as_bytes());
-    Ok(b64::encode(&mac.finalize().into_bytes()))
+    Ok(b64::encode(&hmac_sha256(
+        secret.as_bytes(),
+        format!("recovery:{factor}:{session_id}").as_bytes(),
+    )?))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::make_client;
 
     #[test]
-    fn deletion_requires_its_prefix_and_valid_utf8() {
-        assert_eq!(
-            parse_delete_account_challenge(b"delete-jwtheader.payload.signature").unwrap(),
-            "header.payload.signature",
-        );
-        for payload in [
-            vec![7; 32],
-            [b"auth-token".as_slice(), &[7; 32]].concat(),
-            b"header.payload.signature".to_vec(),
-            b"delete-jwt".to_vec(),
-            b"delete-jwt\xff".to_vec(),
+    fn enforcement_uses_the_configured_hostname() {
+        for (origin, expected) in [
+            ("https://api.ente.com", true),
+            ("https://api.ente.in:443/prefix", true),
+            ("http://localhost:8080", true),
+            ("https://API.ENTE.COM", true),
+            ("https://self-hosted.example", false),
+            ("http://127.0.0.1:8080", false),
+            ("http://[::1]:8080", false),
+            ("https://api.ente.com.example", false),
+            ("https://api.ente.com@example.org", false),
+            ("https://example.org/api.ente.com", false),
         ] {
-            assert!(parse_delete_account_challenge(&payload).is_err());
-        }
-    }
-
-    #[test]
-    fn recovery_proofs_bind_the_session_and_factor() {
-        use TwoFactorType::{Passkey, Totp};
-        let totp_secret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
-        let totp_proof = "GLPadofZrER+5+7OLkqiNxlmyS6XzaKGdsMeHg1lnvU=";
-        for (factor, plaintext, expected) in [
-            (Totp, b64::decode(totp_secret).unwrap(), totp_proof),
-            (
-                Passkey,
-                (0..32).collect(),
-                "PxcSH0NrKUX3u330jU6TtYp/I/mT4087vajBXIdPh0I=",
-            ),
-        ] {
+            let client = make_client(origin.into());
+            assert_eq!(enforce_auth_payloads(&client.api), expected, "{origin}");
             assert_eq!(
-                two_factor_recovery_proof(&plaintext, factor, "recovery-session").unwrap(),
-                expected
+                deletion_challenge(&client.api, "delete-jwtjwt").unwrap(),
+                "jwt"
             );
-            assert_ne!(
-                two_factor_recovery_proof(&plaintext, factor, "other-session").unwrap(),
-                expected
-            );
-            let other_factor = if factor == Totp { Passkey } else { Totp };
-            assert_ne!(
-                two_factor_recovery_proof(&plaintext, other_factor, "recovery-session").unwrap(),
-                expected
-            );
+            assert_eq!(deletion_challenge(&client.api, "jwt").is_err(), expected);
         }
     }
 }

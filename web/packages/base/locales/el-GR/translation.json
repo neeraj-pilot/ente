@@ -336,7 +336,6 @@
     "logout_message": "Θέλετε σίγουρα να αποσυνδεθείτε;",
     "delete_account": "Διαγραφή λογαριασμού",
     "delete_account_multi_app_warning": "Αυτό θα διαγράψει τους λογαριασμούς σας σε Ente Auth, Ente Photos και Ente Locker.",
-    "delete_account_manually_message": "<p>Παρακαλώ στείλτε ένα μήνυμα ηλ. ταχυδρομείου στο <a>{{emailID}}</a> από την καταχωρημένη διεύθυνσή σας.</p><p>Θα επεξεργαστούμε το αίτημά σας εντός 72 ωρών.</p>",
     "change_email": "Αλλαγή διεύθυνσης ηλ. ταχυδρομείου",
     "active_sessions": "",
     "active_sessions_hint": "",

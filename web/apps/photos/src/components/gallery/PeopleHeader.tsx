@@ -14,12 +14,12 @@ import {
 import { useWrapAsyncOperation } from "@/components/utils/use-wrap-async";
 import {
     Add01Icon,
-    ArrowLeft02Icon,
     Cancel01Icon,
     Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import AddIcon from "@mui/icons-material/Add";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ClearIcon from "@mui/icons-material/Clear";
 import EditIcon from "@mui/icons-material/Edit";
 import HideImageOutlinedIcon from "@mui/icons-material/HideImageOutlined";
@@ -112,7 +112,7 @@ export const PeopleHeader: React.FC<PeopleHeaderProps> = ({
 }) => {
     return (
         <GalleryItemsHeaderAdapter
-            sx={{ display: "flex", alignItems: "center", gap: 1 }}
+            sx={{ display: "flex", alignItems: "center", gap: 2 }}
         >
             <Tooltip title={t("go_back")}>
                 <IconButton
@@ -122,10 +122,11 @@ export const PeopleHeader: React.FC<PeopleHeaderProps> = ({
                         display: { xs: "none", sm: "inline-flex" },
                         width: 32,
                         height: 32,
+                        p: "6px",
                         flexShrink: 0,
                     }}
                 >
-                    <HugeiconsIcon icon={ArrowLeft02Icon} size={20} />
+                    <ArrowBackIcon sx={{ fontSize: 20 }} />
                 </IconButton>
             </Tooltip>
             <SpacedRow sx={{ gap: 2, flex: 1, minWidth: 0 }}>

@@ -57,7 +57,10 @@ vi.mock("i18next", () => {
     };
     return { t: (key: string) => translations[key] ?? key };
 });
-vi.mock("ente-new/photos/components/Tiles", () => ({ ItemCard: () => null }));
+vi.mock("ente-new/photos/components/Tiles", () => ({
+    ItemCard: () => null,
+    PreviewItemTile: "div",
+}));
 vi.mock("react-virtualized-auto-sizer", () => ({
     default: ({
         children,
@@ -122,6 +125,7 @@ const renderSearch = (
         onChangeCollectionsSortBy: vi.fn(),
         onChangePeopleSortBy: vi.fn(),
         onSelectPerson: vi.fn(),
+        onSelectPlace: vi.fn(),
     };
     const Sidebar = () => {
         const data = useAlbumNavigationData({

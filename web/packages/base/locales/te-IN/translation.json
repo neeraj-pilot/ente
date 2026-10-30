@@ -336,7 +336,6 @@
     "logout_message": "మీరు నిజంగా లాగ్ అవుట్ కావాలనుకుంటున్నారా?",
     "delete_account": "ఖాతాను తొలగించండి",
     "delete_account_multi_app_warning": "ఇది మీ Ente Auth, Ente Photos మరియు Ente Locker ఖాతాను తొలగిస్తుంది.",
-    "delete_account_manually_message": "<p>దయచేసి మీ నమోదైన ఇమెయిల్ చిరునామా నుండి <a>{{emailID}}</a>కు ఒక ఇమెయిల్ పంపండి.</p><p>మీ అభ్యర్థన 72 గంటల్లో ప్రాసెస్ చేయబడుతుంది.</p>",
     "change_email": "ఇమెయిల్‌ను మార్చండి",
     "active_sessions": "క్రియాశీల సెషన్‌లు",
     "active_sessions_hint": "మీరు ప్రస్తుతం లాగిన్ అయి ఉన్న పరికరాలు ఇవి",

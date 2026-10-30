@@ -1192,6 +1192,9 @@ mod export_sources;
 mod files;
 
 #[cfg(feature = "museum")]
+mod mail;
+
+#[cfg(feature = "museum")]
 mod museum;
 
 mod paste;

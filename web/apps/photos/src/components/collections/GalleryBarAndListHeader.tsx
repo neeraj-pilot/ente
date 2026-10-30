@@ -53,6 +53,7 @@ type GalleryBarAndListHeaderProps = {
     | "onShowMap"
     | "onCollectionSlideshow"
     | "onBackToAlbums"
+    | "showBackToAlbums"
 > &
     Pick<
         CollectionShareProps,
@@ -84,6 +85,7 @@ export const GalleryBarAndListHeader: React.FC<
     onCollectionSlideshow,
     setFileListHeader,
     onBackToAlbums,
+    showBackToAlbums,
     onBackToPeople,
 }) => {
     const { show: showCollectionShare, props: collectionShareVisibilityProps } =
@@ -151,6 +153,7 @@ export const GalleryBarAndListHeader: React.FC<
                             onShowMap,
                             onCollectionSlideshow,
                             onBackToAlbums,
+                            showBackToAlbums,
                         }}
                         collectionSummary={collectionSummary}
                         onCollectionShare={openCollectionShare}
@@ -202,6 +205,7 @@ export const GalleryBarAndListHeader: React.FC<
         onShowMap,
         onCollectionSlideshow,
         onBackToAlbums,
+        showBackToAlbums,
         onBackToPeople,
         onEditAlbumDetails,
         albumDescription,

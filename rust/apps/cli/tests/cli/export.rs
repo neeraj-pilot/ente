@@ -1295,7 +1295,7 @@ async fn request(
         response.text().await.unwrap()
     );
 }
-async fn place(
+pub(super) async fn place(
     origin: &str,
     account: &AuthenticatedAccount,
     album: i64,
@@ -1324,7 +1324,7 @@ async fn move_file(
     )
     .await;
 }
-async fn edit_file(
+pub(super) async fn edit_file(
     origin: &str,
     account: &AuthenticatedAccount,
     file: i64,

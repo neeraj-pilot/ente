@@ -132,6 +132,10 @@ func (h *UserHandler) SetRecoveryKey(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
+	if err := request.Validate(); err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
 	err := h.UserController.SetRecoveryKey(userID, request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))

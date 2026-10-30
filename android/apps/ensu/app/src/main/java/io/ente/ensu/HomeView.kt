@@ -214,15 +214,16 @@ fun HomeView(
                 } else if (event == Lifecycle.Event.ON_STOP) {
                     latestStore.notesStore.setForeground(false)
                     latestStore.setChatActive(false)
-                    latestStore.setAppForeground(false)
+                    if ((context as? android.app.Activity)?.isChangingConfigurations != true)
+                        latestStore.setAppForeground(false)
                 }
             }
             latestStore.notesStore.setForeground(
                 lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
             )
-            latestStore.setAppForeground(
-                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-            )
+            if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                latestStore.setAppForeground(true)
+            }
             lifecycleOwner.lifecycle.addObserver(observer)
             latestStore.setChatActive(
                 isChatRoute &&
@@ -230,12 +231,14 @@ fun HomeView(
             )
             onDispose {
                 latestStore.setChatActive(false)
-                latestStore.setAppForeground(false)
+                if ((context as? android.app.Activity)?.isChangingConfigurations != true)
+                    latestStore.setAppForeground(false)
                 lifecycleOwner.lifecycle.removeObserver(observer)
             }
         }
 
         LaunchedEffect(isChatRoute, lifecycleOwner) {
+            if (!isChatRoute) latestStore.voiceController.interrupt()
             latestStore.setChatActive(
                 isChatRoute &&
                     lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)

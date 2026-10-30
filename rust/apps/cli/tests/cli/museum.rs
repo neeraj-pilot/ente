@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use super::*;
 
+const GB: i64 = 1 << 30;
 const PASSWORD: &str = "disposable-cli-integration-password";
 
 #[test]
@@ -120,6 +121,55 @@ fn auth_login_refresh_and_offline_export_across_processes() -> TestResult {
         ]));
         assert!(success(home.run(&export)).stdout.is_empty());
         Ok(())
+    })
+}
+
+#[test]
+fn usage_reports_server_figures_and_plan_expiry() -> TestResult {
+    Museum::run(|museum| {
+        tokio::runtime::Runtime::new()?.block_on(async {
+            let origin = museum.endpoint();
+            let email = format!("usage-{}@example.org", Uuid::new_v4());
+            let owner = create_account(origin, &email).await;
+            let (album, key) = create_album(origin, &owner, "Usage", "album").await;
+            let original = b"original photo bytes from Museum";
+            upload_fixture(
+                origin,
+                &owner,
+                album,
+                &key,
+                original,
+                json!({"title": "usage.jpg", "fileType": 0, "creationTime": 1_700_000_000_000_000i64, "modificationTime": 1_700_000_000_000_000i64}),
+            )
+            .await;
+            let home = TestHome::new();
+            login(&home, "photos", &email, &["--host", origin, "--no-input"]);
+            let usage = home.json(&["photos", "usage"]);
+            assert_eq!(usage["email"], email);
+            assert_eq!(usage["files"], 1);
+            assert_eq!(usage["planBytes"], 10 * GB);
+            assert_eq!(usage["planActive"], true);
+            assert_eq!(usage["family"], Value::Null);
+            let (used, total, bonus) = (
+                usage["usedBytes"].as_i64().unwrap(),
+                usage["totalBytes"].as_i64().unwrap(),
+                usage["bonusBytes"].as_i64().unwrap(),
+            );
+            assert!(used >= original.len() as i64, "{usage}");
+            assert_eq!(total, 10 * GB + bonus);
+            assert_eq!(usage["freeBytes"], total - used);
+            museum.execute_sql(&format!(
+                "UPDATE subscriptions SET expiry_time = 1 WHERE user_id = {}",
+                owner.user_id
+            ))?;
+            let expired = home.json(&["photos", "usage"]);
+            assert_eq!(expired["planActive"], false);
+            assert_eq!(expired["planExpiresAt"], "1970-01-01T00:00:00.000001Z");
+            assert_eq!(expired["totalBytes"], total);
+            let plain = String::from_utf8(success(home.run(&["photos", "usage"])).stdout)?;
+            assert!(plain.contains("Status  expired\n"), "{plain}");
+            Ok(())
+        })
     })
 }
 
@@ -237,6 +287,159 @@ fn login_save_failures_follow_the_vault_replacement() -> TestResult {
                 );
             }
         }
+        Ok(())
+    })
+}
+
+#[test]
+fn file_lists_filter_and_sort_server_metadata() -> TestResult {
+    Museum::run_async(|origin| async move {
+        let email = format!("file-filters-{}@example.org", Uuid::new_v4());
+        let account = create_account(&origin, &email).await;
+        let home = TestHome::new();
+        login(&home, "photos", &email, &["--host", &origin]);
+        let (trips, trips_key) = create_album(&origin, &account, "Trips", "album").await;
+        let (family, family_key) = create_album(&origin, &account, "Family", "album").await;
+        let (beach, beach_key) = upload_fixture(
+            &origin,
+            &account,
+            trips,
+            &trips_key,
+            &[1; 300],
+            json!({"title": "Beach.jpg", "fileType": 0, "creationTime": 1_700_000_000_000_000i64,
+                "latitude": 1.0, "longitude": 2.0}),
+        )
+        .await;
+        export::edit_file(
+            &origin,
+            &account,
+            beach,
+            &beach_key,
+            1,
+            json!({"caption": "Sunset at the beach"}),
+        )
+        .await;
+        let (clip, _) = upload_fixture(
+            &origin,
+            &account,
+            trips,
+            &trips_key,
+            &[2; 5000],
+            json!({"title": "Clip.mp4", "fileType": 1, "creationTime": 1_717_200_000_000_000i64}),
+        )
+        .await;
+        let (live, live_key) = upload_fixture(
+            &origin,
+            &account,
+            family,
+            &family_key,
+            &[3; 1000],
+            json!({"title": "Live.heic", "fileType": 2, "creationTime": 1_735_689_600_000_000i64,
+                "latitude": 3.0, "longitude": 4.0}),
+        )
+        .await;
+        export::edit_file(
+            &origin,
+            &account,
+            live,
+            &live_key,
+            1,
+            json!({"caption": "Family dinner"}),
+        )
+        .await;
+        let (holiday, holiday_key) = upload_fixture(
+            &origin,
+            &account,
+            family,
+            &family_key,
+            &[4; 2000],
+            json!({"title": "Holiday.JPG", "fileType": 0, "creationTime": 1_262_304_000_000_000i64}),
+        )
+        .await;
+        export::edit_file(
+            &origin,
+            &account,
+            holiday,
+            &holiday_key,
+            1,
+            json!({"editedTime": 1_710_028_800_000_000i64}),
+        )
+        .await;
+        export::place(
+            &origin,
+            &account,
+            trips,
+            &trips_key,
+            holiday,
+            &holiday_key,
+            "add-files",
+        )
+        .await;
+        let list = |args: &[&str]| {
+            let mut command = vec!["photos", "file", "list"];
+            command.extend(args);
+            home.json(&command)
+        };
+        let ids = |args: &[&str]| {
+            list(args)
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|file| file["id"].as_str().unwrap().parse::<i64>().unwrap())
+                .collect::<Vec<_>>()
+        };
+        let by_id = |mut files: Vec<i64>| {
+            files.sort_unstable();
+            files
+        };
+
+        let listed = list(&[]);
+        assert_eq!(listed.as_array().unwrap().len(), 4);
+        for file in listed.as_array().unwrap() {
+            assert!(file["sizeBytes"].as_u64().is_some_and(|size| size > 0));
+        }
+        for (args, expected) in [
+            (vec!["--type", "image"], by_id(vec![beach, holiday])),
+            (
+                vec!["--type", "video", "--type", "livephoto"],
+                by_id(vec![clip, live]),
+            ),
+            (
+                vec!["--since", "2024-01-01", "--before", "2025-01-01"],
+                by_id(vec![clip, holiday]),
+            ),
+            (vec!["--search", "JPG sunset"], vec![beach]),
+            (vec!["--search", "family dinner"], vec![live]),
+            (vec!["--search", "beach dinner"], vec![]),
+            (vec!["--no-location"], by_id(vec![clip, holiday])),
+            (vec!["--album", "Family", "--no-location"], vec![holiday]),
+            (vec!["--min-size", "1.5KB"], by_id(vec![clip, holiday])),
+            (vec!["--max-size", "1.5KB"], by_id(vec![beach, live])),
+            (
+                vec!["--album", "Trips", "--min-size", "1.5KB", "--sort", "size"],
+                vec![clip, holiday],
+            ),
+            (vec!["--sort", "size"], vec![clip, holiday, live, beach]),
+            (vec!["--sort", "created"], vec![live, clip, holiday, beach]),
+            (
+                vec!["--sort", "created", "--reverse"],
+                vec![beach, holiday, clip, live],
+            ),
+            (
+                vec!["--album", "Trips", "--sort", "size"],
+                vec![clip, holiday, beach],
+            ),
+            (
+                vec!["--type", "image", "--sort", "size", "--limit", "1"],
+                vec![holiday],
+            ),
+        ] {
+            assert_eq!(ids(&args), expected, "{args:?}");
+        }
+        assert_eq!(
+            home.json(&["--offline", "photos", "file", "list", "--sort", "size"]),
+            list(&["--sort", "size"])
+        );
         Ok(())
     })
 }
@@ -395,6 +598,7 @@ async fn exercise(origin: String) -> TestResult {
     assert_eq!(files[0]["id"], file_id);
     assert_eq!(files[0]["name"], "original.jpg");
     assert_eq!(files[0]["type"], "image");
+    assert!(files[0]["sizeBytes"].as_u64().is_some_and(|size| size > 0));
     assert_eq!(files[0]["albumIds"], json!([album.to_string()]));
     let output_dir = tempfile::tempdir().unwrap();
     let output_path = output_dir.path().join("owned.jpg");
@@ -805,7 +1009,7 @@ pub(super) async fn create_account(origin: &str, email: &str) -> AuthenticatedAc
     let client =
         AccountsClient::new(AccountsClientConfig::new("io.ente.photos").with_origin(origin))
             .unwrap();
-    client.send_otp(email, "signup").await.unwrap();
+    client.send_otp(email, "signup", false).await.unwrap();
     let response = client
         .verify_email(email, HARDCODED_OTT, Some("testAccount"))
         .await

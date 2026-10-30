@@ -90,20 +90,58 @@ ente photos file download 1580559962386999 --output ./IMG_0001.jpg
 
 A file selector is a file ID or an exact name; when several files share a name, the CLI lists the candidates and you pick an ID. Download prints `Downloaded "IMG_0001.jpg" to ./IMG_0001.jpg.` and refuses to overwrite an existing file. A Live Photo downloads as a ZIP archive. Lists show 100 results and then print `Showing first 100 results; use --limit N or --all to see more.` on the terminal.
 
+## Filter and sort files
+
+```sh
+ente photos file list --type video --since 2024-01-01 --before 2025-01-01
+ente photos file list --search "beach sunset" --no-location
+ente photos file list --sort size --limit 20
+ente photos file list --type video --min-size 500MB
+```
+
+- `--type` takes `image`, `video` or `livephoto`; repeat it to include several types.
+- `--since` and `--before` compare `createdAt`, which includes dates edited in Ente. `--since` includes the given instant and `--before` excludes it. Both accept `YYYY-MM-DD` (midnight UTC) or RFC 3339 with a timezone, such as `2024-06-01T00:00:00+02:00`.
+- `--search` finds files where every word occurs in either the name or the caption, ignoring case.
+- `--no-location` keeps files without a location.
+- `--min-size` and `--max-size` keep files whose `sizeBytes` is at least or at most the given size. Both accept KB, MB or GB in powers of 1024, such as `500KB`, `100MB` or `1.5GB`. `sizeBytes` is the size of the stored encrypted file, slightly larger than the original. Files with an unknown size are left out.
+
+A file must match every filter you pass. `--sort created` lists the newest files first and `--sort size` the largest first; add `--reverse` for the opposite order. Files with an unknown size sort as the smallest, and ties keep ID order. Without `--sort`, files are listed by ID.
+
+## Check storage and file count
+
+```sh
+ente photos usage
+```
+
+```
+Email   alice@example.com
+Total   20 GB
+Used    3.61 GB
+Free    16.39 GB
+Plan    10 GB
+Status  active
+Bonus   10 GB
+Files   339
+Family  none
+```
+
+`Total` is the plan plus bonuses such as referrals, `Used` and `Files` are what Photos holds, and `Status` says whether the plan is active or expired. In a family the plan and total are the family admin's, and `Family` lists its members, followed by the shared totals and your own limit when the admin has set one.
+
 ## Read as JSON
 
 Lists return arrays and `view` returns one object. IDs are strings; timestamps are RFC 3339 strings in UTC.
 
-| Command                    | Fields                                                                                                                                                                                                                                                              |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `album list`, `album view` | `id`, `name`, `type` (`album`, `folder`, `favorites`, `uncategorized`, `defaultHidden`, `quicklink`), `visibility` (`visible`, `archived`, `hidden`), `ownerId`, `updatedAt`                                                                                        |
-| `file list`, `file view`   | `id`, `name`, `type` (`image`, `video`, `livephoto`), `ownerId`, `albumIds`, `createdAt`, `updatedAt`; nullable `modifiedAt`, `location` (`latitude`, `longitude`), `caption`, `hash`, `dateTime`, `offsetTime`, `visibility`, `durationSeconds`, `width`, `height` |
-| `file download`            | `id`, `output`, `bytes`                                                                                                                                                                                                                                             |
-| `export`                   | See [Automation](./automation.md#export-summary)                                                                                                                                                                                                                    |
+| Command                    | Fields                                                                                                                                                                                                                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `album list`, `album view` | `id`, `name`, `type` (`album`, `folder`, `favorites`, `uncategorized`, `defaultHidden`, `quicklink`), `visibility` (`visible`, `archived`, `hidden`), `ownerId`, `updatedAt`                                                                                                     |
+| `file list`, `file view`   | `id`, `name`, `type` (`image`, `video`, `livephoto`), `ownerId`, `albumIds`, `createdAt`, `updatedAt`; nullable `modifiedAt`, `location` (`latitude`, `longitude`), `caption`, `hash`, `dateTime`, `offsetTime`, `visibility`, `durationSeconds`, `width`, `height`, `sizeBytes` |
+| `file download`            | `id`, `output`, `bytes`                                                                                                                                                                                                                                                          |
+| `usage`                    | `email`, `planExpiresAt`, `planActive`, `totalBytes`, `usedBytes`, `freeBytes`, `planBytes`, `bonusBytes`; nullable `files`, `family` (`usedBytes`, `storageBytes`, `members`: `email`, `status`, `admin`, `usedBytes`, `storageLimitBytes`)                        |
+| `export`                   | See [Automation](./automation.md#export-summary)                                                                                                                                                                                                                                 |
 
 ## Read offline
 
-`album list`, `album view`, `file list` and `file view` work with `--offline` using the metadata an earlier online run synced. An online `album list` syncs albums only; run `file list` online for each album whose files you want to read offline. Export and download need the network.
+`album list`, `album view`, `file list` and `file view` work with `--offline` using the metadata an earlier online run synced. An online `album list` syncs albums only; run `file list` online for each album whose files you want to read offline. Export, download and usage need the network.
 
 ## Limits
 

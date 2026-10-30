@@ -21,6 +21,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CheckIcon from "@mui/icons-material/Check";
 import LinkIcon from "@mui/icons-material/Link";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
@@ -98,12 +99,18 @@ export interface CollectionHeaderProps {
     onAddSaveGroup: AddSaveGroup;
     onShowMap: () => void;
     onBackToAlbums: () => void;
+    showBackToAlbums: boolean;
     onDescriptionHeightChange?: (height: number) => void;
 }
 
 export const CollectionHeader: React.FC<CollectionHeaderProps> = (props) => {
-    const { activeCollection, collectionSummary, onDescriptionHeightChange } =
-        props;
+    const {
+        activeCollection,
+        collectionSummary,
+        onBackToAlbums,
+        showBackToAlbums,
+        onDescriptionHeightChange,
+    } = props;
     const showCover = useMediaQuery(useTheme().breakpoints.up("sm"));
 
     const { name, type, attributes, fileCount } = collectionSummary;
@@ -157,6 +164,17 @@ export const CollectionHeader: React.FC<CollectionHeaderProps> = (props) => {
                         ...(isAlbum && { gridArea: "summary" }),
                     }}
                 >
+                    {isAlbum && showBackToAlbums && (
+                        <Tooltip title={t("go_back")}>
+                            <IconButton
+                                aria-label={t("go_back")}
+                                onClick={onBackToAlbums}
+                                sx={{ width: 32, height: 32, flexShrink: 0 }}
+                            >
+                                <ArrowBackIcon sx={{ fontSize: 20 }} />
+                            </IconButton>
+                        </Tooltip>
+                    )}
                     {isAlbum && showCover && (
                         <Box
                             aria-hidden

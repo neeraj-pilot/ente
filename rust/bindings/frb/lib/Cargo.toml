@@ -8,6 +8,7 @@ legacy = ["dep:ente-legacy"]
 locker = ["dep:ente-locker"]
 
 [dependencies]
+ente-accounts.workspace = true
 ente-contacts = { workspace = true, optional = true }
 ente-core.workspace = true
 ente-legacy = { workspace = true, optional = true }
