@@ -2,7 +2,6 @@
 
 package io.ente.ensu
 
-import android.annotation.SuppressLint
 import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
@@ -508,12 +507,9 @@ private fun buildAttachmentFromUri(
             FileOutputStream(destination).use { output -> output.write(compressedBytes) }
             finalName = normalizedJpegAttachmentName(name ?: safeName)
         } else {
-            // Lint misses the close performed by use.
-            @SuppressLint("Recycle")
-            val inputStream = resolver.openInputStream(uri) ?: return@runCatching null
-            inputStream.use { input ->
+            resolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(destination).use { output -> input.copyTo(output) }
-            }
+            } ?: return@runCatching null
             finalName = name ?: safeName
         }
 
@@ -584,26 +580,23 @@ private fun openAttachment(context: Context, attachment: Attachment) {
     }
 }
 
-// Lint misses the close performed by use.
-@SuppressLint("Recycle")
 private fun queryDisplayName(resolver: android.content.ContentResolver, uri: Uri): String? {
-    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+    val cursor =
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null) ?: return null
+    return cursor.use {
         if (cursor.moveToFirst()) {
             val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (index >= 0) return cursor.getString(index)
-        }
+            if (index >= 0) cursor.getString(index) else null
+        } else null
     }
-    return null
 }
 
-// Lint misses the close performed by use.
-@SuppressLint("Recycle")
 private fun querySize(resolver: android.content.ContentResolver, uri: Uri): Long? {
-    resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+    val cursor = resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null) ?: return null
+    return cursor.use {
         if (cursor.moveToFirst()) {
             val index = cursor.getColumnIndex(OpenableColumns.SIZE)
-            if (index >= 0) return cursor.getLong(index)
-        }
+            if (index >= 0) cursor.getLong(index) else null
+        } else null
     }
-    return null
 }

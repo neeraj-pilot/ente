@@ -105,6 +105,10 @@ class _TestConfiguration extends BaseConfiguration {
       BaseConfiguration.accountSecureStorageKeys;
 
   @override
+  String recoveryKeyToMnemonic(String recoveryKeyHex) =>
+      throw UnimplementedError();
+
+  @override
   String? getEmail() => 'me@test.test';
 
   @override

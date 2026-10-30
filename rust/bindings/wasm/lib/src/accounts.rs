@@ -23,6 +23,7 @@ impl Error {
         match error {
             Error::InsufficientMemory => Some("insufficient_memory"),
             Error::IncorrectRecoveryKey => Some("incorrect_recovery_key"),
+            Error::MalformedRecoveryKey => Some("malformed_recovery_key"),
             Error::IncorrectPassword => Some("incorrect_password"),
             Error::NotRegistered => Some("not_registered"),
             Error::AlreadyRegistered => Some("already_registered"),

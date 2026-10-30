@@ -320,6 +320,7 @@ mod tests {
             None,
             cities.map(|cities| cities as &dyn CityLookup),
         )
+        .unwrap()
     }
 
     fn trips(memories: &[Memory]) -> Vec<&TripMemory> {

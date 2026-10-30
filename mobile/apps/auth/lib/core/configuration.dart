@@ -5,6 +5,8 @@ import 'package:ente_account_deletion/account_deletion.dart';
 import 'package:ente_auth/services/authenticated_session.dart';
 import 'package:ente_auth/src/rust/third_party/ente_frb_lib/account_deletion.dart'
     as account_deletion;
+import 'package:ente_auth/src/rust/third_party/ente_frb_lib/recovery.dart'
+    as recovery;
 import 'package:ente_base/models/database.dart';
 import 'package:ente_configuration/base_configuration.dart';
 import 'package:ente_crypto_api/ente_crypto_api.dart';
@@ -105,6 +107,10 @@ class Configuration extends BaseConfiguration
     reason: reason,
     feedback: feedback,
   );
+
+  @override
+  String recoveryKeyToMnemonic(String recoveryKeyHex) =>
+      recovery.recoveryKeyToMnemonic(recoveryKeyHex: recoveryKeyHex);
 
   @override
   Future<void> logout({bool autoLogout = false}) async {

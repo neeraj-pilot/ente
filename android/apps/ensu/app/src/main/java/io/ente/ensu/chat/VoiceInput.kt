@@ -1,7 +1,8 @@
 package io.ente.ensu.chat
 
-import android.annotation.SuppressLint
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
@@ -9,6 +10,7 @@ import android.media.MediaRecorder
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import io.ente.ensu.assets.AssetStore
 import io.ente.ensu.bindings.AssetDownloadException
 import io.ente.ensu.bindings.DictationException
@@ -103,6 +105,10 @@ internal class VoiceTranscriptionController(
     private val onVoiceInputJob: (Job) -> Unit,
     private val onInsert: (DictationInsertion, String) -> Boolean,
 ) {
+    private fun microphoneFailure(error: Exception): VoiceInputFailure =
+        if (error is SecurityException) VoiceInputFailure.Permission
+        else VoiceInputFailure.MicrophoneUnavailable
+
     private fun logFailure(error: Exception) =
         logRepository.log(
             LogLevel.Error,
@@ -111,6 +117,7 @@ internal class VoiceTranscriptionController(
             throwable = error,
         )
 
+    private val applicationContext = context.applicationContext
     private val audioManager = context.getSystemService(AudioManager::class.java)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val usesLiveDictation =
@@ -296,11 +303,11 @@ internal class VoiceTranscriptionController(
                             val hardwareReady =
                                 async(Dispatchers.IO) {
                                     try {
-                                        microphone.prepare()
+                                        microphone.prepare(applicationContext)
                                     } catch (error: Exception) {
                                         withContext(Dispatchers.Main.immediate) {
                                             if (token == generation && failure == null)
-                                                failure = VoiceInputFailure.MicrophoneUnavailable
+                                                failure = microphoneFailure(error)
                                         }
                                         throw error
                                     }
@@ -331,9 +338,7 @@ internal class VoiceTranscriptionController(
                                             } catch (error: Exception) {
                                                 if (token == generation) {
                                                     logFailure(error)
-                                                    interrupt(
-                                                        VoiceInputFailure.MicrophoneUnavailable
-                                                    )
+                                                    interrupt(microphoneFailure(error))
                                                 }
                                             }
                                         }
@@ -525,8 +530,7 @@ private class LiveMicrophone(
     @Volatile private var recorder: AudioRecord? = null
     private var readJob: Job? = null
 
-    @SuppressLint("MissingPermission")
-    fun prepare() {
+    fun prepare(context: Context) {
         if (stopped.get() || recorder != null) return
         val minimum =
             AudioRecord.getMinBufferSize(
@@ -535,6 +539,12 @@ private class LiveMicrophone(
                 AudioFormat.ENCODING_PCM_16BIT,
             )
         if (minimum <= 0) throw IOException("Microphone format unavailable")
+        if (
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
+                PackageManager.PERMISSION_GRANTED
+        ) {
+            throw SecurityException("Microphone permission is required")
+        }
         val active =
             AudioRecord.Builder()
                 .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
@@ -554,7 +564,6 @@ private class LiveMicrophone(
         recorder = active
     }
 
-    @SuppressLint("MissingPermission")
     fun start(scope: CoroutineScope) {
         if (stopped.get()) return
         val active = recorder ?: return

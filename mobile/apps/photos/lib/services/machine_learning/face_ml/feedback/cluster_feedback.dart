@@ -21,6 +21,8 @@ import "package:photos/services/machine_learning/face_ml/face_clustering/face_cl
 import "package:photos/services/machine_learning/face_ml/face_filtering/face_filtering_constants.dart";
 import "package:photos/services/machine_learning/face_ml/feedback/cluster_averages.dart";
 import "package:photos/services/machine_learning/face_ml/feedback/dart_cluster_averages.dart";
+import "package:photos/services/machine_learning/face_ml/feedback/dart_face_distances.dart";
+import "package:photos/services/machine_learning/face_ml/feedback/face_distances.dart";
 import "package:photos/services/machine_learning/face_ml/feedback/store_cluster_averages.dart";
 import "package:photos/services/machine_learning/face_ml/person/person_service.dart";
 import "package:photos/services/machine_learning/ml_result.dart";
@@ -146,7 +148,7 @@ class ClusterFeedbackService<T> {
       final sortingStartTime = DateTime.now();
       if (extremeFilesFirst) {
         try {
-          await _sortSuggestionsOnDistanceToPerson(person, finalSuggestions);
+          await _sortSuggestionsOnDistanceToPerson(finalSuggestions);
         } catch (e, s) {
           _logger.severe("Error in sorting suggestions", e, s);
         }
@@ -796,105 +798,20 @@ class ClusterFeedbackService<T> {
       }
 
       if (personIDToMedianCandidates.isNotEmpty) {
-        final clustersNeededForMedian = <String>{};
-        for (final entry in personIDToMedianCandidates.entries) {
-          clustersNeededForMedian.addAll(entry.value);
-          clustersNeededForMedian.addAll(personIDToQueryClusters[entry.key]!);
-        }
-        final embeddingsByCluster = await mlDataDB.getFaceEmbeddingsForClusters(
-          clustersNeededForMedian,
-        );
-        final sampledVectorsByCluster = <String, List<Vector>>{};
-
-        List<Vector> getSampledVectors(String clusterID) {
-          final cached = sampledVectorsByCluster[clusterID];
-          if (cached != null) {
-            return cached;
-          }
-          final embeddingsProto =
-              embeddingsByCluster[clusterID] ?? const <Uint8List>[];
-          if (embeddingsProto.isEmpty) {
-            sampledVectorsByCluster[clusterID] = const [];
-            return const [];
-          }
-          final sampledEmbeddingsProto = _randomSampleWithoutReplacement(
-            embeddingsProto,
-            50,
-          );
-          final sampledVectors = sampledEmbeddingsProto
-              .map(
-                (embedding) => Vector.fromList(
-                  EVector.fromBuffer(embedding).values,
-                  dtype: DType.float32,
-                ),
-              )
-              .toList(growable: false);
-          sampledVectorsByCluster[clusterID] = sampledVectors;
-          return sampledVectors;
-        }
-
-        for (final entry in personIDToMedianCandidates.entries) {
-          final personID = entry.key;
-          final candidateClusterIDs = entry.value;
-          final personClusters = personIDToQueryClusters[personID]!;
-          final personEmbeddingsProto = <Uint8List>[];
-          for (final personClusterID in personClusters) {
-            final embeddingsForCluster =
-                embeddingsByCluster[personClusterID] ?? const <Uint8List>[];
-            personEmbeddingsProto.addAll(embeddingsForCluster);
-          }
-          if (personEmbeddingsProto.isEmpty) {
-            continue;
-          }
-          final sampledPersonEmbeddingsProto = _randomSampleWithoutReplacement(
-            personEmbeddingsProto,
-            50,
-          );
-          final sampledPersonEmbeddings = sampledPersonEmbeddingsProto
-              .map(
-                (embedding) => Vector.fromList(
-                  EVector.fromBuffer(embedding).values,
-                  dtype: DType.float32,
-                ),
-              )
-              .toList(growable: false);
-          if (sampledPersonEmbeddings.isEmpty) {
-            continue;
-          }
-
-          double minMedianDistance = 0.62;
-          (String, double)? bestMedianSuggestion;
-          for (final otherClusterID in candidateClusterIDs) {
-            final sampledOtherEmbeddings = getSampledVectors(otherClusterID);
-            if (sampledOtherEmbeddings.isEmpty) {
-              continue;
-            }
-            final distances = <double>[];
-            for (final otherEmbedding in sampledOtherEmbeddings) {
-              for (final personEmbedding in sampledPersonEmbeddings) {
-                distances.add(1 - personEmbedding.dot(otherEmbedding));
-              }
-            }
-            if (distances.isEmpty) {
-              continue;
-            }
-            distances.sort();
-            final medianDistance = distances[distances.length ~/ 2];
-            if (medianDistance < minMedianDistance) {
-              minMedianDistance = medianDistance;
-              bestMedianSuggestion = (otherClusterID, medianDistance);
-              if (medianDistance < 0.55) {
-                break;
-              }
-            }
-          }
-          if (bestMedianSuggestion != null) {
-            bestSuggestionPerPerson[personID] = (
-              bestMedianSuggestion.$1,
-              bestMedianSuggestion.$2,
-              false,
+        final closestByMedian = await FaceDistances.instance
+            .closestByMedianPerPerson(
+              personIDToQueryClusters,
+              personIDToMedianCandidates,
+              sampleSize: 50,
+              maxDistance: 0.62,
+              goodDistance: 0.55,
             );
-          }
+        for (final entry in closestByMedian.entries) {
+          bestSuggestionPerPerson[entry.key] = (
+            entry.value.$1,
+            entry.value.$2,
+            false,
+          );
         }
       }
 
@@ -977,7 +894,7 @@ class ClusterFeedbackService<T> {
       }
 
       try {
-        await _sortSuggestionsOnDistanceToPerson(null, finalSuggestions);
+        await _sortSuggestionsOnDistanceToPerson(finalSuggestions);
       } catch (e, s) {
         _logger.severe("Error in sorting suggestions", e, s);
       }
@@ -1149,7 +1066,7 @@ class ClusterFeedbackService<T> {
       );
     }
     try {
-      await _sortSuggestionsOnDistanceToPerson(null, finalSuggestions);
+      await _sortSuggestionsOnDistanceToPerson(finalSuggestions);
     } catch (e, s) {
       _logger.severe("Error in sorting legacy suggestions", e, s);
     }
@@ -1630,61 +1547,13 @@ class ClusterFeedbackService<T> {
     );
 
     w?.logAndReset("Starting median test");
-    final List<Uint8List> personEmbeddingsProto = [];
-    for (final clusterID in personClusters) {
-      final Iterable<Uint8List> embeddings = await mlDataDB
-          .getFaceEmbeddingsForCluster(clusterID);
-      personEmbeddingsProto.addAll(embeddings);
-    }
-    final sampledEmbeddingsProto = _randomSampleWithoutReplacement(
-      personEmbeddingsProto,
-      sampleSize,
+    final suggestionsMedian = await FaceDistances.instance.suggestByMedian(
+      personClusters,
+      otherClusterIdsCandidates,
+      sampleSize: sampleSize,
+      maxDistance: maxMedianDistance,
+      goodDistance: goodMedianDistance,
     );
-    final List<Vector> sampledEmbeddings = sampledEmbeddingsProto
-        .map(
-          (embedding) => Vector.fromList(
-            EVector.fromBuffer(embedding).values,
-            dtype: DType.float32,
-          ),
-        )
-        .toList(growable: false);
-
-    final List<(String, double)> suggestionsMedian = [];
-    final List<(String, double)> greatSuggestionsMedian = [];
-    double minMedianDistance = maxMedianDistance;
-    for (final otherClusterId in otherClusterIdsCandidates) {
-      final Iterable<Uint8List> otherEmbeddingsProto = await mlDataDB
-          .getFaceEmbeddingsForCluster(otherClusterId);
-      final sampledOtherEmbeddingsProto = _randomSampleWithoutReplacement(
-        otherEmbeddingsProto,
-        sampleSize,
-      );
-      final List<Vector> sampledOtherEmbeddings = sampledOtherEmbeddingsProto
-          .map(
-            (embedding) => Vector.fromList(
-              EVector.fromBuffer(embedding).values,
-              dtype: DType.float32,
-            ),
-          )
-          .toList(growable: false);
-
-      final List<double> distances = [];
-      for (final otherEmbedding in sampledOtherEmbeddings) {
-        for (final embedding in sampledEmbeddings) {
-          distances.add(1 - embedding.dot(otherEmbedding));
-        }
-      }
-      distances.sort();
-      final double medianDistance = distances[distances.length ~/ 2];
-      if (medianDistance < minMedianDistance) {
-        suggestionsMedian.add((otherClusterId, medianDistance));
-        minMedianDistance = medianDistance;
-        if (medianDistance < goodMedianDistance) {
-          greatSuggestionsMedian.add((otherClusterId, medianDistance));
-          break;
-        }
-      }
-    }
     w?.log("Finished median test");
     if (suggestionsMedian.isEmpty) {
       _logger.info("No suggestions found using median");
@@ -1700,9 +1569,9 @@ class ClusterFeedbackService<T> {
             .reversed
             .toList(growable: false);
 
-    if (greatSuggestionsMedian.isNotEmpty) {
+    if (suggestionsMedian.last.$2 < goodMedianDistance) {
       _logger.info(
-        "Found great suggestion using median: $greatSuggestionsMedian",
+        "Found great suggestion using median: ${suggestionsMedian.last}",
       );
     }
 
@@ -1874,36 +1743,7 @@ class ClusterFeedbackService<T> {
     return suggestions.sublist(0, min(suggestions.length, 20));
   }
 
-  List<S> _randomSampleWithoutReplacement<S>(
-    Iterable<S> embeddings,
-    int sampleSize,
-  ) {
-    final random = Random();
-
-    if (sampleSize >= embeddings.length) {
-      return embeddings.toList();
-    }
-
-    if (sampleSize > embeddings.length / 2) {
-      final List<S> shuffled = List<S>.from(embeddings)..shuffle(random);
-      return shuffled.take(sampleSize).toList(growable: false);
-    }
-
-    final selectedIndices = <int>{};
-    final sampledEmbeddings = <S>[];
-    while (sampledEmbeddings.length < sampleSize) {
-      final int index = random.nextInt(embeddings.length);
-      if (!selectedIndices.contains(index)) {
-        selectedIndices.add(index);
-        sampledEmbeddings.add(embeddings.elementAt(index));
-      }
-    }
-
-    return sampledEmbeddings;
-  }
-
   Future<void> _sortSuggestionsOnDistanceToPerson(
-    PersonEntity? person,
     List<ClusterSuggestion> suggestions, {
     bool onlySortBigSuggestions = true,
   }) async {
@@ -1923,60 +1763,34 @@ class ClusterFeedbackService<T> {
       }
     }
     final startTime = DateTime.now();
-    final w = (kDebugMode ? EnteWatch('sortSuggestions') : null)?..start();
 
-    final Map<String, Vector> personAverages = {};
-    if (person != null) {
-      final avg = await _getPersonAvg(person.remoteID);
-      w?.log('getPersonAvg');
-      if (avg != null) personAverages[person.remoteID] = avg;
-    }
+    final suggestionsToSort = suggestions
+        .where(
+          (suggestion) =>
+              !onlySortBigSuggestions || suggestion.filesInCluster.length > 8,
+        )
+        .toList(growable: false);
+    final distancesBySuggestion = FaceDistances.instance.distancesToPersons([
+      for (final suggestion in suggestionsToSort)
+        (suggestion.person.remoteID, suggestion.faceIDsInCluster),
+    ]);
 
-    for (final suggestion in suggestions) {
-      if (onlySortBigSuggestions) {
-        if (suggestion.filesInCluster.length <= 8) {
-          continue;
-        }
+    var nextSuggestion = 0;
+    await for (final faceDistances in distancesBySuggestion) {
+      final suggestion = suggestionsToSort[nextSuggestion++];
+      if (faceDistances == null) {
+        continue;
       }
-      Vector? personAvg = personAverages[suggestion.person.remoteID];
-      if (personAvg == null) {
-        personAvg = await _getPersonAvg(suggestion.person.remoteID);
-        if (personAvg != null) {
-          personAverages[suggestion.person.remoteID] = personAvg;
-        } else {
-          continue;
-        }
-      }
-
       final clusterID = suggestion.clusterIDToMerge;
-      final faceIDs = suggestion.faceIDsInCluster;
-      final faceIdToEmbeddingMap = await mlDataDB.getFaceEmbeddingMapForFaces(
-        faceIDs,
-      );
-      final faceIdToVectorMap = faceIdToEmbeddingMap.map(
-        (key, value) => MapEntry(
-          key,
-          Vector.fromList(
-            EVector.fromBuffer(value).values,
-            dtype: DType.float32,
-          ),
-        ),
-      );
-      w?.log(
-        'got ${faceIdToEmbeddingMap.values.length} embeddings for ${suggestion.filesInCluster.length} files for cluster $clusterID',
-      );
       final fileIdToDistanceMap = {};
-      for (final entry in faceIdToVectorMap.entries) {
-        fileIdToDistanceMap[getFileIdFromFaceId<int>(entry.key)] =
-            1 - personAvg.dot(entry.value);
+      for (final (faceID, distance) in faceDistances) {
+        fileIdToDistanceMap[getFileIdFromFaceId<int>(faceID)] = distance;
       }
-      w?.log('calculated distances for cluster $clusterID');
       suggestion.filesInCluster.sort((b, a) {
         final double distanceA = fileIdToDistanceMap[a.uploadedFileID!] ?? -1;
         final double distanceB = fileIdToDistanceMap[b.uploadedFileID!] ?? -1;
         return distanceA.compareTo(distanceB);
       });
-      w?.log('sorted files for cluster $clusterID');
 
       debugPrint(
         "[${_logger.name}] Sorted suggestions for cluster $clusterID based on distance to person: ${suggestion.filesInCluster.map((e) => fileIdToDistanceMap[e.uploadedFileID]).toList()}",
@@ -1987,45 +1801,6 @@ class ClusterFeedbackService<T> {
     _logger.fine(
       "Sorting suggestions based on distance to person took ${endTime.difference(startTime).inMilliseconds} ms for ${suggestions.length} suggestions",
     );
-  }
-
-  Future<Vector?> _getPersonAvg(String personID) async {
-    final w = (kDebugMode ? EnteWatch('_getPersonAvg') : null)?..start();
-    final personClusters = await mlDataDB.getPersonClusterIDs(personID);
-    w?.log('got person clusters');
-    final Map<String, (Uint8List, int)> personClusterToSummary = await mlDataDB
-        .getClusterToClusterSummary(personClusters);
-    w?.log('got cluster summaries');
-
-    for (final clusterID in personClusters.toSet()) {
-      if (!personClusterToSummary.containsKey(clusterID)) {
-        _logger.warning('missing summary for $clusterID');
-        personClusters.remove(clusterID);
-      }
-    }
-    if (personClusters.isEmpty) {
-      _logger.warning('No person clusters with summary found');
-      return null;
-    }
-
-    int personEmbeddingsCount = 0;
-    for (final clusterID in personClusters) {
-      personEmbeddingsCount += personClusterToSummary[clusterID]!.$2;
-    }
-
-    Vector personAvg = Vector.filled(192, 0);
-    for (final personClusterID in personClusters) {
-      final personClusterBlob = personClusterToSummary[personClusterID]!.$1;
-      final personClusterAvg = Vector.fromList(
-        EVector.fromBuffer(personClusterBlob).values,
-        dtype: DType.float32,
-      );
-      final clusterWeight =
-          personClusterToSummary[personClusterID]!.$2 / personEmbeddingsCount;
-      personAvg += personClusterAvg * clusterWeight;
-    }
-    w?.log('calculated person avg');
-    return personAvg;
   }
 
   Future<void> debugLogClusterBlurValues(
@@ -2090,7 +1865,7 @@ class ClusterFeedbackService<T> {
         final Iterable<Uint8List> biggestEmbeddings = await mlDataDB
             .getFaceEmbeddingsForCluster(biggestClusterID);
         final List<Uint8List> biggestSampledEmbeddingsProto =
-            _randomSampleWithoutReplacement(biggestEmbeddings, sampleSize);
+            randomSampleWithoutReplacement(biggestEmbeddings, sampleSize);
         final List<Vector> biggestSampledEmbeddings =
             biggestSampledEmbeddingsProto
                 .map(
@@ -2104,7 +1879,7 @@ class ClusterFeedbackService<T> {
         final Iterable<Uint8List> currentEmbeddings = await mlDataDB
             .getFaceEmbeddingsForCluster(clusterID);
         final List<Uint8List> currentSampledEmbeddingsProto =
-            _randomSampleWithoutReplacement(currentEmbeddings, sampleSize);
+            randomSampleWithoutReplacement(currentEmbeddings, sampleSize);
         final List<Vector> currentSampledEmbeddings =
             currentSampledEmbeddingsProto
                 .map(

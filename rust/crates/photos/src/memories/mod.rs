@@ -1,30 +1,42 @@
 mod calendar;
+mod clip;
 mod filler;
 mod geo;
 mod input;
 mod on_this_day;
 mod output;
+mod people;
 mod photo;
 mod places;
 mod rng;
 mod selector;
+mod signals;
+mod text_embeddings;
 mod time;
 mod trips;
+mod vectors;
 
 use std::collections::HashSet;
 
 pub use calendar::LocalDate;
 pub use input::{
-    CachedTrip, CityLookup, MemoriesRequest, MemoryFile, Period, PhotoSignals, ShownTrip,
+    CachedTrip, CityLookup, ClipVectors, MemoriesRequest, MemoryFile, MemoryPerson, MlInputs,
+    PeopleInputs, Period, ShownClipMemory, ShownPerson, ShownTrip, UnnamedCluster,
 };
 pub use output::{
-    BaseLocation, BaseMemory, Memory, MemoryKind, SmartMemories, TimeMemory, TripMemory,
+    BaseLocation, BaseMemory, Birthday, ClipMemoryType, Memory, MemoryKind, PeopleActivity,
+    PeopleMemory, PeopleMemoryType, SmartMemories, TimeMemory, TripMemory,
 };
 
+use input::PhotoSignals;
+use people::People;
 use photo::Photo;
 use places::Places;
 use selector::Selector;
+use signals::Signals;
 use trips::TripHistory;
+
+use crate::ml_store::Result;
 
 const UPDATE_FREQUENCY_DAYS: i64 = 3;
 const MAX_MEMORY_ITEMS: usize = 100;
@@ -33,9 +45,9 @@ const MINIMUM_MEMORY_LENGTH: usize = 5;
 pub fn compute_smart_memories(
     request: &MemoriesRequest,
     periods: &[Period],
-    signals: Option<&dyn PhotoSignals>,
+    ml: Option<&MlInputs>,
     cities: Option<&dyn CityLookup>,
-) -> SmartMemories {
+) -> Result<SmartMemories> {
     let photos = photo::prepare(&request.files);
     let excluded_collection_ids: HashSet<i64> =
         request.excluded_collection_ids.iter().copied().collect();
@@ -45,36 +57,49 @@ pub fn compute_smart_memories(
         .first()
         .map(|period| trips::analyze(&located, period.now, &places));
     let mut trip_history = TripHistory::new(&request.shown_trips, &request.cached_trips);
-    let mut selector = Selector::new(signals, request.seed);
-    let periods = periods
-        .iter()
-        .map(|&period| {
-            let mut memories =
-                on_this_day::memories(&photos, period, &excluded_collection_ids, &mut selector);
-            if let Some(analysis) = &analysis {
-                let trip_memories = trips::memories(
-                    analysis,
-                    &trip_history,
-                    period,
-                    request,
-                    &places,
-                    &mut selector,
-                );
-                trip_history.record(&trip_memories);
-                memories.extend(trip_memories);
-            }
-            let time_memories = time::memories(
-                &unused_photos(&photos, &memories),
-                &photos,
+    let signals = ml.map(Signals::load).transpose()?;
+    let people = ml
+        .zip(signals.as_ref())
+        .map(|(ml, signals)| People::new(&photos, request, &ml.people, signals))
+        .transpose()?;
+    let mut selector = Selector::new(
+        signals.as_ref().map(|signals| signals as &dyn PhotoSignals),
+        request.seed,
+    );
+    let mut period_memories = Vec::with_capacity(periods.len());
+    for &period in periods {
+        let mut memories =
+            on_this_day::memories(&photos, period, &excluded_collection_ids, &mut selector);
+        if let Some(people) = &people {
+            memories.extend(people.memories(period, &mut selector)?);
+        }
+        if let Some(analysis) = &analysis {
+            let trip_memories = trips::memories(
+                analysis,
+                &trip_history,
                 period,
+                request,
+                &places,
                 &mut selector,
-            );
-            memories.extend(time_memories);
-            let filler_memories = filler::memories(&unused_photos(&photos, &memories), period);
-            memories.extend(filler_memories);
-            memories
-        })
-        .collect();
+            )?;
+            trip_history.record(&trip_memories);
+            memories.extend(trip_memories);
+        }
+        if let Some(signals) = &signals {
+            let clip_memories = clip::memories(&photos, period, request, signals, &mut selector)?;
+            memories.extend(clip_memories);
+        }
+        let time_memories = time::memories(
+            &unused_photos(&photos, &memories),
+            &photos,
+            period,
+            &mut selector,
+        )?;
+        memories.extend(time_memories);
+        let filler_memories = filler::memories(&unused_photos(&photos, &memories), period);
+        memories.extend(filler_memories);
+        period_memories.push(memories);
+    }
     let base_locations = analysis
         .map(|analysis| {
             analysis
@@ -88,10 +113,10 @@ pub fn compute_smart_memories(
                 .collect()
         })
         .unwrap_or_default();
-    SmartMemories {
-        periods,
+    Ok(SmartMemories {
+        periods: period_memories,
         base_locations,
-    }
+    })
 }
 
 pub fn compute_simple_memories(request: &MemoriesRequest, period: Period) -> Vec<Memory> {
@@ -217,6 +242,7 @@ mod tests {
             None,
             None,
         )
+        .unwrap()
         .periods;
 
         let current = &periods[0];

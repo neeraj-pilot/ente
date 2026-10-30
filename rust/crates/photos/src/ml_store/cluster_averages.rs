@@ -147,7 +147,10 @@ impl MlStore {
             .collect())
     }
 
-    fn cluster_centroids(&self, cluster_ids: &[String]) -> Result<HashMap<String, Vec<f32>>> {
+    pub(super) fn cluster_centroids(
+        &self,
+        cluster_ids: &[String],
+    ) -> Result<HashMap<String, Vec<f32>>> {
         Ok(self
             .db
             .get_cluster_to_cluster_summary(cluster_ids)?

@@ -26,6 +26,9 @@ pub enum Error {
     #[error("Incorrect recovery key")]
     IncorrectRecoveryKey,
 
+    #[error("Malformed recovery key")]
+    MalformedRecoveryKey,
+
     #[error("Invalid key attributes")]
     InvalidKeyAttributes,
 

@@ -1,5 +1,6 @@
 mod cluster_averages;
 mod clustering;
+mod face_distances;
 mod fill;
 mod index;
 mod lock;
@@ -18,6 +19,7 @@ pub use clustering::{
     ClusteredBucket, FaceClusteringPlan, FaceClusteringRequest, FaceClusteringRun,
 };
 pub use ente_vecdb::{KeyMatches, Match, SearchParams, Stats};
+pub use face_distances::{FaceDistance, MedianQuery, MedianSuggestion, PersonFaces};
 pub use fill::{FillOutcome, FillReport};
 pub use index::{CLUSTER_CENTROID_DIMENSIONS, Index};
 pub use state::FillState;

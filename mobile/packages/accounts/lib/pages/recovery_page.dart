@@ -50,13 +50,15 @@ class _RecoveryPageState extends State<RecoveryPage> {
           },
         ),
       );
-    } catch (_) {
+    } catch (e) {
       await dialog.hide();
       if (mounted) {
         await showAlertBottomSheet(
           context,
           title: context.strings.incorrectRecoveryKey,
-          message: 'The recovery key you entered is incorrect',
+          message: e == const AccountsError.malformedRecoveryKey()
+              ? context.strings.invalidRecoveryKey
+              : context.strings.theRecoveryKeyYouEnteredIsIncorrect,
           assetPath: 'assets/warning-grey.png',
         );
       }

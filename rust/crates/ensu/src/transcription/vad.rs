@@ -1,6 +1,9 @@
 use ort::{
     inputs,
-    session::{Session, builder::GraphOptimizationLevel},
+    session::{
+        Session,
+        builder::{AutoDevicePolicy, GraphOptimizationLevel},
+    },
     value::TensorRef,
 };
 use std::{collections::VecDeque, path::Path};
@@ -135,7 +138,10 @@ fn inference(error: impl std::fmt::Display) -> TranscriptionError {
 
 impl SileroV4Vad {
     pub fn new(path: impl AsRef<Path>, threshold: f32) -> Result<Self> {
-        let session = Session::builder()
+        let environment = super::environment()?;
+        let session = Session::builder(&environment)
+            .map_err(inference)?
+            .with_auto_device(AutoDevicePolicy::PreferCPU)
             .map_err(inference)?
             .with_optimization_level(GraphOptimizationLevel::Level3)
             .map_err(inference)?

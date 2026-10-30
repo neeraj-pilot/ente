@@ -7,6 +7,7 @@ use super::output::{Memory, MemoryKind, TimeMemory};
 use super::photo::Photo;
 use super::selector::Selector;
 use super::{MINIMUM_MEMORY_LENGTH, UPDATE_FREQUENCY_DAYS, unused_photos};
+use crate::ml_store::Result;
 
 const RECENT_SELECTION_SIZE: usize = 10;
 const MONTH_SELECTION_SIZE: usize = 20;
@@ -22,8 +23,8 @@ pub(super) fn memories(
     all_photos: &[Photo],
     period: Period,
     selector: &mut Selector,
-) -> Vec<Memory> {
-    let mut memories = recent_memories(all_photos, period, selector);
+) -> Result<Vec<Memory>> {
+    let mut memories = recent_memories(all_photos, period, selector)?;
     let cutoff = period.now - DAYS_PER_YEAR * MICROS_PER_DAY;
     let historical: Vec<&Photo> = available
         .iter()
@@ -37,26 +38,30 @@ pub(super) fn memories(
         period,
         average_daily_photos * SIGNIFICANT_DAY_SHARE,
         selector,
-    );
+    )?;
     if past_memories.is_empty() {
         past_memories = week_memories(
             &historical,
             period,
             average_daily_photos * SIGNIFICANT_WEEK_SHARE,
             selector,
-        );
+        )?;
     }
     let month_photos = unused_photos(historical, &past_memories);
-    past_memories.extend(month_memories(&month_photos, period, selector));
+    past_memories.extend(month_memories(&month_photos, period, selector)?);
     memories.extend(past_memories);
-    memories
+    Ok(memories)
 }
 
-fn recent_memories(photos: &[Photo], period: Period, selector: &mut Selector) -> Vec<Memory> {
+fn recent_memories(
+    photos: &[Photo],
+    period: Period,
+    selector: &mut Selector,
+) -> Result<Vec<Memory>> {
     let today = period.today();
     let week_start = today.plus_days(1 - today.weekday());
     let month_start = LocalDate::new(today.year, today.month, 1);
-    [
+    let windows = [
         (
             TimeMemory::LastWeek,
             week_start.plus_days(-7),
@@ -69,23 +74,23 @@ fn recent_memories(photos: &[Photo], period: Period, selector: &mut Selector) ->
             month_start,
             LocalDate::new(today.year, today.month + 1, 1),
         ),
-    ]
-    .into_iter()
-    .filter_map(|(kind, source_start, show_start, show_end)| {
+    ];
+    let mut memories = Vec::new();
+    for (kind, source_start, show_start, show_end) in windows {
         let candidates: Vec<&Photo> = photos
             .iter()
             .filter(|photo| (source_start..show_start).contains(&photo.date))
             .collect();
-        (candidates.len() >= MINIMUM_MEMORY_LENGTH).then(|| {
-            Memory::new(
+        if candidates.len() >= MINIMUM_MEMORY_LENGTH {
+            memories.push(Memory::new(
                 MemoryKind::Time(kind),
-                &selector.best_over_time(candidates, RECENT_SELECTION_SIZE),
+                &selector.best_over_time(candidates, RECENT_SELECTION_SIZE)?,
                 period.start_of(show_start),
                 period.start_of(show_end),
-            )
-        })
-    })
-    .collect()
+            ));
+        }
+    }
+    Ok(memories)
 }
 
 fn day_memories(
@@ -93,7 +98,7 @@ fn day_memories(
     period: Period,
     significance_threshold: f64,
     selector: &mut Selector,
-) -> Vec<Memory> {
+) -> Result<Vec<Memory>> {
     let show_dates = show_dates(period.today());
     let mut groups: HashMap<(i32, i32), HashMap<i32, Vec<&Photo>>> = HashMap::new();
     for &photo in photos {
@@ -130,7 +135,7 @@ fn day_memories(
             let photos = years.values().flatten().copied().collect();
             memories.push(Memory::new(
                 MemoryKind::Time(kind),
-                &selector.best(photos, None),
+                &selector.best(photos, None)?,
                 first_date_to_show,
                 last_date_to_show,
             ));
@@ -142,14 +147,14 @@ fn day_memories(
                 };
                 memories.push(Memory::new(
                     MemoryKind::Time(kind),
-                    &selector.best(years[&year].clone(), None),
+                    &selector.best(years[&year].clone(), None)?,
                     first_date_to_show,
                     last_date_to_show,
                 ));
             }
         }
     }
-    memories
+    Ok(memories)
 }
 
 fn week_memories(
@@ -157,7 +162,7 @@ fn week_memories(
     period: Period,
     significance_threshold: f64,
     selector: &mut Selector,
-) -> Vec<Memory> {
+) -> Result<Vec<Memory>> {
     let today = period.today();
     let mut years: HashMap<i32, Vec<&Photo>> = HashMap::new();
     for &photo in photos {
@@ -170,30 +175,33 @@ fn week_memories(
     let last_date_to_show = period.now + UPDATE_FREQUENCY_DAYS * MICROS_PER_DAY;
     if significant_years.len() >= MINIMUM_SIGNIFICANT_YEARS_FOR_THROUGH_THE_YEARS {
         let photos = years.values().flatten().copied().collect();
-        return vec![Memory::new(
+        return Ok(vec![Memory::new(
             MemoryKind::Time(TimeMemory::Week { years_ago: None }),
-            &selector.best(photos, None),
+            &selector.best(photos, None)?,
             first_date_to_show,
             last_date_to_show,
-        )];
+        )]);
     }
-    significant_years
-        .into_iter()
-        .map(|year| {
-            let kind = TimeMemory::Week {
-                years_ago: Some(today.year - year),
-            };
-            Memory::new(
-                MemoryKind::Time(kind),
-                &selector.best(years[&year].clone(), None),
-                first_date_to_show,
-                last_date_to_show,
-            )
-        })
-        .collect()
+    let mut memories = Vec::new();
+    for year in significant_years {
+        let kind = TimeMemory::Week {
+            years_ago: Some(today.year - year),
+        };
+        memories.push(Memory::new(
+            MemoryKind::Time(kind),
+            &selector.best(years[&year].clone(), None)?,
+            first_date_to_show,
+            last_date_to_show,
+        ));
+    }
+    Ok(memories)
 }
 
-fn month_memories(photos: &[&Photo], period: Period, selector: &mut Selector) -> Vec<Memory> {
+fn month_memories(
+    photos: &[&Photo],
+    period: Period,
+    selector: &mut Selector,
+) -> Result<Vec<Memory>> {
     let today = period.today();
     let mut years: HashMap<i32, Vec<&Photo>> = HashMap::new();
     for &photo in photos {
@@ -207,23 +215,20 @@ fn month_memories(photos: &[&Photo], period: Period, selector: &mut Selector) ->
     let first_date_to_show = period.now;
     let last_date_to_show = period.start_of(LocalDate::new(today.year, today.month + 1, 1));
     let mut years = years.into_iter();
-    let mut memories: Vec<Memory> = years
-        .by_ref()
-        .take(SINGLE_YEAR_MONTH_MEMORIES)
-        .map(|(year, photos)| {
-            let kind = TimeMemory::Month {
-                year,
-                month: today.month,
-                years_ago: Some(today.year - year),
-            };
-            Memory::new(
-                MemoryKind::Time(kind),
-                &selector.best(photos, Some(MONTH_SELECTION_SIZE)),
-                first_date_to_show,
-                last_date_to_show,
-            )
-        })
-        .collect();
+    let mut memories = Vec::new();
+    for (year, photos) in years.by_ref().take(SINGLE_YEAR_MONTH_MEMORIES) {
+        let kind = TimeMemory::Month {
+            year,
+            month: today.month,
+            years_ago: Some(today.year - year),
+        };
+        memories.push(Memory::new(
+            MemoryKind::Time(kind),
+            &selector.best(photos, Some(MONTH_SELECTION_SIZE))?,
+            first_date_to_show,
+            last_date_to_show,
+        ));
+    }
     let remaining_years: Vec<(i32, Vec<&Photo>)> = years.collect();
     if remaining_years.len() >= MINIMUM_YEARS_FOR_MONTH_THROUGH_THE_YEARS {
         let kind = TimeMemory::Month {
@@ -237,12 +242,12 @@ fn month_memories(photos: &[&Photo], period: Period, selector: &mut Selector) ->
             .collect();
         memories.push(Memory::new(
             MemoryKind::Time(kind),
-            &selector.best(photos, Some(MONTH_SELECTION_SIZE)),
+            &selector.best(photos, Some(MONTH_SELECTION_SIZE))?,
             first_date_to_show,
             last_date_to_show,
         ));
     }
-    memories
+    Ok(memories)
 }
 
 fn show_dates(today: LocalDate) -> HashMap<(i32, i32), LocalDate> {
@@ -286,6 +291,7 @@ mod tests {
             period(now),
             &mut Selector::new(None, 0),
         )
+        .unwrap()
     }
 
     fn day(year: i32, month: i32, day: i32, years_ago: Option<i32>) -> MemoryKind {
