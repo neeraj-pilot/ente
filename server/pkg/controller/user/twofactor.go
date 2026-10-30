@@ -211,7 +211,7 @@ func (c *UserController) RemoveTOTPTwoFactor(context *gin.Context, req *ente.Two
 
 func verifyRecoveryProof(secret, factor, sessionID, proof string) bool {
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte("ente-two-factor-recovery:v1\x00" + factor + "\x00" + sessionID))
+	mac.Write([]byte("recovery:" + factor + ":" + sessionID))
 	expected := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 	return hmac.Equal([]byte(proof), []byte(expected))
 }

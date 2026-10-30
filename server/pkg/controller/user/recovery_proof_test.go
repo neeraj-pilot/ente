@@ -11,8 +11,8 @@ func TestRecoveryProof(t *testing.T) {
 		secret string
 		proof  string
 	}{
-		{"totp", "JBSWY3DPEHPK3PXP", "fImRC3XicUbYB/Uh6VVXMSRdZNCMIl2RwqRlRHDxfkE="},
-		{"passkey", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=", "PxcSH0NrKUX3u330jU6TtYp/I/mT4087vajBXIdPh0I="},
+		{"totp", "JBSWY3DPEHPK3PXP", "ywYHGQTm3D5kuYVTy8ZJf6KFUJMs/og5sRvtw19ungI="},
+		{"passkey", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=", "f+nF2g7+BGieMdZ8uJLndOcDP5GX2ffGgLk5DhHqKFI="},
 	} {
 		t.Run(vector.factor, func(t *testing.T) {
 			if !verifyRecoveryProof(vector.secret, vector.factor, "recovery-session", vector.proof) {
@@ -25,7 +25,7 @@ func TestRecoveryProof(t *testing.T) {
 				{"wrong factor", vector.secret, "other", "recovery-session", vector.proof},
 				{"wrong session", vector.secret, vector.factor, "another-session", vector.proof},
 				{"unpadded", vector.secret, vector.factor, "recovery-session", strings.TrimSuffix(vector.proof, "=")},
-				{"url encoding", vector.secret, vector.factor, "recovery-session", strings.ReplaceAll(vector.proof, "/", "_")},
+				{"url encoding", vector.secret, vector.factor, "recovery-session", strings.NewReplacer("/", "_", "+", "-").Replace(vector.proof)},
 				{"newline", vector.secret, vector.factor, "recovery-session", vector.proof + "\n"},
 				{"empty", vector.secret, vector.factor, "recovery-session", ""},
 				{"malformed", vector.secret, vector.factor, "recovery-session", "!" + vector.proof[1:]},

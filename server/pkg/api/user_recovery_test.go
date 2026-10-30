@@ -109,7 +109,7 @@ func TestRemoveTwoFactorRecovery(t *testing.T) {
 					}
 				} else {
 					mac := hmac.New(sha256.New, []byte(secret))
-					mac.Write([]byte("ente-two-factor-recovery:v1\x00" + factor + "\x00" + sessionID))
+					mac.Write([]byte("recovery:" + factor + ":" + sessionID))
 					request.Proof = base64.StdEncoding.EncodeToString(mac.Sum(nil))
 					if name == "invalid proof" {
 						request.Proof = "invalid"
