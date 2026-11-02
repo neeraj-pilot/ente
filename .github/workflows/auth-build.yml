@@ -109,7 +109,7 @@ jobs:
                   submodules: recursive
 
             - name: Setup JDK 17
-              uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+              uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
               with:
                   distribution: "temurin"
                   java-version: "17"
@@ -121,6 +121,9 @@ jobs:
               run: node ../../../.github/scripts/flutter-version.mjs auth set-build "${RELEASE_VERSION}" "${BUILD_NUMBER}"
 
             - run: flutter pub get --enforce-lockfile
+
+            - run: cargo codegen frb auth
+              working-directory: rust
 
             - name: Prepare whatsnew
               run: |
@@ -145,9 +148,10 @@ jobs:
                   SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD_AUTH }}
                   SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD_AUTH }}
 
-            - name: Build PlayStore AAB
+            - name: Build Play Store bundles
               run: |
                   flutter build appbundle --build-name="${RELEASE_VERSION}" --build-number="${BUILD_NUMBER}" --release --flavor playstore --dart-define=cronetHttpNoPlay=true
+                  android/gradlew -p wear :app:bundleRelease
               env:
                   SIGNING_KEY_PATH: ${{ runner.temp }}/ente_auth_key.jks
                   SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS_AUTH }}
@@ -157,14 +161,6 @@ jobs:
             - name: Generate checksums
               run: cd artifacts && sha256sum ente-auth-*.apk > SHA256SUMS-android
 
-            - name: Build Wear OS bundle
-              run: cd wear && ./gradlew :app:bundleRelease
-              env:
-                  SIGNING_KEY_PATH: ${{ runner.temp }}/ente_auth_key.jks
-                  SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS_AUTH }}
-                  SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD_AUTH }}
-                  SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD_AUTH }}
-
             - name: Save Wear OS bundle for the Wear OS release track
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
               with:
@@ -172,14 +168,14 @@ jobs:
                   path: mobile/apps/auth/wear/app/build/outputs/bundle/release/app-release.aab
 
             - name: Upload checksum snippet
-              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: auth-SHA256SUMS-android
                   path: mobile/apps/auth/artifacts/SHA256SUMS-android
 
             - name: Mint nightly token
               id: nightly_token
-              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+              uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
               with:
                   client-id: ${{ secrets.ENTE_CI_GH_CLIENT_ID }}
                   private-key: ${{ secrets.ENTE_CI_GH_APP_PRIVATE_KEY }}
@@ -255,6 +251,9 @@ jobs:
               run: node ../../../.github/scripts/flutter-version.mjs auth set-build "${RELEASE_VERSION}" "${BUILD_NUMBER}"
 
             - run: flutter pub get --enforce-lockfile
+
+            - run: cargo codegen frb auth
+              working-directory: rust
 
             - name: Create artifacts directory
               run: mkdir artifacts
@@ -332,14 +331,14 @@ jobs:
               run: cd artifacts && sha256sum ente-auth-*.deb ente-auth-*.rpm ente-auth-*.AppImage > SHA256SUMS-linux
 
             - name: Upload checksum snippet
-              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: auth-SHA256SUMS-linux
                   path: mobile/apps/auth/artifacts/SHA256SUMS-linux
 
             - name: Mint nightly token
               id: nightly_token
-              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+              uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
               with:
                   client-id: ${{ secrets.ENTE_CI_GH_CLIENT_ID }}
                   private-key: ${{ secrets.ENTE_CI_GH_APP_PRIVATE_KEY }}
@@ -412,6 +411,9 @@ jobs:
               run: git config --global core.longpaths true
 
             - run: flutter pub get --enforce-lockfile
+
+            - run: cargo codegen frb auth
+              working-directory: rust
 
             - name: Create artifacts directory
               run: mkdir artifacts
@@ -524,14 +526,14 @@ jobs:
               run: cd artifacts && sha256sum ente-auth-* > SHA256SUMS-windows
 
             - name: Upload checksum snippet
-              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: auth-SHA256SUMS-windows
                   path: mobile/apps/auth/artifacts/SHA256SUMS-windows
 
             - name: Mint nightly token
               id: nightly_token
-              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+              uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
               with:
                   client-id: ${{ secrets.ENTE_CI_GH_CLIENT_ID }}
                   private-key: ${{ secrets.ENTE_CI_GH_APP_PRIVATE_KEY }}
@@ -597,6 +599,9 @@ jobs:
               run: node ../../../.github/scripts/flutter-version.mjs auth set-build "${RELEASE_VERSION}" "${BUILD_NUMBER}"
 
             - run: flutter pub get --enforce-lockfile
+
+            - run: cargo codegen frb auth
+              working-directory: rust
 
             - name: Install code signing dependencies
               run: |
@@ -671,14 +676,14 @@ jobs:
               run: cd artifacts && shasum -a 256 ente-auth-* > SHA256SUMS-macos
 
             - name: Upload checksum snippet
-              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: auth-SHA256SUMS-macos
                   path: mobile/apps/auth/artifacts/SHA256SUMS-macos
 
             - name: Mint nightly token
               id: nightly_token
-              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+              uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
               with:
                   client-id: ${{ secrets.ENTE_CI_GH_CLIENT_ID }}
                   private-key: ${{ secrets.ENTE_CI_GH_APP_PRIVATE_KEY }}
@@ -741,12 +746,15 @@ jobs:
 
             - run: flutter pub get --enforce-lockfile
 
+            - run: cargo codegen frb auth
+              working-directory: rust
+
             - name: Install iOS pods
               run: pod install --deployment
               working-directory: mobile/apps/auth/ios
 
             - name: Import Apple Distribution certificate
-              uses: Apple-Actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
+              uses: Apple-Actions/import-codesign-certs@77ba2a2a8f5cfc8c405ebf3159f767c323e238f9 # v7.1.0
               with:
                   p12-file-base64: ${{ secrets.APPLE_DISTRIBUTION_CERT_BASE64 }}
                   p12-password: ${{ secrets.APPLE_DISTRIBUTION_CERT_PASSWORD }}
@@ -800,7 +808,7 @@ jobs:
                   ref: ${{ needs.build-metadata.outputs.commit_sha }}
 
             - name: Download checksum snippets
-              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
                   pattern: auth-SHA256SUMS-*
                   path: checksums
@@ -819,7 +827,7 @@ jobs:
 
             - name: Mint nightly token
               id: nightly_token
-              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+              uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
               with:
                   client-id: ${{ secrets.ENTE_CI_GH_CLIENT_ID }}
                   private-key: ${{ secrets.ENTE_CI_GH_APP_PRIVATE_KEY }}

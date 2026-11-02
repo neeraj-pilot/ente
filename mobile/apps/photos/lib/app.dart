@@ -60,6 +60,7 @@ class _EnteAppState extends State<EnteApp> with WidgetsBindingObserver {
   StreamSubscription<MediaExtentionAction>? _intentActionSubscription;
   StreamSubscription<Uri?>? _widgetClickedSubscription;
   bool _didInitWidgetLaunchHandling = false;
+  bool _wasPaused = false;
   late Future<Widget> _initialAndroidHome;
   bool get _isPickerLaunch =>
       widget.initialMediaExtensionAction?.action == IntentAction.pick;
@@ -175,22 +176,32 @@ class _EnteAppState extends State<EnteApp> with WidgetsBindingObserver {
   Future<void> _handleAndroidIntentAction(
     MediaExtentionAction mediaExtentionAction,
   ) async {
-    AppLifecycleService.instance.setMediaExtensionAction(
-      _appLifecycleActionFor(mediaExtentionAction),
-    );
+    if (AppNavigationService.instance.isGuestViewActive) return;
+
+    void updateIntentAction() {
+      AppLifecycleService.instance.setMediaExtensionAction(
+        _appLifecycleActionFor(mediaExtentionAction),
+      );
+    }
+
     if (mediaExtentionAction.action == IntentAction.pick) {
       await AppNavigationService.instance.pushPage(
         ExternalMediaPickerPage(
           requestedType: mediaExtentionAction.type,
           allowMultiple: mediaExtentionAction.allowMultiple,
         ),
+        onBeforePush: updateIntentAction,
       );
       return;
     }
     if (!_shouldOpenFileViewer(mediaExtentionAction)) {
+      updateIntentAction();
       return;
     }
-    await AppNavigationService.instance.pushPage(const FileViewer());
+    await AppNavigationService.instance.pushPage(
+      const FileViewer(),
+      onBeforePush: updateIntentAction,
+    );
   }
 
   Widget _buildInitialAndroidHome() {
@@ -222,6 +233,7 @@ class _EnteAppState extends State<EnteApp> with WidgetsBindingObserver {
         initial: widget.savedThemeMode ?? AdaptiveThemeMode.system,
         builder: (lightTheme, dartTheme) => MaterialApp(
           navigatorKey: AppNavigationService.instance.navigatorKey,
+          navigatorObservers: [AppNavigationService.instance.routeObserver],
           title: "ente",
           themeMode: ThemeMode.system,
           theme: lightTheme,
@@ -262,7 +274,10 @@ class _EnteAppState extends State<EnteApp> with WidgetsBindingObserver {
       if (_isPickerLaunch) {
         return;
       }
-      unawaited(_reloadCachesUpdatedInBackground(lastAppOpenTime));
+      if (_wasPaused) {
+        _wasPaused = false;
+        unawaited(_reloadCachesUpdatedInBackground(lastAppOpenTime));
+      }
       SyncService.instance.sync();
       unawaited(BackgroundTasks.configure().catchError((Object _) {}));
       if (Platform.isIOS) {
@@ -270,6 +285,9 @@ class _EnteAppState extends State<EnteApp> with WidgetsBindingObserver {
       }
     } else {
       AppLifecycleService.instance.onAppInBackground(stateChangeReason);
+      if (state == AppLifecycleState.paused) {
+        _wasPaused = true;
+      }
       if (Platform.isIOS && state == AppLifecycleState.paused) {
         MLService.instance.stopActiveRun(MlStopReason.appPaused);
       }

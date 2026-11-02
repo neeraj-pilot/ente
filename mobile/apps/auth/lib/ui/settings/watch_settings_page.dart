@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:ente_auth/models/code.dart';
-import 'package:ente_auth/models/watch/entry.dart';
+import 'package:ente_auth/models/watch/snapshot.dart';
 import 'package:ente_auth/models/watch/state.dart';
+import 'package:ente_auth/services/watch/selection.dart';
 import 'package:ente_auth/services/watch/service.dart';
 import 'package:ente_auth/store/code_store.dart';
 import 'package:ente_auth/ui/settings/components/auth_settings_navigation.dart';
@@ -23,7 +24,7 @@ class WatchSettingsPage extends StatefulWidget {
   State<WatchSettingsPage> createState() => _WatchSettingsPageState();
 }
 
-enum _WatchAction { approve, disable, refresh }
+enum _WatchAction { disable, refresh }
 
 class _WatchSettingsPageState extends State<WatchSettingsPage> {
   final service = WatchService.instance;
@@ -57,39 +58,40 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
       return AuthSettingsPageScaffold(
         title: l10n.watch,
         children: [
-          Text(
-            l10n.watchOfflineDescription,
-            style: TextStyles.body.copyWith(color: colors.textLight),
-          ),
-          const SizedBox(height: Spacing.xl),
           MenuGroupComponent(
             items: [
-              Padding(
-                padding: const EdgeInsets.all(Spacing.lg),
-                child: Text(switch (state.phase) {
-                  WatchPhase.unavailable =>
-                    Platform.isIOS
-                        ? l10n.watchUnavailableApple
-                        : l10n.watchUnavailableAndroid,
-                  WatchPhase.setup => l10n.watchSetupInstructions,
-                  WatchPhase.approval => l10n.watchApproveInstructions,
-                  WatchPhase.pending => l10n.watchPending,
-                  WatchPhase.synced => l10n.watchSynced,
-                  WatchPhase.retiring => l10n.watchRetiring,
-                  WatchPhase.disabled => l10n.watchDisabled,
-                  WatchPhase.failed => l10n.watchSyncFailed,
-                  WatchPhase.replacement => l10n.watchReplacement,
-                  WatchPhase.ambiguous => l10n.watchAmbiguous,
-                }, style: TextStyles.body.copyWith(color: colors.textBase)),
-              ),
+              if (!state.canPublish || service.sharing != null)
+                Padding(
+                  padding: const EdgeInsets.all(Spacing.lg),
+                  child: Text(switch (state.phase) {
+                    WatchPhase.unavailable =>
+                      Platform.isIOS
+                          ? l10n.watchUnavailableApple
+                          : l10n.watchUnavailableAndroid,
+                    WatchPhase.setup => l10n.watchSetupInstructions,
+                    WatchPhase.approval => l10n.watchApproveInstructions,
+                    WatchPhase.pending => l10n.watchPending,
+                    WatchPhase.synced => l10n.watchSynced,
+                    WatchPhase.retiring => l10n.watchRetiring,
+                    WatchPhase.disabled => l10n.watchDisabled,
+                    WatchPhase.failed => l10n.watchSyncFailed,
+                    WatchPhase.replacement => l10n.watchReplacement,
+                    WatchPhase.ambiguous => l10n.watchAmbiguous,
+                  }, style: TextStyles.body.copyWith(color: colors.textBase)),
+                ),
               if (state.canPublish)
                 SettingsItem(
-                  title: l10n.watchSelectAccounts,
+                  title: l10n.watchSharing,
+                  subtitle: switch (service.sharing?.mode) {
+                    WatchSharingMode.all => l10n.watchAllAccounts,
+                    WatchSharingMode.tags => l10n.watchSelectedTags,
+                    null => l10n.watchChooseSharing,
+                  },
                   onTap: busy
                       ? null
                       : () => pushAuthSettingsPage(
                           context,
-                          _WatchAccountsPage(
+                          _WatchSharingPage(
                             target: state,
                             scope: service.vaultScope(),
                           ),
@@ -115,9 +117,12 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
             const SizedBox(height: Spacing.lg),
             ButtonComponent(
               label: l10n.watchApprove,
-              isDisabled: busy && activeAction != _WatchAction.approve,
+              isDisabled: busy,
               shouldShowSuccessState: false,
-              onTap: () => _change(_WatchAction.approve, service.approve),
+              onTap: () => pushAuthSettingsPage(
+                context,
+                _WatchSharingPage(target: state, scope: service.vaultScope()),
+              ),
             ),
           ],
           if (canRefresh) ...[
@@ -145,11 +150,6 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
               ],
             ),
           ],
-          const SizedBox(height: Spacing.lg),
-          Text(
-            l10n.watchOfflineDeletionNotice,
-            style: TextStyles.mini.copyWith(color: colors.textLight),
-          ),
         ],
       );
     },
@@ -181,26 +181,31 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
   }
 }
 
-class _WatchAccountsPage extends StatefulWidget {
-  const _WatchAccountsPage({required this.target, required this.scope});
+class _WatchSharingPage extends StatefulWidget {
+  const _WatchSharingPage({required this.target, required this.scope});
   final WatchState target;
   final String scope;
 
   @override
-  State<_WatchAccountsPage> createState() => _WatchAccountsPageState();
+  State<_WatchSharingPage> createState() => _WatchSharingPageState();
 }
 
-class _WatchAccountsPageState extends State<_WatchAccountsPage> {
+class _WatchSharingPageState extends State<_WatchSharingPage> {
   final service = WatchService.instance;
   late final Future<List<Code>> codes;
-  late final Set<int> selected;
+  late final Set<String> initialTags;
+  WatchSharingMode? mode;
+  final selectedTags = <String>{};
   bool busy = false;
 
   @override
   void initState() {
     super.initState();
-    selected = service.selectedIDs;
-    codes = CodeStore.instance.getAllCodes();
+    final sharing = service.sharing;
+    mode = sharing?.mode;
+    initialTags = {...?sharing?.tags};
+    selectedTags.addAll(initialTags);
+    codes = CodeStore.instance.getAllCodes(requireCompleteRead: true);
   }
 
   @override
@@ -209,75 +214,168 @@ class _WatchAccountsPageState extends State<_WatchAccountsPage> {
     builder: (context, snapshot) {
       final l10n = context.strings;
       final colors = context.componentColors;
-      final supported = snapshot.data?.where(WatchEntry.supports).toList();
-      final selectedCount =
-          supported
-              ?.where((code) => selected.contains(code.generatedID))
-              .length ??
-          0;
+      final tags = {
+        ...initialTags,
+        for (final code in snapshot.data ?? <Code>[])
+          if (!code.hasError && !code.isTrashed) ...code.display.tags,
+      }.toList()..sort();
+      final sharing = mode == null
+          ? null
+          : WatchSharing(mode: mode!, tags: selectedTags);
+      final count = snapshot.data
+          ?.where(WatchSnapshot.supports)
+          .where((code) => sharing?.includes(code) ?? false)
+          .length;
+      final hasUnsupportedCodes =
+          snapshot.data?.any(
+            (code) =>
+                !code.hasError &&
+                !code.isTrashed &&
+                !WatchSnapshot.supports(code),
+          ) ??
+          false;
       return AuthSettingsPageScaffold(
-        title: l10n.watchSelectAccounts,
+        title: l10n.watchSharing,
         bottomNavigationBar: SafeArea(
           top: false,
           child: Padding(
             padding: const EdgeInsets.all(Spacing.lg),
-            child: ButtonComponent(
-              label: l10n.save,
-              isDisabled: !snapshot.hasData || snapshot.hasError,
-              shouldShowSuccessState: false,
-              onTap: _save,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (mode != null && count != null && !snapshot.hasError) ...[
+                  Text(
+                    l10n.watchAccountCount(count: count),
+                    style: TextStyles.body,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: Spacing.md),
+                ],
+                ButtonComponent(
+                  label: widget.target.phase == WatchPhase.approval
+                      ? l10n.watchShare
+                      : l10n.save,
+                  isDisabled:
+                      !snapshot.hasData ||
+                      snapshot.hasError ||
+                      mode == null ||
+                      (mode == WatchSharingMode.tags && selectedTags.isEmpty),
+                  shouldShowSuccessState: false,
+                  onTap: _save,
+                ),
+              ],
             ),
           ),
         ),
         children: [
           Text(
-            l10n.watchSupportedAccounts,
+            l10n.watchOfflineDescription,
             style: TextStyles.body.copyWith(color: colors.textLight),
           ),
           const SizedBox(height: Spacing.lg),
-          if (snapshot.hasError)
-            Text(l10n.watchSyncFailed, style: TextStyles.body)
-          else if (supported == null)
-            const Center(child: CircularProgressIndicator())
-          else ...[
-            Text(
-              l10n.watchSelectedAccounts(count: selectedCount),
-              style: TextStyles.mini.copyWith(color: colors.textLight),
-            ),
-            const SizedBox(height: Spacing.sm),
-            if (supported.isEmpty)
-              Text(l10n.watchNoSupportedAccounts, style: TextStyles.body)
+          MenuGroupComponent(
+            items: [
+              _modeRow(
+                WatchSharingMode.all,
+                l10n.watchAllAccounts,
+                l10n.watchAllAccountsDescription,
+              ),
+              _modeRow(
+                WatchSharingMode.tags,
+                l10n.watchSelectedTags,
+                l10n.watchSelectedTagsDescription,
+              ),
+            ],
+          ),
+          if (mode == WatchSharingMode.tags) ...[
+            const SizedBox(height: Spacing.lg),
+            if (tags.isEmpty && snapshot.hasData)
+              Text(l10n.watchNoTags, style: TextStyles.body)
             else
               MenuGroupComponent(
                 items: [
-                  for (final code in supported) _accountRow(context, code),
+                  for (final tag in tags)
+                    _tagRow(
+                      tag,
+                      snapshot.data
+                              ?.where(WatchSnapshot.supports)
+                              .where((code) => code.display.tags.contains(tag))
+                              .length ??
+                          0,
+                    ),
                 ],
               ),
+          ],
+          if (snapshot.hasError) ...[
+            const SizedBox(height: Spacing.lg),
+            Text(l10n.watchSyncFailed, style: TextStyles.body),
+          ] else if (!snapshot.hasData) ...[
+            const SizedBox(height: Spacing.lg),
+            const Center(child: CircularProgressIndicator()),
+          ],
+          if (hasUnsupportedCodes) ...[
+            const SizedBox(height: Spacing.md),
+            Text(
+              l10n.watchUnsupportedAccounts,
+              style: TextStyles.mini.copyWith(color: colors.textLight),
+            ),
           ],
         ],
       );
     },
   );
 
-  Widget _accountRow(BuildContext context, Code code) {
-    final checked = selected.contains(code.generatedID);
-    final colors = context.componentColors;
+  Widget _modeRow(WatchSharingMode value, String title, String description) {
+    void choose() => setState(() => mode = value);
+    return _choiceRow(
+      title: title,
+      description: description,
+      selected: mode == value,
+      mutuallyExclusive: true,
+      onTap: choose,
+      control: RadioComponent(
+        selected: mode == value,
+        onChanged: busy ? null : (_) => choose(),
+      ),
+    );
+  }
+
+  Widget _tagRow(String tag, int count) {
+    final selected = selectedTags.contains(tag);
     void toggle() => setState(() {
-      if (!selected.remove(code.generatedID)) selected.add(code.generatedID!);
+      if (!selectedTags.remove(tag)) selectedTags.add(tag);
     });
+    return _choiceRow(
+      title: tag,
+      description: context.strings.watchAccountCount(count: count),
+      selected: selected,
+      onTap: toggle,
+      control: CheckboxComponent(
+        selected: selected,
+        onChanged: busy ? null : (_) => toggle(),
+      ),
+    );
+  }
+
+  Widget _choiceRow({
+    required String title,
+    required String description,
+    required bool selected,
+    required VoidCallback onTap,
+    required Widget control,
+    bool mutuallyExclusive = false,
+  }) {
     return Semantics(
-      checked: checked,
+      checked: selected,
+      inMutuallyExclusiveGroup: mutuallyExclusive,
       enabled: !busy,
-      label: [
-        code.issuer,
-        code.account,
-      ].where((value) => value.isNotEmpty).join(', '),
-      onTap: busy ? null : toggle,
+      label: '$title. $description',
+      onTap: busy ? null : onTap,
       child: ExcludeSemantics(
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: busy ? null : toggle,
+            onTap: busy ? null : onTap,
             child: Padding(
               padding: const EdgeInsets.all(Spacing.lg),
               child: Row(
@@ -287,29 +385,23 @@ class _WatchAccountsPageState extends State<_WatchAccountsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          code.issuer.isEmpty ? code.account : code.issuer,
+                          title,
                           style: TextStyles.bodyBold.copyWith(
-                            color: colors.textBase,
+                            color: context.componentColors.textBase,
                           ),
                         ),
-                        if (code.issuer.isNotEmpty &&
-                            code.account.isNotEmpty) ...[
-                          const SizedBox(height: Spacing.xs),
-                          Text(
-                            code.account,
-                            style: TextStyles.body.copyWith(
-                              color: colors.textLight,
-                            ),
+                        const SizedBox(height: Spacing.xs),
+                        Text(
+                          description,
+                          style: TextStyles.body.copyWith(
+                            color: context.componentColors.textLight,
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ),
                   const SizedBox(width: Spacing.lg),
-                  CheckboxComponent(
-                    selected: checked,
-                    onChanged: busy ? null : (_) => toggle(),
-                  ),
+                  SizedBox(width: 40, child: Center(child: control)),
                 ],
               ),
             ),
@@ -320,15 +412,18 @@ class _WatchAccountsPageState extends State<_WatchAccountsPage> {
   }
 
   Future<void> _save() async {
-    if (busy) return;
+    if (busy || mode == null) return;
     setState(() => busy = true);
     try {
       if (!await _authenticate(context) || !mounted) return;
-      final current = await codes;
-      selected.retainAll(
-        current.where(WatchEntry.supports).map((code) => code.generatedID!),
+      await service.share(
+        widget.target,
+        widget.scope,
+        WatchSharing(
+          mode: mode!,
+          tags: mode == WatchSharingMode.tags ? Set.of(selectedTags) : {},
+        ),
       );
-      await service.select(widget.target, widget.scope, selected);
       await service.refresh();
       if (mounted) Navigator.of(context).pop();
     } on Object catch (error) {

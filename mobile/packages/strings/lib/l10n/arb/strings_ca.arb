@@ -552,10 +552,6 @@
   "doesGroupContainMultiplePeople": "Aquest agrupament conté múltiples persones?",
   "done": "Fet",
   "dontSave": "No guardis",
-  "doThisLater": "Fes-ho més tard",
-  "@doThisLater": {
-    "description": "Do this later button label"
-  },
   "doubleTapToViewHiddenCode": "Pots tocar dues vegades en una entrada per veure el codi",
   "download": "Descarrega",
   "downloadFailed": "Descàrrega fallida",
@@ -1165,7 +1161,6 @@
   "mlConsent": "Activa aprenentatge automàtic",
   "mlConsentConfirmation": "Ho entenc, i vull activar l'aprenentatge automàtic",
   "mlConsentDescription": "Si actives l'aprenentatge automàtic, Ente extreurà informació com la geometria facial dels fitxers, inclosos els compartits amb tu.\n\nAixò passarà al teu dispositiu, i qualsevol informació biomètrica generada estarà xifrada d'extrem a extrem.",
-  "mlConsentPrivacy": "Si us plau, fes clic aquí per a més detalls sobre aquesta funció a la nostra política de privadesa",
   "moderateStrength": "Moderada",
   "@moderateStrength": {
     "description": "Moderate password strength label"
@@ -1900,7 +1895,6 @@
   "selectFile": "Selecciona fitxer",
   "selectFolder": "Seleccioneu una carpeta",
   "selectFolders": "Selecciona les carpetes",
-  "selectFoldersForBackup": "Selecciona carpetes per a còpia de seguretat",
   "selectFolderToContinue": "Seleccioneu una carpeta per continuar",
   "selectItemsToAdd": "Selecciona elements per afegir",
   "selectMailApp": "Selecciona aplicació de correu",
@@ -2030,7 +2024,6 @@
   "stargazing": "Sota les estrelles",
   "startBackup": "Inicia còpia de seguretat",
   "startRecovery": "Inicia recuperació",
-  "startWithLatestPhotos": "Comença amb les fotos més recents",
   "status": "Estat",
   "sticker": "Adhesiu",
   "stopCastingBody": "Vols aturar la transmissió?",

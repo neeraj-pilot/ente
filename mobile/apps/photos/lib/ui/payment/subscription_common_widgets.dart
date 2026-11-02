@@ -1,13 +1,17 @@
-import "package:ente_components/theme/theme.dart";
+import 'dart:async';
+import 'dart:math' as math;
+
+import "package:ente_components/ente_components.dart";
 import 'package:ente_pure_utils/ente_pure_utils.dart';
 import "package:ente_strings/ente_strings.dart";
+import 'package:ente_ui/components/faq/faq_widgets.dart';
+import 'package:ente_ui/components/subscription/billing_period_toggle.dart';
+import 'package:ente_ui/components/subscription/family_card.dart';
 import 'package:flutter/material.dart';
 import "package:intl/intl.dart";
-import 'package:photos/ente_theme_data.dart';
 import 'package:photos/gateways/billing/models/subscription.dart';
 import "package:photos/gateways/storage_bonus/models/bonus.dart";
 import "package:photos/theme/ente_theme.dart";
-import "package:photos/ui/components/menu_item_widget/menu_item_widget_new.dart";
 import 'package:photos/ui/payment/billing_questions_widget.dart';
 
 class ValidityWidget extends StatelessWidget {
@@ -93,175 +97,109 @@ class AddOnBonusValidity extends StatelessWidget {
   }
 }
 
-class SubFaqWidget extends StatelessWidget {
-  final bool isOnboarding;
-
-  const SubFaqWidget({super.key, this.isOnboarding = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = getEnteColorScheme(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: MenuItemWidgetNew(
-        title: context.strings.faqs,
-        menuItemColor: colorScheme.fillFaint,
-        pressedColor: colorScheme.fillFaintPressed,
-        trailingWidget: Icon(
-          Icons.chevron_right_outlined,
-          color: colorScheme.strokeBase,
-        ),
-        onTap: () async {
-          // ignore: unawaited_futures
-          showModalBottomSheet<void>(
-            backgroundColor: Theme.of(context).colorScheme.bgColorForQuestions,
-            barrierColor: Colors.black87,
-            context: context,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            builder: (context) {
-              return const SafeArea(child: BillingQuestionsWidget());
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class SubscriptionToggle extends StatefulWidget {
-  final bool isYearly;
-  final Function(bool) onToggle;
-  const SubscriptionToggle({
-    required this.isYearly,
-    required this.onToggle,
+class SubscriptionContinueButton extends StatelessWidget {
+  const SubscriptionContinueButton({
     super.key,
+    required this.label,
+    this.onTap,
+    this.isDisabled = false,
   });
 
-  @override
-  State<SubscriptionToggle> createState() => _SubscriptionToggleState();
-}
-
-class _SubscriptionToggleState extends State<SubscriptionToggle> {
-  late bool _isYearly;
-
-  @override
-  void initState() {
-    super.initState();
-    _isYearly = widget.isYearly;
-  }
-
-  @override
-  void didUpdateWidget(covariant SubscriptionToggle oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.isYearly != widget.isYearly) {
-      _isYearly = widget.isYearly;
-    }
-  }
+  final String label;
+  final FutureOr<void> Function()? onTap;
+  final bool isDisabled;
 
   @override
   Widget build(BuildContext context) {
-    const borderPadding = 2.5;
-    const spaceBetweenButtons = 4.0;
-    final textTheme = getEnteTextTheme(context);
-    final componentColors = context.componentColors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
-      child: LayoutBuilder(
-        builder: (context, constrains) {
-          final widthOfButton =
-              (constrains.maxWidth -
-                  (borderPadding * 2) -
-                  spaceBetweenButtons) /
-              2;
-          return Container(
-            decoration: BoxDecoration(
-              color: componentColors.strokeFaint,
-              borderRadius: BorderRadius.circular(50),
-            ),
-            padding: const EdgeInsets.symmetric(
-              vertical: borderPadding,
-              horizontal: borderPadding,
-            ),
-            width: double.infinity,
-            child: Stack(
-              children: [
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        setIsYearly(true);
-                      },
-                      behavior: HitTestBehavior.opaque,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        width: widthOfButton,
-                        child: Center(
-                          child: Text(
-                            context.strings.yearly,
-                            style: textTheme.bodyMuted,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: spaceBetweenButtons),
-                    GestureDetector(
-                      onTap: () {
-                        setIsYearly(false);
-                      },
-                      behavior: HitTestBehavior.opaque,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        width: widthOfButton,
-                        child: Center(
-                          child: Text(
-                            context.strings.monthly,
-                            style: textTheme.bodyMuted,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeInOutQuart,
-                  left: _isYearly ? 0 : widthOfButton + spaceBetweenButtons,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    width: widthOfButton,
-                    decoration: BoxDecoration(
-                      color: componentColors.fillLight,
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 350),
-                      switchInCurve: Curves.easeInOutExpo,
-                      switchOutCurve: Curves.easeInOutExpo,
-                      child: Text(
-                        key: ValueKey(_isYearly),
-                        _isYearly
-                            ? context.strings.yearly
-                            : context.strings.monthly,
-                        style: textTheme.body,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+    final labelStyle = TextStyles.large.copyWith(
+      fontFamily: TextStyles.outfitFontFamily,
+      package: TextStyles.fontPackage,
+      fontWeight: FontWeight.w700,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: label, style: labelStyle),
+          maxLines: 2,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          locale: Localizations.localeOf(context),
+        )..layout(maxWidth: math.max(0, constraints.maxWidth - Spacing.xl * 2));
+        final fits = !painter.didExceedMaxLines;
+        painter.dispose();
+        return ButtonComponent(
+          label: fits ? label : context.strings.continueLabel,
+          labelStyle: labelStyle,
+          variant: ButtonComponentVariant.neutral,
+          shouldShowSuccessState: false,
+          isDisabled: isDisabled,
+          onTap: onTap,
+        );
+      },
     );
   }
+}
 
-  void setIsYearly(bool isYearly) {
-    setState(() {
-      _isYearly = isYearly;
-    });
-    widget.onToggle(isYearly);
+class SubFaqWidget extends StatelessWidget {
+  const SubFaqWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FaqCard(
+      title: context.strings.faqs,
+      subtitle: context.strings.subscriptionFaqDescription,
+      onTap: () => showPlanFaqSheet(context),
+    );
   }
+}
+
+class SubscriptionFamilyWidget extends StatelessWidget {
+  const SubscriptionFamilyWidget({
+    super.key,
+    required this.title,
+    required this.onTap,
+  });
+
+  final String title;
+  final FutureOr<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return FamilyCard(
+      title: title,
+      subtitle: context.strings.subscriptionFamilyDescription,
+      onTap: onTap,
+    );
+  }
+}
+
+Future<void> showPlanFaqSheet(BuildContext context) {
+  return showBottomSheetComponent<void>(
+    context: context,
+    builder: (_) => BottomSheetComponent(
+      title: context.strings.faqs,
+      isScrollable: true,
+      initialChildSize: 0.6,
+      content: const BillingQuestionsWidget(),
+    ),
+  );
+}
+
+class SubscriptionToggle extends StatelessWidget {
+  const SubscriptionToggle({
+    super.key,
+    required this.isYearly,
+    required this.onToggle,
+  });
+
+  final bool isYearly;
+  final ValueChanged<bool> onToggle;
+
+  @override
+  Widget build(BuildContext context) => BillingPeriodToggle(
+    monthlyLabel: context.strings.monthly,
+    yearlyLabel: context.strings.yearly,
+    isYearly: isYearly,
+    onToggle: onToggle,
+  );
 }

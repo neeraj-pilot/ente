@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"net/http"
 
 	"github.com/ente/museum/ente"
 	"github.com/ente/museum/pkg/utils/auth"
@@ -175,7 +176,7 @@ func (repo *UserAuthRepository) AddToken(userID int64, app ente.App, token strin
 }
 
 func (repo *UserAuthRepository) AddLoginResult(ctx context.Context, userID int64, srpAuth *ente.SRPAuthEntity, expectedKeyAttributes *ente.KeyAttributes,
-	app ente.App, token, ip, userAgent, passkeySessionID, twoFactorSessionID string, expirationTime int64,
+	app ente.App, token, ip, userAgent, passkeySessionID, twoFactorSessionID string, expirationTime int64, rejectEmailMFA bool,
 ) error {
 	tx, err := repo.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -184,6 +185,19 @@ func (repo *UserAuthRepository) AddLoginResult(ctx context.Context, userID int64
 	defer tx.Rollback()
 	if err = lockUserForLogin(ctx, tx, userID, srpAuth, expectedKeyAttributes); err != nil {
 		return err
+	}
+	if rejectEmailMFA {
+		var enabled bool
+		if err = tx.QueryRowContext(ctx, `SELECT email_mfa FROM users WHERE user_id = $1`, userID).Scan(&enabled); err != nil {
+			return stacktrace.Propagate(err, "")
+		}
+		if enabled {
+			return stacktrace.Propagate(&ente.ApiError{
+				Code:           "EMAIL_MFA_ENABLED",
+				Message:        "Email MFA is enabled",
+				HttpStatusCode: http.StatusConflict,
+			}, "email mfa is enabled")
+		}
 	}
 	now := time.Microseconds()
 	if passkeySessionID != "" {
@@ -338,29 +352,42 @@ func (repo *UserAuthRepository) RemoveTokensForApps(userID int64, apps []ente.Ap
 }
 
 func (repo *UserAuthRepository) markTokensDeleted(query string, args ...interface{}) ([]RevokedToken, error) {
-	return markTokensDeleted(repo.DB, query, args...)
+	tx, err := repo.DB.Begin()
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	defer tx.Rollback()
+	tokens, err := markTokensDeleted(tx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	return tokens, nil
 }
 
-type rowsQueryer interface {
-	Query(query string, args ...any) (*sql.Rows, error)
-}
-
-func markTokensDeleted(queryer rowsQueryer, query string, args ...interface{}) ([]RevokedToken, error) {
-	rows, err := queryer.Query(query, args...)
+func markTokensDeleted(tx *sql.Tx, query string, args ...interface{}) ([]RevokedToken, error) {
+	rows, err := tx.Query(query, args...)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
 	defer rows.Close()
 
 	tokens := make([]RevokedToken, 0)
+	var hashes pq.ByteaArray
 	for rows.Next() {
 		var token RevokedToken
 		if err = rows.Scan(&token.App, &token.TokenHash); err != nil {
 			return nil, stacktrace.Propagate(err, "")
 		}
 		tokens = append(tokens, token)
+		hashes = append(hashes, token.TokenHash)
 	}
 	if err = rows.Err(); err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	if _, err = tx.Exec(`DELETE FROM push_tokens WHERE session_token_hash = ANY($1)`, hashes); err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
 	return tokens, nil

@@ -16,7 +16,10 @@ import io.ente.ensu.bindings.needsAssetMigration
 import io.ente.ensu.bindings.reconcileKnowledgePack
 import io.ente.ensu.bindings.uniffiEnsureInitialized
 import java.io.File
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class AssetStore(context: Context) {
@@ -63,6 +66,15 @@ class AssetStore(context: Context) {
 
     fun removeDownloaded(asset: Asset): Boolean = core.removeDownloaded(asset)
 
+    suspend fun cleanupObsoleteChatModels(modelId: String): Unit =
+        withContext(Dispatchers.IO) {
+            try {
+                core.cleanupObsoleteChatModels(modelId)
+            } catch (error: Exception) {
+                Log.w("AssetStore", "Unable to remove obsolete chat models", error)
+            }
+        }
+
     internal fun reconcileKnowledge(stableId: String): KnowledgeReconciliation =
         reconcileKnowledgePack(core, stableId)
 
@@ -81,6 +93,14 @@ class AssetStore(context: Context) {
 
             val token = CancellationToken()
             val lease = AssetDownloadJobService.begin { token.cancel() }
+            val cancellation =
+                launch(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) {
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        token.cancel()
+                    }
+                }
             try {
                 core.download(
                     assets,
@@ -98,7 +118,7 @@ class AssetStore(context: Context) {
                     token,
                 )
             } finally {
-                token.cancel()
+                cancellation.cancel()
                 AssetDownloadJobService.end(lease)
             }
         }

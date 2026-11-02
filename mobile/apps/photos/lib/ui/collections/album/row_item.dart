@@ -16,7 +16,7 @@ import "package:photos/services/collections_service.dart";
 import "package:photos/ui/components/collection_share_badge.dart";
 import "package:photos/ui/sharing/album_share_info_widget.dart";
 import "package:photos/ui/sharing/more_count_badge.dart";
-import "package:photos/ui/sharing/user_avator_widget.dart";
+import "package:photos/ui/sharing/user_avatar_widget.dart";
 import 'package:photos/ui/viewer/file/no_thumbnail_widget.dart';
 import 'package:photos/ui/viewer/file/thumbnail_widget.dart';
 import 'package:photos/ui/viewer/gallery/collection_page.dart';
@@ -116,23 +116,16 @@ class AlbumRowItemWidget extends StatelessWidget {
                                   externalSelection ??
                                   selectedAlbums?.isAlbumSelected(c) ??
                                   false;
-                              final String heroTag = tagPrefix + thumbnail.tag;
                               final thumbnailWidget = ThumbnailWidget(
                                 thumbnail,
                                 shouldShowFavoriteIcon: false,
                                 shouldShowSyncStatus: false,
-                                key: Key(heroTag),
+                                key: Key(tagPrefix + thumbnail.tag),
                               );
                               return Hero(
-                                tag: heroTag,
-                                flightShuttleBuilder:
-                                    (
-                                      flightContext,
-                                      animation,
-                                      flightDirection,
-                                      fromHeroContext,
-                                      toHeroContext,
-                                    ) => (toHeroContext.widget as Hero).child,
+                                tag: tagPrefix,
+                                createRectTween: (begin, end) =>
+                                    RectTween(begin: begin, end: end),
                                 transitionOnUserGestures: true,
                                 child: ClipSmoothRect(
                                   radius: SmoothBorderRadius(
@@ -349,8 +342,10 @@ class AlbumRowItemWidget extends StatelessWidget {
           CollectionPage(
             CollectionWithThumbnail(c, thumbnail),
             tagPrefix: tagPrefix,
+            coverHeroTag: tagPrefix,
             hasVerifiedLock: hasVerifiedLock,
           ),
+          useFadeTransition: true,
         );
       },
       onLongPress: () {

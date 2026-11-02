@@ -60,7 +60,8 @@ class PeopleMemoriesCalculator {
 
     String? meID;
     for (final personEntity in persons) {
-      if (personEntity.data.email == currentUserEmail) {
+      if (currentUserEmail != null &&
+          personEntity.data.email == currentUserEmail) {
         meID = personEntity.remoteID;
         break;
       }
@@ -250,41 +251,46 @@ class PeopleMemoriesCalculator {
         w?.log('doingSomethingTogether setup');
       }
 
-      final lastTimeYouSawThemFiles = <EnteFile>[];
-      int lastCreationTime = 0;
+      final personFiles = <EnteFile>[];
       bool longAgo = true;
       for (final fileID in personFileIDs) {
         final file = allFileIdsToFile[fileID];
-        if (file != null && file.creationTime != null) {
-          final creationTime = file.creationTime!;
-          final creationDateTime = DateTime.fromMicrosecondsSinceEpoch(
-            creationTime,
-          );
-          if (currentTime.difference(creationDateTime).inDays < 365) {
-            longAgo = false;
-            break;
-          }
-          if (creationTime > lastCreationTime - microSecondsInDay) {
-            final lastDateTime = DateTime.fromMicrosecondsSinceEpoch(
-              lastCreationTime,
+        if (file == null || file.creationTime == null) continue;
+        final creationDateTime = DateTime.fromMicrosecondsSinceEpoch(
+          file.creationTime!,
+        );
+        if (TimeMemoriesCalculator._calendarDayDifference(
+              creationDateTime,
+              currentTime,
+            ) <
+            365) {
+          longAgo = false;
+          break;
+        }
+        personFiles.add(file);
+      }
+      final lastTimeYouSawThemFiles = <EnteFile>[];
+      if (longAgo) {
+        personFiles.sort((a, b) => a.creationTime!.compareTo(b.creationTime!));
+        for (final file in personFiles) {
+          if (lastTimeYouSawThemFiles.isNotEmpty) {
+            final gap = Duration(
+              microseconds:
+                  file.creationTime! -
+                  lastTimeYouSawThemFiles.last.creationTime!,
             );
-            if (creationDateTime.difference(lastDateTime).inHours > 24) {
+            if (gap > const Duration(hours: 24)) {
               lastTimeYouSawThemFiles.clear();
             }
-            if (creationTime > lastCreationTime) {
-              lastCreationTime = creationTime;
-            }
-            lastTimeYouSawThemFiles.add(file);
           }
+          lastTimeYouSawThemFiles.add(file);
         }
       }
       if (longAgo && lastTimeYouSawThemFiles.length >= 2 && meID != personID) {
+        final lastCreationTime = lastTimeYouSawThemFiles.last.creationTime!;
         final lastTimeMemories = lastTimeYouSawThemFiles
             .map((f) => Memory.fromFile(f, seenTimes))
             .toList();
-        lastTimeMemories.sort(
-          (a, b) => a.file.creationTime!.compareTo(b.file.creationTime!),
-        );
         final filteredLastTimeMemories =
             SmartMemoriesService._filterNearDuplicates(
               lastTimeMemories,
@@ -348,7 +354,10 @@ class PeopleMemoriesCalculator {
         final lastMetTime = DateTime.fromMicrosecondsSinceEpoch(
           lastMetCandidate.lastCreationTime!,
         ).copyWith(year: currentTime.year);
-        final daysSinceLastMet = lastMetTime.difference(currentTime).inDays;
+        final daysSinceLastMet = TimeMemoriesCalculator._calendarDayDifference(
+          currentTime,
+          lastMetTime,
+        );
         if (daysSinceLastMet < 7 && daysSinceLastMet >= 0) {
           final lastMetMemory = await lastMetCandidate.realize();
           if (lastMetMemory != null) {

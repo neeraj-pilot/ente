@@ -1,49 +1,66 @@
 import 'dart:convert';
 
-// Only local IDs and random wire IDs belong here. Never store labels or secrets.
+import 'package:ente_auth/models/code.dart';
+
+enum WatchSharingMode { all, tags }
+
+class WatchSharing {
+  const WatchSharing({required this.mode, this.tags = const {}});
+
+  final WatchSharingMode mode;
+  final Set<String> tags;
+
+  bool includes(Code code) =>
+      mode == WatchSharingMode.all || code.display.tags.any(tags.contains);
+
+  factory WatchSharing.fromJson(Map<String, dynamic> json) => WatchSharing(
+    mode: WatchSharingMode.values.byName(json['mode'] as String),
+    tags: (json['tags'] as List).cast<String>().toSet(),
+  );
+
+  Map<String, Object> toJson() => {
+    'mode': mode.name,
+    'tags': tags.toList()..sort(),
+  };
+}
+
 class WatchSelection {
   WatchSelection({
     required this.scope,
     required this.epoch,
-    Map<String, Map<int, String>>? watches,
+    Map<String, WatchSharing>? watches,
   }) : watches = watches ?? {};
 
   final String scope;
   final String epoch;
-  final Map<String, Map<int, String>> watches;
+  final Map<String, WatchSharing> watches;
 
   static WatchSelection? decode(String? value) {
     if (value == null) return null;
     try {
       final json = jsonDecode(value) as Map<String, dynamic>;
-      if (json['version'] != 1) return null;
+      if (json['version'] != 2) return null;
       return WatchSelection(
         scope: json['scope'] as String,
         epoch: json['epoch'] as String,
         watches: (json['watches'] as Map<String, dynamic>).map(
-          (watch, entries) => MapEntry(
+          (watch, sharing) => MapEntry(
             watch,
-            (entries as Map<String, dynamic>).map(
-              (id, wireID) => MapEntry(int.parse(id), wireID as String),
-            ),
+            WatchSharing.fromJson(sharing as Map<String, dynamic>),
           ),
         ),
       );
     } on Object {
-      // Missing or unreadable consent is treated as a reset, never as selection.
       return null;
     }
   }
 
   String encode() => jsonEncode({
-    'version': 1,
+    'version': 2,
     'scope': scope,
     'epoch': epoch,
     'watches': watches.map(
-      (watch, entries) => MapEntry(
-        watch,
-        entries.map((id, wireID) => MapEntry(id.toString(), wireID)),
-      ),
+      (watch, sharing) => MapEntry(watch, sharing.toJson()),
     ),
   });
 }

@@ -3,6 +3,7 @@ package io.ente.ensu
 import android.app.Application
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.content.pm.PackageInfoCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.ente.ensu.chat.ChatRepository
@@ -43,6 +44,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             transcriber = transcriber,
             deviceCapabilityProvider = deviceCapabilityProvider,
             knowledgeEmbedding = configDefaults.knowledgeEmbedding,
+            nativeLibraryDir = application.applicationInfo.nativeLibraryDir,
         )
     private val chatRepository = ChatRepository(application, credentialStore)
     private val knowledgeProvider = (application as EnsuApplication).knowledgeProvider
@@ -55,7 +57,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             llmProvider = llmProvider,
             knowledgeProvider = knowledgeProvider,
             assetStore = assetStore,
-            transcriber = transcriber,
             deviceCapabilityProvider = deviceCapabilityProvider,
             configDefaults = configDefaults,
             logRepository = logRepository,
@@ -96,7 +97,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    @Suppress("DEPRECATION")
+    override fun onCleared() {
+        store.dispose()
+        super.onCleared()
+    }
+
     private fun getAppVersion(application: Application): String {
         val packageManager = application.packageManager
         val packageName = application.packageName
@@ -104,15 +109,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
             } else {
-                packageManager.getPackageInfo(packageName, 0)
+                @Suppress("DEPRECATION") packageManager.getPackageInfo(packageName, 0)
             }
         val versionName = packageInfo.versionName ?: "unknown"
-        val versionCode =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode
-            } else {
-                packageInfo.versionCode.toLong()
-            }
+        val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
         return "$versionName+$versionCode"
     }
 }

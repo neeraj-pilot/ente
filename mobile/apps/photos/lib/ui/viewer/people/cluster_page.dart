@@ -15,8 +15,7 @@ import "package:photos/models/file_load_result.dart";
 import "package:photos/models/gallery_type.dart";
 import "package:photos/models/ml/face/person.dart";
 import "package:photos/models/selected_files.dart";
-import "package:photos/service_locator.dart"
-    show flagService, isLocalGalleryMode;
+import "package:photos/service_locator.dart" show isLocalGalleryMode;
 import "package:photos/services/machine_learning/face_ml/feedback/cluster_feedback.dart";
 import "package:photos/services/machine_learning/ml_result.dart";
 import "package:photos/services/memory_lane/memory_lane_service.dart";
@@ -33,16 +32,17 @@ import "package:photos/ui/viewer/people/memory_lane_page_v2.dart";
 import "package:photos/ui/viewer/people/people_page.dart";
 import "package:photos/ui/viewer/people/person_face_widget.dart";
 import "package:photos/ui/viewer/people/save_person_banner.dart";
-import "package:photos/ui/viewer/search/result/search_result_page.dart";
 
 class ClusterPage extends StatefulWidget {
   final List<EnteFile> searchResult;
   final bool enableGrouping;
   final String tagPrefix;
+  final String? coverHeroTag;
   final String clusterID;
   final PersonEntity? personID;
   final String appendTitle;
   final bool showNamingBanner;
+  final VoidCallback? onFilesChanged;
 
   static const GalleryType appBarType = GalleryType.cluster;
   static const GalleryType overlayType = GalleryType.cluster;
@@ -51,10 +51,12 @@ class ClusterPage extends StatefulWidget {
     this.searchResult, {
     this.enableGrouping = true,
     this.tagPrefix = "",
+    this.coverHeroTag,
     required this.clusterID,
     this.personID,
     this.appendTitle = "",
     this.showNamingBanner = true,
+    this.onFilesChanged,
     super.key,
   });
 
@@ -66,6 +68,7 @@ enum ClusterPageResult { ignoredPerson }
 
 class _ClusterPageState extends State<ClusterPage> {
   final _selectedFiles = SelectedFiles();
+  final _coverAppBarKey = GlobalKey();
   late final List<EnteFile> files;
   late final StreamSubscription<LocalPhotosUpdatedEvent> _filesUpdatedEvent;
   late final StreamSubscription<PeopleChangedEvent> _peopleChangedEvent;
@@ -90,6 +93,7 @@ class _ClusterPageState extends State<ClusterPage> {
         for (var updatedFile in event.updatedFiles) {
           files.remove(updatedFile);
         }
+        widget.onFilesChanged?.call();
         setState(() {});
       }
     });
@@ -99,6 +103,7 @@ class _ClusterPageState extends State<ClusterPage> {
           for (var updatedFile in event.relevantFiles!) {
             files.remove(updatedFile);
           }
+          widget.onFilesChanged?.call();
           setState(() {});
         }
         if (event.type == PeopleEventType.removedFaceFromCluster) {
@@ -106,6 +111,7 @@ class _ClusterPageState extends State<ClusterPage> {
             final int fileID = getFileIdFromFaceId<int>(removedFaceID);
             files.removeWhere((file) => file.uploadedFileID == fileID);
           }
+          widget.onFilesChanged?.call();
           setState(() {});
         }
       }
@@ -120,15 +126,13 @@ class _ClusterPageState extends State<ClusterPage> {
       if (mounted) setState(() {});
     };
     _timelineNotifier.addListener(_timelineListener);
-    if (flagService.internalUser) {
-      if (widget.personID == null) {
-        unawaited(
-          MemoryLaneService.instance.ensureTimelineReachability(
-            widget.clusterID,
-            isCluster: true,
-          ),
-        );
-      }
+    if (widget.personID == null) {
+      unawaited(
+        MemoryLaneService.instance.ensureTimelineReachability(
+          widget.clusterID,
+          isCluster: true,
+        ),
+      );
     }
     kDebugMode
         ? ClusterFeedbackService.instance.debugLogClusterBlurValues(
@@ -177,7 +181,6 @@ class _ClusterPageState extends State<ClusterPage> {
   }
 
   Future<void> _openMemoryLanePage() async {
-    if (!flagService.internalUser) return;
     if (widget.personID == null &&
         MemoryLaneService.instance.hasReadyTimelineSync(
           widget.clusterID,
@@ -196,17 +199,20 @@ class _ClusterPageState extends State<ClusterPage> {
   @override
   Widget build(BuildContext context) {
     final appBar = ClusterAppBar.sliverConfig(
-      SearchResultPage.appBarType,
+      ClusterPage.appBarType,
       "${files.length} memories${widget.appendTitle}",
       _selectedFiles,
       widget.clusterID,
-      memoryLaneReady: flagService.internalUser && widget.personID == null
+      coverAppBarKey: _coverAppBarKey,
+      coverHeroTag: widget.coverHeroTag,
+      files: files,
+      memoryLaneReady: widget.personID == null
           ? MemoryLaneService.instance.hasReadyTimelineSync(
               widget.clusterID,
               isCluster: true,
             )
           : false,
-      onMemoryLaneTap: flagService.internalUser ? _openMemoryLanePage : null,
+      onMemoryLaneTap: _openMemoryLanePage,
     );
     final gallery = Gallery(
       appBar: appBar,

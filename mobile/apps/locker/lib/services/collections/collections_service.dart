@@ -1,5 +1,5 @@
 import 'dart:async';
-import "dart:math";
+import 'dart:math';
 import 'dart:typed_data';
 
 import "package:ente_accounts/services/user_service.dart";
@@ -33,19 +33,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 class CollectionService {
   static final CollectionService instance =
       CollectionService._privateConstructor();
-
-  static const Set<String> _suggestedCollectionNames = {
-    'Personal',
-    'Work',
-    'Travel',
-    'Family',
-    'Projects',
-    'School',
-    'Music',
-    'Books',
-    'Events',
-    'Holidays',
-  };
 
   final _logger = Logger("CollectionService");
 
@@ -97,11 +84,6 @@ class CollectionService {
     for (final collection in updatedCollections) {
       _collectionIDToCollections[collection.id] = collection;
     }
-    await _db.setSyncTime(updatedCollections.last.updationTime);
-    if (shouldCheckFirstSyncCompletion) {
-      await _setFirstSyncCompleted();
-    }
-
     final List<Future<bool>> fileFutures = [];
     for (final collection in updatedCollections) {
       if (collection.isDeleted) {
@@ -137,6 +119,14 @@ class CollectionService {
     }
     final fileSyncResults = await Future.wait(fileFutures);
     if (fileSyncResults.every((didSync) => didSync)) {
+      await _db.setSyncTime(
+        updatedCollections
+            .map((collection) => collection.updationTime)
+            .reduce(max),
+      );
+      if (shouldCheckFirstSyncCompletion) {
+        await _setFirstSyncCompleted();
+      }
       await OfflineFilesService.instance.cleanupInactiveOfflineFiles();
     } else {
       _logger.warning(
@@ -254,10 +244,8 @@ class CollectionService {
     }
   }
 
-  Future<int> getFileCount(Collection collection) async {
-    final files = await getFilesInCollection(collection);
-    return files.length;
-  }
+  Future<int> getFileCount(Collection collection) async =>
+      _db.getFileCount(collection);
 
   Future<int> getFileSize(EnteFile file) async {
     int fileSize;
@@ -389,10 +377,14 @@ class CollectionService {
 
   Future<Collection> getOrCreateImportantCollection() async {
     final collections = await getCollections();
-    for (final collection in collections) {
-      if (collection.type == CollectionType.favorites) {
-        return collection;
-      }
+    final userID = Configuration.instance.getUserID()!;
+    final ownedCollection = findOwnedCollection(
+      collections,
+      ownerID: userID,
+      type: CollectionType.favorites,
+    );
+    if (ownedCollection != null) {
+      return ownedCollection;
     }
     _logger.info(
       "No favorites collection found, creating important collection.",
@@ -731,45 +723,20 @@ class CollectionService {
 
   Future<Collection> _getOrCreateDocumentsCollection() async {
     final collections = await getCollections();
-    for (final collection in collections) {
-      if (collection.type == CollectionType.folder &&
-          collection.name == "Documents") {
-        return collection;
-      }
+    final userID = Configuration.instance.getUserID()!;
+    final collection = findOwnedCollection(
+      collections,
+      ownerID: userID,
+      type: CollectionType.folder,
+      name: "Documents",
+    );
+    if (collection != null) {
+      return collection;
     }
     _logger.info(
       "No Documents collection found, creating Documents collection.",
     );
     return createCollection("Documents", type: CollectionType.folder);
-  }
-
-  Future<String> getRandomUnusedCollectionName() async {
-    try {
-      final existingCollections = await getCollections();
-      final existingNames = existingCollections
-          .map((collection) => collection.name?.toLowerCase())
-          .where((name) => name != null)
-          .toSet();
-
-      final availableNames = _suggestedCollectionNames
-          .where((name) => !existingNames.contains(name.toLowerCase()))
-          .toList();
-
-      if (availableNames.isEmpty) {
-        _logger.info(
-          "All suggested collection names are used, returning 'Documents'",
-        );
-        return "Documents";
-      }
-
-      final random = Random();
-      final randomName = availableNames[random.nextInt(availableNames.length)];
-      _logger.info("Selected random unused collection name");
-      return randomName;
-    } catch (e) {
-      _logger.severe("Failed to get random unused collection name: $e");
-      return "Documents";
-    }
   }
 
   Future<Collection> getCollection(int collectionID) async {

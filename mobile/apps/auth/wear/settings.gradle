@@ -10,5 +10,5 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = 'AuthWatch'
-include ':app', ':auth-native'
-project(':auth-native').projectDir = file('../android/auth-native')
+include ':app', ':auth-core'
+project(':auth-core').projectDir = file('../android/auth-core')

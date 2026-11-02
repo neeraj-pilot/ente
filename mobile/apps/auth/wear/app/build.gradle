@@ -14,11 +14,9 @@ def localKeyPath = keystoreProperties.getProperty('storeFile')
 
 android {
     namespace 'io.ente.auth.watch.app'
-    compileSdk 36
     defaultConfig {
         applicationId 'io.ente.auth'
         minSdk 30
-        targetSdk 36
         // Play requires codes to be unique across the phone and watch form factors.
         versionCode 1000000000 + phoneBuild
         versionName authVersion.group(1)
@@ -36,11 +34,6 @@ android {
         debug { applicationIdSuffix '.debug' }
         release { signingConfig signingConfigs.release }
     }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-    kotlinOptions { jvmTarget = '1.8' }
 }
 
-dependencies { implementation project(':auth-native') }
+dependencies { implementation project(':auth-core') }

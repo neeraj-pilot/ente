@@ -1,39 +1,49 @@
 import {
+    ArrowDown01Icon,
     ArrowLeft02Icon,
     Cancel01Icon,
     FavouriteIcon,
-    HandPointingRightIcon,
     ImageDelete02Icon,
     Navigation03Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+    alpha,
     Box,
     ClickAwayListener,
     Grow,
-    MenuItem,
-    MenuList,
     Popper,
+    useMediaQuery,
 } from "@mui/material";
 import { SpaceActionToast } from "components/ActionToast";
-import { SpaceAvatarImage } from "components/AvatarImage";
+import { SpaceActivityAvatar as Avatar } from "components/ActivityList";
+import { SpaceConversationPokeButton } from "components/ConversationPokeButton";
 import { SpaceLiveStatus } from "components/LiveStatus";
+import {
+    CopyIcon,
+    DeleteIcon,
+    MessageActionMenuItem,
+    MessageActionMenuList,
+    ReplyIcon,
+} from "components/MessageActionMenu";
 import {
     MessageQuickReactions,
     MessageReactionPicker,
 } from "components/MessageReactionPicker";
 import { SpaceMessageText } from "components/MessageText";
-import { SpacePostPhotoInput } from "components/PostPhotoInput";
 import {
     SpacePostPhotosBadge,
     SpacePostVideoBadge,
 } from "components/PostPhotosBadge";
+import { SpacePostPreviewThumbnail } from "components/PostPreviewThumbnail";
+import { ReplyComposerPreview } from "components/ReplyComposerPreview";
 import { SpaceLoadingSpinner } from "components/RouteFallback";
 import { SpaceShareInviteButton } from "components/ShareInviteButton";
 import { SpaceSkipLink } from "components/SkipLink";
 import { emojiName } from "data/emojis";
 import { formatTimeAgo } from "ente-base/date";
 import log from "ente-base/log";
+import { isSpaceIOS } from "hooks/use-pwa-install-prompt";
 import React from "react";
 import { flushSync } from "react-dom";
 import type { SetupProfile } from "screens/SetupProfileScreen";
@@ -44,11 +54,14 @@ import type {
     SpaceMessageQuote,
 } from "services/space";
 import {
+    spaceActivityListSx,
+    spaceActivityPreviewSx,
+    spaceActivityRowSx,
+} from "styles/activity-list";
+import {
     spaceAppBackground,
     spaceAppBackgroundColor,
     spaceDialogBackground,
-    spaceMenuBackground,
-    spaceMenuHover,
     spaceOnAccent,
     spaceSurface,
     spaceSurfaceHover,
@@ -64,12 +77,12 @@ import { postQuoteErrorState, postQuoteKey } from "utils/post-quote";
 const green = "#08C225";
 const textBase = spaceText;
 const textSecondary = spaceTextMuted;
-const conversationPrimaryText = spaceText;
 const composerSurface = spaceSurface;
 const outgoingBubble = "#176B2A";
 const incomingBubble = spaceSurface;
 const outgoingMessageText = "#FFFFFF";
 const incomingMessageText = spaceText;
+const conversationPrimaryText = spaceText;
 const outgoingQuoteBubble = "#213425";
 const incomingQuoteBubble = spaceSurfaceHover;
 const incomingQuoteText = spaceTextMuted;
@@ -81,7 +94,7 @@ const messageBubblePaddingX = "16px";
 const messageBubblePaddingY = "14px";
 const composerPadding = 14;
 const composerPaddingLeft = 18;
-const postQuoteThumbnailSize = 200;
+const postQuoteWidth = 264;
 const threadBottomThresholdPx = 96;
 const messageGroupTimeThresholdMs = 10 * 60 * 1000;
 const messageTimeSeparatorThresholdMs = 60 * 60 * 1000;
@@ -90,23 +103,6 @@ const messageLongPressMoveTolerancePx = 10;
 const messageReplySwipeThresholdPx = 64;
 const messageReplySwipeMinThresholdPx = 20;
 const messageActionsTouchOpenMouseSuppressMs = 900;
-const dayMs = 24 * 60 * 60 * 1000;
-const shouldShowPostSomething = (
-    conversation: SpaceMessageConversation,
-    latestPostCreatedAtMs: number | null | undefined,
-) => {
-    const activity = conversation.latestActivity;
-    return (
-        latestPostCreatedAtMs !== undefined &&
-        (latestPostCreatedAtMs === null ||
-            latestPostCreatedAtMs < activity.createdAtMs) &&
-        (activity.type == "message" || activity.type == "post_reply") &&
-        !activity.outgoing &&
-        !activity.isUnavailable &&
-        activity.kind == "poke"
-    );
-};
-
 interface MessagesScreenProps {
     conversations: SpaceMessageConversation[];
     friendsCount?: number;
@@ -114,58 +110,42 @@ interface MessagesScreenProps {
     isThreadLoading?: boolean;
     isThreadReadOnly?: boolean;
     isThreadRecipientLoading?: boolean;
-    latestPostCreatedAtMs?: number | null;
     messages: SpaceMessage[];
-    onBack?: () => void;
+    onBack: () => void;
     onCloseThread: () => void;
-    onConfirmFriendRequest: (
-        conversation: SpaceMessageConversation,
-    ) => Promise<void>;
     onDeleteMessage: (messageId: string) => Promise<void>;
-    onDeleteFriendRequest: (
-        conversation: SpaceMessageConversation,
-    ) => Promise<void>;
     onOpenSelectedFriendProfile: (
         friend: SpaceMessageConversation["friend"],
     ) => void;
     onOpenQuotePost: (quote: SpaceMessageQuote) => void;
     onOpenThread: (conversation: SpaceMessageConversation) => void;
-    onPostPhotoSelect: (files: File[]) => void;
     onLoadActivityPost?: (
         post: SpaceMessageActivityPost,
     ) => Promise<SpaceMessageActivityPost | undefined>;
+    onPokeFriend: (spaceId: string, requestID: string) => Promise<void>;
     onReplyToMessage: (
         spaceId: string,
         messageId: string,
         text: string,
     ) => Promise<void>;
-    onSendPoke: (spaceId: string) => Promise<void>;
     onSendMessage: (spaceId: string, text: string) => Promise<void>;
     onSetMessageReaction: (
         messageId: string,
         emoji: string | undefined,
     ) => Promise<void>;
     profileLink?: string;
-    newConversationIds?: string[];
     profile: SetupProfile;
     selectedFriend?: SpaceMessageConversation["friend"];
-    threadBackLabel?: string;
 }
 
 interface MessageContextMenuState {
     anchorEl: HTMLElement;
+    anchorOffset?: { x: number; y: number };
     message: SpaceMessage;
     open: boolean;
 }
 
-type MessageActionsOpenSource = "contextmenu" | "touch";
-
-interface ConversationSection {
-    items: SpaceMessageConversation[];
-    title: string;
-}
-
-const microsForTimestamp = (timestampMs: number) => timestampMs * 1000;
+type MessageActionsOpenSource = "button" | "contextmenu" | "touch";
 
 const resizeComposer = (input: HTMLTextAreaElement | null) => {
     if (!input) return;
@@ -184,26 +164,6 @@ const isThreadNearBottom = (scroller: HTMLDivElement) =>
 const copyTextToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
 };
-
-const Avatar: React.FC<{ avatarUrl?: string | null; size: number }> = ({
-    avatarUrl,
-    size,
-}) => (
-    <Box
-        sx={{
-            alignItems: "center",
-            borderRadius: "50%",
-            display: "flex",
-            flexShrink: 0,
-            height: size,
-            justifyContent: "center",
-            overflow: "hidden",
-            width: size,
-        }}
-    >
-        <SpaceAvatarImage src={avatarUrl} />
-    </Box>
-);
 
 const truncateMessageText = (text: string): string => {
     const lines = text.split("\n");
@@ -234,16 +194,7 @@ const conversationPreview = (conversation: SpaceMessageConversation) => {
     const activity = conversation.latestActivity;
     if (activity.isUnavailable) return "Message unavailable";
     if (activity.type == "empty") {
-        return "You're now friends. Say hello!";
-    }
-    if (activity.type == "friend_request") {
-        return "Sent you a friend request";
-    }
-    if (activity.type == "friend_added") {
-        return "You're now friends. Say hello!";
-    }
-    if (activity.type == "post_like") {
-        return activity.outgoing ? "You liked a post" : "Liked your post";
+        return "Say hello!";
     }
     const text = activity.text ? truncateMessageText(activity.text) : "";
     if (activity.type == "post_reply") {
@@ -278,15 +229,12 @@ const ConversationPreviewLine: React.FC<{
 }> = ({ conversation }) => {
     const activity = conversation.latestActivity;
     const previewLineSx = {
-        color: textSecondary,
-        fontFamily: '"Inter Variable", Inter, sans-serif',
-        fontSize: 13,
-        fontWeight: 500,
-        lineHeight: "18px",
-        minWidth: 0,
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
+        ...spaceActivityPreviewSx,
+        color: conversation.notificationUnread ? "#D0D0D0" : spaceTextMuted,
+        fontStyle: activity.type == "empty" ? "italic" : "normal",
+        fontWeight: conversation.notificationUnread
+            ? 600
+            : spaceActivityPreviewSx.fontWeight,
     };
 
     if (activity.type == "message_like" && activity.text) {
@@ -316,65 +264,7 @@ const ConversationPreviewLine: React.FC<{
 };
 
 const conversationId = (conversation: SpaceMessageConversation) =>
-    conversation.latestActivity.type == "friend_request"
-        ? conversation.latestActivity.id
-        : (conversation.friend.spaceId ?? conversation.friend.id);
-
-const conversationTimeSections = (
-    conversations: SpaceMessageConversation[],
-    newConversationIds: string[],
-) => {
-    const newIds = new Set(newConversationIds);
-    const now = Date.now();
-    const today = new Date(now);
-    const startOfTodayMs = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate(),
-    ).getTime();
-    const startOfYesterdayMs = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate() - 1,
-    ).getTime();
-    const sections: ConversationSection[] = [
-        { title: "New", items: [] },
-        { title: "Today", items: [] },
-        { title: "Yesterday", items: [] },
-        { title: "Last 7 days", items: [] },
-        { title: "Last 30 days", items: [] },
-        { title: "Older", items: [] },
-    ];
-
-    for (const conversation of conversations) {
-        if (newIds.has(conversationId(conversation))) {
-            sections[0]!.items.push(conversation);
-            continue;
-        }
-
-        const activity = conversation.latestActivity;
-        if (activity.createdAtMs >= startOfTodayMs) {
-            sections[1]!.items.push(conversation);
-            continue;
-        }
-        if (activity.createdAtMs >= startOfYesterdayMs) {
-            sections[2]!.items.push(conversation);
-            continue;
-        }
-
-        const ageMs = Math.max(0, now - activity.createdAtMs);
-        if (ageMs <= 7 * dayMs) {
-            sections[3]!.items.push(conversation);
-            continue;
-        }
-        if (ageMs <= 30 * dayMs) {
-            sections[4]!.items.push(conversation);
-            continue;
-        }
-        sections[5]!.items.push(conversation);
-    }
-    return sections;
-};
+    conversation.friend.spaceId ?? conversation.friend.id;
 
 const conversationUnreadLabel = (count: number) =>
     count > 99 ? "99+" : String(count);
@@ -456,47 +346,23 @@ const MessageTimeSeparator: React.FC<{ timestampMs: number }> = ({
 const ConversationListItem: React.FC<{
     activityPost?: SpaceMessageActivityPost;
     conversation: SpaceMessageConversation;
-    latestPostCreatedAtMs?: number | null;
-    onConfirmFriendRequest: (
-        conversation: SpaceMessageConversation,
-    ) => Promise<void>;
-    onDeleteFriendRequest: (
-        conversation: SpaceMessageConversation,
-    ) => Promise<void>;
     onLoadActivityPost?: (post: SpaceMessageActivityPost) => void;
     onOpenFriendProfile: (friend: SpaceMessageConversation["friend"]) => void;
     onOpenThread: (conversation: SpaceMessageConversation) => void;
-    onPostSomething: () => void;
 }> = ({
     activityPost,
     conversation,
-    latestPostCreatedAtMs,
-    onConfirmFriendRequest,
-    onDeleteFriendRequest,
     onLoadActivityPost,
     onOpenFriendProfile,
     onOpenThread,
-    onPostSomething,
 }) => {
     const name =
         conversation.friend.fullName.trim() || conversation.friend.username;
-    const timestampLabel = formatTimeAgo(
-        microsForTimestamp(conversation.latestActivity.createdAtMs),
-    );
-    const isFriendRequest =
-        conversation.latestActivity.type == "friend_request";
-    const post = conversation.latestActivity.post;
-    const postThumbnailUrl = (activityPost ?? post)?.imageUrl;
+    const post = conversation.latestActivity.outgoing
+        ? undefined
+        : conversation.latestActivity.post;
     const showPostThumbnailSlot = Boolean(post);
-    const isPostThumbnailUnavailable = Boolean(
-        (activityPost ?? post)?.isUnavailable,
-    );
-    const hasPostThumbnailLoadError = Boolean(activityPost?.hasLoadError);
     const unreadCount = conversation.unreadCount;
-    const showPostSomething = shouldShowPostSomething(
-        conversation,
-        latestPostCreatedAtMs,
-    );
     React.useEffect(() => {
         if (!post || post.isUnavailable || post.imageUrl || activityPost) {
             return;
@@ -509,39 +375,13 @@ const ConversationListItem: React.FC<{
         post?.imageUrl,
         post?.isUnavailable,
     ]);
-    const confirmFriendRequest = () => {
-        void onConfirmFriendRequest(conversation).catch((error: unknown) =>
-            log.error("Failed to confirm friend request", error),
-        );
-    };
-    const deleteFriendRequest = () => {
-        void onDeleteFriendRequest(conversation).catch((error: unknown) =>
-            log.error("Failed to delete friend request", error),
-        );
-    };
 
     return (
         <Box component="li" sx={{ listStyle: "none" }}>
             <Box
                 sx={{
-                    alignItems: "center",
-                    borderRadius: "8px",
-                    boxSizing: "border-box",
-                    color: conversationPrimaryText,
-                    display: "grid",
-                    gap: "10px",
-                    gridTemplateColumns:
-                        isFriendRequest || showPostSomething
-                            ? "44px minmax(0, 1fr) auto"
-                            : "44px minmax(0, 1fr)",
-                    minHeight: 64,
-                    mx: "-8px",
-                    p: "8px",
-                    textAlign: "left",
-                    transition: "background-color 140ms ease",
-                    width: "calc(100% + 16px)",
-                    "&:active": { bgcolor: spaceSurface },
-                    "&:hover": { bgcolor: spaceSurface },
+                    ...spaceActivityRowSx,
+                    gridTemplateColumns: "44px minmax(0, 1fr)",
                     "&:has(> [data-space-row-action]:active)": {
                         bgcolor: "transparent",
                     },
@@ -558,12 +398,48 @@ const ConversationListItem: React.FC<{
                         width: 44,
                     }}
                 >
-                    {isFriendRequest ? (
-                        <Avatar
-                            avatarUrl={conversation.friend.avatarUrl}
-                            size={44}
-                        />
-                    ) : (
+                    <Box
+                        component="button"
+                        type="button"
+                        aria-label={
+                            showPostThumbnailSlot
+                                ? `Open conversation with ${name}`
+                                : `Open ${name}'s profile`
+                        }
+                        onClick={() =>
+                            showPostThumbnailSlot
+                                ? onOpenThread(conversation)
+                                : onOpenFriendProfile(conversation.friend)
+                        }
+                        sx={{
+                            appearance: "none",
+                            bgcolor: "transparent",
+                            border: 0,
+                            borderRadius: showPostThumbnailSlot ? "28%" : "50%",
+                            cursor: "pointer",
+                            display: "block",
+                            height: 44,
+                            p: 0,
+                            width: 44,
+                            "&:focus-visible": {
+                                outline: `2px solid ${green}`,
+                                outlineOffset: 2,
+                            },
+                        }}
+                    >
+                        {showPostThumbnailSlot ? (
+                            <SpacePostPreviewThumbnail
+                                borderRadius="28%"
+                                post={activityPost ?? post}
+                            />
+                        ) : (
+                            <Avatar
+                                avatarUrl={conversation.friend.avatarUrl}
+                                size={44}
+                            />
+                        )}
+                    </Box>
+                    {showPostThumbnailSlot && (
                         <Box
                             component="button"
                             type="button"
@@ -573,14 +449,15 @@ const ConversationListItem: React.FC<{
                             }
                             sx={{
                                 appearance: "none",
-                                bgcolor: "transparent",
+                                bgcolor: spaceAppBackgroundColor,
                                 border: 0,
                                 borderRadius: "50%",
+                                bottom: -4,
                                 cursor: "pointer",
                                 display: "block",
-                                height: 44,
-                                p: 0,
-                                width: 44,
+                                p: "2px",
+                                position: "absolute",
+                                right: -4,
                                 "&:focus-visible": {
                                     outline: `2px solid ${green}`,
                                     outlineOffset: 2,
@@ -589,72 +466,32 @@ const ConversationListItem: React.FC<{
                         >
                             <Avatar
                                 avatarUrl={conversation.friend.avatarUrl}
-                                size={44}
+                                size={20}
                             />
-                        </Box>
-                    )}
-                    {unreadCount > 0 && !isFriendRequest && (
-                        <Box
-                            aria-label={`${unreadCount} unread update${unreadCount == 1 ? "" : "s"}`}
-                            component="span"
-                            sx={{
-                                alignItems: "center",
-                                bgcolor: dangerColor,
-                                borderRadius: "8px",
-                                boxShadow: `0 0 0 2px ${spaceAppBackgroundColor}`,
-                                color: spaceOnAccent,
-                                display: "inline-flex",
-                                flexShrink: 0,
-                                fontFamily:
-                                    '"Inter Variable", Inter, sans-serif',
-                                fontSize: 10,
-                                fontWeight: 700,
-                                height: 16,
-                                justifyContent: "center",
-                                lineHeight: "16px",
-                                minWidth: 16,
-                                position: "absolute",
-                                pointerEvents: "none",
-                                px: "4px",
-                                right: -2,
-                                top: -2,
-                                zIndex: 1,
-                            }}
-                        >
-                            {conversationUnreadLabel(unreadCount)}
                         </Box>
                     )}
                 </Box>
                 <Box
-                    component={isFriendRequest ? "div" : "button"}
-                    type={isFriendRequest ? undefined : "button"}
-                    aria-label={
-                        isFriendRequest
-                            ? undefined
-                            : `Open conversation with ${name}`
-                    }
-                    onClick={
-                        isFriendRequest
-                            ? undefined
-                            : () => onOpenThread(conversation)
-                    }
+                    component="button"
+                    type="button"
+                    aria-label={`Open conversation with ${name}${
+                        unreadCount > 0
+                            ? `, ${unreadCount} unread update${unreadCount == 1 ? "" : "s"}`
+                            : ""
+                    }`}
+                    onClick={() => onOpenThread(conversation)}
                     sx={{
                         alignItems: "center",
                         appearance: "none",
                         bgcolor: "transparent",
                         border: 0,
                         color: "inherit",
-                        cursor: isFriendRequest ? "default" : "pointer",
+                        cursor: "pointer",
                         display: "grid",
-                        gap: "10px",
-                        gridColumn: isFriendRequest
-                            ? undefined
-                            : showPostSomething
-                              ? "2"
-                              : "2 / -1",
-                        gridTemplateColumns: showPostThumbnailSlot
-                            ? "minmax(0, 1fr) 44px"
-                            : "minmax(0, 1fr)",
+                        gridColumn: "2 / -1",
+                        gridTemplateColumns: "minmax(0, 1fr)",
+                        gridTemplateRows: "20px 20px",
+                        minHeight: spaceTouchTargetSize,
                         minWidth: 0,
                         p: 0,
                         textAlign: "left",
@@ -666,284 +503,92 @@ const ConversationListItem: React.FC<{
                         },
                     }}
                 >
-                    <Box sx={{ minWidth: 0 }}>
-                        <Box
-                            sx={{
-                                alignItems: "center",
-                                display: "flex",
-                                gap: "4px",
-                                minWidth: 0,
-                            }}
-                        >
-                            <Box
-                                sx={{
-                                    flex: "0 1 auto",
-                                    fontFamily:
-                                        '"Inter Variable", Inter, sans-serif',
-                                    fontSize: 14,
-                                    fontWeight: 700,
-                                    lineHeight: "20px",
-                                    minWidth: 0,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                }}
-                            >
-                                {isFriendRequest
-                                    ? `@${conversation.friend.username}`
-                                    : firstNameFrom(name)}
-                            </Box>
-                            <Box
-                                aria-hidden
-                                component="span"
-                                sx={{
-                                    color: textSecondary,
-                                    flexShrink: 0,
-                                    fontFamily:
-                                        '"Inter Variable", Inter, sans-serif',
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    lineHeight: "16px",
-                                }}
-                            >
-                                &middot;
-                            </Box>
-                            <Box
-                                component="time"
-                                dateTime={new Date(
-                                    conversation.latestActivity.createdAtMs,
-                                ).toISOString()}
-                                sx={{
-                                    color: textSecondary,
-                                    flexShrink: 0,
-                                    fontFamily:
-                                        '"Inter Variable", Inter, sans-serif',
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    lineHeight: "16px",
-                                    whiteSpace: "nowrap",
-                                }}
-                            >
-                                {timestampLabel}
-                            </Box>
-                        </Box>
-                        <ConversationPreviewLine conversation={conversation} />
-                    </Box>
-                    {showPostThumbnailSlot &&
-                        (postThumbnailUrl ? (
-                            <Box
-                                sx={{
-                                    position: "relative",
-                                    width: 44,
-                                    height: 44,
-                                }}
-                            >
-                                <Box
-                                    component="img"
-                                    alt=""
-                                    src={postThumbnailUrl}
-                                    sx={{
-                                        borderRadius: "20%",
-                                        display: "block",
-                                        height: "100%",
-                                        objectFit: "cover",
-                                        objectPosition: "center",
-                                        width: "100%",
-                                    }}
-                                />
-                                <SpacePostVideoBadge
-                                    durationMs={
-                                        (activityPost ?? post)?.durationMs
-                                    }
-                                />
-                            </Box>
-                        ) : (
-                            <Box
-                                aria-label={
-                                    isPostThumbnailUnavailable
-                                        ? "Post image unavailable"
-                                        : hasPostThumbnailLoadError
-                                          ? "Couldn't load post image"
-                                          : "Loading post image"
-                                }
-                                role="img"
-                                sx={{
-                                    alignItems: "center",
-                                    bgcolor: incomingQuoteBubble,
-                                    borderRadius: "20%",
-                                    color: incomingQuoteText,
-                                    display: "flex",
-                                    height: 44,
-                                    justifyContent: "center",
-                                    width: 44,
-                                }}
-                            >
-                                {isPostThumbnailUnavailable && (
-                                    <HugeiconsIcon
-                                        icon={ImageDelete02Icon}
-                                        size={18}
-                                        strokeWidth={1.5}
-                                    />
-                                )}
-                            </Box>
-                        ))}
-                </Box>
-                {showPostSomething && (
                     <Box
-                        className="green-bg"
-                        component="button"
-                        type="button"
-                        data-space-row-action
-                        onClick={onPostSomething}
                         sx={{
-                            bgcolor: green,
-                            border: 0,
-                            borderRadius: "16px",
-                            color: spaceOnAccent,
-                            cursor: "pointer",
-                            fontFamily: '"Inter Variable", Inter, sans-serif',
-                            fontSize: 12,
-                            fontWeight: 700,
-                            height: 36,
-                            px: "12px",
-                            whiteSpace: "nowrap",
-                            "&:focus-visible": {
-                                outline: `2px solid ${green}`,
-                                outlineOffset: 2,
-                            },
-                            "&:hover": { bgcolor: "#07A820" },
+                            alignItems: "center",
+                            display: "flex",
+                            gap: "10px",
+                            minWidth: 0,
                         }}
                     >
-                        Post a photo
-                    </Box>
-                )}
-                {isFriendRequest && (
-                    <Box
-                        data-space-row-action
-                        sx={{ display: "flex", flexShrink: 0, gap: "6px" }}
-                    >
                         <Box
-                            className="green-bg"
-                            component="button"
-                            type="button"
-                            onClick={confirmFriendRequest}
                             sx={{
-                                bgcolor: green,
-                                border: 0,
-                                borderRadius: "12px",
-                                color: spaceOnAccent,
-                                cursor: "pointer",
+                                flex: 1,
+                                fontFamily:
+                                    '"Inter Variable", Inter, sans-serif',
+                                fontSize: 14,
+                                fontWeight: 700,
+                                lineHeight: "20px",
+                                minWidth: 0,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                            }}
+                        >
+                            {firstNameFrom(name)}
+                        </Box>
+                        <Box
+                            component="time"
+                            dateTime={new Date(
+                                conversation.latestActivity.createdAtMs,
+                            ).toISOString()}
+                            sx={{
+                                color: "#888888",
+                                flexShrink: 0,
                                 fontFamily:
                                     '"Inter Variable", Inter, sans-serif',
                                 fontSize: 12,
-                                fontWeight: 700,
-                                height: 34,
-                                px: "12px",
-                                "&:hover": { bgcolor: "#07A820" },
+                                fontWeight: 600,
+                                lineHeight: "16px",
+                                whiteSpace: "nowrap",
                             }}
                         >
-                            Accept
-                        </Box>
-                        <Box
-                            component="button"
-                            type="button"
-                            aria-label={`Dismiss friend request from ${name}`}
-                            onClick={deleteFriendRequest}
-                            sx={{
-                                alignItems: "center",
-                                bgcolor: "transparent",
-                                border: 0,
-                                borderRadius: "50%",
-                                color: textBase,
-                                cursor: "pointer",
-                                display: "flex",
-                                height: 34,
-                                justifyContent: "center",
-                                p: 0,
-                                width: 34,
-                                "&:hover": { bgcolor: spaceSurfaceHover },
-                            }}
-                        >
-                            <HugeiconsIcon
-                                icon={Cancel01Icon}
-                                size={18}
-                                strokeWidth={2}
-                            />
+                            {formatTimeAgo(
+                                conversation.latestActivity.createdAtMs * 1000,
+                            ).replace(/ ago$/, "")}
                         </Box>
                     </Box>
-                )}
-            </Box>
-        </Box>
-    );
-};
-
-const ConversationSection: React.FC<{
-    activityPostsByKey: Record<string, SpaceMessageActivityPost>;
-    latestPostCreatedAtMs?: number | null;
-    onConfirmFriendRequest: (
-        conversation: SpaceMessageConversation,
-    ) => Promise<void>;
-    onDeleteFriendRequest: (
-        conversation: SpaceMessageConversation,
-    ) => Promise<void>;
-    onLoadActivityPost?: (post: SpaceMessageActivityPost) => void;
-    onOpenFriendProfile: (friend: SpaceMessageConversation["friend"]) => void;
-    onOpenThread: (conversation: SpaceMessageConversation) => void;
-    onPostSomething: () => void;
-    section: ConversationSection;
-}> = ({
-    activityPostsByKey,
-    latestPostCreatedAtMs,
-    onConfirmFriendRequest,
-    onDeleteFriendRequest,
-    onLoadActivityPost,
-    onOpenFriendProfile,
-    onOpenThread,
-    onPostSomething,
-    section,
-}) => {
-    if (section.items.length == 0) return null;
-
-    return (
-        <Box component="section" sx={{ mb: "10px" }}>
-            <Box
-                component="h2"
-                sx={{
-                    color: textSecondary,
-                    fontFamily: '"Inter Variable", Inter, sans-serif',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    lineHeight: "18px",
-                    m: 0,
-                    pb: "4px",
-                    pt: "12px",
-                }}
-            >
-                {section.title}
-            </Box>
-            <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0 }}>
-                {section.items.map((conversation) => (
-                    <ConversationListItem
-                        key={conversationId(conversation)}
-                        activityPost={
-                            conversation.latestActivity.post
-                                ? activityPostsByKey[
-                                      postQuoteKey(
-                                          conversation.latestActivity.post,
-                                      )
-                                  ]
-                                : undefined
-                        }
-                        conversation={conversation}
-                        latestPostCreatedAtMs={latestPostCreatedAtMs}
-                        onConfirmFriendRequest={onConfirmFriendRequest}
-                        onDeleteFriendRequest={onDeleteFriendRequest}
-                        onLoadActivityPost={onLoadActivityPost}
-                        onOpenFriendProfile={onOpenFriendProfile}
-                        onOpenThread={onOpenThread}
-                        onPostSomething={onPostSomething}
-                    />
-                ))}
+                    <Box
+                        sx={{
+                            alignItems: "center",
+                            display: "flex",
+                            gap: "10px",
+                            minWidth: 0,
+                        }}
+                    >
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <ConversationPreviewLine
+                                conversation={conversation}
+                            />
+                        </Box>
+                        {unreadCount > 0 && (
+                            <Box
+                                aria-label={`${unreadCount} unread update${unreadCount == 1 ? "" : "s"}`}
+                                component="span"
+                                sx={{
+                                    alignItems: "center",
+                                    bgcolor: dangerColor,
+                                    borderRadius: "9px",
+                                    boxSizing: "border-box",
+                                    color: spaceOnAccent,
+                                    display: "inline-flex",
+                                    flexShrink: 0,
+                                    fontFamily:
+                                        '"Inter Variable", Inter, sans-serif',
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    height: 18,
+                                    justifyContent: "center",
+                                    lineHeight: "18px",
+                                    minWidth: 18,
+                                    px: "4px",
+                                }}
+                            >
+                                {conversationUnreadLabel(unreadCount)}
+                            </Box>
+                        )}
+                    </Box>
+                </Box>
             </Box>
         </Box>
     );
@@ -961,7 +606,7 @@ const bodyBubblesCanGroup = (
     if (!first || !second) return false;
     if (!sameMessageSender(first, second)) return false;
     if (first.reaction) return false;
-    if (first.kind == "post_like" || first.kind == "friend_added") return false;
+    if (first.kind == "friend_added") return false;
     if (
         (second.kind != "regular" && second.kind != "poke") ||
         second.replyMessageId
@@ -979,108 +624,86 @@ const bodyBubblesCanGroup = (
     );
 };
 
-const ReplyIcon: React.FC = () => (
-    <svg
-        width="12"
-        height="9"
-        viewBox="0 0 12 9"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-    >
-        <path
-            fillRule="evenodd"
-            clipRule="evenodd"
-            d="M4.5241 0.242677C4.62341 0.34442 4.67919 0.482337 4.67919 0.626134C4.67919 0.76993 4.62341 0.907847 4.5241 1.00959L1.89369 3.70102H7.68483C8.3587 3.70102 9.35854 3.9036 10.2042 4.52653C11.0775 5.17045 11.7507 6.23762 11.7507 7.86116C11.7507 8.00507 11.6948 8.14309 11.5953 8.24485C11.4959 8.34661 11.361 8.40378 11.2203 8.40378C11.0797 8.40378 10.9448 8.34661 10.8453 8.24485C10.7459 8.14309 10.69 8.00507 10.69 7.86116C10.69 6.59069 10.1844 5.84982 9.58481 5.40776C8.95761 4.94544 8.18899 4.78627 7.68483 4.78627H1.89369L4.5241 7.4777C4.5762 7.52738 4.61799 7.58728 4.64698 7.65384C4.67597 7.72041 4.69155 7.79226 4.69281 7.86512C4.69406 7.93798 4.68096 8.01035 4.65429 8.07791C4.62762 8.14548 4.58792 8.20686 4.53756 8.25839C4.4872 8.30991 4.42722 8.35053 4.36118 8.37782C4.29515 8.40512 4.22442 8.41852 4.15321 8.41723C4.082 8.41595 4.01178 8.4 3.94673 8.37034C3.88167 8.34068 3.82313 8.29792 3.77457 8.24461L0.23908 4.6271C0.139767 4.52536 0.0839844 4.38744 0.0839844 4.24364C0.0839844 4.09985 0.139767 3.96193 0.23908 3.86019L3.77457 0.242677C3.87401 0.141061 4.0088 0.0839844 4.14934 0.0839844C4.28987 0.0839844 4.42466 0.141061 4.5241 0.242677Z"
-            fill="currentColor"
-            stroke="currentColor"
-            strokeWidth="0.166667"
-        />
-    </svg>
-);
+const messageActionsTransitionDuration = { enter: 300, exit: 100 };
 
-const DeleteIcon: React.FC = () => (
-    <svg
-        width="13"
-        height="15"
-        viewBox="0 0 13 15"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-    >
-        <path
-            d="M11.5 2.83203L11.0869 9.51543C10.9813 11.223 10.9285 12.0768 10.5005 12.6906C10.2889 12.9941 10.0165 13.2502 9.70047 13.4427C9.0614 13.832 8.206 13.832 6.49513 13.832C4.78208 13.832 3.92553 13.832 3.28603 13.442C2.96987 13.2492 2.69733 12.9926 2.48579 12.6886C2.05792 12.0738 2.0063 11.2188 1.90307 9.50883L1.5 2.83203M0.5 2.83333H12.5M9.2038 2.83333L8.74873 1.89449C8.4464 1.27084 8.2952 0.959013 8.03447 0.76454C7.97667 0.7214 7.9154 0.683027 7.85133 0.6498C7.5626 0.5 7.21607 0.5 6.523 0.5C5.81253 0.5 5.45733 0.5 5.16379 0.65608C5.09873 0.690673 5.03665 0.7306 4.97819 0.775447C4.71443 0.9778 4.56709 1.30103 4.27241 1.94751L3.86861 2.83333M4.83203 10.166V6.16602M8.16797 10.166V6.16602"
-            stroke="currentColor"
-            strokeLinecap="round"
-        />
-    </svg>
-);
+const messageActionsTriggerSize = 24;
+const messageActionsTriggerOffset = -6;
 
-const CopyIcon: React.FC = () => (
-    <svg
-        width="14"
-        height="14"
-        viewBox="0 0 14 14"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-    >
-        <path
-            d="M4.5 4.5V2.5C4.5 1.39543 5.39543 0.5 6.5 0.5H11.5C12.6046 0.5 13.5 1.39543 13.5 2.5V7.5C13.5 8.60457 12.6046 9.5 11.5 9.5H9.5M2.5 4.5H7.5C8.60457 4.5 9.5 5.39543 9.5 6.5V11.5C9.5 12.6046 8.60457 13.5 7.5 13.5H2.5C1.39543 13.5 0.5 12.6046 0.5 11.5V6.5C0.5 5.39543 1.39543 4.5 2.5 4.5Z"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        />
-    </svg>
-);
+const MessageActionsTrigger: React.FC<{
+    isOpen: boolean;
+    isOwn: boolean;
+    onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+}> = ({ isOpen, isOwn, onClick }) => {
+    const iconColor = isOwn ? outgoingMessageText : incomingMessageText;
 
-const messageActionsTransitionDuration = { enter: 140, exit: 100 };
-
-const MessageActionMenuItem: React.FC<{
-    icon: React.ReactNode;
-    label: string;
-    onClick: () => void;
-    tone?: "default" | "danger";
-}> = ({ icon, label, onClick, tone = "default" }) => (
-    <MenuItem
-        disableRipple
-        onClick={onClick}
-        sx={{
-            WebkitTapHighlightColor: "transparent",
-            borderRadius: "12px",
-            color: tone == "danger" ? dangerColor : textBase,
-            gap: "8px",
-            minHeight: spaceTouchTargetSize,
-            outline: 0,
-            px: "8px",
-            py: "7px",
-            "&.Mui-focusVisible": {
-                bgcolor:
-                    tone == "danger"
-                        ? "rgba(246, 58, 58, 0.14)"
-                        : spaceMenuHover,
-                outline: 0,
-            },
-            "&:focus": { outline: 0 },
-            "&:focus-visible": { outline: 0 },
-            "&:hover": {
-                bgcolor:
-                    tone == "danger"
-                        ? "rgba(246, 58, 58, 0.14)"
-                        : spaceMenuHover,
-            },
-        }}
-    >
-        {icon}
+    return (
         <Box
+            component="button"
+            type="button"
+            data-message-actions-trigger
+            aria-expanded={isOpen}
+            aria-haspopup="menu"
+            aria-label="Message actions"
+            tabIndex={-1}
+            onClick={onClick}
+            onContextMenu={(event) => {
+                event.preventDefault();
+                onClick(event);
+            }}
             sx={{
-                fontFamily: '"Inter Variable", Inter, sans-serif',
-                fontSize: 13,
-                fontWeight: 650,
-                lineHeight: "18px",
+                WebkitTapHighlightColor: "transparent",
+                alignItems: "center",
+                bgcolor: isOwn ? outgoingBubble : incomingBubble,
+                border: `2px solid ${spaceAppBackgroundColor}`,
+                borderRadius: "50%",
+                boxSizing: "border-box",
+                color: isOpen ? iconColor : alpha(iconColor, 0.72),
+                cursor: "pointer",
+                display: "none",
+                height: messageActionsTriggerSize,
+                justifyContent: "center",
+                opacity: isOpen ? 1 : 0,
+                p: 0,
+                position: "absolute",
+                top: messageActionsTriggerOffset,
+                transform: isOpen ? "none" : "scale(0.8)",
+                transition:
+                    "opacity 140ms ease, transform 140ms ease, color 140ms ease",
+                width: messageActionsTriggerSize,
+                zIndex: 2,
+                ...(isOwn
+                    ? { left: messageActionsTriggerOffset }
+                    : { right: messageActionsTriggerOffset }),
+                "@media (hover: hover) and (pointer: fine)": {
+                    display: "inline-flex",
+                },
+                "&:hover": { color: iconColor },
+                "&:focus-visible": {
+                    opacity: 1,
+                    outline: `2px solid ${green}`,
+                    outlineOffset: 1,
+                    transform: "none",
+                },
+                "& svg": {
+                    transform: isOpen ? "rotate(180deg)" : "none",
+                    transition: "transform 180ms ease",
+                },
+                "@media (prefers-reduced-motion: reduce)": {
+                    transform: "none",
+                    transition: "none",
+                    "& svg": { transition: "none" },
+                },
             }}
         >
-            {label}
+            <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                primaryColor="currentColor"
+                size={14}
+                strokeWidth={2}
+            />
         </Box>
-    </MenuItem>
-);
+    );
+};
 
 type MessageActionLabelIcon = "like" | "reply";
 
@@ -1238,23 +861,26 @@ const MessageReplyPreview: React.FC<{
 
 const PostQuotePreview: React.FC<{
     activityPost?: SpaceMessageActivityPost;
-    isOwn: boolean;
     message: SpaceMessage;
-    mb?: string;
     onLoadActivityPost?: (post: SpaceMessageActivityPost) => void;
     onOpenQuotePost: (quote: SpaceMessageQuote) => void;
-}> = ({
-    activityPost,
-    isOwn,
-    message,
-    mb,
-    onLoadActivityPost,
-    onOpenQuotePost,
-}) => {
+}> = ({ activityPost, message, onLoadActivityPost, onOpenQuotePost }) => {
     const quote = message.quote;
     const preview = activityPost ?? quote;
     const isUnavailable = !quote || Boolean(preview?.isUnavailable);
     const hasLoadError = Boolean(preview?.hasLoadError);
+    const retryAt = preview?.retryAt;
+    const [now, setNow] = React.useState(Date.now);
+    const isRateLimited = retryAt !== undefined && now < retryAt;
+    React.useEffect(() => {
+        if (retryAt === undefined) return;
+        setNow(Date.now());
+        const timer = window.setTimeout(
+            () => setNow(Date.now()),
+            Math.max(0, retryAt - Date.now()),
+        );
+        return () => window.clearTimeout(timer);
+    }, [retryAt]);
     const imageUrl =
         isUnavailable || hasLoadError ? undefined : preview?.imageUrl;
     const photoCount = preview?.photoCount ?? 1;
@@ -1264,7 +890,8 @@ const PostQuotePreview: React.FC<{
         quote && !imageUrl && !isUnavailable && !hasLoadError,
     );
     const canOpen = Boolean(loadedQuote);
-    const canRetry = hasLoadError && Boolean(onLoadActivityPost);
+    const canRetry =
+        hasLoadError && !isRateLimited && Boolean(onLoadActivityPost);
     const unavailableLabel =
         quote?.objectKey !== undefined && preview?.photoCount !== undefined
             ? "Photo unavailable"
@@ -1284,38 +911,62 @@ const PostQuotePreview: React.FC<{
     ]);
 
     return (
-        <QuoteFrame isOwn={isOwn} mb={mb}>
+        <Box
+            component={canOpen || canRetry ? "button" : "div"}
+            type={canOpen || canRetry ? "button" : undefined}
+            aria-label={
+                canOpen
+                    ? "Open quoted photo"
+                    : canRetry
+                      ? "Retry loading post"
+                      : undefined
+            }
+            onClick={(event: React.MouseEvent) => {
+                event.stopPropagation();
+                if (canRetry && quote) onLoadActivityPost?.(quote);
+                else if (loadedQuote) onOpenQuotePost(loadedQuote);
+            }}
+            sx={{
+                appearance: "none",
+                bgcolor: spaceSurface,
+                border: 0,
+                borderRadius: "inherit",
+                borderBottomLeftRadius: 0,
+                borderBottomRightRadius: 0,
+                color: "inherit",
+                cursor: canOpen || canRetry ? "pointer" : "default",
+                display: "flex",
+                flexDirection: "column",
+                font: "inherit",
+                isolation: "isolate",
+                overflow: "hidden",
+                p: 0,
+                position: "relative",
+                textAlign: "left",
+                width: "100%",
+                "&::after": {
+                    borderRadius: "inherit",
+                    boxShadow: "inset 0 0 0 1px #282828",
+                    content: '""',
+                    inset: 0,
+                    mixBlendMode: "lighten",
+                    pointerEvents: "none",
+                    position: "absolute",
+                    zIndex: 2,
+                },
+                "&:focus-visible": {
+                    outline: `2px solid ${green}`,
+                    outlineOffset: 2,
+                },
+            }}
+        >
             <Box
-                component={canOpen || canRetry ? "button" : "div"}
-                type={canOpen || canRetry ? "button" : undefined}
-                aria-label={
-                    canOpen
-                        ? "Open quoted photo"
-                        : canRetry
-                          ? "Retry loading photo"
-                          : undefined
-                }
-                onClick={(event: React.MouseEvent) => {
-                    event.stopPropagation();
-                    if (canRetry && quote) onLoadActivityPost?.(quote);
-                    else if (loadedQuote) onOpenQuotePost(loadedQuote);
-                }}
+                component="span"
                 sx={{
-                    appearance: "none",
-                    bgcolor: "transparent",
-                    border: 0,
-                    borderRadius: "28px",
-                    color: "inherit",
-                    cursor: canOpen || canRetry ? "pointer" : "default",
-                    display: "inline-flex",
-                    font: "inherit",
-                    overflow: "hidden",
-                    p: 0,
+                    aspectRatio: "1",
+                    display: "block",
                     position: "relative",
-                    "&:focus-visible": {
-                        outline: `2px solid ${green}`,
-                        outlineOffset: 2,
-                    },
+                    width: "100%",
                 }}
             >
                 {imageUrl ? (
@@ -1325,20 +976,25 @@ const PostQuotePreview: React.FC<{
                         src={imageUrl}
                         sx={{
                             display: "block",
-                            height: postQuoteThumbnailSize,
+                            height: "100%",
+                            inset: 0,
                             objectFit: "cover",
                             objectPosition: "center",
-                            width: postQuoteThumbnailSize,
+                            position: "absolute",
+                            width: "100%",
                         }}
                     />
                 ) : (
                     <Box
+                        component="span"
                         role="img"
                         aria-label={
                             isLoading
                                 ? "Loading photo"
                                 : hasLoadError
-                                  ? "Couldn't load photo"
+                                  ? isRateLimited
+                                      ? "Couldn't load post. Please try again later."
+                                      : "Couldn't load post"
                                   : unavailableLabel
                         }
                         sx={{
@@ -1351,11 +1007,12 @@ const PostQuotePreview: React.FC<{
                             fontFamily: '"Inter Variable", Inter, sans-serif',
                             fontSize: 12,
                             fontWeight: 700,
-                            height: postQuoteThumbnailSize,
+                            height: "100%",
                             justifyContent: "center",
                             lineHeight: "16px",
                             textAlign: "center",
-                            width: postQuoteThumbnailSize,
+                            textWrap: "balance",
+                            width: "100%",
                             px: "12px",
                         }}
                     >
@@ -1369,7 +1026,11 @@ const PostQuotePreview: React.FC<{
                         {isUnavailable ? (
                             unavailableLabel
                         ) : hasLoadError ? (
-                            "Couldn't load photo. Tap to retry."
+                            isRateLimited ? (
+                                "Couldn't load post. Please try again later."
+                            ) : (
+                                "Couldn't load post. Tap to retry."
+                            )
                         ) : (
                             <SpaceLoadingSpinner />
                         )}
@@ -1379,8 +1040,29 @@ const PostQuotePreview: React.FC<{
                 {canOpen && (
                     <SpacePostVideoBadge durationMs={loadedQuote?.durationMs} />
                 )}
+                <Box
+                    component="span"
+                    aria-hidden
+                    sx={{
+                        alignItems: "center",
+                        backdropFilter: "blur(12px)",
+                        bgcolor: alpha("#000000", 0.45),
+                        borderRadius: "999px",
+                        color: "#FFFFFF",
+                        display: "inline-flex",
+                        height: 32,
+                        justifyContent: "center",
+                        left: 12,
+                        position: "absolute",
+                        top: 12,
+                        width: 32,
+                        "& svg": { height: 12, width: 16 },
+                    }}
+                >
+                    <ReplyIcon />
+                </Box>
             </Box>
-        </QuoteFrame>
+        </Box>
     );
 };
 
@@ -1389,6 +1071,8 @@ const isMessageInteractiveTarget = (target: EventTarget | null) =>
 
 const MessageBubble: React.FC<{
     activityPost?: SpaceMessageActivityPost;
+    areActionsOpen: boolean;
+    canOpenActions: boolean;
     canReply: boolean;
     friendName: string;
     groupsWithNext: boolean;
@@ -1399,6 +1083,7 @@ const MessageBubble: React.FC<{
         message: SpaceMessage,
         anchorEl: HTMLElement,
         source: MessageActionsOpenSource,
+        anchorOffset?: MessageContextMenuState["anchorOffset"],
     ) => void;
     onLoadActivityPost?: (post: SpaceMessageActivityPost) => void;
     onOpenQuotePost: (quote: SpaceMessageQuote) => void;
@@ -1408,6 +1093,8 @@ const MessageBubble: React.FC<{
     profile: SetupProfile;
 }> = ({
     activityPost,
+    areActionsOpen,
+    canOpenActions,
     canReply,
     friendName,
     groupsWithNext,
@@ -1430,25 +1117,17 @@ const MessageBubble: React.FC<{
     const bubbleBorderRadius = isOwn
         ? `20px ${groupsWithPrevious ? "6px" : "20px"} ${groupsWithNext ? "6px" : "20px"} 20px`
         : `${groupsWithPrevious ? "6px" : "20px"} 20px 20px ${groupsWithNext ? "6px" : "20px"}`;
-    const isSyntheticPostLike = !isUnavailable && message.kind == "post_like";
     const isFriendAdded = !isUnavailable && message.kind == "friend_added";
     const isPostReply = !isUnavailable && message.kind == "post_reply";
-    const isSystemMessage = isSyntheticPostLike || isFriendAdded;
+    const isSystemMessage = isFriendAdded;
     const hasMessageReply = !isUnavailable && Boolean(message.replyMessageId);
-    const actionLabel = isSyntheticPostLike
+    const actionLabel = hasMessageReply
         ? isOwn
-            ? "You liked a post"
-            : "Liked your post"
-        : isPostReply
-          ? isOwn
-              ? "You replied to a post"
-              : "Replied to your post"
-          : hasMessageReply
-            ? isOwn
-                ? "You replied"
-                : "Replied to you"
-            : undefined;
+            ? "You replied"
+            : "Replied to you"
+        : undefined;
     const hasBodyBubble = !isSystemMessage;
+    const hasActionsTrigger = canOpenActions && !isUnavailable;
     const rowAlignItems = isFriendAdded
         ? "center"
         : isOwn
@@ -1469,6 +1148,23 @@ const MessageBubble: React.FC<{
         | undefined
     >(undefined);
     const [swipeOffset, setSwipeOffset] = React.useState(0);
+    const reactionRef = React.useRef<HTMLSpanElement>(null);
+    const previousReactionRef = React.useRef(message.reaction);
+
+    React.useEffect(() => {
+        if (previousReactionRef.current == message.reaction) return;
+        previousReactionRef.current = message.reaction;
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+            return;
+        const animation = reactionRef.current?.animate(
+            [
+                { opacity: 0, transform: "scale(0.85)" },
+                { opacity: 1, transform: "scale(1)" },
+            ],
+            { duration: 160, easing: "ease-out" },
+        );
+        return () => animation?.cancel();
+    }, [message.reaction]);
 
     const clearLongPressTimer = React.useCallback(() => {
         if (longPressTimerRef.current == undefined) return;
@@ -1484,12 +1180,16 @@ const MessageBubble: React.FC<{
     };
 
     const openActions = React.useCallback(
-        (bubbleElement: HTMLElement, source: MessageActionsOpenSource) => {
+        (
+            anchorEl: HTMLElement,
+            source: MessageActionsOpenSource,
+            anchorOffset?: MessageContextMenuState["anchorOffset"],
+        ) => {
             if (isSystemMessage || isUnavailable) return;
             clearLongPressTimer();
             setSwipeOffset(0);
             window.getSelection()?.removeAllRanges();
-            onOpenActions(message, bubbleElement, source);
+            onOpenActions(message, anchorEl, source, anchorOffset);
         },
         [
             clearLongPressTimer,
@@ -1509,7 +1209,21 @@ const MessageBubble: React.FC<{
             return;
         event.preventDefault();
         event.stopPropagation();
-        openActions(event.currentTarget, "contextmenu");
+        const rect = event.currentTarget.getBoundingClientRect();
+        const offset = {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+        };
+        const isPointerInside =
+            offset.x >= 0 &&
+            offset.x <= rect.width &&
+            offset.y >= 0 &&
+            offset.y <= rect.height;
+        openActions(
+            event.currentTarget,
+            "contextmenu",
+            isPointerInside && !gestureStartRef.current ? offset : undefined,
+        );
     };
 
     const handlePointerDown = (event: React.PointerEvent<HTMLElement>) => {
@@ -1625,6 +1339,10 @@ const MessageBubble: React.FC<{
         didOpenLongPressRef.current = false;
     };
 
+    const handleActionsTriggerClick = (
+        event: React.MouseEvent<HTMLButtonElement>,
+    ) => openActions(event.currentTarget, "button");
+
     React.useEffect(() => clearLongPressTimer, [clearLongPressTimer]);
 
     return (
@@ -1645,6 +1363,10 @@ const MessageBubble: React.FC<{
                 "@media (prefers-reduced-motion: reduce)": {
                     transition: "none",
                 },
+                "&:hover [data-message-actions-trigger]": {
+                    opacity: 1,
+                    transform: "none",
+                },
             }}
         >
             {isFriendAdded ? (
@@ -1662,7 +1384,7 @@ const MessageBubble: React.FC<{
                 >
                     {actionLabel && (
                         <MessageActionLabel
-                            icon={isSyntheticPostLike ? "like" : "reply"}
+                            icon="reply"
                             isOwn={isOwn}
                             label={actionLabel}
                         />
@@ -1673,16 +1395,6 @@ const MessageBubble: React.FC<{
                             isOwn={isOwn}
                             parentMessage={parentMessage}
                             profile={profile}
-                        />
-                    )}
-                    {(isPostReply || isSyntheticPostLike) && (
-                        <PostQuotePreview
-                            activityPost={activityPost}
-                            isOwn={isOwn}
-                            mb={hasBodyBubble ? "8px" : "0"}
-                            message={message}
-                            onLoadActivityPost={onLoadActivityPost}
-                            onOpenQuotePost={onOpenQuotePost}
                         />
                     )}
                     {hasBodyBubble && (
@@ -1738,7 +1450,9 @@ const MessageBubble: React.FC<{
                                     bgcolor: isOwn
                                         ? outgoingBubble
                                         : incomingBubble,
-                                    borderRadius: bubbleBorderRadius,
+                                    borderRadius: isPostReply
+                                        ? "24px"
+                                        : bubbleBorderRadius,
                                     "&:focus-visible": {
                                         outline: `2px solid ${green}`,
                                         outlineOffset: 2,
@@ -1755,8 +1469,8 @@ const MessageBubble: React.FC<{
                                     ml: 0,
                                     overflow: "visible",
                                     position: "relative",
-                                    px: messageBubblePaddingX,
-                                    py: messageBubblePaddingY,
+                                    px: isPostReply ? 0 : messageBubblePaddingX,
+                                    py: isPostReply ? 0 : messageBubblePaddingY,
                                     textAlign: "left",
                                     touchAction: "pan-y",
                                     transform: `translateX(${swipeOffset}px)`,
@@ -1770,7 +1484,9 @@ const MessageBubble: React.FC<{
                                     userSelect: "none",
                                     WebkitTouchCallout: "none",
                                     WebkitUserSelect: "none",
-                                    width: "fit-content",
+                                    width: isPostReply
+                                        ? postQuoteWidth
+                                        : "fit-content",
                                     "& *": {
                                         userSelect: "none",
                                         WebkitTouchCallout: "none",
@@ -1778,6 +1494,14 @@ const MessageBubble: React.FC<{
                                     },
                                 }}
                             >
+                                {isPostReply && (
+                                    <PostQuotePreview
+                                        activityPost={activityPost}
+                                        message={message}
+                                        onLoadActivityPost={onLoadActivityPost}
+                                        onOpenQuotePost={onOpenQuotePost}
+                                    />
+                                )}
                                 <Box
                                     sx={{
                                         color: isOwn
@@ -1793,6 +1517,12 @@ const MessageBubble: React.FC<{
                                         fontWeight: 600,
                                         lineHeight: "21px",
                                         overflowWrap: "anywhere",
+                                        px: isPostReply
+                                            ? messageBubblePaddingX
+                                            : undefined,
+                                        py: isPostReply
+                                            ? messageBubblePaddingY
+                                            : undefined,
                                         whiteSpace: "pre-wrap",
                                     }}
                                 >
@@ -1806,6 +1536,7 @@ const MessageBubble: React.FC<{
                                 </Box>
                                 {!isUnavailable && message.reaction && (
                                     <Box
+                                        ref={reactionRef}
                                         component="span"
                                         role="img"
                                         aria-label={`Reaction: ${emojiName(message.reaction)}`}
@@ -1837,6 +1568,13 @@ const MessageBubble: React.FC<{
                                         {message.reaction}
                                     </Box>
                                 )}
+                                {hasActionsTrigger && (
+                                    <MessageActionsTrigger
+                                        isOpen={areActionsOpen}
+                                        isOwn={isOwn}
+                                        onClick={handleActionsTriggerClick}
+                                    />
+                                )}
                             </Box>
                         </Box>
                     )}
@@ -1853,27 +1591,21 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     isThreadLoading = false,
     isThreadReadOnly = false,
     isThreadRecipientLoading = false,
-    latestPostCreatedAtMs,
     messages,
-    newConversationIds = [],
     onBack,
     onCloseThread,
-    onConfirmFriendRequest,
     onDeleteMessage,
-    onDeleteFriendRequest,
     onOpenSelectedFriendProfile,
     onOpenQuotePost,
     onOpenThread,
-    onPostPhotoSelect,
     onLoadActivityPost,
+    onPokeFriend,
     onReplyToMessage,
-    onSendPoke,
     onSendMessage,
     onSetMessageReaction,
     profile,
     profileLink,
     selectedFriend,
-    threadBackLabel = "Back to messages",
 }) => {
     const [messageText, setMessageText] = React.useState("");
     const [messageContextMenu, setMessageContextMenu] =
@@ -1894,7 +1626,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         Record<string, SpaceMessageActivityPost>
     >({});
     const composerRef = React.useRef<HTMLTextAreaElement | null>(null);
-    const postPhotoInputRef = React.useRef<HTMLInputElement | null>(null);
     const threadScrollRef = React.useRef<HTMLDivElement | null>(null);
     const stickToThreadBottomRef = React.useRef(true);
     const smoothNextMessageScrollRef = React.useRef(false);
@@ -1907,12 +1638,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     );
     const ignoreMessageActionsMouseAwayUntilRef = React.useRef(0);
     const activityPostLoadsInFlightRef = React.useRef<Set<string>>(new Set());
+    const prefersReducedMotion = useMediaQuery(
+        "(prefers-reduced-motion: reduce)",
+    );
     const isThreadOpen = Boolean(selectedFriend);
     const canInteract =
         isThreadOpen && !isThreadReadOnly && !isThreadRecipientLoading;
     const canSend =
         canInteract && messageText.trim().length > 0 && sendPhase == "idle";
-    const canPoke = canInteract && sendPhase == "idle";
     const selectedName = selectedFriend
         ? selectedFriend.fullName.trim() || selectedFriend.username
         : "";
@@ -1924,12 +1657,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     const showInviteEmptyState = friendsCount == 0 && Boolean(profileLink);
     const emptyConversationsCopy =
         friendsCount == 0
-            ? "No messages yet. Once you add friends, you'll see their likes, replies, pokes and messages here."
-            : "No messages yet. You'll see your friends' likes, replies, pokes and messages here.";
-    const conversationSections = React.useMemo(
-        () => conversationTimeSections(conversations, newConversationIds),
-        [conversations, newConversationIds],
-    );
+            ? "No messages yet. Once you add friends, you'll see their replies and messages here."
+            : "No messages yet. You'll see your friends' replies and messages here.";
     const previewGenerationRef = React.useRef(0);
     React.useEffect(() => {
         const cancelPreviewLoads = () => {
@@ -1969,6 +1698,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
             const cached = activityPostsByKey[key];
             if (
                 (cached && !cached.hasLoadError) ||
+                (cached?.retryAt !== undefined &&
+                    Date.now() < cached.retryAt) ||
                 activityPostLoadsInFlightRef.current.has(key)
             )
                 return;
@@ -2017,8 +1748,24 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         isCurrentProfileMessage(messageContextMenu.message, profile),
     );
     const isContextMessagePoke = messageContextMenu?.message.kind == "poke";
-
-    const openPostPhotoPicker = () => postPhotoInputRef.current?.click();
+    const messageActionsAnchor = React.useMemo(() => {
+        if (!messageContextMenu) return null;
+        const { anchorEl, anchorOffset } = messageContextMenu;
+        if (!anchorOffset) return anchorEl;
+        return {
+            contextElement: anchorEl,
+            getBoundingClientRect: () => {
+                const rect = anchorEl.getBoundingClientRect();
+                return DOMRect.fromRect({
+                    x: rect.left + anchorOffset.x,
+                    y: rect.top + anchorOffset.y,
+                });
+            },
+        };
+    }, [messageContextMenu]);
+    const isMenuBelowBubble =
+        messageActionsAnchor instanceof HTMLElement &&
+        messageActionsAnchor.hasAttribute("data-message-bubble");
 
     const sendMessage = () => {
         const text = messageText.trim();
@@ -2053,30 +1800,23 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
             });
     };
 
-    const sendPoke = () => {
-        if (!selectedFriend || !canPoke) return;
-        const spaceId = selectedFriend.spaceId ?? selectedFriend.id;
-        stickToThreadBottomRef.current = true;
-        smoothNextMessageScrollRef.current = true;
-        setSendPhase("sending");
-        void onSendPoke(spaceId)
-            .then(() => setSendPhase("idle"))
-            .catch((error: unknown) => {
-                smoothNextMessageScrollRef.current = false;
-                log.error("Failed to send poke", error);
-                setSendPhase("idle");
-            });
-    };
+    const canOpenMessageActions = (message: SpaceMessage) =>
+        message.kind != "poke" ||
+        (canInteract && isCurrentProfileMessage(message, profile));
 
     const openMessageActions = (
         message: SpaceMessage,
         anchorEl: HTMLElement,
         source: MessageActionsOpenSource,
+        anchorOffset?: MessageContextMenuState["anchorOffset"],
     ) => {
+        if (!canOpenMessageActions(message)) return;
         if (
-            message.kind == "poke" &&
-            (!canInteract || !isCurrentProfileMessage(message, profile))
+            source == "button" &&
+            messageContextMenu?.open &&
+            messageContextMenu.message.id == message.id
         ) {
+            closeMessageActions();
             return;
         }
         ignoreMessageActionsMouseAwayUntilRef.current =
@@ -2085,6 +1825,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 : 0;
         setMessageContextMenu({
             anchorEl,
+            anchorOffset,
             message: messageByID.get(message.id) ?? message,
             open: true,
         });
@@ -2106,6 +1847,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
             Date.now() < ignoreMessageActionsMouseAwayUntilRef.current
         )
             return;
+        if (
+            event.target instanceof Element &&
+            event.target.closest("[data-message-actions-trigger]")
+        )
+            return;
 
         closeMessageActions();
     };
@@ -2125,7 +1871,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
             closeMessageActions();
             setReplyingTo(messageByID.get(message.id) ?? message);
         });
-        composerRef.current?.focus();
+        composerRef.current?.focus({ preventScroll: true });
     };
 
     const reactToMessage = (message: SpaceMessage, emoji: string) => {
@@ -2219,9 +1965,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         const scroller = threadScrollRef.current;
         if (!scroller) return;
         stickToThreadBottomRef.current = isThreadNearBottom(scroller);
+        if (messageContextMenu?.open) closeMessageActions();
     };
 
     const handleComposerFocus = () => {
+        if (composerBlurResetTimeoutRef.current != undefined) {
+            window.clearTimeout(composerBlurResetTimeoutRef.current);
+            composerBlurResetTimeoutRef.current = undefined;
+        }
         const scroller = threadScrollRef.current;
         if (scroller && !isThreadNearBottom(scroller)) return;
         stickToThreadBottomRef.current = true;
@@ -2377,36 +2128,50 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                     zIndex={1600}
                 />
             )}
-            <SpacePostPhotoInput
-                inputRef={postPhotoInputRef}
-                onSelect={onPostPhotoSelect}
-            />
             <Box
                 component="main"
+                className={isThreadOpen ? "space-message-thread" : undefined}
                 sx={{
                     background: spaceAppBackground,
                     color: textBase,
                     display: "grid",
-                    height: isThreadOpen ? "100dvh" : undefined,
-                    minHeight: isThreadOpen ? 0 : "100svh",
+                    height: isThreadOpen
+                        ? "var(--space-page-height, 100dvh)"
+                        : undefined,
+                    left: isThreadOpen ? 0 : undefined,
+                    minHeight: isThreadOpen
+                        ? 0
+                        : "var(--space-page-height, 100svh)",
                     overflow: isThreadOpen ? "hidden" : undefined,
                     overflowX: "hidden",
                     placeItems: { xs: "stretch", sm: "start center" },
+                    position: isThreadOpen ? "fixed" : undefined,
+                    right: isThreadOpen ? 0 : undefined,
+                    top: isThreadOpen
+                        ? "var(--space-viewport-offset-top, 0px)"
+                        : undefined,
                 }}
             >
                 <SpaceSkipLink />
                 <Box
+                    className={
+                        isThreadOpen
+                            ? "space-message-thread-content"
+                            : undefined
+                    }
                     sx={{
                         bgcolor: "transparent",
                         boxSizing: "border-box",
                         display: isThreadOpen ? "grid" : undefined,
                         gridTemplateRows: isThreadOpen
                             ? isThreadReadOnly
-                                ? "56px minmax(0, 1fr)"
-                                : "56px minmax(0, 1fr) auto"
+                                ? "calc(68px + var(--space-ios-safe-area-top, 0px)) minmax(0, 1fr)"
+                                : "calc(68px + var(--space-ios-safe-area-top, 0px)) minmax(0, 1fr) auto"
                             : undefined,
                         height: isThreadOpen ? "100%" : undefined,
-                        minHeight: isThreadOpen ? 0 : "100svh",
+                        minHeight: isThreadOpen
+                            ? 0
+                            : "var(--space-page-height, 100svh)",
                         mx: "auto",
                         overflow: isThreadOpen ? "hidden" : undefined,
                         position: "relative",
@@ -2419,26 +2184,27 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                         sx={{
                             alignItems: "center",
                             display: "grid",
-                            gridTemplateColumns: `${spaceTouchTargetSize}px 1fr ${spaceTouchTargetSize}px`,
-                            height: 56,
-                            px: 2,
+                            gridTemplateColumns: isThreadOpen
+                                ? `${spaceTouchTargetSize}px minmax(0, 1fr) 76px`
+                                : `${spaceTouchTargetSize}px 1fr ${spaceTouchTargetSize}px`,
+                            height: "calc(68px + var(--space-ios-safe-area-top, 0px))",
+                            pt: "var(--space-ios-safe-area-top, 0px)",
+                            pl: "max(16px, var(--space-ios-safe-area-left, 0px))",
+                            pr: "max(16px, var(--space-ios-safe-area-right, 0px))",
                             width: "100%",
                         }}
                     >
                         <Box
                             component="button"
                             type="button"
-                            aria-label={isThreadOpen ? threadBackLabel : "Back"}
+                            aria-label="Back"
                             onClick={isThreadOpen ? onCloseThread : onBack}
                             sx={{
                                 alignItems: "center",
                                 bgcolor: "transparent",
                                 border: 0,
                                 color: conversationPrimaryText,
-                                cursor:
-                                    isThreadOpen || onBack
-                                        ? "pointer"
-                                        : "default",
+                                cursor: "pointer",
                                 display: "flex",
                                 height: spaceTouchTargetSize,
                                 justifyContent: "flex-start",
@@ -2462,8 +2228,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                             <Box
                                 component="h1"
                                 sx={{
-                                    justifySelf: "center",
+                                    justifySelf: "start",
                                     m: 0,
+                                    maxWidth: "100%",
                                     minWidth: 0,
                                     overflow: "hidden",
                                     textOverflow: "ellipsis",
@@ -2501,10 +2268,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                             '"Inter Variable", Inter, sans-serif',
                                         fontSize: 18,
                                         fontWeight: 700,
-                                        justifyContent: "center",
+                                        gap: "10px",
+                                        justifyContent: "flex-start",
                                         lineHeight: "24px",
                                         m: 0,
                                         maxWidth: "100%",
+                                        minHeight: spaceTouchTargetSize,
                                         minWidth: 0,
                                         overflow: "hidden",
                                         p: 0,
@@ -2516,6 +2285,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                         },
                                     }}
                                 >
+                                    <Avatar
+                                        avatarUrl={selectedFriend.avatarUrl}
+                                        loading={
+                                            isThreadRecipientLoading &&
+                                            !selectedFriend.avatarUrl
+                                        }
+                                        size={36}
+                                    />
                                     <Box
                                         component="span"
                                         sx={{
@@ -2549,46 +2326,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                 Messages
                             </Box>
                         )}
-                        {isThreadOpen && selectedFriend && canInteract ? (
-                            <Box
-                                component="button"
-                                type="button"
-                                aria-label={
-                                    selectedName
-                                        ? `Poke ${selectedName}`
-                                        : "Send poke"
+                        {isThreadOpen && selectedThreadID ? (
+                            <SpaceConversationPokeButton
+                                key={selectedThreadID}
+                                disabled={!canInteract}
+                                friendName={selectedName}
+                                onPokeFriend={(requestID) =>
+                                    onPokeFriend(selectedThreadID, requestID)
                                 }
-                                disabled={!canPoke}
-                                onClick={sendPoke}
-                                sx={{
-                                    alignItems: "center",
-                                    appearance: "none",
-                                    bgcolor: "transparent",
-                                    border: 0,
-                                    borderRadius: "50%",
-                                    color: "inherit",
-                                    cursor: canPoke ? "pointer" : "default",
-                                    display: "flex",
-                                    height: spaceTouchTargetSize,
-                                    justifyContent: "center",
-                                    justifySelf: "end",
-                                    lineHeight: 1,
-                                    mr: "-8px",
-                                    opacity: canPoke ? 1 : 0.5,
-                                    p: 0,
-                                    width: spaceTouchTargetSize,
-                                    "&:focus-visible": {
-                                        outline: `2px solid ${green}`,
-                                        outlineOffset: 2,
-                                    },
-                                }}
-                            >
-                                <HugeiconsIcon
-                                    icon={HandPointingRightIcon}
-                                    size={24}
-                                    strokeWidth={1.8}
-                                />
-                            </Box>
+                            />
                         ) : (
                             <Box aria-hidden />
                         )}
@@ -2673,8 +2419,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                     >
                                         {(() => {
                                             let lastTimeSeparatorMessage:
-                                                | SpaceMessage
-                                                | undefined;
+                                                SpaceMessage | undefined;
 
                                             return visibleMessages.map(
                                                 (message, index) => {
@@ -2728,6 +2473,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                                                           ]
                                                                         : undefined
                                                                 }
+                                                                areActionsOpen={
+                                                                    Boolean(
+                                                                        messageContextMenu?.open,
+                                                                    ) &&
+                                                                    messageContextMenu
+                                                                        ?.message
+                                                                        .id ==
+                                                                        message.id
+                                                                }
+                                                                canOpenActions={canOpenMessageActions(
+                                                                    message,
+                                                                )}
                                                                 canReply={
                                                                     canInteract
                                                                 }
@@ -2784,13 +2541,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                 )}
                             </Box>
                             <Popper
-                                anchorEl={messageContextMenu?.anchorEl ?? null}
+                                anchorEl={messageActionsAnchor}
                                 modifiers={[
                                     {
                                         name: "offset",
                                         options: {
                                             offset: [
                                                 0,
+                                                isMenuBelowBubble &&
                                                 messageContextMenu?.message
                                                     .reaction
                                                     ? 24
@@ -2839,6 +2597,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                     >
                                         <Grow
                                             {...(TransitionProps ?? {})}
+                                            easing={{
+                                                enter: "cubic-bezier(0.18, 0.9, 0.3, 1.18)",
+                                                exit: "ease-in",
+                                            }}
                                             style={{
                                                 transformOrigin: `${
                                                     placement.endsWith("end")
@@ -2855,10 +2617,25 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                                 clearClosedMessageActions();
                                             }}
                                             timeout={
-                                                messageActionsTransitionDuration
+                                                prefersReducedMotion
+                                                    ? 0
+                                                    : messageActionsTransitionDuration
                                             }
                                         >
                                             <Box
+                                                key={
+                                                    messageContextMenu?.message
+                                                        .id
+                                                }
+                                                onPointerDown={(
+                                                    event: React.PointerEvent<HTMLElement>,
+                                                ) => {
+                                                    if (
+                                                        event.target ==
+                                                        event.currentTarget
+                                                    )
+                                                        closeMessageActions();
+                                                }}
                                                 onKeyDown={(
                                                     event: React.KeyboardEvent<HTMLElement>,
                                                 ) => {
@@ -2900,7 +2677,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                                             }}
                                                         />
                                                     )}
-                                                <MenuList
+                                                <MessageActionMenuList
                                                     aria-label="Message actions"
                                                     autoFocus={
                                                         isContextMessagePoke ||
@@ -2910,28 +2687,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                                     onKeyDown={
                                                         handleMessageActionsKeyDown
                                                     }
-                                                    sx={{
-                                                        alignSelf: "flex-start",
-                                                        bgcolor:
-                                                            spaceMenuBackground,
-                                                        borderRadius: "16px",
-                                                        boxShadow:
-                                                            "0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.32)",
-                                                        minWidth: 132,
-                                                        outline: 0,
-                                                        p: "4px",
-                                                        width: "max-content",
-                                                        "&:focus": {
-                                                            outline: 0,
-                                                        },
-                                                        "&:focus-visible": {
-                                                            outline: 0,
-                                                        },
-                                                    }}
                                                     variant="menu"
                                                 >
                                                     {messageActionMenuItems}
-                                                </MenuList>
+                                                </MessageActionMenuList>
                                             </Box>
                                         </Grow>
                                     </ClickAwayListener>
@@ -2939,131 +2698,35 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                             </Popper>
                             {!isThreadReadOnly && (
                                 <Box
+                                    className="space-message-composer"
                                     sx={{
                                         bgcolor: "transparent",
                                         boxSizing: "border-box",
                                         display: "grid",
                                         gap: "8px",
-                                        p: "10px 14px calc(10px + env(safe-area-inset-bottom))",
+                                        p: "10px 14px",
+                                        pb: "max(10px, calc(env(safe-area-inset-bottom) - var(--space-keyboard-inset, 0px)))",
                                         width: "100%",
                                     }}
                                 >
                                     {replyingTo && (
-                                        <Box
-                                            sx={{
-                                                bgcolor: spaceSurface,
-                                                borderLeft: `3px solid ${green}`,
-                                                borderRadius: "12px",
-                                                boxSizing: "border-box",
-                                                display: "grid",
-                                                gridTemplateColumns:
-                                                    "minmax(0, 1fr)",
-                                                maxWidth: "100%",
-                                                overflow: "hidden",
-                                                p: "9px 40px 9px 12px",
-                                                position: "relative",
-                                                width: "100%",
-                                            }}
-                                        >
-                                            <Box
-                                                sx={{
-                                                    maxWidth: "100%",
-                                                    minWidth: 0,
-                                                    overflow: "hidden",
-                                                }}
-                                            >
-                                                <Box
-                                                    sx={{
-                                                        color: textSecondary,
-                                                        fontFamily:
-                                                            '"Inter Variable", Inter, sans-serif',
-                                                        fontSize: 12,
-                                                        fontWeight: 650,
-                                                        lineHeight: "16px",
-                                                        overflow: "hidden",
-                                                        textOverflow:
-                                                            "ellipsis",
-                                                        whiteSpace: "nowrap",
-                                                    }}
-                                                >
-                                                    {isCurrentProfileMessage(
-                                                        replyingTo,
-                                                        profile,
-                                                    )
-                                                        ? "You"
-                                                        : firstNameFrom(
-                                                              replyingTo.sender.fullName.trim() ||
-                                                                  replyingTo
-                                                                      .sender
-                                                                      .username ||
-                                                                  selectedName,
-                                                          )}
-                                                </Box>
-                                                <Box
-                                                    sx={{
-                                                        color: textBase,
-                                                        fontFamily:
-                                                            '"Inter Variable", Inter, sans-serif',
-                                                        fontSize: 13,
-                                                        fontWeight: 600,
-                                                        lineHeight: "18px",
-                                                        maxWidth: "100%",
-                                                        overflow: "hidden",
-                                                        overflowWrap:
-                                                            "anywhere",
-                                                        textOverflow:
-                                                            "ellipsis",
-                                                        whiteSpace: "nowrap",
-                                                    }}
-                                                >
-                                                    {truncateMessageText(
-                                                        replyingTo.text,
-                                                    )}
-                                                </Box>
-                                            </Box>
-                                            <Box
-                                                component="button"
-                                                type="button"
-                                                aria-label="Cancel reply"
-                                                onClick={() => {
-                                                    setReplyingTo(null);
-                                                }}
-                                                sx={{
-                                                    alignItems: "center",
-                                                    bgcolor: "transparent",
-                                                    border: 0,
-                                                    borderRadius: "50%",
-                                                    color: textSecondary,
-                                                    cursor: "pointer",
-                                                    display: "flex",
-                                                    height: spaceTouchTargetSize,
-                                                    justifyContent: "center",
-                                                    p: 0,
-                                                    position: "absolute",
-                                                    right: 0,
-                                                    top: 0,
-                                                    width: spaceTouchTargetSize,
-                                                    "&:focus-visible": {
-                                                        outline: `2px solid ${green}`,
-                                                        outlineOffset: 2,
-                                                    },
-                                                    "&:hover": {
-                                                        color: textBase,
-                                                    },
-                                                    "& svg": {
-                                                        position: "absolute",
-                                                        right: 8,
-                                                        top: 8,
-                                                    },
-                                                }}
-                                            >
-                                                <HugeiconsIcon
-                                                    icon={Cancel01Icon}
-                                                    size={16}
-                                                    strokeWidth={1.8}
-                                                />
-                                            </Box>
-                                        </Box>
+                                        <ReplyComposerPreview
+                                            name={
+                                                isCurrentProfileMessage(
+                                                    replyingTo,
+                                                    profile,
+                                                )
+                                                    ? "You"
+                                                    : firstNameFrom(
+                                                          replyingTo.sender.fullName.trim() ||
+                                                              replyingTo.sender
+                                                                  .username ||
+                                                              selectedName,
+                                                      )
+                                            }
+                                            text={replyingTo.text}
+                                            onCancel={() => setReplyingTo(null)}
+                                        />
                                     )}
                                     <Box
                                         sx={{
@@ -3091,6 +2754,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                             }}
                                             onBlur={handleComposerBlur}
                                             onFocus={handleComposerFocus}
+                                            onMouseDown={(event) => {
+                                                if (
+                                                    !isSpaceIOS() ||
+                                                    document.activeElement ==
+                                                        event.currentTarget
+                                                )
+                                                    return;
+                                                event.preventDefault();
+                                                event.currentTarget.focus({
+                                                    preventScroll: true,
+                                                });
+                                            }}
                                             placeholder="Message..."
                                             disabled={isThreadRecipientLoading}
                                             rows={1}
@@ -3130,6 +2805,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                                 canSend ? "green-bg" : undefined
                                             }
                                             disabled={!canSend}
+                                            onPointerDown={(event) => {
+                                                if (
+                                                    isSpaceIOS() &&
+                                                    document.activeElement ==
+                                                        composerRef.current
+                                                )
+                                                    event.preventDefault();
+                                            }}
                                             onClick={sendMessage}
                                             sx={{
                                                 alignItems: "center",
@@ -3216,12 +2899,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                         display: "flex",
                                         flexDirection: "column",
                                         gap: "22px",
-                                        inset: 0,
                                         justifyContent: "center",
                                         pointerEvents: "none",
                                         position: "absolute",
                                         px: 3,
                                         textAlign: "center",
+                                        top: "calc(var(--space-viewport-height, 100svh) / 2)",
+                                        transform: "translateY(-50%)",
+                                        width: "100%",
                                     }}
                                 >
                                     <Box
@@ -3255,27 +2940,27 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                 </Box>
                             ) : (
                                 <Box
+                                    component="ul"
                                     sx={{
-                                        boxSizing: "border-box",
-                                        m: 0,
-                                        p: "6px 16px 28px",
+                                        ...spaceActivityListSx,
+                                        listStyle: "none",
                                     }}
                                 >
-                                    {conversationSections.map((section) => (
-                                        <ConversationSection
-                                            key={section.title}
-                                            activityPostsByKey={
-                                                activityPostsByKey
+                                    {conversations.map((conversation) => (
+                                        <ConversationListItem
+                                            key={conversationId(conversation)}
+                                            activityPost={
+                                                conversation.latestActivity.post
+                                                    ? activityPostsByKey[
+                                                          postQuoteKey(
+                                                              conversation
+                                                                  .latestActivity
+                                                                  .post,
+                                                          )
+                                                      ]
+                                                    : undefined
                                             }
-                                            latestPostCreatedAtMs={
-                                                latestPostCreatedAtMs
-                                            }
-                                            onConfirmFriendRequest={
-                                                onConfirmFriendRequest
-                                            }
-                                            onDeleteFriendRequest={
-                                                onDeleteFriendRequest
-                                            }
+                                            conversation={conversation}
                                             onLoadActivityPost={
                                                 loadActivityPost
                                             }
@@ -3283,10 +2968,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                                                 onOpenSelectedFriendProfile
                                             }
                                             onOpenThread={onOpenThread}
-                                            onPostSomething={
-                                                openPostPhotoPicker
-                                            }
-                                            section={section}
                                         />
                                     ))}
                                 </Box>

@@ -1,3 +1,6 @@
+mod cluster_averages;
+mod clustering;
+mod face_distances;
 mod fill;
 mod index;
 mod lock;
@@ -11,7 +14,12 @@ use ente_vecdb::{VecDb, VecDbError};
 
 use crate::ml_db::MlDb;
 
+pub use cluster_averages::MeanSuggestion;
+pub use clustering::{
+    ClusteredBucket, FaceClusteringPlan, FaceClusteringRequest, FaceClusteringRun,
+};
 pub use ente_vecdb::{KeyMatches, Match, SearchParams, Stats};
+pub use face_distances::{FaceDistance, MedianQuery, MedianSuggestion, PersonFaces};
 pub use fill::{FillOutcome, FillReport};
 pub use index::{CLUSTER_CENTROID_DIMENSIONS, Index};
 pub use state::FillState;
@@ -61,6 +69,7 @@ impl MlStore {
     }
 
     pub fn fill_state(&self, index: Index) -> Result<FillState> {
+        self.ensure_index_open(index)?;
         state::read(&self.db, index)
     }
 
@@ -124,6 +133,15 @@ impl MlStore {
         self.indexes[index.position()].with_open(&self.db, operation)
     }
 
+    fn ensure_index_open(&self, index: Index) -> Result<()> {
+        let slot = &self.indexes[index.position()];
+        if slot.is_open() {
+            return Ok(());
+        }
+        let _mutations = self.lock_mutations();
+        slot.reopen(&self.db)
+    }
+
     fn read_index<T>(
         &self,
         index: Index,
@@ -133,6 +151,12 @@ impl MlStore {
         if let Some(outcome) = slot.with_open_handle(&operation) {
             return outcome;
         }
+        for _ in 0..2 {
+            self.ensure_index_open(index)?;
+            if let Some(outcome) = slot.with_open_handle(&operation) {
+                return outcome;
+            }
+        }
         let _mutations = self.lock_mutations();
         slot.with_open(&self.db, operation)
     }
@@ -140,15 +164,17 @@ impl MlStore {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::{Cell, RefCell};
+    use std::collections::HashMap;
     use std::fs;
     use std::path::{Path, PathBuf};
 
     use ente_vecdb::{OpenCost, SearchParams, VecDb};
     use tempfile::TempDir;
 
-    use super::{FillOutcome, FillReport, FillState, Index, MlStore};
-    use crate::ml_db::vector_encoding::encode_evector;
-    use crate::ml_db::{CLIP_EMBEDDING_DIMENSIONS, ClipEmbedding, ClusterSummary};
+    use super::{CLUSTER_CENTROID_DIMENSIONS, FillOutcome, FillReport, FillState, Index, MlStore};
+    use crate::ml_db::vector_encoding::{decode_evector, encode_evector};
+    use crate::ml_db::{CLIP_EMBEDDING_DIMENSIONS, ClipEmbedding, ClusterSummary, FaceRow};
 
     pub(super) const DB_FILE: &str = "ente.ml.db";
 
@@ -207,6 +233,65 @@ mod tests {
         (cluster_id.to_string(), summary)
     }
 
+    pub(super) fn embedding(degrees: f64) -> Vec<f64> {
+        let mut values = vec![0.0; CLUSTER_CENTROID_DIMENSIONS];
+        let radians = degrees.to_radians();
+        values[0] = radians.cos();
+        values[1] = radians.sin();
+        values
+    }
+
+    pub(super) fn face(file_id: i64, degrees: f64) -> FaceRow {
+        FaceRow {
+            file_id,
+            face_id: format!("{file_id}_0"),
+            detection_json: "{}".to_string(),
+            embedding: embedding(degrees),
+            score: 0.9,
+            blur: 300.0,
+            is_sideways: false,
+            image_height: 100,
+            image_width: 100,
+            ml_version: 1,
+        }
+    }
+
+    pub(super) fn seed(store: &MlStore, faces: &[(i64, f64)]) {
+        let rows: Vec<FaceRow> = faces
+            .iter()
+            .map(|&(file_id, degrees)| face(file_id, degrees))
+            .collect();
+        store.db().bulk_insert_faces(&rows).unwrap();
+    }
+
+    pub(super) fn assign(store: &MlStore, assignments: &[(i64, &str)]) {
+        let assignments: HashMap<String, String> = assignments
+            .iter()
+            .map(|&(file_id, cluster_id)| (format!("{file_id}_0"), cluster_id.to_string()))
+            .collect();
+        store
+            .db()
+            .update_face_id_to_cluster_id(&assignments)
+            .unwrap();
+    }
+
+    pub(super) fn summary_of(store: &MlStore, cluster_id: &str) -> (Vec<f64>, i64) {
+        let summary = store
+            .db()
+            .get_cluster_to_cluster_summary(&[cluster_id.to_string()])
+            .unwrap()
+            .remove(cluster_id)
+            .unwrap();
+        (decode_evector(&summary.avg).unwrap(), summary.count)
+    }
+
+    pub(super) fn assert_direction(actual: &[f64], degrees: f64) {
+        let expected = embedding(degrees);
+        for (actual, expected) in actual.iter().zip(&expected) {
+            assert!((actual - expected).abs() < 1e-5, "{actual} != {expected}");
+        }
+    }
+
     pub(super) fn nearest(store: &MlStore, index: Index, query: &[f32]) -> String {
         let params = SearchParams {
             limit: Some(1),
@@ -237,6 +322,19 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
+    pub(super) fn degrade_clip_index_through_a_failed_compaction(
+        directory: &TempDir,
+        store: &MlStore,
+    ) {
+        store.put_clip(&clips(0..70)).unwrap();
+        let log = index_path(directory, Index::Clip);
+        fs::remove_file(&log).unwrap();
+        fs::create_dir(&log).unwrap();
+        store.delete_clip(&(0..65).collect::<Vec<_>>()).unwrap();
+        fs::remove_dir(&log).unwrap();
+    }
+
     pub(super) fn lose_index_files(store: &MlStore, path: &Path) {
         store.release().unwrap();
         VecDb::purge(path).unwrap();
@@ -253,6 +351,12 @@ mod tests {
 
     pub(super) fn all_exist(paths: &[PathBuf]) -> bool {
         paths.iter().all(|path| path.exists())
+    }
+
+    fn clear_and_repopulate(writer: &MlStore, file_id: i64) {
+        writer.clear_all().unwrap();
+        writer.put_clip(&clips([file_id])).unwrap();
+        writer.fill_clip_index(false).unwrap();
     }
 
     #[test]
@@ -327,6 +431,99 @@ mod tests {
                 .get_vector(Index::Clip, "1")
                 .unwrap()
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn cold_reads_open_the_index_and_keep_it_open() {
+        let (directory, writer) = open();
+        writer.fill_clip_index(false).unwrap();
+        writer.put_clip(&clips([1, 2])).unwrap();
+        writer.release().unwrap();
+        drop(writer);
+
+        let reader = open_in(&directory);
+        assert!(reader.contains(Index::Clip, "1").unwrap());
+        reader.put_clip(&clips([3])).unwrap();
+        let unflushed = reader.stats(Index::Clip).unwrap();
+        assert_ne!(unflushed.records_since_snapshot, 0);
+
+        assert!(reader.contains(Index::Clip, "3").unwrap());
+        assert_eq!(live_count(&reader, Index::Clip), 3);
+        assert_eq!(reader.stats(Index::Clip).unwrap(), unflushed);
+    }
+
+    #[test]
+    fn cold_reads_run_outside_the_mutation_lock() {
+        let (directory, writer) = open();
+        writer.fill_clip_index(false).unwrap();
+        writer.put_clip(&clips([1])).unwrap();
+        writer.release().unwrap();
+
+        let reader = open_in(&directory);
+        let lock_is_free = || reader.locks.mutations.try_lock().is_ok();
+        let found_unlocked = |key: &str| {
+            reader
+                .read_index(Index::Clip, |vecdb| {
+                    vecdb.contains(key).map(|found| (found, lock_is_free()))
+                })
+                .unwrap()
+        };
+        assert_eq!(found_unlocked("1"), (true, true));
+
+        writer.clear_all().unwrap();
+        writer.put_clip(&clips([2])).unwrap();
+        writer.fill_clip_index(false).unwrap();
+        assert_eq!(found_unlocked("2"), (true, true));
+    }
+
+    #[test]
+    fn cold_reads_closed_during_the_read_retry_outside_the_mutation_lock() {
+        let (directory, writer) = open();
+        writer.fill_clip_index(false).unwrap();
+        writer.put_clip(&clips([1])).unwrap();
+        writer.release().unwrap();
+
+        let reader = open_in(&directory);
+        let lock_is_free = || reader.locks.mutations.try_lock().is_ok();
+        let invocations = Cell::new(0);
+        let outcome = reader
+            .read_index(Index::Clip, |vecdb| {
+                invocations.set(invocations.get() + 1);
+                if invocations.get() == 1 {
+                    clear_and_repopulate(&writer, 2);
+                }
+                vecdb.contains("2").map(|found| (found, lock_is_free()))
+            })
+            .unwrap();
+        assert_eq!(invocations.get(), 2);
+        assert_eq!(outcome, (true, true));
+    }
+
+    #[test]
+    fn reads_closed_in_every_unlocked_attempt_fall_back_to_the_locked_path() {
+        let (directory, writer) = open();
+        writer.fill_clip_index(false).unwrap();
+        writer.put_clip(&clips([1])).unwrap();
+        writer.release().unwrap();
+
+        let reader = open_in(&directory);
+        let lock_is_free = || reader.locks.mutations.try_lock().is_ok();
+        let lock_free_per_invocation = RefCell::new(Vec::new());
+        let found = reader
+            .read_index(Index::Clip, |vecdb| {
+                let unlocked = lock_is_free();
+                lock_free_per_invocation.borrow_mut().push(unlocked);
+                if unlocked {
+                    clear_and_repopulate(&writer, 2);
+                }
+                vecdb.contains("2")
+            })
+            .unwrap();
+        assert!(found);
+        assert_eq!(
+            *lock_free_per_invocation.borrow(),
+            [true, true, false, false]
         );
     }
 

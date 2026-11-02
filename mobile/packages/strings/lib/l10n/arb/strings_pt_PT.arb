@@ -540,10 +540,6 @@
   "done": "Concluído",
   "dontHaveAnAccount": "Não tem uma conta?",
   "dontSave": "Não guarde",
-  "doThisLater": "Fazer isto mais tarde",
-  "@doThisLater": {
-    "description": "Do this later button label"
-  },
   "doubleTapToViewHiddenCode": "Toque duplo numa entrada para visualizar código",
   "downloadFailed": "Falha no download",
   "downloading": "A transferir...",
@@ -1146,7 +1142,6 @@
   "mlConsent": "Ativar aprendizagem automática",
   "mlConsentConfirmation": "Eu entendo, e desejo ativar a aprendizagem automática",
   "mlConsentDescription": "Se ativar a aprendizagem automática, o Ente extrairá informações como a geometria do rosto de ficheiros, incluindo os partilhados consigo.\n\n\nIsto acontecerá no seu dispositivo e todas as informações biométricas geradas serão encriptadas de ponta a ponta.",
-  "mlConsentPrivacy": "Por favor, clique aqui para mais detalhes sobre este recurso na nossa política de privacidade",
   "moderateStrength": "Moderada",
   "@moderateStrength": {
     "description": "Moderate password strength label"
@@ -1759,7 +1754,6 @@
   "selectFile": "Selecionar ficheiro",
   "selectFolder": "Selecionar pasta",
   "selectFolders": "Selecione pastas",
-  "selectFoldersForBackup": "Selecionar pastas para cópia de segurança",
   "selectFolderToContinue": "Selecionar uma pasta para continuar",
   "selectItemsToAdd": "Selecionar itens para adicionar",
   "selectMailApp": "Selecione Aplicação de Correios",
@@ -1883,7 +1877,6 @@
   "spotlightOnYourself": "A dar destaque em vos",
   "startBackup": "Iniciar cópia de segurança",
   "startRecovery": "Começar Recuperação",
-  "startWithLatestPhotos": "Comece pelas fotos recentes",
   "sticker": "Autocolante",
   "stopCastingBody": "Queres parar de fazer transmissão?",
   "stopCastingTitle": "Parar transmissão",

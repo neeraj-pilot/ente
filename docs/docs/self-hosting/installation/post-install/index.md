@@ -15,6 +15,12 @@ Once Ente is up and running, the Ente Photos web app will be accessible on `http
 
 Select **Don't have an account?** to create a new user. Follow the prompts to sign up.
 
+> [!IMPORTANT]
+>
+> Creating an account on a new self-hosted server creates a separate account, even if you use the same email address as your hosted Ente account. It has its own password, recovery key, and data; signup does not move or link your hosted account.
+>
+> Save a separate password-manager entry and recovery-key backup labeled with this server's address. Keep your existing hosted-account credentials and recovery key instead of overwriting them.
+
 <div style="display: flex; gap: 10px;">
   <img alt="Onboarding screen" src="/onboarding.png" style="width: 50%; height: auto;">
   <img alt="Sign up page" src="/sign-up.png" style="width: 50%; height: auto;">
@@ -151,6 +157,8 @@ You can also install Ente Auth (if you are planning to use Auth) by following th
 
 You can modify Ente mobile apps and CLI to connect to your server.
 
+Before signing in or starting account recovery, check that the app points to the intended server. Use the credentials and recovery key for the account created on that server. The same email address on Ente's hosted service and an independently set up self-hosted server does not make them the same account.
+
 ### Mobile
 
 Tap the onboarding screen 7 times to modify developer settings. Enter your Ente server's endpoint.
@@ -173,9 +181,13 @@ apps](web-dev-settings.png){width=400px}
 
 ## Step 7: Configure Ente CLI
 
-You can download Ente CLI from [here](https://github.com/ente/ente/releases?q=tag%3Acli).
+[Install Ente CLI](/cli/install), then log in with your server’s API URL:
 
-Check our [documentation](/self-hosting/administration/cli) on how to use Ente CLI for managing self-hosted instances.
+```sh
+ente account login --account home-server --app photos --host https://api.example.org
+```
+
+Learn more about managing users in [Administration](/cli/admin).
 
 > [!NOTE]
 >

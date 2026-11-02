@@ -3,9 +3,7 @@ import 'dart:io';
 import 'package:ente_components/ente_components.dart';
 import 'package:ente_events/event_bus.dart';
 import "package:ente_strings/ente_strings.dart";
-import 'package:ente_ui/components/progress_dialog.dart';
 import 'package:ente_ui/pages/base_home_page.dart';
-import 'package:ente_ui/utils/dialog_util.dart';
 import "package:ente_utils/email_util.dart";
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +13,7 @@ import 'package:locker/services/collections/collections_service.dart';
 import 'package:locker/services/collections/models/collection.dart';
 import 'package:locker/services/files/sync/metadata_updater_service.dart';
 import 'package:locker/services/files/upload/file_upload_service.dart';
+import 'package:locker/ui/components/locker_progress_dialog.dart';
 import 'package:locker/ui/pages/file_upload_screen.dart';
 import "package:locker/utils/bottom_sheet_illustration.dart";
 import "package:locker/utils/error_sheet.dart";
@@ -68,7 +67,7 @@ abstract class UploaderPageState<T extends UploaderPage> extends State<T> {
     var didShowDialog = false;
     var filesToUpload = <File>[];
     final l10n = context.strings;
-    ProgressDialog? progressDialog;
+    LockerProgressDialog? progressDialog;
 
     try {
       final futures = <Future<void>>[];
@@ -110,15 +109,14 @@ abstract class UploaderPageState<T extends UploaderPage> extends State<T> {
         }
 
         if (mounted) {
-          final dialog = createProgressDialog(
+          progressDialog = await showLockerProgressDialog(
             context,
             l10n.uploadedFilesProgress(
               completed: 0,
               total: filesToUpload.length,
             ),
           );
-          progressDialog = dialog;
-          didShowDialog = await dialog.show();
+          didShowDialog = progressDialog.didShow;
         }
 
         int completedUploads = 0;

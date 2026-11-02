@@ -1,93 +1,51 @@
 import 'dart:convert';
 
+import 'package:ente_ui/components/faq/faq_widgets.dart';
 import 'package:ente_ui/components/loading_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:photos/core/network/network.dart';
-import 'package:photos/ente_theme_data.dart';
 
-class BillingQuestionsWidget extends StatelessWidget {
+class BillingQuestionsWidget extends StatefulWidget {
   const BillingQuestionsWidget({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: NetworkClient.instance
-          .getDio()
-          .get("https://static.ente.com/faq.json")
-          .then((response) {
-            final faqItems = <FaqItem>[];
-            if (response.data is List) {
-              for (final item in response.data as List) {
-                if (item is Map<String, dynamic>) {
-                  faqItems.add(FaqItem.fromMap(item));
-                }
-              }
-            }
-            return faqItems;
-          }),
-      builder: (BuildContext context, AsyncSnapshot snapshot) {
-        if (snapshot.hasData) {
-          final faqs = <Widget>[];
-          faqs.add(
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Text(
-                "FAQs",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-          );
-          for (final faq in snapshot.data as List<FaqItem>) {
-            faqs.add(FaqWidget(faq: faq));
-          }
-          faqs.add(const Padding(padding: EdgeInsets.all(16)));
-          return SingleChildScrollView(child: Column(children: faqs));
-        } else {
-          return const EnteLoadingWidget();
-        }
-      },
-    );
-  }
+  State<BillingQuestionsWidget> createState() => _BillingQuestionsWidgetState();
 }
 
-class FaqWidget extends StatelessWidget {
-  const FaqWidget({super.key, required this.faq});
+class _BillingQuestionsWidgetState extends State<BillingQuestionsWidget> {
+  late final Future<List<FaqItem>> _faqs = _loadFaqs();
 
-  final FaqItem faq;
+  Future<List<FaqItem>> _loadFaqs() async {
+    final response = await NetworkClient.instance.getDio().get(
+      "https://static.ente.com/faq.json",
+    );
+    final faqItems = <FaqItem>[];
+    if (response.data is List) {
+      for (final item in response.data as List) {
+        if (item is Map<String, dynamic>) {
+          faqItems.add(FaqItem.fromMap(item));
+        }
+      }
+    }
+    return faqItems;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final expandedColor = theme.colorScheme.greenAlternative;
-    const shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.all(Radius.circular(8)),
-    );
-
-    final question = faq.q ?? '';
-    final answer = faq.a ?? '';
-
-    return Padding(
-      padding: const EdgeInsets.all(2),
-      child: ExpansionTile(
-        key: PageStorageKey(question),
-        clipBehavior: Clip.antiAlias,
-        title: Text(question),
-        tilePadding: const EdgeInsets.symmetric(horizontal: 18),
-        textColor: expandedColor,
-        collapsedTextColor: theme.textTheme.titleMedium?.color,
-        iconColor: expandedColor,
-        collapsedIconColor: theme.unselectedWidgetColor,
-        backgroundColor: theme.cardColor,
-        collapsedBackgroundColor: theme.cardColor,
-        shape: shape,
-        collapsedShape: shape,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
-            child: Text(answer, style: const TextStyle(height: 1.5)),
-          ),
-        ],
-      ),
+    return FutureBuilder<List<FaqItem>>(
+      future: _faqs,
+      builder: (BuildContext context, AsyncSnapshot<List<FaqItem>> snapshot) {
+        final faqs = snapshot.data;
+        if (faqs == null) {
+          return const EnteLoadingWidget();
+        }
+        return FaqSection(
+          children: [
+            for (final faq in faqs)
+              FaqItemWidget(question: faq.q ?? '', answer: faq.a ?? ''),
+          ],
+        );
+      },
     );
   }
 }

@@ -517,10 +517,6 @@
     "description": "Do not sign out button label"
   },
   "dontSave": "Не захоўваць",
-  "doThisLater": "Зрабіць гэта пазней",
-  "@doThisLater": {
-    "description": "Do this later button label"
-  },
   "doubleTapToViewHiddenCode": "Можна двойчы націснуць на запіс, каб паглядзець код",
   "download": "Спампаваць",
   "downloadFailed": "Збой спампоўвання",
@@ -1143,7 +1139,6 @@
   "mlConsent": "Уключана машыннае навучанне",
   "mlConsentConfirmation": "Я разумею і хачу ўключыць машыннае навучанне",
   "mlConsentDescription": "Ente будзе вымаць такую ​​інфармацыю з файлаў (таксама з файлаў, якія абагулілі з вамі), як геаметрыя твару.\nДадзены працэс адбываецца на вашай прыладзе, і любая згенерыраваная біяметрычная інфармацыя будзе абаронена скразным шыфраваннем.",
-  "mlConsentPrivacy": "Націсніце тут, каб атрымаць больш падрабязныя звесткі аб гэтай функцыі ў нашай палітыцы прыватнасці",
   "modifyYourQueryOrTrySearchingFor": "Змяніце свой запыт або паспрабуйце шукаць",
   "moments": "Моманты",
   "month": "месяц",
@@ -1838,7 +1833,6 @@
   "selectExportFormat": "Выбраць фармат экспартавання",
   "selectFile": "Выбраць файл",
   "selectFolder": "Выбраць папку",
-  "selectFoldersForBackup": "Выберыце папкі для рэзервовага капіявання",
   "selectFolderToContinue": "Выберыце папку, каб працягнуць",
   "selectItemsToAdd": "Выберыце элементы, каб дадаць іх",
   "selectLanguage": "Выберыце мову",

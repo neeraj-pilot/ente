@@ -1,6 +1,10 @@
-use ente_core::b64;
 use ente_core::crypto::{self, SecretVec, secretbox};
-use std::fmt;
+use ente_core::{b64, otp};
+use serde::Serialize;
+use std::{
+    fmt,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use uuid::Uuid;
 use zeroize::{ZeroizeOnDrop, Zeroizing};
 
@@ -19,7 +23,6 @@ use crate::{
 };
 
 pub struct ChangePasswordParams {
-    pub email: String,
     pub password: Zeroizing<String>,
     pub master_key: SecretVec,
     pub key_attributes: KeyAttributes,
@@ -29,7 +32,6 @@ pub struct ChangePasswordParams {
 impl fmt::Debug for ChangePasswordParams {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ChangePasswordParams")
-            .field("email", &self.email)
             .field("password", &"[REDACTED]")
             .field("master_key", &"[REDACTED]")
             .field("key_attributes", &self.key_attributes)
@@ -39,18 +41,17 @@ impl fmt::Debug for ChangePasswordParams {
 }
 
 #[derive(Debug)]
-pub struct ChangePasswordResult {
-    pub key_attributes: KeyAttributes,
-    pub srp_attributes: SrpAttributes,
-}
-
-#[derive(Debug)]
 pub struct CheckSessionValidityParams {
     pub email: String,
-    pub local_srp_attributes: SrpAttributes,
+    pub local_srp_attributes: Option<SrpAttributes>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(
+    tag = "status",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 #[cfg_attr(
     target_pointer_width = "64",
     expect(
@@ -63,6 +64,7 @@ pub enum SessionValidity {
     Valid,
     ValidButPasswordChanged {
         updated_key_attributes: KeyAttributes,
+        #[serde(rename = "updatedSRPAttributes")]
         updated_srp_attributes: SrpAttributes,
     },
 }
@@ -89,6 +91,14 @@ pub struct TwoFactorSetup {
 }
 
 impl TwoFactorSetup {
+    pub fn from_secret(secret_code: String, recovery_key: &[u8]) -> Self {
+        Self {
+            secret_code,
+            qr_code: String::new(),
+            recovery_key: hex::encode(recovery_key),
+        }
+    }
+
     pub async fn start(
         client: &AccountsClient,
         master_key: &[u8],
@@ -105,15 +115,30 @@ impl TwoFactorSetup {
     }
 
     pub async fn enable(&self, client: &AccountsClient, code: &str) -> Result<()> {
-        let request = encrypt_two_factor_secret(&self.secret_code, &self.recovery_key, code)?;
-        client.enable_two_factor(&request).await
+        let time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| Error::InvalidInput("system clock is before the Unix epoch".into()))?
+            .as_secs();
+        verify_totp(&self.secret_code, code, time)?;
+        enable_two_factor(client, &self.secret_code, &self.recovery_key, code).await
     }
+}
+
+fn verify_totp(secret: &str, code: &str, time: u64) -> Result<()> {
+    let secret = otp::decode_secret(secret)?;
+    for time in [time.saturating_sub(30), time, time + 30] {
+        let expected = Zeroizing::new(otp::totp(&secret, time, 30, 6, otp::Algorithm::Sha1)?);
+        if expected.as_str() == code {
+            return Ok(());
+        }
+    }
+    Err(Error::IncorrectTotp)
 }
 
 pub async fn change_password(
     client: &AccountsClient,
     params: ChangePasswordParams,
-) -> Result<ChangePasswordResult> {
+) -> Result<KeyAttributes> {
     change_password_with_strength(client, params, KeyDerivationStrength::Sensitive).await
 }
 
@@ -121,7 +146,7 @@ async fn change_password_with_strength(
     client: &AccountsClient,
     params: ChangePasswordParams,
     key_derivation_strength: KeyDerivationStrength,
-) -> Result<ChangePasswordResult> {
+) -> Result<KeyAttributes> {
     let (updated_key_attributes, login_key) =
         auth::generate_key_attributes_for_new_password_with_strength(
             &params.master_key,
@@ -143,19 +168,7 @@ async fn change_password_with_strength(
     )
     .await?;
 
-    let srp_attributes = client.get_srp_attributes(&params.email).await?;
-
-    srp_attributes.validate_setup(
-        srp_user_id,
-        &srp_setup.srp_salt,
-        &updated_key_attributes,
-        "password change",
-    )?;
-
-    Ok(ChangePasswordResult {
-        key_attributes: updated_key_attributes,
-        srp_attributes,
-    })
+    Ok(updated_key_attributes)
 }
 
 pub async fn check_session_validity(
@@ -169,8 +182,16 @@ pub async fn check_session_validity(
     };
 
     if let Some(remote_key_attributes) = remote.key_attributes {
-        let remote_srp_attributes = client.get_srp_attributes(&params.email).await?;
-        if remote_srp_attributes.kek_salt != params.local_srp_attributes.kek_salt {
+        let remote_srp_attributes = match client.get_srp_attributes(&params.email).await {
+            Ok(attributes) => attributes,
+            Err(Error::SrpNotConfigured) => return Ok(SessionValidity::Valid),
+            Err(error) => return Err(error),
+        };
+        if params
+            .local_srp_attributes
+            .as_ref()
+            .is_none_or(|local| remote_srp_attributes.kek_salt != local.kek_salt)
+        {
             return Ok(SessionValidity::ValidButPasswordChanged {
                 updated_key_attributes: remote_key_attributes,
                 updated_srp_attributes: remote_srp_attributes,
@@ -232,13 +253,53 @@ pub async fn recover_two_factor(
         &crypto::Key::try_from_slice(&recovery_key)?,
     )
     .map_err(|_| Error::IncorrectRecoveryKey)?;
+    let secret = Zeroizing::new(b64::encode(&secret));
+    let (secret, proof) = if auth::payload::enforce_auth_payloads(&client.api) {
+        (
+            None,
+            Some(auth::payload::recovery_proof(
+                &secret,
+                two_factor_type,
+                session_id,
+            )?),
+        )
+    } else {
+        (Some(secret.to_string()), None)
+    };
     let request = RemoveTwoFactorRequest {
         session_id: session_id.to_string(),
-        secret: String::from_utf8(secret)
-            .map_err(|e| Error::Protocol(format!("invalid recovery secret: {e}")))?,
+        secret,
+        proof,
         two_factor_type,
     };
     client.remove_two_factor(&request).await
+}
+
+pub async fn enable_two_factor(
+    client: &AccountsClient,
+    secret: &str,
+    recovery_key: &str,
+    code: &str,
+) -> Result<()> {
+    let request = encrypt_two_factor_secret(secret, recovery_key, code)?;
+    client.enable_two_factor(&request).await
+}
+
+pub async fn passkey_management_url(client: &AccountsClient, recovery_key: &str) -> Result<String> {
+    if !client
+        .get_two_factor_recovery_status()
+        .await?
+        .is_passkey_recovery_enabled
+    {
+        let secret = Zeroizing::new(b64::encode(crypto::Key::generate().as_bytes()));
+        configure_passkey_recovery(client, &secret, recovery_key).await?;
+    }
+    let response = client.get_accounts_token().await?;
+    Ok(format!(
+        "{}/passkeys?token={}",
+        response.accounts_url,
+        urlencoding::encode(&response.accounts_token)
+    ))
 }
 
 pub async fn configure_passkey_recovery(
@@ -248,7 +309,7 @@ pub async fn configure_passkey_recovery(
 ) -> Result<()> {
     let recovery_key = auth::recovery_key_from_mnemonic_or_hex(recovery_key_mnemonic_or_hex)?;
     let encrypted = secretbox::encrypt(
-        secret.as_bytes(),
+        &b64::decode(secret)?,
         &crypto::Key::try_from_slice(&recovery_key)?,
     );
     let request = ConfigurePasskeyRecoveryRequest {
@@ -301,13 +362,12 @@ async fn complete_srp_update(
 
 fn encrypt_two_factor_secret(
     secret_code: &str,
-    recovery_key_hex: &str,
+    recovery_key: &str,
     code: &str,
 ) -> Result<EnableTwoFactorRequest> {
-    let recovery_key =
-        hex::decode(recovery_key_hex).map_err(|e| Error::Decode(format!("recovery_key: {e}")))?;
+    let recovery_key = auth::recovery_key_from_mnemonic_or_hex(recovery_key)?;
     let encrypted = secretbox::encrypt(
-        secret_code.as_bytes(),
+        &b64::decode(secret_code)?,
         &crypto::Key::try_from_slice(&recovery_key)?,
     );
 

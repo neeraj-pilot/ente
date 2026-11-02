@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:ente_auth/core/configuration.dart';
 import 'package:ente_auth/events/codes_updated_event.dart';
 import 'package:ente_auth/models/code.dart';
-import 'package:ente_auth/models/watch/entry.dart';
+import 'package:ente_auth/models/watch/snapshot.dart';
 import 'package:ente_auth/models/watch/state.dart';
 import 'package:ente_auth/services/watch/selection.dart';
 import 'package:ente_auth/store/code_store.dart';
@@ -12,7 +12,6 @@ import 'package:ente_events/event_bus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
 
 class WatchService extends ChangeNotifier with WidgetsBindingObserver {
   WatchService._(this._preferences);
@@ -22,17 +21,17 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
   static const _events = EventChannel('io.ente.auth/watch/state');
   static WatchService? _instance;
   static WatchService get instance => _instance!;
+  static WatchService? get instanceOrNull => _instance;
 
   static Future<void> initialize() async {
     if (!Platform.isIOS && !Platform.isAndroid) return;
     final service = WatchService._(await SharedPreferences.getInstance());
     _instance = service;
-    await service._start();
+    unawaited(service._start());
   }
 
   static void appLockChanged(bool locked) => _instance?._setLocked(locked);
 
-  // Also used by logout from a background isolate, where no UI service exists.
   static Future<void> clearBeforeLogout() async {
     if (!Platform.isIOS && !Platform.isAndroid) return;
     try {
@@ -42,7 +41,7 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
         await _clearNative(await SharedPreferences.getInstance());
       }
     } on MissingPluginException {
-      // Older OS versions and builds without watch support have no channel.
+      return;
     } on Object {
       // A watch failure must not retain the phone's signed-in vault. Base logout
       // clears preferences; the absent root forces reset before the next export.
@@ -70,8 +69,15 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _debounce;
   Completer<void>? _resumed;
 
-  Set<int> get selectedIDs =>
-      _selection?.watches[state.enrollmentID]?.keys.toSet() ?? {};
+  WatchSharing? get sharing =>
+      _selection?.scope == vaultScope() && _selection?.epoch == state.vaultEpoch
+      ? _selection?.watches[state.enrollmentID]
+      : null;
+
+  static Set<String> get sharedTags {
+    final sharing = _instance?.sharing;
+    return sharing?.mode == WatchSharingMode.tags ? sharing!.tags : const {};
+  }
 
   Future<void> _start() async {
     _foreground =
@@ -165,28 +171,26 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
       }
       final id = state.enrollmentID!;
       final epoch = state.vaultEpoch!;
-      final selection = Map<int, String>.of(_selection!.watches[id] ?? {});
-      // The vault is read only here, during an unlocked foreground session.
-      final codes = selection.isEmpty
+      final sharing = this.sharing;
+      final codes = sharing == null
           ? <Code>[]
-          : await CodeStore.instance.getAllCodes(
-              sortCodes: false,
-              requireCompleteRead: true,
-            );
+          : await CodeStore.instance.getAllCodes(requireCompleteRead: true);
       if (!_current(generation, scope) ||
           state.enrollmentID != id ||
           state.vaultEpoch != epoch) {
         return;
       }
-      final snapshot = WatchSnapshot.fromCodes(codes, selection);
+      final snapshot = WatchSnapshot.fromCodes(
+        sharing == null ? const [] : codes.where(sharing.includes),
+      );
       _accept(
         await _call('publish', {
           'enrollmentID': id,
           'vaultEpoch': epoch,
-          'snapshot': snapshot.encode(),
+          'snapshot': snapshot.data,
         }),
       );
-      omittedCount = snapshot.omittedIDs.length;
+      omittedCount = snapshot.omittedCount;
       errorCode = null;
       notifyListeners();
     } on PlatformException catch (error) {
@@ -208,6 +212,7 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
       throw StateError('Could not save watch selection.');
     }
     _selection = selection;
+    notifyListeners();
   }
 
   Future<void> _reconcile() async {
@@ -223,6 +228,7 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
       await _save(WatchSelection(scope: scope, epoch: state.vaultEpoch!));
     } else {
       _selection = stored;
+      notifyListeners();
     }
   }
 
@@ -247,38 +253,53 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
       try {
         await _clear();
       } on MissingPluginException {
-        // No watch capability exists on this platform or OS version.
+        return;
       }
     });
   }
 
   // The UI must authenticate the user immediately before these actions.
-  Future<void> approve(WatchState target, String scope) => _enqueue(() async {
-    await _prepareChange(target, scope);
-    _accept(await _call('approve', {'enrollmentID': target.requestID}));
-    _schedule();
-  });
-
-  Future<void> select(WatchState target, String scope, Set<int> ids) =>
+  Future<void> share(WatchState target, String scope, WatchSharing sharing) =>
       _enqueue(() async {
         await _prepareChange(target, scope);
-        final enrollmentID = target.enrollmentID!;
-        if (!state.canPublish || state.enrollmentID != enrollmentID) {
+        final enrollmentID = state.phase == WatchPhase.approval
+            ? state.requestID
+            : state.enrollmentID;
+        if (enrollmentID == null) {
           throw PlatformException(code: 'wrongEnrollment');
         }
-        final previous = _selection!.watches[enrollmentID] ?? {};
-        _selection!.watches[enrollmentID] = {
-          for (final id in ids) id: previous[id] ?? const Uuid().v4(),
-        };
-        await _save(_selection!);
+        if (state.phase == WatchPhase.approval) {
+          _accept(await _call('approve', {'enrollmentID': enrollmentID}));
+        }
+        if (scope != vaultScope() ||
+            target.vaultEpoch != state.vaultEpoch ||
+            !state.canPublish ||
+            state.enrollmentID != enrollmentID) {
+          throw PlatformException(code: 'wrongEnrollment');
+        }
+        if (_locked || !_foreground) {
+          throw PlatformException(code: 'phoneLocked');
+        }
+        await _save(
+          WatchSelection(
+            scope: _selection!.scope,
+            epoch: _selection!.epoch,
+            watches: {..._selection!.watches, enrollmentID: sharing},
+          ),
+        );
         _schedule();
       });
 
   Future<void> disable(WatchState target, String scope) => _enqueue(() async {
     await _prepareChange(target, scope);
     _accept(await _call('disable', {'enrollmentID': target.enrollmentID}));
-    _selection!.watches.remove(target.enrollmentID);
-    await _save(_selection!);
+    await _save(
+      WatchSelection(
+        scope: _selection!.scope,
+        epoch: _selection!.epoch,
+        watches: {..._selection!.watches}..remove(target.enrollmentID),
+      ),
+    );
   });
 
   Future<void> _prepareChange(WatchState target, String scope) async {

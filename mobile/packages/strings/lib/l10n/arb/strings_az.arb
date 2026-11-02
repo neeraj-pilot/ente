@@ -593,10 +593,6 @@
     "description": "Do not sign out button label"
   },
   "dontSave": "Yadda saxlama",
-  "doThisLater": "Bunu sonra et",
-  "@doThisLater": {
-    "description": "Do this later button label"
-  },
   "download": "Yüklə",
   "downloadFailed": "Yükləmə uğursuz oldu",
   "downloading": "Yüklənir...",
@@ -1201,7 +1197,6 @@
   "mlConsent": "Maşın öyrənməsini aktivləşdir",
   "mlConsentConfirmation": "Anlayıram və maşın öyrənməsini aktivləşdirmək istəyirəm",
   "mlConsentDescription": "Maşın öyrənməsini aktivləşdirsəniz, Ente fayllardan, o cümlədən sizinlə paylaşılanlardan üz həndəsəsi kimi məlumatları çıxaracaq.\n\nBu, cihazınızda baş verəcək və yaradılan hər hansı biometrik məlumat uçdan-uca şifrələnəcək.",
-  "mlConsentPrivacy": "Məxfilik siyasətimizdə bu funksiya haqqında daha çox məlumat üçün buraya klikləyin",
   "mlProgressBannerDescription": "Üzləri, obyektləri və daha çoxunu müəyyən etmək üçün fotolarınız cihazda emal olunur.",
   "mlProgressBannerStatus": "{total} fotodan {indexed} ədədi emal olundu",
   "@mlProgressBannerStatus": {
@@ -1971,7 +1966,6 @@
     }
   },
   "selectFolders": "Qovluqları seçin",
-  "selectFoldersForBackup": "Yedəkləmə üçün qovluqları seçin",
   "selectItemsToAdd": "Əlavə etmək üçün elementləri seçin",
   "selectLanguage": "Dil seçin",
   "selectMailApp": "Poçt tətbiqini seçin",
@@ -2118,7 +2112,6 @@
       }
     }
   },
-  "startWithLatestPhotos": "Ən son fotolardan başlayın",
   "sticker": "Stiker",
   "stopCastingBody": "Yayımı dayandırmaq istəyirsiniz?",
   "stopCastingTitle": "Yayımı dayandır",

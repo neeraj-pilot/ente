@@ -21,6 +21,7 @@ import {
     type CollectionType,
     type PublicURL,
 } from "ente-media/collection";
+import type { CollectionSortBy } from "ente-media/collection-sort";
 import {
     decryptRemoteFile,
     FileDiffResponse,
@@ -114,8 +115,31 @@ const createCollection = async (
     return decryptRemoteKeyAndCollection(remoteCollection);
 };
 
-const decryptRemoteKeyAndCollection = async (collection: RemoteCollection) =>
-    decryptRemoteCollection(collection, await decryptCollectionKey(collection));
+const decryptRemoteKeyAndCollection = async (collection: RemoteCollection) => {
+    try {
+        return await decryptRemoteCollection(
+            collection,
+            await decryptCollectionKey(collection),
+        );
+    } catch (e) {
+        throw collectionDecryptionError(collection.id, e);
+    }
+};
+
+export const collectionDecryptionError = (
+    collectionID: number,
+    cause: unknown,
+) => {
+    const error = new Error(
+        `${cause instanceof Error ? cause.message : String(cause)} (collectionID: ${collectionID})`,
+        { cause },
+    );
+    // The logger prints only the top-level stack, without following the cause.
+    if (cause instanceof Error && cause.stack) {
+        error.stack = `${error.name}: ${error.message}\nCaused by: ${cause.stack}`;
+    }
+    return error;
+};
 
 const decryptCollectionKey = async (
     collection: RemoteCollection,
@@ -259,7 +283,9 @@ export const pullCollectionFiles = async (
                     const file = await decryptRemoteFile(
                         change,
                         collection.key,
-                    );
+                    ).catch((e: unknown) => {
+                        throw collectionDecryptionError(collection.id, e);
+                    });
                     await clearCachedThumbnailIfContentChanged(
                         thisCollectionFilesByID.get(change.id),
                         file,
@@ -977,7 +1003,8 @@ export const updateShareeCollectionOrder = async (
 export const updateCollectionSortOrder = async (
     collection: Collection,
     asc: boolean,
-) => updateCollectionPublicMagicMetadata(collection, { asc });
+    sortBy: CollectionSortBy = "date",
+) => updateCollectionPublicMagicMetadata(collection, { asc, sortBy });
 
 const albumDescriptionSegmenter =
     typeof Intl !== "undefined" && "Segmenter" in Intl
@@ -1223,9 +1250,23 @@ export const getOrCreateDefaultHiddenCollection = async () =>
     (await savedDefaultHiddenCollection()) ?? createDefaultHiddenCollection();
 
 const savedDefaultHiddenCollection = async () =>
-    (await savedCollections()).find((collection) =>
-        isDefaultHiddenCollection(collection),
+    findUserDefaultHiddenCollection(
+        await savedCollections(),
+        ensureLocalUser().id,
     );
+
+const findUserDefaultHiddenCollection = (
+    collections: readonly Collection[],
+    userID: number,
+) =>
+    collections
+        .filter(
+            (collection) =>
+                collection.owner.id == userID &&
+                isDefaultHiddenCollection(collection),
+        )
+        .sort((a, b) => a.id - b.id)
+        .at(0);
 
 const createDefaultHiddenCollection = () =>
     createCollection(defaultHiddenCollectionName, "album", {
@@ -1372,6 +1413,17 @@ export const updatePublicURL = async (
     return z.object({ result: RemotePublicURL }).parse(await res.json()).result;
 };
 
+export const removePublicLink = async (collection: Collection) => {
+    if (
+        collection.magicMetadata?.data.subType == CollectionSubType.quicklink &&
+        collection.sharees.length === 0
+    ) {
+        await deleteCollection(collection.id, { keepFiles: true });
+    } else {
+        await deleteShareURL(collection.id);
+    }
+};
+
 export const deleteShareURL = async (collectionID: number) =>
     ensureOk(
         await fetch(await apiURL(`/collections/share-url/${collectionID}`), {
@@ -1461,7 +1513,7 @@ export const movePendingRemovalActionsToUncategorized = async (
         if (isSourceHidden) {
             if (!defaultHiddenCollection) {
                 defaultHiddenCollection =
-                    collections.find(isDefaultHiddenCollection) ??
+                    findUserDefaultHiddenCollection(collections, userID) ??
                     (await createDefaultHiddenCollection());
             }
             targetCollection = defaultHiddenCollection;

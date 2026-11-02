@@ -8,7 +8,9 @@ struct ChatView: View {
 
     @StateObject private var viewState = ChatViewState()
     @StateObject private var keyboard = KeyboardObserver()
-    @FocusState private var isInputFocused: Bool
+    @State private var showSourceIntroduction = false
+    @AppStorage("ensu.sources.introductionSeen") private var sourceIntroductionSeen = false
+    @State private var isInputFocused = false
 
     private var editingMessage: RenderedChatMessage? {
         guard let editingId = viewModel.editingMessageId else { return nil }
@@ -30,6 +32,19 @@ struct ChatView: View {
             && !viewState.isDrawerOpen
             && !viewState.didDismissKeyboard
             && !viewState.showSettings
+            && !showSourceIntroduction
+            && sourceIntroductionSeen
+    }
+
+    private var canShowSourceIntroduction: Bool {
+        !sourceIntroductionSeen && viewModel.isModelDownloaded && !viewModel.isDownloading
+            && !viewModel.isGenerating && !viewModel.isChatUnsupported && !viewState.isDrawerOpen
+            && !viewState.showSettings && !showSourceIntroduction
+            && viewState.pendingWhatsNew == nil
+    }
+
+    private var isChatActive: Bool {
+        scenePhase == .active && !viewState.showSettings && !showSourceIntroduction
     }
 
     private var overflowDialogPresented: Binding<Bool> {
@@ -143,26 +158,29 @@ struct ChatView: View {
                 viewModel.modelSelectionChanged()
             }
             .onChange(of: scenePhase) { newValue in
+                viewModel.setAppForeground(newValue != .background)
                 viewModel.notesStore.setForeground(newValue == .active)
-                viewModel.setChatActive(newValue == .active && !viewState.showSettings)
                 if newValue == .active {
+                    viewModel.voiceTranscriber.setForeground(true)
                     viewModel.refreshModelDownloadInfo()
                 } else {
-                    viewModel.cancelVoiceInput()
+                    viewModel.voiceTranscriber.setForeground(false)
                 }
             }
         }
         .environmentObject(viewModel.notesStore)
         .onAppear {
+            viewModel.setAppForeground(scenePhase != .background)
             viewModel.notesStore.setForeground(scenePhase == .active)
-            viewModel.setChatActive(scenePhase == .active && !viewState.showSettings)
+            viewModel.setChatActive(isChatActive)
         }
+        .onChange(of: isChatActive) { viewModel.setChatActive($0) }
         .onDisappear { viewModel.setChatActive(false) }
         .onReceive(
             NotificationCenter.default.publisher(
                 for: UIApplication.didReceiveMemoryWarningNotification)
         ) { _ in
-            viewModel.suppressChatWarmup()
+            viewModel.handleMemoryPressure()
         }
         .sheet(isPresented: $viewState.showSettings) {
             SettingsView(
@@ -174,9 +192,20 @@ struct ChatView: View {
                 }
             )
         }
+        .sheet(isPresented: $showSourceIntroduction) {
+            SourceIntroductionSheet(
+                knowledgeStore: viewModel.knowledgeStore, notesStore: viewModel.notesStore)
+        }
+        .task(id: canShowSourceIntroduction) {
+            if canShowSourceIntroduction {
+                isInputFocused = false
+                showSourceIntroduction = true
+                sourceIntroductionSeen = true
+            }
+        }
         .onChange(of: viewState.showSettings) { isPresented in
-            viewModel.setChatActive(!isPresented && scenePhase == .active)
             if isPresented {
+                viewModel.voiceTranscriber.interrupt()
                 viewState.didDismissKeyboard = true
                 isInputFocused = false
             } else if viewState.pendingSignInRequest {
@@ -341,12 +370,13 @@ struct ChatView: View {
                     MessageInputView(
                         text: $viewModel.draftText,
                         attachments: $viewModel.draftAttachments,
+                        supportsImageAttachments: viewModel.supportsImageAttachments,
                         isGenerating: viewModel.isGenerating,
                         isSendPending: viewModel.isSendPending,
                         isDownloading: viewModel.isDownloading,
                         editingMessage: editingMessage,
                         isProcessingAttachments: viewModel.isProcessingAttachments,
-                        voiceInputState: viewModel.voiceInputState,
+                        voiceService: viewModel.voiceTranscriber,
                         moveCursorToEndToken: viewModel.draftCursorMoveToken,
                         onSend: {
                             viewState.didDismissKeyboard = true
@@ -363,6 +393,11 @@ struct ChatView: View {
                             viewState.didDismissKeyboard = true
                             isInputFocused = false
                             viewModel.toggleVoiceInput()
+                        },
+                        voiceInsertionCaret: viewModel.voiceInsertionCaret,
+                        onComposerSelection: { range, composing in
+                            viewModel.composerSelection = range
+                            viewModel.composerIsComposing = composing
                         },
                         onAddImage: { data, name in
                             viewModel.addImageAttachment(data: data, fileName: name)

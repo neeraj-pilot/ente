@@ -1,6 +1,6 @@
 import "package:ente_components/ente_components.dart";
 import "package:ente_sharing/models/user.dart";
-import "package:ente_sharing/user_avator_widget.dart";
+import "package:ente_sharing/user_avatar_widget.dart";
 import "package:ente_strings/ente_strings.dart";
 import "package:flutter/material.dart";
 import "package:hugeicons/hugeicons.dart";
@@ -136,7 +136,7 @@ class CollectionListWidget extends StatelessWidget {
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut,
-            padding: const EdgeInsets.only(left: 12, top: 12, bottom: 12),
+            padding: const EdgeInsets.only(left: 10, top: 10, bottom: 10),
             decoration: BoxDecoration(
               border: Border.all(
                 color: isSelected ? colors.strokeDark : colors.fillLight,
@@ -149,9 +149,9 @@ class CollectionListWidget extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 collectionRowWidget,
-                if (!isFavourite)
+                if (isSelected || !isFavourite)
                   Padding(
-                    padding: const EdgeInsets.only(right: 12.0),
+                    padding: const EdgeInsets.only(right: 10.0),
                     child: SizedBox(
                       width: 44,
                       height: 24,

@@ -1,7 +1,5 @@
-import AddIcon from "@mui/icons-material/Add";
-import { Stack, styled, Typography } from "@mui/material";
-import { CenteredFill, Overlay } from "ente-base/components/containers";
-import type { ButtonishProps } from "ente-base/components/mui";
+import { styled } from "@mui/material";
+import { Overlay } from "ente-base/components/containers";
 import log from "ente-base/log";
 import { downloadManager } from "ente-gallery/services/download";
 import type { EnteFile } from "ente-media/file";
@@ -90,12 +88,6 @@ export const PreviewItemTile = styled(BaseTile)`
     height: 48px;
 `;
 
-export const BarItemTile = styled(BaseTile)`
-    width: 90px;
-    height: 64px;
-    color: white;
-`;
-
 export const DuplicateItemTile = styled(BaseTile)`
     cursor: initial;
 `;
@@ -121,15 +113,6 @@ export const LargeTileButton = styled(BaseTileButton)`
     height: 150px;
 `;
 
-export const TileTextOverlay = styled(Overlay)`
-    padding: 4px;
-    background: linear-gradient(
-        0deg,
-        rgba(0, 0, 0, 0.1) 0%,
-        rgba(0, 0, 0, 0.5) 86.46%
-    );
-`;
-
 export const LargeTileTextOverlay = styled(Overlay)`
     padding: 8px;
     color: white;
@@ -141,28 +124,6 @@ export const LargeTileTextOverlay = styled(Overlay)`
         rgba(0, 0, 0, 0.6) 100%
     );
 `;
-
-export const LargeTileCreateNewButton: React.FC<
-    React.PropsWithChildren<ButtonishProps>
-> = ({ onClick, children }) => (
-    <LargeTileButton onClick={onClick}>
-        <Stack
-            sx={{
-                flex: 1,
-                height: "100%",
-                border: "1px dashed",
-                borderColor: "stroke.muted",
-                borderRadius: "4px",
-                padding: 1,
-            }}
-        >
-            <Typography>{children}</Typography>
-            <CenteredFill>
-                <AddIcon />
-            </CenteredFill>
-        </Stack>
-    </LargeTileButton>
-);
 
 export const TileBottomTextOverlay = styled(Overlay)`
     display: flex;

@@ -4,16 +4,18 @@ import { SpaceRouteFallback } from "components/RouteFallback";
 import log from "ente-base/log";
 import React from "react";
 import {
+    deleteCurrentPost,
     loadCurrentSpacePost,
     loadCurrentSpacePostAssetURL,
     replyToCurrentPost,
     setCurrentPostLiked,
+    updateCurrentPostCaption,
     type SpacePost,
 } from "services/space";
 import { useSpaceAppState } from "state/app-state";
 import { spaceAppBackgroundColor } from "styles/colors";
 import { viewerPhotosFromPost } from "utils/post-photos";
-import { hasPreviousSpaceRoute, useSpaceRouter } from "utils/route-transitions";
+import { useSpaceRouter } from "utils/route-transitions";
 import { postPhotoIdFromObjectKey, spaceRoutes } from "utils/routes";
 
 const postBackground = "#000000";
@@ -51,10 +53,12 @@ const viewerPhotoFromPost = (post: SpacePost) => ({
     alt: `${post.name} post`,
     avatarUrl: post.avatarUrl,
     caption: post.caption,
+    commentCount: post.commentCount,
     friendID: post.friendID,
     height: post.height,
     photos: post.photos,
     imageUrl: post.imageUrl ?? "",
+    likeCount: post.likeCount,
     name: post.name,
     postId: post.postId,
     spaceId: post.spaceId,
@@ -65,11 +69,18 @@ const viewerPhotoFromPost = (post: SpacePost) => ({
 
 const Page: React.FC = () => {
     const router = useSpaceRouter();
-    const { profile, profileLoadError, profileLoadStatus } = useSpaceAppState();
+    const {
+        profile,
+        profileLoadError,
+        profileLoadStatus,
+        setLocalFeedPosts,
+        setPostPublication,
+    } = useSpaceAppState();
     const pathParams = routeParamsFromPath();
     const spaceId =
         valueFromQuery(router.query.spaceId) ?? pathParams.spaceId ?? "";
     const postId = postIdFromQuery(router.query.postId) ?? pathParams.postId;
+    const targetCommentId = valueFromQuery(router.query.comment);
     const photoId =
         valueFromQuery(router.query.photo) ??
         (typeof window == "undefined"
@@ -141,11 +152,7 @@ const Page: React.FC = () => {
     }, [post?.spaceId, post?.username, profile?.spaceId, router, spaceId]);
 
     const closePost = React.useCallback(() => {
-        if (hasPreviousSpaceRoute()) {
-            router.back();
-            return;
-        }
-        void router.replace(spaceRoutes.home);
+        void router.back(spaceRoutes.home);
     }, [router]);
 
     if (
@@ -161,6 +168,7 @@ const Page: React.FC = () => {
             <SpaceRouteFallback
                 background={spaceAppBackgroundColor}
                 message={postLoadError || profileLoadError}
+                onBack={closePost}
             />
         );
     }
@@ -170,6 +178,7 @@ const Page: React.FC = () => {
             <SpaceRouteFallback
                 background={spaceAppBackgroundColor}
                 message={postLoadError || profileLoadError}
+                onBack={closePost}
             />
         );
     }
@@ -189,6 +198,7 @@ const Page: React.FC = () => {
             <SpaceRouteFallback
                 background={spaceAppBackgroundColor}
                 message="Photo unavailable."
+                onBack={closePost}
             />
         );
     }
@@ -197,14 +207,86 @@ const Page: React.FC = () => {
         <>
             <SpacePageMeta themeColor={postBackground} />
             <SpaceFileViewer
-                key={`${post.postId}:${photoId ?? ""}`}
+                key={`${post.postId}:${photoId ?? ""}:${targetCommentId ?? ""}`}
                 photo={viewerPhotoFromPost(post)}
                 photos={photos}
                 initialPhotoIndex={photoIndex}
+                commentsOnOpen={router.query.comments == "1"}
+                targetCommentId={targetCommentId}
                 onLoadPhoto={loadCurrentSpacePostAssetURL}
-                postActionMode={isOwnPost ? "hidden" : "like-only"}
+                postActionMode={isOwnPost ? "likes" : "like-only"}
+                showLikesOnOpen={
+                    isOwnPost && valueFromQuery(router.query.likes) == "1"
+                }
                 onClose={closePost}
                 onOpenProfile={openOwnerProfile}
+                onDeletePost={
+                    isOwnPost
+                        ? async () => {
+                              await deleteCurrentPost(actorSpaceId, postId);
+                              setPostPublication((current) =>
+                                  current?.post.postId == postId
+                                      ? null
+                                      : current,
+                              );
+                              setLocalFeedPosts((currentPosts) =>
+                                  currentPosts.filter(
+                                      (item) =>
+                                          item.status == "pending" ||
+                                          item.status == "failed" ||
+                                          item.post.postId != postId,
+                                  ),
+                              );
+                          }
+                        : undefined
+                }
+                onUpdatePostCaption={
+                    isOwnPost
+                        ? async (nextPostId, caption) => {
+                              await updateCurrentPostCaption(
+                                  actorSpaceId,
+                                  nextPostId,
+                                  caption,
+                              );
+                              const normalizedCaption =
+                                  caption.trim() || undefined;
+                              setPost((current) =>
+                                  current?.postId == nextPostId
+                                      ? {
+                                            ...current,
+                                            caption: normalizedCaption,
+                                        }
+                                      : current,
+                              );
+                              setPostPublication((current) =>
+                                  current?.post.postId == nextPostId
+                                      ? {
+                                            ...current,
+                                            post: {
+                                                ...current.post,
+                                                caption: normalizedCaption,
+                                            },
+                                        }
+                                      : current,
+                              );
+                              setLocalFeedPosts((currentPosts) =>
+                                  currentPosts.map((item) =>
+                                      (item.status == "posted" ||
+                                          item.status == "ready") &&
+                                      item.post.postId == nextPostId
+                                          ? {
+                                                ...item,
+                                                post: {
+                                                    ...item.post,
+                                                    caption: normalizedCaption,
+                                                },
+                                            }
+                                          : item,
+                                  ),
+                              );
+                          }
+                        : undefined
+                }
                 onReplyToPost={
                     isOwnPost
                         ? undefined

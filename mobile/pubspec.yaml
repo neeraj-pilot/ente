@@ -22,6 +22,7 @@ workspace:
   - apps/photos/plugins/ente_panorama_viewer
   - apps/photos/plugins/ente_photos_platform
   - apps/photos/plugins/ente_vision
+  - apps/photos/plugins/ffmpeg
   - apps/photos/plugins/media_extension
   - packages/accounts
   - packages/account_deletion
@@ -34,6 +35,7 @@ workspace:
   - packages/ente_crypto_api
   - packages/ente_crypto_dart_adapter
   - packages/ente_icons
+  - packages/ente_pdf_renderer
   - packages/install_source
   - packages/ente_pure_utils
   - packages/ente_qr

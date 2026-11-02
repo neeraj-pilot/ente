@@ -19,8 +19,8 @@ const int galleryLoadStartTime = -8000000000000000; // June 28, 1716
 const int galleryLoadEndTime = 9223372036854775807; // 2^63 - 1
 const int batchSize = 1000;
 const int batchSizeCopy = 100;
-const photoGridSizeDefault = 4;
-const photoGridSizeMin = 2;
+const photoGridSizeDefault = 3;
+const photoGridSizeMin = 3;
 const photoGridSizeMax = 6;
 const subGalleryMultiplier = 10;
 
@@ -30,10 +30,6 @@ const galleryThumbnailDiskLoadDeferDuration = Duration(milliseconds: 80);
 const galleryThumbnailServerLoadDeferDuration = Duration(milliseconds: 80);
 const mediaManagementHintDismissDuration = Duration(days: 7);
 const mediaManagementHintDeleteAttemptThreshold = 3;
-
-// 256 bit key maps to 24 words
-// https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki#Generating_the_mnemonic
-const mnemonicKeyWordCount = 24;
 
 const dragSensitivity = 8;
 

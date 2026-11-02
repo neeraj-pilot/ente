@@ -9,7 +9,7 @@ export const handleSelectCreator =
         setSelected: SetSelectedState,
         mode: GalleryBarMode | undefined,
         userID: number | undefined,
-        activeCollectionID: number,
+        activeCollectionID: number | undefined,
         activePersonID: string | undefined,
         setRangeStartIndex: (index: number | undefined) => void,
     ) =>
@@ -66,7 +66,7 @@ export const handleSelectCreatorMulti =
         setSelected: SetSelectedState,
         mode: GalleryBarMode | undefined,
         userID: number | undefined,
-        activeCollectionID: number,
+        activeCollectionID: number | undefined,
         activePersonID: string | undefined,
     ) =>
     (files: { id: number; ownerID: number }[]) =>
@@ -114,10 +114,21 @@ export const handleSelectCreatorMulti =
 const createSelectedAndContext = (
     mode: GalleryBarMode | undefined,
 
-    activeCollectionID: number,
+    activeCollectionID: number | undefined,
     activePersonID: string | undefined,
     selected: SelectedState,
 ) => {
+    if (mode == "links") {
+        return {
+            selected: {
+                count: 0,
+                ownCount: 0,
+                collectionID: 0,
+                context: undefined,
+            },
+            newContext: undefined,
+        };
+    }
     if (!mode) {
         // Retain older behavior for non-gallery call sites.
         if (selected.collectionID !== activeCollectionID) {

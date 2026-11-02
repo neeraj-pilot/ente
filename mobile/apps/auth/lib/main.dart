@@ -17,6 +17,9 @@ import 'package:ente_auth/services/preference_service.dart';
 import 'package:ente_auth/services/update_service.dart';
 import 'package:ente_auth/services/watch/service.dart';
 import 'package:ente_auth/services/window_listener_service.dart';
+import 'package:ente_auth/src/rust/frb_generated.dart';
+import 'package:ente_auth/src/rust/third_party/ente_frb_lib/accounts.dart'
+    as accounts;
 import 'package:ente_auth/store/authenticator_db.dart';
 import 'package:ente_auth/store/code_display_store.dart';
 import 'package:ente_auth/store/code_store.dart';
@@ -116,11 +119,14 @@ void main() async {
       bool isMaximized = WindowListenerService.instance.getIsMaximized();
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
         await auth_dir_utils.DirectoryUtils.migrateNamingChanges();
+        isMaximized = await WindowListenerService.instance
+            .restoreWindowPlacement(isMaximized);
         await windowManager.show();
         if (isMaximized) {
           await windowManager.maximize();
         }
         await windowManager.focus();
+        await WindowListenerService.instance.finishWindowRestore();
         initSystemTray().ignore();
       });
     }
@@ -140,7 +146,7 @@ Future<void> _runInForeground() async {
   return await _runWithLogs(() async {
     _logger.info("Starting app in foreground");
     try {
-      await _init(false, via: 'mainMethod');
+      await _init();
       await WatchService.initialize();
     } catch (e, s) {
       _logger.severe("Failed to init", e, s);
@@ -198,9 +204,10 @@ void _registerWindowsProtocol() {
   }
 }
 
-Future<void> _init(bool bool, {String? via}) async {
+Future<void> _init() async {
   _registerWindowsProtocol();
   await CryptoUtil.init();
+  await EnteAuthRust.init();
 
   await PreferenceService.instance.init();
   await CodeStore.instance.init();
@@ -208,7 +215,11 @@ Future<void> _init(bool bool, {String? via}) async {
   await Configuration.instance.init([AuthenticatorDB.instance]);
   await cleanupPickedImagesOnStartup(logger: _logger);
   await Network.instance.init(Configuration.instance);
-  await UserService.instance.init(Configuration.instance, const HomePage());
+  await UserService.instance.init(
+    Configuration.instance,
+    const HomePage(),
+    createAccountsClient: accounts.createAccountsClient,
+  );
   await AuthenticatorService.instance.init();
   await BillingService.instance.init();
   await NotificationService.instance.init();
@@ -222,10 +233,7 @@ Future<void> _init(bool bool, {String? via}) async {
   if (shouldAllowAuthScreenCapture) {
     await LockScreenSettings.instance.setHideAppContent(false, persist: false);
   }
-  AccountDeletionSettings.instance.init(
-    host: Configuration.instance,
-    enteDio: Network.instance.enteDio,
-  );
+  AccountDeletionSettings.instance.init(host: Configuration.instance);
   await LocalBackupService.instance.init(
     hasOptedForOfflineMode: Configuration.instance.hasOptedForOfflineMode(),
   );

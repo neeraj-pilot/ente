@@ -5,6 +5,7 @@ import {
     decryptStreamChunk,
     initChunkDecryption,
 } from "ente-base/crypto";
+import { namedError } from "ente-base/error";
 import log from "ente-base/log";
 import type { EnteFile } from "ente-media/file";
 import { fileFileName } from "ente-media/file-metadata";
@@ -309,7 +310,7 @@ class DownloadManagerCore {
             }
 
             const body = res.body;
-            if (!body) return null;
+            if (!body) throw new Error("Missing final encrypted chunk");
             const reader = body.getReader();
             const { pullState, decryptionChunkSize } =
                 await initChunkDecryption(file.file.decryptionHeader, file.key);
@@ -353,10 +354,11 @@ class DownloadManagerCore {
                             }
 
                             // A network read can contain several encrypted chunks.
-                            while (data.length >= decryptionChunkSize) {
+                            while (data.length > decryptionChunkSize) {
                                 const decryptedData = await decryptStreamChunk(
                                     data.slice(0, decryptionChunkSize),
                                     pullState,
+                                    false,
                                 );
                                 if (isCancelled()) return;
                                 controller.enqueue(decryptedData);
@@ -366,15 +368,17 @@ class DownloadManagerCore {
 
                             if (done) {
                                 // Only EOF proves that a short remainder is the final chunk.
-                                if (data.length) {
-                                    const decryptedData =
-                                        await decryptStreamChunk(
-                                            data,
-                                            pullState,
-                                        );
-                                    if (isCancelled()) return;
-                                    controller.enqueue(decryptedData);
-                                }
+                                if (!data.length)
+                                    throw new Error(
+                                        "Missing final encrypted chunk",
+                                    );
+                                const decryptedData = await decryptStreamChunk(
+                                    data,
+                                    pullState,
+                                    true,
+                                );
+                                if (isCancelled()) return;
+                                controller.enqueue(decryptedData);
                                 didEnqueue = true;
                                 controller.close();
                                 this.setFileDownloadProgress(
@@ -406,7 +410,52 @@ class DownloadManagerCore {
         file: EnteFile,
         stream: ReadableStream<Uint8Array> | null,
     ) {
-        const blob = await new Response(stream).blob();
+        const reader = stream?.getReader();
+        let readError: unknown;
+        let hasReadError: boolean | undefined;
+        let cancelled = false;
+        let blob: Blob;
+        try {
+            let body: ReadableStream<Uint8Array> | null = null;
+            if (reader) {
+                body = new ReadableStream<Uint8Array>({
+                    async pull(controller) {
+                        let result: ReadableStreamReadResult<Uint8Array>;
+                        try {
+                            result = await reader.read();
+                        } catch (e) {
+                            if (!cancelled) {
+                                readError = e;
+                                hasReadError = true;
+                            }
+                            throw e;
+                        }
+                        if (cancelled) return;
+                        if (result.done) controller.close();
+                        else controller.enqueue(result.value);
+                    },
+                    cancel(reason: unknown) {
+                        if (cancelled) return;
+                        cancelled = true;
+                        return reader.cancel(reason);
+                    },
+                });
+            }
+            blob = await new Response(body).blob();
+        } catch (e) {
+            if (hasReadError) throw readError;
+            cancelled = true;
+            await reader?.cancel(e).catch(() => undefined);
+            log.error("Failed to create file blob", e);
+            throw namedError(
+                "blob_creation_failed",
+                "Failed to create file blob",
+                { cause: e },
+            );
+        } finally {
+            cancelled = true;
+            reader?.releaseLock();
+        }
         if (blob.type) return blob;
 
         try {

@@ -625,7 +625,14 @@ class SmartMemoriesService {
     if (creationTimes.isEmpty) return 0;
     final uniqueDays =
         creationTimes
-            .map((timestamp) => timestamp - (timestamp % microSecondsInDay))
+            .map((timestamp) {
+              final date = DateTime.fromMicrosecondsSinceEpoch(timestamp);
+              return DateTime.utc(
+                date.year,
+                date.month,
+                date.day,
+              ).microsecondsSinceEpoch;
+            })
             .toSet()
             .toList(growable: false)
           ..sort();
@@ -862,6 +869,7 @@ class SmartMemoriesService {
     final tripAnalysis = TripMemoriesCalculatorV2.analyze(
       fileIndex.files,
       computationContext.allFileIdsToFile,
+      computationContext.now,
       isLocalGalleryMode: computationContext.isLocalGalleryMode,
       seenTimes: computationContext.seenTimes,
       citySearchIndex: computationContext.citySearchIndex,

@@ -68,7 +68,7 @@ export class SearchWorker {
         // \b does not handle Unicode word boundaries.
         return suggestionsForString(
             s,
-            new RegExp("(^|[\\s.,!?\"'-_])" + s, "i"),
+            new RegExp("(^|[\\s.,!?\"'_-])" + s, "i"),
             searchString,
             this.collectionsAndFiles,
             this.people,
@@ -309,15 +309,20 @@ const parseChrono = (
             const weekday = component("weekday");
             const hour = component("hour");
 
-            if (!year && !month && !day && !weekday && !hour) return undefined;
+            // Sunday is weekday 0 and midnight is hour 0.
+            const hasWeekday = weekday !== undefined;
+            const hasHour = hour !== undefined;
+
+            if (!year && !month && !day && !hasWeekday && !hasHour)
+                return undefined;
             const components = { year, month, day, weekday, hour };
 
             const format: Intl.DateTimeFormatOptions = {};
             if (year) format.year = "numeric";
             if (month) format.month = "long";
             if (day) format.day = "numeric";
-            if (weekday) format.weekday = "long";
-            if (hour) {
+            if (hasWeekday) format.weekday = "long";
+            if (hasHour) {
                 format.hour = "numeric";
                 format.dayPeriod = "short";
             }
@@ -371,20 +376,16 @@ const locationSuggestions = (
         .filter((c) => !matchingLocationTagLNames.has(c.name.toLowerCase()));
 
     return [
-        matchingLocationTags.map(
-            (locationTag): SearchSuggestion => ({
-                type: "location",
-                locationTag,
-                label: locationTag.name,
-            }),
-        ),
-        matchingCities.map(
-            (city): SearchSuggestion => ({
-                type: "city",
-                city,
-                label: city.name,
-            }),
-        ),
+        matchingLocationTags.map((locationTag): SearchSuggestion => ({
+            type: "location",
+            locationTag,
+            label: locationTag.name,
+        })),
+        matchingCities.map((city): SearchSuggestion => ({
+            type: "city",
+            city,
+            label: city.name,
+        })),
     ].flat();
 };
 
@@ -470,8 +471,8 @@ const isDateComponentsMatch = (
     if (year) match = date.getFullYear() == year;
     if (match && month) match = date.getMonth() + 1 == month;
     if (match && day) match = date.getDate() == day;
-    if (match && weekday) match = date.getDay() == weekday;
-    if (match && hour) match = date.getHours() == hour;
+    if (match && weekday !== undefined) match = date.getDay() == weekday;
+    if (match && hour !== undefined) match = date.getHours() == hour;
 
     return match;
 };

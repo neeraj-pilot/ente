@@ -1,4 +1,4 @@
-import AuthNative
+import AuthCore
 import Flutter
 
 @available(iOS 17, *)

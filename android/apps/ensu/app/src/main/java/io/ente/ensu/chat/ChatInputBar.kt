@@ -1,7 +1,6 @@
 package io.ente.ensu.chat
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,17 +17,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,9 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -64,22 +61,30 @@ internal fun MessageInput(
     modifier: Modifier,
     messageText: String,
     attachments: List<Attachment>,
+    supportsImageAttachments: Boolean,
     editingMessage: ChatMessage?,
     isProcessingAttachments: Boolean,
     isGenerating: Boolean,
     isDownloading: Boolean,
+    sourcesReady: Boolean,
+    sourcesError: String?,
+    onRetrySources: () -> Unit,
     onMessageChange: (String) -> Unit,
+    onComposerSelection: (Int, Int, Boolean) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
     onAttachmentSelected: (AttachmentType) -> Unit,
     onRemoveAttachment: (Attachment) -> Unit,
     onCancelEdit: () -> Unit,
-    voiceInputState: VoiceInputState,
-    onVoiceInput: () -> Unit,
+    voiceController: VoiceTranscriptionController,
+    onVoiceInput: (TextFieldValue) -> Unit,
+    voiceCaret: Int?,
     focusRequestId: Int,
 ) {
     val haptic = rememberHaptics()
-    val placeholder = "Write a message..."
+    val focusManager = LocalFocusManager.current
+    val placeholder = "Ask Ensu"
+    val composerIconSize = 18.dp
 
     val focusRequester = remember { FocusRequester() }
     var fieldValue by remember {
@@ -91,13 +96,23 @@ internal fun MessageInput(
         )
     }
 
-    LaunchedEffect(messageText) {
-        if (messageText != fieldValue.text) {
+    LaunchedEffect(messageText, voiceCaret, voiceController.blocksComposer) {
+        if (messageText != fieldValue.text || voiceCaret != null) {
             fieldValue =
                 TextFieldValue(
                     text = messageText,
-                    selection = TextRange(messageText.length),
+                    selection =
+                        TextRange(
+                            voiceCaret?.coerceIn(0, messageText.length) ?: messageText.length
+                        ),
                 )
+        }
+        if (!voiceController.blocksComposer) {
+            onComposerSelection(
+                fieldValue.selection.min,
+                fieldValue.selection.max,
+                fieldValue.composition != null,
+            )
         }
     }
 
@@ -114,11 +129,27 @@ internal fun MessageInput(
     val bottomPadding = if (hasAttachmentContent) EnsuSpacing.sm.dp else EnsuSpacing.md.dp
     val isImageAttachmentLimitReached =
         attachments.count { it.type == AttachmentType.Image } >= MaxImageAttachmentsPerMessage
+    val hasUnsupportedImages =
+        !supportsImageAttachments && attachments.any { it.type == AttachmentType.Image }
 
     Column(
         modifier = modifier.background(EnsuColor.backgroundBase()),
         verticalArrangement = Arrangement.spacedBy(EnsuSpacing.sm.dp),
     ) {
+        if (!sourcesReady) {
+            Row(
+                modifier = Modifier.padding(horizontal = EnsuSpacing.sm.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    sourcesError ?: "Loading sources for this chat…",
+                    style = EnsuTypography.small,
+                    color = EnsuColor.textMuted(),
+                    modifier = Modifier.weight(1f),
+                )
+                if (sourcesError != null) TextButton(onClick = onRetrySources) { Text("Retry") }
+            }
+        }
         if (editingMessage != null) {
             EditBanner(message = editingMessage, onCancelEdit = onCancelEdit)
         }
@@ -130,7 +161,7 @@ internal fun MessageInput(
                     Modifier.fillMaxWidth()
                         .heightIn(max = maxAttachmentHeight)
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = EnsuSpacing.pageHorizontal.dp),
+                        .padding(horizontal = EnsuSpacing.sm.dp),
                 horizontalArrangement = Arrangement.spacedBy(EnsuSpacing.sm.dp),
                 verticalArrangement = Arrangement.spacedBy(EnsuSpacing.sm.dp),
             ) {
@@ -157,9 +188,18 @@ internal fun MessageInput(
             }
         }
 
+        if (hasUnsupportedImages) {
+            Text(
+                text = "This model doesn't support images. Remove the image attachments to send.",
+                style = EnsuTypography.small,
+                color = EnsuColor.stopButton,
+                modifier = Modifier.padding(horizontal = EnsuSpacing.sm.dp),
+            )
+        }
+
         if (isProcessingAttachments) {
             Row(
-                modifier = Modifier.padding(horizontal = EnsuSpacing.pageHorizontal.dp),
+                modifier = Modifier.padding(horizontal = EnsuSpacing.sm.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -168,55 +208,12 @@ internal fun MessageInput(
             }
         }
 
-        voiceInputState.statusText()?.let { status ->
-            Row(
-                modifier = Modifier.padding(horizontal = EnsuSpacing.pageHorizontal.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                when (voiceInputState) {
-                    is VoiceInputState.Downloading,
-                    VoiceInputState.Transcribing -> {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    }
-                    VoiceInputState.Recording -> {
-                        Icon(
-                            painter = painterResource(HugeIcons.Mic02Icon),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = EnsuColor.stopButton,
-                        )
-                    }
-                    is VoiceInputState.Error -> {
-                        Icon(
-                            imageVector = Icons.Rounded.ErrorOutline,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = EnsuColor.stopButton,
-                        )
-                    }
-                    VoiceInputState.Idle -> Unit
-                }
-                Spacer(modifier = Modifier.width(EnsuSpacing.sm.dp))
-                Text(
-                    text = status,
-                    style = EnsuTypography.small,
-                    color =
-                        if (voiceInputState is VoiceInputState.Error) {
-                            EnsuColor.stopButton
-                        } else {
-                            EnsuColor.textMuted()
-                        },
-                )
-            }
-        }
+        VoiceInputControls(voiceController)
 
         Box(
             modifier =
                 Modifier.fillMaxWidth()
-                    .padding(horizontal = EnsuSpacing.pageHorizontal.dp)
+                    .padding(horizontal = EnsuSpacing.sm.dp)
                     .padding(bottom = bottomPadding)
                     .background(
                         EnsuColor.fillFaint(),
@@ -231,16 +228,49 @@ internal fun MessageInput(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (supportsImageAttachments && !voiceController.blocksComposer) {
+                    IconButton(
+                        onClick = {
+                            haptic.perform(HapticFeedbackType.TextHandleMove)
+                            onAttachmentSelected(AttachmentType.Image)
+                        },
+                        enabled =
+                            editingMessage == null &&
+                                supportsImageAttachments &&
+                                !isGenerating &&
+                                !isDownloading &&
+                                !isImageAttachmentLimitReached,
+                        modifier = Modifier.size(width = 32.dp, height = 36.dp),
+                    ) {
+                        Icon(
+                            painterResource(HugeIcons.ImagePlusIcon),
+                            contentDescription = "Add photos",
+                            modifier = Modifier.size(composerIconSize),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(EnsuSpacing.xs.dp))
+                }
+
                 BasicTextField(
                     value = fieldValue,
                     onValueChange = { newValue ->
                         fieldValue = newValue
-                        onMessageChange(newValue.text)
+                        if (!voiceController.blocksComposer) {
+                            onMessageChange(newValue.text)
+                            onComposerSelection(
+                                newValue.selection.min,
+                                newValue.selection.max,
+                                newValue.composition != null,
+                            )
+                        }
                     },
-                    modifier = Modifier.weight(1f).focusRequester(focusRequester).focusable(),
+                    modifier = Modifier.weight(1f).focusRequester(focusRequester),
                     textStyle = EnsuTypography.message.copy(color = EnsuColor.textPrimary()),
+                    visualTransformation = LongMessageVisualTransformation,
                     minLines = 1,
-                    maxLines = 5,
+                    maxLines = if (voiceController.blocksComposer) 8 else 5,
+                    readOnly = voiceController.blocksComposer,
                     keyboardOptions =
                         KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     cursorBrush = SolidColor(EnsuColor.accent()),
@@ -260,74 +290,30 @@ internal fun MessageInput(
                     }
                 }
 
-                Spacer(modifier = Modifier.width(EnsuSpacing.sm.dp))
-
                 if (editingMessage == null) {
-                    val canAddImageAttachment =
-                        !isGenerating && !isDownloading && !isImageAttachmentLimitReached
-                    IconButton(
-                        onClick = {
+                    VoiceInputButton(
+                        controller = voiceController,
+                        enabled = !isGenerating && !isDownloading,
+                        onOpen = {
                             haptic.perform(HapticFeedbackType.TextHandleMove)
-                            onAttachmentSelected(AttachmentType.Image)
+                            focusManager.clearFocus(force = true)
+                            fieldValue = fieldValue.copy(composition = null)
+                            onMessageChange(fieldValue.text)
+                            onComposerSelection(
+                                fieldValue.selection.min,
+                                fieldValue.selection.max,
+                                false,
+                            )
+                            onVoiceInput(fieldValue)
                         },
-                        enabled = canAddImageAttachment,
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(HugeIcons.Upload01Icon),
-                            contentDescription = "Attach",
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-
-                if (editingMessage == null) {
-                    val isVoiceBusy =
-                        voiceInputState is VoiceInputState.Downloading ||
-                            voiceInputState is VoiceInputState.Transcribing
-                    val canUseVoice =
-                        voiceInputState.isRecording ||
-                            (!isGenerating && !isDownloading && !isVoiceBusy)
-
-                    IconButton(
-                        onClick = {
-                            haptic.perform(
-                                if (voiceInputState.isRecording) {
-                                    HapticFeedbackType.LongPress
-                                } else {
-                                    HapticFeedbackType.TextHandleMove
-                                }
-                            )
-                            onVoiceInput()
-                        },
-                        enabled = canUseVoice,
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        if (isVoiceBusy) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                            )
-                        } else if (voiceInputState.isRecording) {
-                            Icon(
-                                painter = painterResource(HugeIcons.StopIcon),
-                                contentDescription = "Stop dictation",
-                                modifier = Modifier.size(18.dp),
-                                tint = EnsuColor.stopButton,
-                            )
-                        } else {
-                            Icon(
-                                painter = painterResource(HugeIcons.Mic02Icon),
-                                contentDescription = "Dictate",
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    }
+                    )
                 }
 
                 val canSend =
-                    (messageText.isNotBlank() || attachments.isNotEmpty()) &&
-                        !voiceInputState.blocksSend
+                    sourcesReady &&
+                        (messageText.isNotBlank() || attachments.isNotEmpty()) &&
+                        !voiceController.blocksComposer &&
+                        !hasUnsupportedImages
 
                 IconButton(
                     onClick = {
@@ -349,31 +335,17 @@ internal fun MessageInput(
                         }
                     val tint =
                         when {
-                            isGenerating -> EnsuColor.stopButton
-                            canSend -> EnsuColor.textPrimary()
-                            else -> EnsuColor.textMuted()
+                            isGenerating -> EnsuColor.sendButton
+                            canSend && !isDownloading -> EnsuColor.sendButton
+                            else -> EnsuColor.sendButtonInactive
                         }
                     val rotation = if (iconRes == HugeIcons.Navigation06Icon) 90f else 0f
-                    if (iconRes == HugeIcons.StopIcon) {
-                        Box(
-                            modifier = Modifier.size(22.dp).background(Color.White, CircleShape),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                painter = painterResource(iconRes),
-                                contentDescription = "Send",
-                                modifier = Modifier.size(12.dp),
-                                tint = EnsuColor.stopButton,
-                            )
-                        }
-                    } else {
-                        Icon(
-                            painter = painterResource(iconRes),
-                            contentDescription = "Send",
-                            modifier = Modifier.size(18.dp).rotate(rotation),
-                            tint = tint,
-                        )
-                    }
+                    Icon(
+                        painter = painterResource(iconRes),
+                        contentDescription = if (isGenerating) "Stop generation" else "Send",
+                        modifier = Modifier.size(composerIconSize).rotate(rotation),
+                        tint = tint,
+                    )
                 }
             }
         }
@@ -386,7 +358,7 @@ private fun EditBanner(message: ChatMessage, onCancelEdit: () -> Unit) {
     Row(
         modifier =
             Modifier.fillMaxWidth()
-                .padding(horizontal = EnsuSpacing.pageHorizontal.dp)
+                .padding(horizontal = EnsuSpacing.sm.dp)
                 .background(EnsuColor.fillFaint(), RoundedCornerShape(EnsuCornerRadius.input.dp))
                 .height(IntrinsicSize.Min)
     ) {

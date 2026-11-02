@@ -27,6 +27,7 @@ var AllowedProviders = map[string]bool{
 	"Windscribe":   true,
 	"LeaveMeAlone": true,
 	"Obscura":      true,
+	"Addy":         true,
 	"Test":         true,
 }
 
@@ -52,16 +53,25 @@ func (c *Controller) ClaimCoupon(ctx *gin.Context, req ClaimCouponRequest) error
 	if !AllowedProviders[req.ProviderName] {
 		return stacktrace.Propagate(ente.NewBadRequestWithMessage("Invalid provider name"), "")
 	}
-	go c.processClaimRequest(ctx, req)
+	launchClaimProcess(ctx, req, c.processClaimRequest)
 	return nil
 }
 
-func (c *Controller) processClaimRequest(ctx *gin.Context, req ClaimCouponRequest) {
+func launchClaimProcess(
+	requestContext *gin.Context,
+	req ClaimCouponRequest,
+	process func(context.Context, string, ClaimCouponRequest),
+) {
+	requestID := requestid.Get(requestContext)
+	go process(context.Background(), requestID, req)
+}
+
+func (c *Controller) processClaimRequest(ctx context.Context, requestID string, req ClaimCouponRequest) {
 	sanitizedEmail := emailUtil.NormalizeEmail(req.Email)
 	logger :=
 		log.WithField("provider", req.ProviderName).
 			WithField("email", sanitizedEmail).
-			WithField("req_id", requestid.Get(ctx))
+			WithField("req_id", requestID)
 
 	userID, err := c.UserRepo.GetUserIDWithEmailUnrestricted(sanitizedEmail)
 	if err != nil {
@@ -163,6 +173,9 @@ func (c *Controller) sendCouponEmail(ctx context.Context, user ente.User, coupon
 	case "Obscura":
 		subject = "Ente Friends - Obscura discount code"
 		templateName = "discount_coupon_obscura.html"
+	case "Addy":
+		subject = "Ente Friends - addy.io discount code"
+		templateName = "discount_coupon_addy.html"
 	case "Test":
 		subject = "Ente Friends - Test trial code"
 		templateName = "discount_coupon_test.html"
@@ -196,7 +209,7 @@ func (c *Controller) AddCoupons(ctx *gin.Context, req AddCouponsRequest) error {
 	if len(validCodes) == 0 {
 		return nil
 	}
-	err := c.Repo.AddCoupons(ctx, req.ProviderName, req.Codes)
+	err := c.Repo.AddCoupons(ctx, req.ProviderName, validCodes)
 	if err != nil {
 		return stacktrace.Propagate(err, "failed to add coupons")
 	}

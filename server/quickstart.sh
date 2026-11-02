@@ -41,6 +41,8 @@ then
     exit 1
 fi
 
+umask 077
+
 printf "\n - \033[1mH E L L O\033[0m - \033[1;32mE N T E\033[0m -\n\n"
 
 gen_user_suffix () { head -c 6 /dev/urandom | base64 | tr -d '\n'; }
@@ -62,7 +64,9 @@ museum_key=`gen_key`
 museum_hash=`gen_hash`
 museum_jwt_secret=`gen_jwt_secret`
 
-mkdir my-ente && cd my-ente
+mkdir my-ente
+chmod 700 my-ente
+cd my-ente
 printf " \033[1;32mE\033[0m   Created directory \033[1mmy-ente\033[0m\n"
 sleep 1
 
@@ -203,6 +207,7 @@ s3:
 apps:
     public-albums: http://localhost:3002
     embed-albums: http://localhost:3006
+    photobook: http://localhost:3014
     public-locker: http://localhost:3005
     public-paste: http://localhost:3008
     cast: http://localhost:3004
@@ -216,6 +221,8 @@ key:
 jwt:
       secret: $museum_jwt_secret
 EOF
+
+chmod 644 museum.yaml
 
 printf " \033[1;32mT\033[0m   Created \033[1mmuseum.yaml\033[0m\n"
 sleep 1

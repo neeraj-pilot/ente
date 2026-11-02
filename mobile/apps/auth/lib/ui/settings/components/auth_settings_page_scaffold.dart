@@ -11,12 +11,16 @@ class AuthSettingsPageScaffold extends StatelessWidget {
     this.subtitle,
     this.backButton,
     this.bottomNavigationBar,
+    this.actions = const [],
   });
+
+  static const double maxContentWidth = 720;
 
   final String title;
   final String? subtitle;
   final Widget? backButton;
   final Widget? bottomNavigationBar;
+  final List<Widget> actions;
   final List<Widget> children;
 
   @override
@@ -25,7 +29,7 @@ class AuthSettingsPageScaffold extends StatelessWidget {
       builder: (context, constraints) {
         final rightPadding = math.max(
           Spacing.lg,
-          constraints.maxWidth - Spacing.lg - _maxContentWidth,
+          constraints.maxWidth - Spacing.lg - maxContentWidth,
         );
 
         return SettingsPageScaffold(
@@ -33,6 +37,7 @@ class AuthSettingsPageScaffold extends StatelessWidget {
           subtitle: subtitle,
           backButton: backButton,
           bottomNavigationBar: bottomNavigationBar,
+          actions: actions,
           padding: EdgeInsets.fromLTRB(Spacing.lg, 0, rightPadding, Spacing.lg),
           children: children,
         );
@@ -40,5 +45,3 @@ class AuthSettingsPageScaffold extends StatelessWidget {
     );
   }
 }
-
-const double _maxContentWidth = 720;

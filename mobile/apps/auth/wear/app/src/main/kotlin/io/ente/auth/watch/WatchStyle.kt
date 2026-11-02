@@ -11,7 +11,6 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 
-// Auth's semantic colors; native watch typography and dimensions remain local.
 internal object WatchStyle {
     val accent = Color.rgb(150, 16, 214)
     val warning = Color.rgb(246, 58, 58)

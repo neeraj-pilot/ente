@@ -22,7 +22,6 @@ class CollectionSearchResult {
 mixin SearchMixin<T extends StatefulWidget> on State<T> {
   String _searchQuery = '';
   bool _isSearchActive = false;
-  bool _isSearching = false;
   Timer? _searchDebounceTimer;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -94,10 +93,6 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
   Future<void> _performSearch(String query) async {
     if (!mounted) return;
 
-    setState(() {
-      _isSearching = true;
-    });
-
     try {
       final normalizedQuery = query.trim();
       if (normalizedQuery.isEmpty) {
@@ -109,6 +104,7 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
 
       final List<Collection> filteredCollections = [];
       final List<EnteFile> collectionFiles = [];
+      final Set<String> addedFileIds = {};
 
       for (final collection in allCollections) {
         if (!mounted) return;
@@ -119,14 +115,15 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
         if (searchResult.matches) {
           filteredCollections.add(collection);
           if (searchResult.nameMatches) {
-            collectionFiles.addAll(searchResult.files);
+            collectionFiles.addAll(
+              searchResult.files.where(
+                (file) => addedFileIds.add(file.uploadedFileID.toString()),
+              ),
+            );
           }
         }
       }
 
-      final Set<String> addedFileIds = collectionFiles
-          .map((f) => f.uploadedFileID.toString())
-          .toSet();
       final filteredFiles = allFiles.where((file) {
         if (addedFileIds.contains(file.uploadedFileID.toString())) {
           return false;
@@ -146,12 +143,6 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
       debugPrint('Search error: $e');
       if (mounted) {
         onSearchResultsChanged(allCollections, allFiles);
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSearching = false;
-        });
       }
     }
   }
@@ -235,7 +226,6 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
 
   String get searchQuery => _searchQuery;
   bool get isSearchActive => _isSearchActive;
-  bool get isSearching => _isSearching;
   TextEditingController get searchController => _searchController;
   FocusNode get searchFocusNode => _searchFocusNode;
 

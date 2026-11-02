@@ -1,4 +1,5 @@
 import "dart:async";
+import "dart:io";
 import "dart:math";
 
 import "package:ente_components/ente_components.dart";
@@ -35,13 +36,17 @@ class GrantPermissionsWidget extends StatefulWidget {
   State<GrantPermissionsWidget> createState() => _GrantPermissionsWidgetState();
 }
 
-class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget> {
+class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget>
+    with WidgetsBindingObserver {
   final Logger _logger = Logger("_GrantPermissionsWidgetState");
+  bool _isEnteringLocalGallery = false;
   final Debouncer _onlyNewActionDebouncer = Debouncer(
     const Duration(milliseconds: 500),
     leading: true,
   );
   late final rive.FileLoader _permissionsAnimationLoader;
+
+  static const double _logoWidth = 50;
 
   @override
   void initState() {
@@ -50,13 +55,23 @@ class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget> {
       "assets/home_tab.riv",
       riveFactory: rive.Factory.flutter,
     );
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_enterLocalGalleryIfPermitted());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _permissionsAnimationLoader.dispose();
     _onlyNewActionDebouncer.cancelDebounceTimer();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_enterLocalGalleryIfPermitted());
+    }
   }
 
   @override
@@ -70,6 +85,9 @@ class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget> {
 
   Widget _buildOnlinePermissionScreen(BuildContext context) {
     final colorScheme = getEnteColorScheme(context);
+    final skipLabelHeight =
+        MediaQuery.textScalerOf(context).scale(TextStyles.body.fontSize!) *
+        TextStyles.body.height!;
     return Scaffold(
       backgroundColor: colorScheme.backgroundColour,
       appBar: AppBar(
@@ -78,26 +96,36 @@ class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget> {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: false,
+        toolbarHeight: max(kMinInteractiveDimension, skipLabelHeight),
         centerTitle: true,
         title: SvgPicture.asset(
-          "assets/ente-branding.svg",
-          height: 15,
+          "packages/ente_components/assets/ente_wordmark.svg",
+          width: _logoWidth,
           colorFilter: ColorFilter.mode(colorScheme.content, BlendMode.srcIn),
         ),
+        actions: [_buildSkipAction(context)],
       ),
       body: SafeArea(
         top: false,
         child: CustomScrollView(
           slivers: [
-            const SliverPadding(padding: EdgeInsets.only(top: 24)),
-            SliverToBoxAdapter(child: _buildHeaderContent(context)),
             SliverFillRemaining(
               hasScrollBody: false,
               child: Padding(
-                padding: const EdgeInsets.only(top: 36, bottom: 20),
+                padding: const EdgeInsets.only(bottom: 27),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [_buildNewFeatureActionArea(context)],
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          top: Spacing.xl,
+                          bottom: Spacing.xxl,
+                        ),
+                        child: Center(child: _buildHeaderContent(context)),
+                      ),
+                    ),
+                    _buildNewFeatureActionArea(context),
+                  ],
                 ),
               ),
             ),
@@ -107,65 +135,108 @@ class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget> {
     );
   }
 
-  Widget _buildHeaderContent(BuildContext context) {
-    final colorScheme = getEnteColorScheme(context);
-
-    return Column(
-      children: [
-        Center(
+  Widget _buildSkipAction(BuildContext context) {
+    final color = context.componentColors.primary;
+    final toolbarWidth =
+        MediaQuery.sizeOf(context).width -
+        MediaQuery.paddingOf(context).horizontal;
+    return Semantics(
+      button: true,
+      child: GestureDetector(
+        key: const ValueKey("skipForNowButton"),
+        behavior: HitTestBehavior.opaque,
+        onTap: _onTapSkip,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: kMinInteractiveDimension,
+            maxWidth:
+                toolbarWidth -
+                _logoWidth -
+                2 * NavigationToolbar.kMiddleSpacing,
+          ),
           child: Padding(
-            padding: const EdgeInsets.only(top: 28),
-            child: _buildPermissionsAnimation(context),
-          ),
-        ),
-        const SizedBox(height: 22),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            context.strings.readyToBackupTitle,
-            textAlign: TextAlign.center,
-            style: TextStyles.display1.copyWith(color: colorScheme.content),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            context.strings.readyToBackupSubtitle,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-              fontWeight: FontWeight.w500,
-              color: colorScheme.contentLight,
+            padding: const EdgeInsets.only(left: 12, right: 18),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    context.strings.skip,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyles.body.copyWith(color: color),
+                  ),
+                ),
+                const SizedBox(width: Spacing.xs),
+                ExcludeSemantics(
+                  child: HugeIcon(
+                    icon: HugeIcons.strokeRoundedArrowRight01,
+                    size: IconSizes.small,
+                    strokeWidth: 2,
+                    color: color,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildPermissionsAnimation(BuildContext context) {
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.2,
+  Widget _buildHeaderContent(BuildContext context) {
+    final colorScheme = getEnteColorScheme(context);
+    final availableWidth =
+        MediaQuery.sizeOf(context).width -
+        MediaQuery.paddingOf(context).horizontal;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: max(44.0, (availableWidth - 287) / 2),
       ),
-      child: rive.RiveWidgetBuilder(
-        fileLoader: _permissionsAnimationLoader,
-        builder: (BuildContext context, rive.RiveState state) {
-          if (state is rive.RiveLoaded) {
-            return rive.RiveWidget(
-              controller: state.controller,
-              fit: rive.Fit.contain,
-            );
-          }
-          return const SizedBox.shrink();
-        },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 155,
+            height: 168,
+            child: _buildPermissionsAnimation(),
+          ),
+          const SizedBox(height: Spacing.xl),
+          Text(
+            context.strings.readyToBackupTitle,
+            textAlign: TextAlign.center,
+            style: TextStyles.display2.copyWith(color: colorScheme.content),
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            context.strings.readyToBackupSubtitle,
+            textAlign: TextAlign.center,
+            style: TextStyles.body.copyWith(color: colorScheme.contentLight),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildPermissionsAnimation() {
+    return rive.RiveWidgetBuilder(
+      fileLoader: _permissionsAnimationLoader,
+      builder: (BuildContext context, rive.RiveState state) {
+        if (state is rive.RiveLoaded) {
+          return rive.RiveWidget(
+            controller: state.controller,
+            fit: rive.Fit.contain,
+          );
+        }
+        return const SizedBox.shrink();
+      },
     );
   }
 
   Future<void> _onTapOnlyNewPhotos() async {
     try {
-      final state = await permissionService.requestPhotoMangerPermissions();
+      final state = await permissionService.requestPhotoManagerPermissions();
       _logger.info("Permission state: $state");
       if (state == PermissionState.authorized ||
           state == PermissionState.limited) {
@@ -186,7 +257,7 @@ class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget> {
 
   Future<void> _onTapSelectFolders() async {
     try {
-      final state = await permissionService.requestPhotoMangerPermissions();
+      final state = await permissionService.requestPhotoManagerPermissions();
       _logger.info("Permission state: $state");
       if (state == PermissionState.authorized ||
           state == PermissionState.limited) {
@@ -203,29 +274,72 @@ class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget> {
 
   Future<void> _onTapOfflineGrantPermission() async {
     try {
-      final state = await permissionService.requestPhotoMangerPermissions();
+      final wasDecidedBefore =
+          Platform.isIOS &&
+          await permissionService.getPermissionState() !=
+              PermissionState.notDetermined;
+      await localSettings.setLocalGalleryOnboardingPending(true);
+      final state = await permissionService.requestPhotoManagerPermissions();
       _logger.info("Offline permission state: $state");
-      if (state == PermissionState.authorized ||
-          state == PermissionState.limited) {
-        await localSettings.setAppMode(AppMode.localGallery);
-        localSettings.localGalleryModeEnabledThisSession = true;
-        Bus.instance.fire(AppModeChangedEvent());
-        await permissionService.onUpdatePermission(state);
-        SyncService.instance.onPermissionGranted().ignore();
-        Bus.instance.fire(PermissionGrantedEvent());
-        try {
-          await setMLConsent(true);
-          await MLService.instance.init();
-          await SemanticSearchService.instance.init();
-          unawaited(MLService.instance.runAllML(force: true));
-        } catch (e) {
-          _logger.severe("Failed to initialize ML after permission grant", e);
+      if (state.hasAccess) {
+        if (WidgetsBinding.instance.lifecycleState ==
+            AppLifecycleState.resumed) {
+          await _enterLocalGallery(state);
         }
+      } else if (wasDecidedBefore ||
+          permissionService.hasAttemptedPermission()) {
+        await PhotoManager.openSetting();
       } else {
-        await _showPermissionDeniedDialog();
+        await permissionService.setHasAttemptedPermission();
       }
     } catch (e) {
       _logger.severe("Failed to request permission: ${e.toString()}", e);
+    }
+  }
+
+  Future<void> _enterLocalGalleryIfPermitted() async {
+    if (!widget.startWithoutAccount ||
+        !localSettings.isLocalGalleryOnboardingPending) {
+      return;
+    }
+    try {
+      final state = await permissionService.getPermissionState();
+      if (state.hasAccess) {
+        await _enterLocalGallery(state);
+      }
+    } catch (e) {
+      _logger.severe("Failed to check permission: ${e.toString()}", e);
+    }
+  }
+
+  Future<void> _enterLocalGallery(PermissionState state) async {
+    if (!mounted || !widget.startWithoutAccount || _isEnteringLocalGallery) {
+      return;
+    }
+    _isEnteringLocalGallery = true;
+    try {
+      await localSettings.setAppMode(AppMode.localGallery);
+      localSettings.localGalleryModeEnabledThisSession = true;
+      try {
+        await setMLConsent(true);
+      } catch (e) {
+        _logger.severe("Failed to record ML consent after permission grant", e);
+      }
+      Bus.instance.fire(AppModeChangedEvent());
+      await permissionService.onUpdatePermission(state);
+      await localSettings.setLocalGalleryOnboardingPending(false);
+    } catch (e) {
+      _isEnteringLocalGallery = false;
+      rethrow;
+    }
+    SyncService.instance.onPermissionGranted().ignore();
+    Bus.instance.fire(PermissionGrantedEvent());
+    try {
+      await MLService.instance.init();
+      await SemanticSearchService.instance.init();
+      unawaited(MLService.instance.runAllML(force: true));
+    } catch (e) {
+      _logger.severe("Failed to initialize ML after permission grant", e);
     }
   }
 
@@ -239,16 +353,10 @@ class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget> {
   }
 
   Future<void> _showPermissionDeniedDialog() async {
-    final title = widget.startWithoutAccount
-        ? context.strings.grantPermission
-        : context.strings.allowPermTitle;
-    final message = widget.startWithoutAccount
-        ? context.strings.grantPermissionDesc
-        : context.strings.allowPermBody;
     await showAlertBottomSheet(
       context,
-      title: title,
-      message: message,
+      title: context.strings.allowPermTitle,
+      message: context.strings.allowPermBody,
       assetPath: 'assets/ducky_smart_feature.png',
       buttons: [
         ButtonWidgetV2(
@@ -278,34 +386,27 @@ class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget> {
 
   Widget _buildNewFeatureActionArea(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.xxl),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ButtonWidgetV2(
+          ButtonComponent(
             key: const ValueKey("selectFoldersButton"),
-            buttonType: ButtonTypeV2.primary,
-            labelText: context.strings.selectFoldersForBackup,
+            density: ButtonComponentDensity.compact,
+            label: context.strings.chooseAlbumsToBackup,
             onTap: _onTapSelectFolders,
           ),
-          const SizedBox(height: 12),
-          ButtonWidgetV2(
+          const SizedBox(height: Spacing.md),
+          ButtonComponent(
             key: const ValueKey("onlyNewPhotosButton"),
-            buttonType: ButtonTypeV2.secondary,
-            labelText: context.strings.startWithLatestPhotos,
+            variant: ButtonComponentVariant.secondary,
+            density: ButtonComponentDensity.compact,
+            label: context.strings.backupLatestPhotos,
             onTap: () async {
               _onlyNewActionDebouncer.run(() async {
                 await _onTapOnlyNewPhotos();
               });
             },
-            shouldSurfaceExecutionStates: false,
-          ),
-          const SizedBox(height: 12),
-          ButtonWidgetV2(
-            key: const ValueKey("skipForNowButton"),
-            buttonType: ButtonTypeV2.link,
-            labelText: context.strings.doThisLater,
-            onTap: _onTapSkip,
             shouldSurfaceExecutionStates: false,
           ),
         ],
@@ -349,7 +450,12 @@ class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const SizedBox(height: 32),
-                        _buildPermissionsAnimation(context),
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxHeight: MediaQuery.sizeOf(context).height * 0.2,
+                          ),
+                          child: _buildPermissionsAnimation(),
+                        ),
                         const Flexible(child: SizedBox(height: 22)),
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 297),
@@ -385,6 +491,7 @@ class _GrantPermissionsWidgetState extends State<GrantPermissionsWidget> {
                           variant: ButtonComponentVariant.neutral,
                           density: ButtonComponentDensity.compact,
                           label: context.strings.continueLabel,
+                          shouldShowSuccessState: false,
                           onTap: _onTapOfflineGrantPermission,
                         ),
                         const Flexible(child: SizedBox(height: 42)),

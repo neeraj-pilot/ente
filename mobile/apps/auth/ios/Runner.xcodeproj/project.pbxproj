@@ -91,7 +91,6 @@
 		D28AA20446BAC82150599AAF /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		D9C844C19969FB9CAF3EE558 /* Debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		DBA43EA2DD9A0551D4BE3E8F /* AuthWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AuthWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		EB8E322B6EC3249FB819215A /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F211A1D544CFA2F68CAED06B /* Pods-Runner.debug-production.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug-production.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug-production.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -137,7 +136,6 @@
 			children = (
 				6D4F0BD4488E79D6329081C7 /* AuthWatchApp.swift */,
 				90AF0EF908DF7E8DCE837C1D /* Assets.xcassets */,
-				EB8E322B6EC3249FB819215A /* Info.plist */,
 				0DFF145CC0B4CA2A490CB3B9 /* Watch.xcconfig */,
 				7E0DB72437FDEF358B1513C0 /* Release.xcconfig */,
 				D9C844C19969FB9CAF3EE558 /* Debug.xcconfig */,
@@ -145,7 +143,6 @@
 				27C89CB8FF08F9CDA6D8B678 /* Production.xcconfig */,
 				3C1ACCE81AF5BD09A7672B8A /* Debug-production.xcconfig */,
 			);
-			name = Watch;
 			path = Watch;
 			sourceTree = "<group>";
 		};
@@ -456,7 +453,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 27C89CB8FF08F9CDA6D8B678 /* Production.xcconfig */;
 			buildSettings = {
-				VALIDATE_PRODUCT = YES;
 			};
 			name = Production;
 		};
@@ -866,7 +862,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 8F18DC77E5FBD5BCD6B9C4A1 /* Profile.xcconfig */;
 			buildSettings = {
-				VALIDATE_PRODUCT = YES;
 			};
 			name = Profile;
 		};
@@ -881,7 +876,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7E0DB72437FDEF358B1513C0 /* Release.xcconfig */;
 			buildSettings = {
-				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -889,7 +883,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 3C1ACCE81AF5BD09A7672B8A /* Debug-production.xcconfig */;
 			buildSettings = {
-				VALIDATE_PRODUCT = YES;
 			};
 			name = "Debug-production";
 		};

@@ -275,7 +275,7 @@ export default Page;
 const isHTTP = (url: URL) => url.protocol.startsWith("http");
 
 const redirectToURL = (url: URL) => {
-    log.info(`Redirecting to ${url.href}`);
+    log.info("Redirecting after passkey authentication");
     window.location.href = url.href;
 };
 
@@ -469,9 +469,7 @@ const RedirectingApp: React.FC<RedirectingAppProps> = ({ onRetry }) => (
 );
 
 type LockerErrorCode =
-    | "LOCKER_REGISTRATION_DISABLED"
-    | "LOCKER_ROLLOUT_LIMIT"
-    | undefined;
+    "LOCKER_REGISTRATION_DISABLED" | "LOCKER_ROLLOUT_LIMIT" | undefined;
 
 interface LockerErrorPayload {
     code: string;

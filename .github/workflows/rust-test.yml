@@ -24,13 +24,8 @@ jobs:
             - name: Checkout
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-            - name: Free runner disk space
-              run: sudo rm -rf /usr/share/dotnet
-
-            - name: Install Linux dependencies
-              run: |
-                  sudo apt-get update
-                  sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libvulkan-dev glslc libdbus-1-dev dbus gnome-keyring libglib2.0-bin
+            - name: Setup Linux for Rust
+              uses: ./.github/actions/setup-rust-linux
 
             - name: Setup go
               uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -40,7 +35,7 @@ jobs:
 
             # Restore-only; primed on main by warm-caches.yml.
             - name: Restore Rust cache
-              uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+              uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
               with:
                   workspaces: rust
                   shared-key: rust-workspace
@@ -63,7 +58,7 @@ jobs:
                       ~/.cache/go-build
                       ~/.cache/.theseus/postgresql
 
-            - run: cargo test --locked --workspace --exclude ente-cli-next --features museum,ente-ml/ml-assets
+            - run: cargo test --locked --workspace --exclude ente-cli --features museum,ente-ml/ml-assets
               if: matrix.suite == 'workspace'
               # postgresql_embedded downloads its binaries from GitHub.
               # GITHUB_TOKEN raises the API rate limit for those downloads.
@@ -71,10 +66,10 @@ jobs:
                   GITHUB_TOKEN: ${{ github.token }}
 
             # Avoid unifying SQLCipher into other packages' SQLite tests.
-            - run: cargo test --locked -p ente-cli-next --features museum
+            - run: cargo test --locked -p ente-cli --features museum
               if: matrix.suite == 'cli'
               env:
                   GITHUB_TOKEN: ${{ github.token }}
 
-            - run: apps/cli-next/scripts/test-with-keyring-linux.sh --features museum
+            - run: apps/cli/scripts/test-with-keyring-linux.sh --features museum
               if: matrix.suite == 'cli'

@@ -15,7 +15,6 @@ import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
@@ -87,7 +86,8 @@ internal fun HomeNavigation(
                 HomeRoute.Settings -> {
                     SimpleTopBar(title = "Settings") { navController.popBackStack() }
                 }
-                HomeRoute.Notes -> {
+                HomeRoute.Notes,
+                HomeRoute.NotesSetup -> {
                     SimpleTopBar(title = "Your Notes") { navController.popBackStack() }
                 }
                 HomeRoute.Knowledge -> {
@@ -111,12 +111,24 @@ internal fun HomeNavigation(
                     popExitTransition = { backExit() },
                 ) {
                     ChatView(
-                        onVoiceInputJob = store::trackVoiceInput,
+                        voiceController = store.voiceController,
+                        onOpenVoiceInput = { value ->
+                            store.openVoiceInput(
+                                value.text,
+                                value.selection.min,
+                                value.selection.max,
+                                value.composition != null,
+                            )
+                        },
+                        onOpenPacks = { navController.navigate(HomeRoute.Knowledge) },
+                        onOpenNotes = { navController.navigate(HomeRoute.NotesSetup) },
+                        hasSeenSourceIntroduction = store.hasSeenSourceIntroduction(),
+                        onCompleteSourceIntroduction = store::completeSourceIntroduction,
+                        onRetrySources = store::retrySourceInventory,
                         chatState = appState.chat,
-                        assetStore = store.assetStore,
-                        transcriber = store.transcriber,
                         isDrawerOpen = drawerState.currentValue == DrawerValue.Open,
                         onMessageChange = store::updateMessageText,
+                        onComposerSelection = store::updateComposerSelection,
                         onSend = store::sendMessage,
                         onStop = store::stopGeneration,
                         onCancelDownload = store::cancelDownload,
@@ -159,14 +171,20 @@ internal fun HomeNavigation(
                         onSignIn = onSignIn,
                     )
                 }
-                composable(
-                    route = HomeRoute.Notes,
-                    enterTransition = { forwardEnter() },
-                    exitTransition = { forwardExit() },
-                    popEnterTransition = { backEnter() },
-                    popExitTransition = { backExit() },
-                ) {
-                    NotesSettingsScreen(store.notesStore)
+                listOf(HomeRoute.Notes, HomeRoute.NotesSetup).forEach { route ->
+                    composable(
+                        route = route,
+                        enterTransition = { forwardEnter() },
+                        exitTransition = { forwardExit() },
+                        popEnterTransition = { backEnter() },
+                        popExitTransition = { backExit() },
+                    ) {
+                        NotesSettingsScreen(
+                            store.notesStore,
+                            store::setPickerPending,
+                            allowRemoval = route == HomeRoute.Notes,
+                        )
+                    }
                 }
                 composable(
                     route = HomeRoute.Knowledge,
@@ -250,6 +268,7 @@ internal object HomeRoute {
     const val SystemPromptSettings = "system-prompt-settings"
     const val Knowledge = "knowledge"
     const val Notes = "notes"
+    const val NotesSetup = "notes-setup"
 }
 
 internal fun AnimatedContentTransitionScope<NavBackStackEntry>.forwardEnter() =

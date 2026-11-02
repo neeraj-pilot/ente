@@ -3,20 +3,24 @@ import {
     Box,
     Button,
     Checkbox,
-    Divider,
     FormControlLabel,
     FormGroup,
     Link,
     Stack,
     Typography,
 } from "@mui/material";
-import { RowButtonGroup, RowSwitch } from "ente-base/components/RowButton";
+import { EnteSwitch } from "ente-base/components/EnteSwitch";
 import { ActivityIndicator } from "ente-base/components/mui/ActivityIndicator";
 import { FocusVisibleButton } from "ente-base/components/mui/FocusVisibleButton";
 import {
     TitledNestedSidebarDrawer,
     type NestedSidebarDrawerVisibilityProps,
 } from "ente-base/components/mui/SidebarDrawer";
+import {
+    v2CancelButtonSx,
+    v2SubmitButtonSx,
+} from "ente-base/components/SingleInput.styles";
+import { RowCard } from "ente-base/components/v2/RowCard";
 import { useBaseContext } from "ente-base/context";
 import { useMLStatusSnapshot } from "ente-new/photos/components/utils/use-snapshot";
 import {
@@ -65,6 +69,7 @@ export const MLSettings: React.FC<NestedSidebarDrawerVisibilityProps> = ({
     return (
         <>
             <TitledNestedSidebarDrawer
+                maxWidth="440px"
                 {...{ open, onClose }}
                 onRootClose={handleRootClose}
                 title={t("ml_search")}
@@ -95,7 +100,7 @@ interface EnableMLProps {
     showMagicSearchHint?: boolean;
 }
 
-export const EnableML: React.FC<EnableMLProps> = ({
+const EnableML: React.FC<EnableMLProps> = ({
     onEnable,
     showMagicSearchHint,
 }) => {
@@ -103,8 +108,8 @@ export const EnableML: React.FC<EnableMLProps> = ({
         openURL("https://ente.com/help/photos/features/machine-learning");
 
     return (
-        <Stack sx={{ gap: "32px", py: "20px", px: 2 }}>
-            <Typography sx={{ color: "text.muted" }}>
+        <Stack sx={{ gap: 3, py: 1, px: 2 }}>
+            <Typography sx={{ color: "text.muted", px: 1 }}>
                 {t("ml_search_description")}
             </Typography>
             <Stack sx={{ gap: "8px" }}>
@@ -116,7 +121,7 @@ export const EnableML: React.FC<EnableMLProps> = ({
                 </Button>
             </Stack>
             {showMagicSearchHint && (
-                <Typography variant="small" sx={{ color: "text.faint" }}>
+                <Typography variant="small" sx={{ color: "text.faint", px: 1 }}>
                     {t("ml_search_footnote")}
                 </Typography>
             )}
@@ -140,11 +145,14 @@ const FaceConsentDrawer: React.FC<FaceConsentDrawerProps> = ({
 
     return (
         <TitledNestedSidebarDrawer
+            maxWidth="440px"
             {...{ open, onClose }}
             onRootClose={handleRootClose}
             title={t("ml_consent_title")}
         >
-            <FaceConsent onConsent={onConsent} onCancel={onClose} />
+            <Box sx={{ px: 3 }}>
+                <FaceConsent onConsent={onConsent} onCancel={onClose} />
+            </Box>
         </TitledNestedSidebarDrawer>
     );
 };
@@ -152,11 +160,13 @@ const FaceConsentDrawer: React.FC<FaceConsentDrawerProps> = ({
 interface FaceConsentProps {
     onConsent: () => void;
     onCancel: () => void;
+    submitting?: boolean;
 }
 
 export const FaceConsent: React.FC<FaceConsentProps> = ({
     onConsent,
     onCancel,
+    submitting = false,
 }) => {
     const [acceptTerms, setAcceptTerms] = useState(false);
 
@@ -174,8 +184,17 @@ export const FaceConsent: React.FC<FaceConsentProps> = ({
     );
 
     return (
-        <Stack sx={{ gap: "32px", py: "20px", px: "8px" }}>
-            <Typography component="div" sx={{ color: "text.muted", px: "8px" }}>
+        <Stack sx={{ gap: "20px" }}>
+            <Typography
+                component="div"
+                sx={{
+                    color: "text.muted",
+                    fontSize: 14,
+                    lineHeight: "20px",
+                    "& p:first-of-type": { mt: 0 },
+                    "& p:last-of-type": { mb: 0 },
+                }}
+            >
                 <Trans
                     i18nKey={"ml_consent_description"}
                     components={{ a: privacyPolicyLink }}
@@ -183,30 +202,41 @@ export const FaceConsent: React.FC<FaceConsentProps> = ({
             </Typography>
             <FormGroup sx={{ width: "100%" }}>
                 <FormControlLabel
-                    sx={{ color: "text.muted", ml: 0, mt: 2 }}
+                    sx={{ color: "text.muted", ml: 0 }}
+                    slotProps={{
+                        typography: {
+                            sx: { fontSize: 14, lineHeight: "20px" },
+                        },
+                    }}
                     control={
                         <Checkbox
                             size="small"
+                            sx={{ pl: 0 }}
                             checked={acceptTerms}
+                            disabled={submitting}
                             onChange={(e) => setAcceptTerms(e.target.checked)}
                         />
                     }
                     label={t("ml_consent_confirmation")}
                 />
             </FormGroup>
-            <Stack sx={{ gap: "8px", px: "8px" }}>
+            <Stack sx={{ gap: 1 }}>
                 <FocusVisibleButton
                     fullWidth
                     color="accent"
                     disabled={!acceptTerms}
+                    loading={submitting}
                     onClick={onConsent}
+                    sx={[v2SubmitButtonSx, { flex: "none" }]}
                 >
                     {t("ml_consent")}
                 </FocusVisibleButton>
                 <FocusVisibleButton
                     fullWidth
                     color="secondary"
+                    disabled={submitting}
                     onClick={onCancel}
+                    sx={[v2CancelButtonSx, { flex: "none" }]}
                 >
                     {t("cancel")}
                 </FocusVisibleButton>
@@ -258,52 +288,47 @@ const ManageML: React.FC<ManageMLProps> = ({ mlStatus, onDisableML }) => {
         });
 
     return (
-        <Stack sx={{ px: "16px", py: "20px", gap: 4 }}>
-            <Stack sx={{ gap: 3 }}>
-                <RowButtonGroup>
-                    <RowSwitch
-                        label={t("enabled")}
-                        checked={true}
-                        onClick={confirmDisableML}
+        <Stack sx={{ px: 2, py: 1, gap: 1 }}>
+            <RowCard
+                title={t("enabled")}
+                endIcon={
+                    <EnteSwitch
+                        checked
+                        onChange={confirmDisableML}
+                        slotProps={{ input: { "aria-label": t("enabled") } }}
                     />
-                </RowButtonGroup>
-            </Stack>
-
-            <Stack>
-                <Stack
-                    direction="row"
-                    sx={{
-                        gap: 2,
-                        px: 2,
-                        pt: 1,
-                        pb: 2,
-                        justifyContent: "space-between",
-                    }}
-                >
-                    <Typography sx={{ color: "text.faint" }}>
+                }
+            />
+            <RowCard
+                title={
+                    <Typography
+                        component="span"
+                        sx={{ color: "text.faint", pl: 1 }}
+                    >
                         {t("indexing")}
                     </Typography>
-                    <Typography>{status}</Typography>
-                </Stack>
-                <Divider sx={{ mx: 1.5 }} />
-                <Stack
-                    direction="row"
-                    sx={{
-                        gap: 2,
-                        px: 2,
-                        pt: 2,
-                        pb: 1,
-                        justifyContent: "space-between",
-                    }}
-                >
-                    <Typography sx={{ color: "text.faint" }}>
+                }
+                endIcon={
+                    <Typography sx={{ textAlign: "right" }}>
+                        {status}
+                    </Typography>
+                }
+            />
+            <RowCard
+                title={
+                    <Typography
+                        component="span"
+                        sx={{ color: "text.faint", pl: 1 }}
+                    >
                         {t("processed")}
                     </Typography>
+                }
+                endIcon={
                     <Typography sx={{ textAlign: "right" }}>
                         {processed}
                     </Typography>
-                </Stack>
-            </Stack>
+                }
+            />
         </Stack>
     );
 };

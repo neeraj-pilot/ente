@@ -20,26 +20,50 @@ Documents let you upload and store files securely with end-to-end encryption. St
 
 ## Scanning a document
 
+<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+
+![Document row in Save to Locker menu](https://docs-assets.ente.com/screenshots/locker-document-row-callout.png){width=320px}
+
+![Auto mode control highlighted on Ente Locker Android document scanner](https://docs-assets.ente.com/screenshots/locker-document-scanner-auto-callout.png){width=320px}
+
+</div>
+
 Document scanning is available in the Locker mobile app on Android and iOS.
 
 1. Tap the camera button on the home screen
 2. Point the camera at the page. Keep **Auto** enabled for automatic capture, or switch to **Manual** and tap the shutter button
 3. Repeat for any additional pages, then tap the check-mark button
-4. Review the scan. You can adjust the crop, rotate or delete pages, add another page, and rename the PDF
+4. Review the scan. You can adjust the crop, rotate or delete pages, retake a page, add another page, and rename the PDF
 5. Tap **Save to Ente**
 6. Select one or more collections, or leave them unselected to save to **Uncategorized**
 7. Tap **Save**
 
 Locker combines all scanned pages into one PDF before uploading it.
 
+To retake a page, select it in the review screen and tap the retake icon. Take a new photo of that page. The other pages stay as they are.
+
 ## Uploading an existing file
+
+![Locker home after uploading a file (insurance-sample.jpg) on Ente Locker Android](https://docs-assets.ente.com/screenshots/locker-after-file.png){width=320px}
 
 1. Open Ente Locker
 2. Tap the **+** button
 3. Select **File**
 4. Choose one or more files from your device
-5. Select one or more collections, or leave them unselected to save to **Uncategorized**
-6. Tap **Save**
+5. To rename a file, open the menu beside its name and select **Rename**. Enter a new name and tap **Save**
+6. Select one or more collections, or leave them unselected to save to **Uncategorized**
+7. Tap **Save** to upload
+
+Renaming a file here changes its name in Locker. The original file on your device keeps its name.
+
+### Sharing files into Locker on Android
+
+1. In another app, select one or more files
+2. Tap **Share** and choose **Ente Locker**
+3. Review the files and choose the collections to save them to, or leave collections unselected to use **Uncategorized**
+4. Tap **Save**
+
+Locker shows a warning if the same file was shared twice or a file cannot be opened. You can still upload the other files.
 
 ## Supported file formats
 
@@ -55,7 +79,11 @@ Check the app for the complete list of supported formats.
 
 ### Secure viewing
 
-View your uploaded documents directly within the app. Documents are decrypted on your device for viewing and remain encrypted in storage.
+Tap an uploaded image to open it directly in the Locker mobile app. Pinch or double-tap to zoom, and drag to move around a zoomed image.
+
+If an image cannot be displayed, use the option to open it in another app. PDFs and other document types open in a compatible app on your device.
+
+Files are decrypted on your device for viewing and remain encrypted in storage.
 
 ### Document details
 

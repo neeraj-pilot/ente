@@ -1,7 +1,9 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use ente_accounts::auth::{SrpSession, generate_srp_setup_with_login_key};
 use ente_accounts::{AccountsClient, AccountsClientConfig, KeyAttributes, models::SetupSrpRequest};
-use ente_core::b64;
 use ente_core::crypto::{Key, SecretKey, kdf, secretbox};
+use ente_core::{b64, otp};
 use uuid::Uuid;
 
 use crate::{HARDCODED_OTT, HARDCODED_OTT_EMAIL_SUFFIX, TestResult};
@@ -10,7 +12,7 @@ pub const PASSWORD: &str = "museum-account-fixture-password";
 // Argon2id(PASSWORD, 16 × 0x4d, 256 MiB, 16 ops).
 pub const KEK: &str = "EwUWye3Qiu3bep2oujaO8oJvUgIdn0DSOk2g0oZ+AWs=";
 pub const KEK_SALT: &str = "TU1NTU1NTU1NTU1NTU1NTQ==";
-pub const MEM_LIMIT: u32 = 268_435_456;
+pub const MEM_LIMIT: u64 = 268_435_456;
 pub const OPS_LIMIT: u32 = 16;
 
 #[derive(Debug, Clone)]
@@ -35,7 +37,7 @@ pub async fn create_account(endpoint: &str, email_prefix: &str) -> TestResult<Te
             .with_origin(endpoint.to_string())
             .with_user_agent("ente-tests"),
     )?;
-    client.send_otp(&email, "signup").await?;
+    client.send_otp(&email, "signup", false).await?;
     let verification = client
         .verify_email(&email, HARDCODED_OTT, Some("testAccount"))
         .await?;
@@ -109,6 +111,16 @@ pub async fn create_account(endpoint: &str, email_prefix: &str) -> TestResult<Te
         secret_key: secret_key.as_bytes().to_vec(),
         key_attributes,
     })
+}
+
+pub fn current_totp(secret: &str) -> TestResult<String> {
+    Ok(otp::totp(
+        &otp::decode_secret(secret)?,
+        SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+        30,
+        6,
+        otp::Algorithm::Sha1,
+    )?)
 }
 
 fn pad_left(data: &[u8], len: usize) -> Vec<u8> {

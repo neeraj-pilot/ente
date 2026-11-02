@@ -15,6 +15,7 @@ interface GalleryItemsSummaryProps {
     descriptionMaxWidth?: number;
     nameProps?: TypographyProps;
     fileCount: number;
+    countLabel?: string;
     endIcon?: React.ReactNode;
     // This cannot be the only way to invoke the action; it is mouse-only.
     onNameClick?: () => void;
@@ -27,12 +28,30 @@ export const GalleryItemsSummary: React.FC<GalleryItemsSummaryProps> = ({
     descriptionMaxWidth,
     nameProps,
     fileCount,
+    countLabel,
     endIcon,
     onNameClick,
     onDescriptionHeightChange,
 }) => (
     <Box sx={{ minWidth: 0 }}>
-        <Typography variant="h3" {...(nameProps ?? {})} onClick={onNameClick}>
+        <Typography
+            variant="h3"
+            {...(nameProps ?? {})}
+            sx={[
+                {
+                    fontFamily: '"Outfit Variable", Outfit, sans-serif',
+                    fontWeight: 600,
+                    fontSize: "24px",
+                    lineHeight: "32px",
+                },
+                ...(nameProps?.sx
+                    ? isSxArray(nameProps.sx)
+                        ? nameProps.sx
+                        : [nameProps.sx]
+                    : []),
+            ]}
+            onClick={onNameClick}
+        >
             {name}
         </Typography>
 
@@ -41,11 +60,20 @@ export const GalleryItemsSummary: React.FC<GalleryItemsSummaryProps> = ({
             sx={{
                 gap: 1.5,
                 // Keep the header height stable without an end icon.
-                minHeight: "24px",
+                minHeight: "20px",
+                mt: "2px",
             }}
         >
-            <Typography variant="small" sx={{ color: "text.muted" }}>
-                {t("photos_count", { count: fileCount })}
+            <Typography
+                variant="small"
+                sx={{
+                    color: "text.muted",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    lineHeight: "20px",
+                }}
+            >
+                {countLabel ?? t("photos_count", { count: fileCount })}
             </Typography>
             {endIcon && (
                 <Box sx={{ svg: { fontSize: "17px", color: "text.muted" } }}>
@@ -138,3 +166,14 @@ export const GalleryItemsHeaderAdapter = styled("div")`
     width: 100%;
     margin-bottom: 12px;
 `;
+
+export const GalleryItemsCoverTile = styled("div")({
+    width: 54,
+    height: 54,
+    flexShrink: 0,
+    borderRadius: 12,
+    overflow: "hidden",
+    position: "relative",
+    alignSelf: "flex-start",
+    "& > img": { width: "100%", height: "100%", objectFit: "cover" },
+});

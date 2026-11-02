@@ -1,4 +1,4 @@
-import AuthNative
+import AuthCore
 import SwiftUI
 
 @main
@@ -36,7 +36,7 @@ private struct WatchHome: View {
             }
           }
           if companion.status.enrollment == nil {
-            Text("Keep selected codes on this watch. A watch passcode is required.")
+            Text("Keep codes on this watch for offline use. A watch passcode is required.")
             Button("Set up watch", action: companion.enroll)
               .tint(WatchStyle.accent)
               .disabled(!companion.canEnroll)
@@ -46,7 +46,7 @@ private struct WatchHome: View {
           } else if !companion.status.active {
             Text("On your iPhone, open Ente Auth → Settings → General → Watch to approve.")
           } else if companion.entries.isEmpty {
-            Text("Select accounts in Auth on your iPhone.")
+            Text("No shared accounts yet. Open Watch settings in Auth on your iPhone.")
           }
           ForEach(companion.entries) { entry in
             NavigationLink(value: entry.id) {

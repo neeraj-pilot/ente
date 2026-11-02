@@ -169,7 +169,7 @@ impl MlStore {
             }),
             (true, _) | (false, FillState::Stale) => {
                 state::mark_stale(&self.db, index)?;
-                self.with_index(index, VecDb::reset)?;
+                self.index_write(index, VecDb::reset)?;
                 state::mark_filling(&self.db, index)?;
                 Ok(Start::Fresh)
             }
@@ -425,7 +425,11 @@ mod tests {
         store.db().set_meta("clip.fill", "filling").unwrap();
         store.db().set_meta("clip.cursor", "3").unwrap();
         assert!(matches!(store.fill_clip_index(false), Err(Error::Index(_))));
-        assert_eq!(store.fill_state(Index::Clip).unwrap(), FillState::Filling);
+        assert!(matches!(
+            store.fill_state(Index::Clip),
+            Err(Error::Index(_))
+        ));
+        assert_eq!(meta(&store, "clip.fill").as_deref(), Some("filling"));
         assert_eq!(meta(&store, "clip.cursor").as_deref(), Some("3"));
     }
 

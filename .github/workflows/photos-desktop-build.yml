@@ -100,7 +100,7 @@ jobs:
                   ref: ${{ needs.build-metadata.outputs.commit_sha }}
 
             - name: Setup node
-              uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
                   cache: "npm"
@@ -110,26 +110,13 @@ jobs:
               run: npm ci
 
             - name: Setup Rust cache
-              uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+              uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
               with:
                   workspaces: rust
                   shared-key: rust-desktop
 
             - name: Fetch binary dependencies and rebuild native modules
               run: npm run postinstall
-
-            - name: Create universal ffmpeg binaries for macOS
-              if: startsWith(matrix.os, 'macos')
-              # ffmpeg-static ships each macOS architecture separately; combine them with lipo.
-              run: |
-                  rm -f node_modules/ffmpeg-static/ffmpeg
-                  npm_config_arch=arm64 node node_modules/ffmpeg-static/install.js
-                  mv node_modules/ffmpeg-static/ffmpeg ffmpeg-arm64
-                  npm_config_arch=x64 node node_modules/ffmpeg-static/install.js
-                  mv node_modules/ffmpeg-static/ffmpeg ffmpeg-x64
-                  lipo -create ffmpeg-arm64 ffmpeg-x64 -output node_modules/ffmpeg-static/ffmpeg
-                  rm ffmpeg-arm64 ffmpeg-x64
-                  file node_modules/ffmpeg-static/ffmpeg
 
             - name: Install libarchive-tools for pacman build
               if: startsWith(matrix.os, 'ubuntu')
@@ -140,7 +127,7 @@ jobs:
 
             - name: Mint nightly token
               id: nightly_token
-              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+              uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
               with:
                   client-id: ${{ secrets.ENTE_CI_GH_CLIENT_ID }}
                   private-key: ${{ secrets.ENTE_CI_GH_APP_PRIVATE_KEY }}
@@ -177,11 +164,6 @@ jobs:
                   AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
                   # Allow rebuilds to keep updating the rolling RC draft.
                   EP_GH_IGNORE_TIME: true
-                  # Workaround recommended in
-                  # https://github.com/electron-userland/electron-builder/issues/3179
-                  USE_HARD_LINKS: false
-                  # TODO: Remove when updating to the next electron-builder version.
-                  ELECTRON_BUILDER_7Z_FILTER: BCJ
 
             - name: Upload to nightly
               uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0

@@ -56,7 +56,6 @@ class WatchActivity : Activity() {
             val metrics = resources.displayMetrics
             val horizontal = (metrics.widthPixels * 0.052f).toInt()
             val vertical = (metrics.heightPixels * 0.12f).toInt()
-            // Let the last row or wrapped identity scroll into the round screen's wider center.
             setPadding(horizontal, vertical, horizontal, (metrics.heightPixels * 0.35f).toInt())
         }
         scroll = ScrollView(this).apply {
@@ -161,7 +160,6 @@ class WatchActivity : Activity() {
         }
 
         override fun update() {
-            // Status changes preserve account views, scroll position, and accessibility focus.
             if (entries != state.entries) {
                 rows.removeAllViews()
                 state.entries.forEach { rows.addSpaced(accountRow(it)) }

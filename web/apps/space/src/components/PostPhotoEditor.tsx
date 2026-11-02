@@ -4,6 +4,7 @@ import { Box, Dialog } from "@mui/material";
 import { SpacePostPhotoInput } from "components/PostPhotoInput";
 import { SpacePostPhotoStrip } from "components/PostPhotoStrip";
 import { SpacePostVideoEditor } from "components/PostVideoEditor";
+import { SpaceVideoError } from "components/VideoError";
 import { SpacePhotoCrop } from "components/photo-crop/PhotoCrop";
 import {
     cropWithAspect,
@@ -14,6 +15,12 @@ import {
 import log from "ente-base/log";
 import { useBrowserBackClose } from "hooks/use-browser-back-close";
 import React from "react";
+import {
+    spaceControlBackgroundHover,
+    spaceSurface,
+    spaceText,
+    spaceTextMuted,
+} from "styles/colors";
 import {
     spacePostPreviewImageFromEdit,
     type SpacePostPhotoEdit,
@@ -30,10 +37,12 @@ export interface SpaceEditablePostPhoto {
     height: number;
     isLoading?: boolean;
     preparationError?: string;
+    isVideo?: boolean;
     edit?: SpacePostPhotoEdit;
     video?: {
         file: File;
         sourceURL: string;
+        startTime: number;
         duration: number;
         edit: SpacePostVideoEdit;
     };
@@ -74,7 +83,6 @@ const buttonSx = {
 export const SpacePostPhotoEditor: React.FC<{
     photos: SpaceEditablePostPhoto[];
     initialIndex: number;
-    showPhotoStrip: boolean;
     onAdd: (files: File[]) => void;
     onClose: () => void;
     onDone: (
@@ -82,14 +90,7 @@ export const SpacePostPhotoEditor: React.FC<{
         activeIndex: number,
         photoIDs: number[],
     ) => void;
-}> = ({
-    photos: initialPhotos,
-    initialIndex,
-    showPhotoStrip,
-    onAdd,
-    onClose,
-    onDone,
-}) => {
+}> = ({ photos: initialPhotos, initialIndex, onAdd, onClose, onDone }) => {
     const [photos, setPhotos] = React.useState(initialPhotos);
     const [activeID, setActiveID] = React.useState(
         initialPhotos[initialIndex]!.id,
@@ -112,6 +113,7 @@ export const SpacePostPhotoEditor: React.FC<{
         (photo) => photo.preparationError,
     )?.preparationError;
     const isPreparing = photos.some((photo) => photo.isLoading);
+    const showPhotoStrip = photos.length > 1;
     const aspectIndex = aspects.findIndex(({ value }) => value == edit.aspect);
     const size = rotatedImageSize(photo, edit.rotationDegrees);
     const crop = edit.cropArea ?? fullImageCrop(size);
@@ -224,7 +226,7 @@ export const SpacePostPhotoEditor: React.FC<{
                 paper: {
                     sx: {
                         bgcolor: "#000000",
-                        color: "#F2F2F2",
+                        color: spaceText,
                         backgroundImage: "none",
                         height: "100dvh",
                         fontFamily: '"Inter Variable", Inter, sans-serif',
@@ -243,8 +245,9 @@ export const SpacePostPhotoEditor: React.FC<{
                     alignItems: "center",
                     display: "grid",
                     gridTemplateColumns: "1fr auto 1fr",
-                    px: "16px",
-                    pt: "max(6px, env(safe-area-inset-top))",
+                    pl: "max(16px, calc(var(--space-ios-safe-area-left, 0px) + 12px))",
+                    pr: "max(16px, var(--space-ios-safe-area-right, 0px))",
+                    pt: "max(calc(6px + var(--space-ios-safe-area-top, 0px)), env(safe-area-inset-top))",
                     pb: "6px",
                     flexShrink: 0,
                 }}
@@ -256,9 +259,10 @@ export const SpacePostPhotoEditor: React.FC<{
                     onClick={onClose}
                     sx={{
                         ...buttonSx,
+                        color: "#C0C0C0",
                         justifySelf: "start",
                         width: 44,
-                        ml: "-16px",
+                        ml: "-12px",
                         p: 0,
                     }}
                 >
@@ -270,27 +274,9 @@ export const SpacePostPhotoEditor: React.FC<{
                 </Box>
                 <Box
                     id="space-photo-editor-title"
-                    sx={{
-                        alignItems: "center",
-                        display: "flex",
-                        gap: "8px",
-                        fontSize: 14,
-                        fontWeight: 600,
-                    }}
+                    sx={{ fontSize: 14, fontWeight: 600 }}
                 >
                     Edit
-                    {photos.length > 1 && (
-                        <Box
-                            component="span"
-                            sx={{
-                                color: "#A6A6A6",
-                                fontSize: 12,
-                                fontWeight: 500,
-                            }}
-                        >
-                            {activeIndex + 1} / {photos.length}
-                        </Box>
-                    )}
                 </Box>
                 <Box
                     component="button"
@@ -300,12 +286,7 @@ export const SpacePostPhotoEditor: React.FC<{
                     }
                     aria-busy={isSaving}
                     onClick={() => void save()}
-                    sx={{
-                        ...buttonSx,
-                        justifySelf: "end",
-                        borderRadius: "999px",
-                        p: 0,
-                    }}
+                    sx={{ ...buttonSx, justifySelf: "end", p: 0 }}
                 >
                     <Box
                         component="span"
@@ -345,13 +326,39 @@ export const SpacePostPhotoEditor: React.FC<{
                             photo.isLoading ? "Preparing preview" : undefined
                         }
                         aria-busy={photo.isLoading || undefined}
-                        sx={{ width: "100%", height: "100%" }}
-                    />
+                        sx={{
+                            width: "100%",
+                            height: "100%",
+                            display: "grid",
+                            placeItems: "center",
+                        }}
+                    >
+                        {photo.preparationError && (
+                            <Box sx={{ maxWidth: 300, p: "24px" }}>
+                                {photo.isVideo ? (
+                                    <SpaceVideoError
+                                        message={photo.preparationError}
+                                    />
+                                ) : (
+                                    <Box
+                                        role="alert"
+                                        sx={{
+                                            textAlign: "center",
+                                            textWrap: "balance",
+                                        }}
+                                    >
+                                        {photo.preparationError}
+                                    </Box>
+                                )}
+                            </Box>
+                        )}
+                    </Box>
                 ) : photo.video ? (
                     <SpacePostVideoEditor
                         key={photo.id}
                         file={photo.video.file}
                         sourceURL={photo.video.sourceURL}
+                        startTime={photo.video.startTime}
                         duration={photo.video.duration}
                         edit={videoEdits[photo.id] ?? photo.video.edit}
                         onChange={(next) =>
@@ -383,18 +390,14 @@ export const SpacePostPhotoEditor: React.FC<{
                     alignItems: "center",
                     gap: "12px",
                     px: "12px",
-                    pt:
-                        photo.video &&
-                        (error || preparationError || showPhotoStrip)
-                            ? "12px"
-                            : 0,
+                    pt: photo.video && (error || showPhotoStrip) ? "12px" : 0,
                     pb: "max(16px, env(safe-area-inset-bottom))",
                     flexShrink: 0,
                 }}
             >
-                {(error || preparationError) && (
+                {error && (
                     <Box role="alert" sx={{ color: "#FF8A8A", fontSize: 13 }}>
-                        {error || preparationError}
+                        {error}
                     </Box>
                 )}
                 {!photo.video && photo.imageURL && (
@@ -435,7 +438,7 @@ export const SpacePostPhotoEditor: React.FC<{
                                           : undefined,
                                 });
                             }}
-                            sx={{ ...buttonSx, bgcolor: "#1C1C1E", p: 0 }}
+                            sx={{ ...buttonSx, bgcolor: spaceSurface, p: 0 }}
                         >
                             <HugeiconsIcon
                                 icon={RotateTopRightIcon}
@@ -449,7 +452,7 @@ export const SpacePostPhotoEditor: React.FC<{
                             sx={{
                                 position: "relative",
                                 display: "flex",
-                                bgcolor: "#1C1C1E",
+                                bgcolor: spaceSurface,
                                 borderRadius: "999px",
                                 px: "4px",
                             }}
@@ -463,7 +466,7 @@ export const SpacePostPhotoEditor: React.FC<{
                                     bottom: 4,
                                     left: 4,
                                     width: `calc((100% - 8px) / ${aspects.length})`,
-                                    bgcolor: "#3A3A3C",
+                                    bgcolor: spaceControlBackgroundHover,
                                     borderRadius: "999px",
                                     pointerEvents: "none",
                                     transform: `translateX(${aspectIndex * 100}%)`,
@@ -503,7 +506,7 @@ export const SpacePostPhotoEditor: React.FC<{
                                         color:
                                             edit.aspect == value
                                                 ? "#FFFFFF"
-                                                : "#A6A6A6",
+                                                : spaceTextMuted,
                                     }}
                                 >
                                     {label}
@@ -518,7 +521,7 @@ export const SpacePostPhotoEditor: React.FC<{
                             onClick={() => updateEdit(originalEdit)}
                             sx={{
                                 ...buttonSx,
-                                bgcolor: "#1C1C1E",
+                                bgcolor: spaceSurface,
                                 fontSize: 13,
                                 px: "16px",
                                 py: 0,
@@ -548,6 +551,8 @@ export const SpacePostPhotoEditor: React.FC<{
                                 id: photo.id,
                                 imageUrl: photo.previewURL,
                                 isLoading: photo.isLoading,
+                                hasError: Boolean(photo.preparationError),
+                                isVideo: photo.isVideo,
                                 durationMs: photo.video
                                     ? photo.video.duration * 1000
                                     : undefined,

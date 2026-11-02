@@ -67,11 +67,7 @@ export interface FileViewerPhotoSwipeDelegate<
     shouldIgnoreKeyboardEvent: (event: KeyboardEvent) => boolean;
     performKeyAction: (
         action:
-            | "delete"
-            | "toggle-archive"
-            | "copy"
-            | "toggle-fullscreen"
-            | "help",
+            "delete" | "toggle-archive" | "copy" | "toggle-fullscreen" | "help",
     ) => void;
 }
 
@@ -80,6 +76,7 @@ export interface FileViewerPhotoSwipeCoreOptions<
         FileViewerPhotoSwipeAnnotatedFile,
 > {
     initialIndex: number;
+    autoPlayMutedVideos?: boolean;
     showFullscreenButton?: boolean;
     disableEscapeClose?: boolean;
     disableGestureClose?: boolean;
@@ -114,6 +111,7 @@ export class FileViewerPhotoSwipe<
 
     constructor({
         initialIndex,
+        autoPlayMutedVideos = false,
         haveUser,
         isPublicAlbum,
         publicAlbumLogoHTML,
@@ -235,6 +233,16 @@ export class FileViewerPhotoSwipe<
                 } else {
                     const i = newIndex;
 
+                    // New files can make an empty neighbour navigable. goTo
+                    // emits change before the refresh below, so fill it first.
+                    pswp.mainScroll.itemHolders.forEach((holder, offset) => {
+                        if (!holder.slide)
+                            pswp.setContent(
+                                holder,
+                                pswp.currIndex + offset - 1,
+                            );
+                    });
+
                     pswp.goTo(i);
                     _currentAnnotatedFile = undefined;
                     pswp.refreshSlideContent(i);
@@ -274,14 +282,18 @@ export class FileViewerPhotoSwipe<
                     const mcID = `ente-mc-hls-${file.id}`;
                     return {
                         ...itemData,
-                        html: hlsVideoHTML(videoPlaylistURL, mcID),
+                        html: hlsVideoHTML(
+                            videoPlaylistURL,
+                            mcID,
+                            autoPlayMutedVideos,
+                        ),
                         mediaControllerID: mcID,
                     };
                 } else if (videoURL) {
                     const mcID = `ente-mc-orig-${file.id}`;
                     return {
                         ...itemData,
-                        html: videoHTML(videoURL, mcID),
+                        html: videoHTML(videoURL, mcID, autoPlayMutedVideos),
                         mediaControllerID: mcID,
                     };
                 }
@@ -304,8 +316,7 @@ export class FileViewerPhotoSwipe<
         let livePhotoPlayInitial = true;
 
         let livePhotoPlayInitialEndedEvent:
-            | { listener: () => void; video: HTMLVideoElement }
-            | undefined;
+            { listener: () => void; video: HTMLVideoElement } | undefined;
 
         let livePhotoMute = true;
 
@@ -457,8 +468,7 @@ export class FileViewerPhotoSwipe<
         };
 
         let fullscreenUIControlsHideTimer:
-            | ReturnType<typeof setTimeout>
-            | undefined;
+            ReturnType<typeof setTimeout> | undefined;
 
         let areFullscreenUIControlsHiddenByShortcut = false;
 
@@ -614,6 +624,16 @@ export class FileViewerPhotoSwipe<
             if (document.querySelector("media-settings-menu:not([hidden])"))
                 toggleMediaChromeSettingsMenu();
         };
+
+        pswp.on("contentAppendImage", ({ content }) => {
+            const image = content.element;
+            if (!(image instanceof HTMLImageElement)) return;
+
+            void image.decode().then(
+                () => image.classList.add("ente-image-decoded"),
+                () => undefined,
+            );
+        });
 
         pswp.on("contentAppend", (e) => {
             // PhotoSwipe can emit this later for content it already detached.
@@ -1647,15 +1667,23 @@ export class FileViewerPhotoSwipe<
     refreshCurrentSlideCommentCountIfNeeded: () => void;
 }
 
-const hlsVideoHTML = (url: string, mediaControllerID: string) => `
+const hlsVideoHTML = (
+    url: string,
+    mediaControllerID: string,
+    autoPlayMuted: boolean,
+) => `
 <media-controller id="${mediaControllerID}" nohotkeys>
-  <hls-video playsinline slot="media" src="${url}"></hls-video>
+  <hls-video ${autoPlayMuted ? "autoplay muted" : ""} playsinline slot="media" src="${url}"></hls-video>
 </media-controller>
 `;
 
-const videoHTML = (url: string, mediaControllerID: string) => `
+const videoHTML = (
+    url: string,
+    mediaControllerID: string,
+    autoPlayMuted: boolean,
+) => `
 <media-controller class="ente-vanilla-video" id="${mediaControllerID}" nohotkeys>
-  <video playsinline slot="media" src="${url}"></video>
+  <video ${autoPlayMuted ? "autoplay muted" : ""} playsinline slot="media" src="${url}"></video>
 </media-controller>
 `;
 

@@ -1,4 +1,22 @@
 {
+  "bringMemoriesTogether": "Hozd össze az emlékeidet",
+  "@bringMemoriesTogether": {
+    "description": "Title on the Local Gallery photo permission screen"
+  },
+  "createMyAccount": "Fiókom létrehozésa",
+  "@createMyAccount": {
+    "description": "Create account button on the Photos onboarding screen"
+  },
+  "localGalleryPermissionDesc": "Megadod az engedélyt, hogy hozzáférjen és rendezze a fotóidat arcfelismeréssel, teljes mértékben az eszközödön feldolgozva.",
+  "@localGalleryPermissionDesc": {
+    "description": "Photo permission explanation shown during Local Gallery onboarding"
+  },
+  "onboardingOrganizeDesc": "Rendezd a fotóidat és videóidat. Minden emlék, egy helyen.",
+  "@onboardingOrganizeDesc": {
+    "description": "Description on the Photos onboarding screen"
+  },
+  "wallpaper": "Háttérkép",
+  "setWallpaper": "Háttérkép beállítása",
   "about": "Rólunk",
   "account": "Fiók",
   "accountCredentials": "Titkos kód",
@@ -32,10 +50,7 @@
   "after1Day": "1 nap múlva",
   "albumLayout": "Albumelrendezés",
   "albums": "Album",
-  "albumsOnEnteEmptyFeatureAccessAnyDevice": "Férj hozzá bármilyen eszközön",
-  "albumsOnEnteEmptyFeaturePrivacy": "Teljes biztonság végpontok közötti titkosítással",
   "albumsOnEnteEmptyTitle": "Mentsd el az emlékeid",
-  "albumsReceivedEmptyFeatureSharedByOthers": "A mások által megosztott albumok itt fognak megjelenni",
   "albumsSharedEmptyTitle": "Emlékeid megosztása",
   "albumUpdated": "Album módosítva",
   "algorithm": "Algoritmus",
@@ -947,7 +962,6 @@
   "mlConsent": "Gépi tanulás engedélyezése",
   "mlConsentConfirmation": "Értem, és szeretném engedélyezni a gépi tanulást",
   "mlConsentDescription": "Ha engedélyezi a gépi tanulást, az Ente olyan információkat fog kinyerni, mint az arc geometriája, a fájlokból, beleértve azokat is, amelyeket Önnel megosztott.\n\nEz az Ön eszközén fog megtörténni, és minden generált biometrikus információ végponttól végpontig titkosítva lesz.",
-  "mlConsentPrivacy": "Kérjük, kattintson ide az adatvédelmi irányelveinkben található további részletekért erről a funkcióról",
   "mlIndexingDescription": "Fontos: a gépi tanulás a feldolgozás végéig megnövelt adatforgalmat és akkumulátorhasználatot eredményez. Gyorsabb feldolgozáshoz érdemes az asztali alkalmazást használni; az eredmények automatikusan szinkronizálódnak.",
   "moderateStrength": "Közepes",
   "@moderateStrength": {
@@ -1344,7 +1358,6 @@
   "selectFile": "Fájl kiválasztása",
   "selectFolder": "Válassz mappát",
   "selectFolders": "Mappák kiválasztása",
-  "selectFoldersForBackup": "Mappák kiválasztása biztonsági mentéshez",
   "selectFolderToContinue": "Válassz ki egy mappát a folytatáshoz",
   "selectLanguage": "Nyelv kiválasztása",
   "selectTime": "Ido kivalasztasa",
@@ -1467,7 +1480,6 @@
     "description": "Detailed error message when code is incorrect"
   },
   "startBackup": "Mentés elkezdése",
-  "startWithLatestPhotos": "Kezdés a legújabb fotókkal",
   "status": "Állapot",
   "storageAndPlans": "Tárhely és csomagok",
   "storageAndPlansDesc": "Csomagok, számlázás és tárhelyhasználat",

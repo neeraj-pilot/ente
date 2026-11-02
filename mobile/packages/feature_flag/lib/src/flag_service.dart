@@ -54,8 +54,6 @@ class FlagService {
     return (flags.internalUser || kDebugMode) && !isDisabled;
   }
 
-  bool get offlineLinkSharing => internalUser;
-
   bool get librarySharing =>
       internalUser || _isServerFlagEnabled(_librarySharingFlag);
 
@@ -86,10 +84,9 @@ class FlagService {
 
   bool get usearchForSuggestions => true;
 
-  // Kept false until the heavy ML DB queries no longer round-trip data between
-  // Rust and Dart. Then internal users; then everyone, once no heavy queries
-  // run in Dart at all and internal users have soaked it for a while.
-  bool get rustMlDb => false;
+  // Internal users only for now. Everyone once no heavy ML DB queries run in
+  // Dart anymore and internal users have soaked it for a while.
+  bool get rustMlDb => internalUser;
 
   String get castUrl => flags.castUrl;
 
@@ -101,10 +98,10 @@ class FlagService {
 
   bool get videoEditorSpeedEnabled => internalUser;
 
+  bool get progressiveOriginalVideoPlayback => internalUser;
+
   bool get facesTimeline => true;
   bool get ritualsFlag => true;
-
-  bool get stopStreamProcess => true;
 
   bool get streamEnabledByDefault => _isServerFlagEnabled(_videoStreamingFlag);
 
@@ -116,8 +113,6 @@ class FlagService {
 
   bool get isSocialEnabled =>
       internalUser || _isServerFlagEnabled(_commentsFlag);
-
-  bool get enableMemoryShareLink => true;
 
   bool get enableMLInBackground => true;
 

@@ -11,6 +11,8 @@ Ente provides automatic, continuous backup of your photos and videos with end-to
 
 ### Mobile backup (iOS and Android)
 
+![Backup settings hub with Backed up folders Backup status and Backup settings on Ente Photos mobile](https://docs-assets.ente.com/screenshots/phone-backup-hub.png){width=320px}
+
 Ente will automatically backup any albums in your native photos app that you select for backup. The app runs in the background, and any new photos added to these albums (or any photos in these albums that were modified) will be automatically synced to Ente.
 
 **Key features:**
@@ -31,6 +33,10 @@ You can choose which albums should be backed up when you first sign up for Ente.
 **On mobile:**
 
 Open `Settings > Backup > Backed up folders` and select or deselect albums as needed.
+
+![Ente Photos Android Backup menu highlighting the Backed up folders row](https://docs-assets.ente.com/screenshots/phone-backup-backed-up-folders-callout.png){width=320px}
+
+![Ente Photos Android Backed up folders screen with selectable device albums and checkmarks](https://docs-assets.ente.com/screenshots/phone-backup-backed-up-folders.png){width=320px}
 
 **On desktop:** Use the [watch folders](/photos/features/backup-and-sync/watch-folders) feature to select directories to sync.
 
@@ -59,6 +65,8 @@ To use Backup mode:
 3. Tap **Start backup mode** and keep Ente open on screen. Switching apps pauses Backup mode.
 
 You only need Backup mode for large uploads. New photos will continue to back up in the background afterwards.
+
+The progress shown during Backup mode relates to the current upload session. It may restart when a new session begins. A reset counter alone does not mean your entire library is uploading again.
 
 Large videos may not finish during the short time iOS gives Ente in the background. Ente will continue the upload when iOS gives it more time or when you open the app.
 
@@ -111,15 +119,19 @@ This option is available in two places:
 - **During signup/login**: On the permissions screen, you can choose to back up only new photos instead of your full library.
 - **In settings**: Open `Settings > Backup > Backup settings` and toggle on **Backup only new photos**.
 
+![Ente Photos Android Backup settings showing Backup only new photos and related toggles](https://docs-assets.ente.com/screenshots/phone-backup-settings.png){width=320px}
+
 ### What "new photos" means
 
 When you select this option during onboarding, Ente backs up photos from the **last 7 days** onward. This ensures you have some recent photos available right away rather than starting with an empty library.
 
 When you enable the toggle in settings after onboarding, Ente uses the **current moment** as the cutoff - only photos created from that point forward will be backed up.
 
-In both cases, photos older than the cutoff date on your device will not be uploaded.
+The cutoff applies when Ente selects photos for automatic backup. Turning it on does not cancel uploads already queued. You can also manually select older photos to upload.
 
 ### Folder selection prompt
+
+![Backup to Ente folder selection with Movies and Pictures albums on Ente Photos mobile](https://docs-assets.ente.com/screenshots/phone-backup-folder-prompt.png){width=320px}
 
 When you first enable this setting, Ente may prompt you to select which folders to back up:
 

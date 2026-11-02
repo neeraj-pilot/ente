@@ -1,5 +1,6 @@
 import 'package:ente_auth/models/code.dart';
 import 'package:ente_auth/services/authenticator_service.dart';
+import 'package:ente_auth/services/watch/service.dart';
 import 'package:ente_auth/store/code_store.dart';
 import 'package:ente_auth/utils/dialog_util.dart';
 import 'package:ente_strings/ente_strings.dart';
@@ -103,7 +104,9 @@ class CodeDisplayStore {
     await showChoiceActionSheet(
       context,
       title: l10n.deleteTagTitle,
-      body: l10n.deleteTagMessage,
+      body: WatchService.sharedTags.contains(tag)
+          ? '${l10n.deleteTagMessage}\n\n${l10n.watchDeleteTagNotice}'
+          : l10n.deleteTagMessage,
       firstButtonLabel: l10n.delete,
       isCritical: true,
       firstButtonOnTap: () async {
@@ -136,6 +139,9 @@ class CodeDisplayStore {
     await showTextInputDialog(
       context,
       title: context.strings.editTag,
+      body: WatchService.sharedTags.contains(tag)
+          ? context.strings.watchRenameTagNotice
+          : null,
       label: context.strings.tag,
       initialValue: tag,
       submitButtonLabel: context.strings.save,
@@ -143,6 +149,16 @@ class CodeDisplayStore {
       onSubmit: (value) async {
         final updatedTag = value.trim();
         if (updatedTag.isEmpty || updatedTag == tag) return;
+        if (WatchService.sharedTags.contains(updatedTag)) {
+          await showChoiceActionSheet(
+            context,
+            title: context.strings.editTag,
+            body: context.strings.watchRenameIntoSharedTagNotice,
+            firstButtonLabel: context.strings.save,
+            firstButtonOnTap: () => editTag(tag, updatedTag),
+          );
+          return;
+        }
         await editTag(tag, updatedTag);
       },
     );

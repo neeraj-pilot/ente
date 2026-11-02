@@ -225,6 +225,7 @@ extension SectionTypeExtensions on SectionType {
                 await routeToPage(
                   context,
                   CollectionPage(CollectionWithThumbnail(c, null)),
+                  useFadeTransition: true,
                 );
               } catch (e, s) {
                 Logger(
@@ -253,6 +254,7 @@ extension SectionTypeExtensions on SectionType {
       case SectionType.face:
         return SearchService.instance.getAllFace(
           limit,
+          coverHeroTagPrefix: "people_discover",
           minClusterSize: limit == null
               ? kMinimumClusterSizeAllFaces
               : kMinimumClusterSizeSearchResult,

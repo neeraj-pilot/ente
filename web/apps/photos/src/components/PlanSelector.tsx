@@ -9,6 +9,7 @@ import {
     Dialog,
     IconButton,
     Link,
+    Skeleton,
     Stack,
     styled,
     ToggleButton,
@@ -22,6 +23,8 @@ import { SpacedRow } from "ente-base/components/containers";
 import type { ButtonishProps } from "ente-base/components/mui";
 import { DialogCloseIconButton } from "ente-base/components/mui/DialogCloseIconButton";
 import { FocusVisibleButton } from "ente-base/components/mui/FocusVisibleButton";
+import { SidebarDrawer } from "ente-base/components/mui/SidebarDrawer";
+import { SidebarPanelContext } from "ente-base/components/mui/SidebarDrawerContext";
 import {
     errorDialogAttributes,
     genericRetriableErrorDialogAttributes,
@@ -54,7 +57,7 @@ import {
     userDetailsAddOnBonuses,
 } from "ente-new/photos/services/user-details";
 import { t } from "i18next";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useContext, useEffect, useState } from "react";
 import { Trans } from "react-i18next";
 
 type PlanSelectorProps = ModalVisibilityProps & {
@@ -69,9 +72,22 @@ export const PlanSelector: React.FC<PlanSelectorProps> = ({
     onManageFamily,
 }) => {
     const fullScreen = useMediaQuery(useTheme().breakpoints.down("sm"));
+    const sidebarPanel = useContext(SidebarPanelContext);
 
     if (!open) {
         return <></>;
+    }
+
+    if (sidebarPanel) {
+        return (
+            <SidebarDrawer {...{ open, onClose }} transitionDuration={0}>
+                <Box sx={{ maxWidth: 420, mx: "auto", py: 1 }}>
+                    <PlanSelectorContents
+                        {...{ onClose, setLoading, onManageFamily }}
+                    />
+                </Box>
+            </SidebarDrawer>
+        );
     }
 
     return (
@@ -107,6 +123,7 @@ export const PlanSelectorContents: React.FC<PlanSelectorContentsProps> = ({
     onBeginCheckout,
 }) => {
     const { showMiniDialog } = useBaseContext();
+    const showCloseButton = !useContext(SidebarPanelContext);
 
     const userDetails = useUserDetailsSnapshot();
 
@@ -127,11 +144,12 @@ export const PlanSelectorContents: React.FC<PlanSelectorContentsProps> = ({
     );
 
     useEffect(() => {
+        const request = { cancelled: false };
         void (async () => {
             try {
-                setLoading(true);
                 const plansData = await getPlansData();
-                const { plans } = plansData;
+                if (request.cancelled) return;
+                const plans = [...plansData.plans];
                 if (subscription && isSubscriptionActive(subscription)) {
                     const activePlan = plans.find((plan) =>
                         isSubscriptionForPlan(subscription, plan),
@@ -148,15 +166,17 @@ export const PlanSelectorContents: React.FC<PlanSelectorContentsProps> = ({
                         });
                     }
                 }
-                setPlansData(plansData);
+                setPlansData({ ...plansData, plans });
             } catch (e) {
+                if (request.cancelled) return;
                 log.error("Failed to get plans", e);
                 onClose();
                 showMiniDialog(genericRetriableErrorDialogAttributes());
-            } finally {
-                setLoading(false);
             }
         })();
+        return () => {
+            request.cancelled = true;
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -220,6 +240,7 @@ export const PlanSelectorContents: React.FC<PlanSelectorContentsProps> = ({
 
     const commonCardData = {
         onClose,
+        showCloseButton,
         onManageFamily,
         addOnBonuses,
         planPeriod,
@@ -283,6 +304,7 @@ type FreeSubscriptionPlanSelectorCardProps = Pick<
     PlanSelectorProps,
     "onClose" | "onManageFamily"
 > & {
+    showCloseButton: boolean;
     subscription: Subscription | undefined;
     addOnBonuses: Bonus[];
     planPeriod: PlanPeriod;
@@ -293,6 +315,7 @@ const FreeSubscriptionPlanSelectorCard: React.FC<
     React.PropsWithChildren<FreeSubscriptionPlanSelectorCardProps>
 > = ({
     onClose,
+    showCloseButton,
     onManageFamily,
     subscription,
     addOnBonuses,
@@ -303,9 +326,11 @@ const FreeSubscriptionPlanSelectorCard: React.FC<
     <>
         <SpacedRow sx={{ alignItems: "flex-start" }}>
             <Typography variant="h3">{t("choose_plan")}</Typography>
-            {subscription && !isSubscriptionFree(subscription) && (
-                <DialogCloseIconButton {...{ onClose }} />
-            )}
+            {showCloseButton &&
+                subscription &&
+                !isSubscriptionFree(subscription) && (
+                    <DialogCloseIconButton {...{ onClose }} />
+                )}
         </SpacedRow>
         <Stack sx={{ gap: 3 }}>
             <Box>
@@ -345,6 +370,7 @@ const PaidSubscriptionPlanSelectorCard: React.FC<
     React.PropsWithChildren<PaidSubscriptionPlanSelectorCardProps>
 > = ({
     onClose,
+    showCloseButton,
     onManageFamily,
     subscription,
     addOnBonuses,
@@ -368,9 +394,11 @@ const PaidSubscriptionPlanSelectorCard: React.FC<
                         {t("storage_unit.gb")}
                     </Typography>
                 </Box>
-                <IconButton onClick={onClose} color="secondary">
-                    <CloseIcon />
-                </IconButton>
+                {showCloseButton && (
+                    <IconButton onClick={onClose} color="secondary">
+                        <CloseIcon />
+                    </IconButton>
+                )}
             </Stack>
 
             <Typography
@@ -488,7 +516,16 @@ const Plans: React.FC<PlansProps> = ({
     hasAddOnBonus,
     onPlanSelect,
 }) => (
-    <Stack sx={{ gap: 2 }}>
+    <Stack sx={{ gap: 2 }} aria-busy={!plansData}>
+        {!plansData &&
+            [0, 1, 2].map((index) => (
+                <Skeleton
+                    key={index}
+                    variant="rounded"
+                    height={64}
+                    animation="wave"
+                />
+            ))}
         {plansData?.plans
             .filter((plan) => plan.period === planPeriod)
             .map((plan) => (

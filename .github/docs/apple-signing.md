@@ -152,6 +152,7 @@ Photos:
 
 - `io.ente.frame` -> `Photos App Store`
 - `io.ente.frame.ShareExtension` -> `Photos Share Extension App Store`
+- `io.ente.frame.NotificationServiceExtension` -> `Photos Notification Service Extension App Store`
 - `io.ente.frame.EnteAlbumWidget` -> `Photos Album Widget App Store`
 - `io.ente.frame.EnteMemoryWidget` -> `Photos Memory Widget App Store`
 - `io.ente.frame.EntePeopleWidget` -> `Photos People Widget App Store`
@@ -160,11 +161,6 @@ Auth:
 
 - `io.ente.auth` -> `Auth App Store`
 - `io.ente.auth.watchkitapp` -> `Auth Watch App Store`
-
-Create the Auth Watch App ID and its App Store profile before the first release
-that embeds the Watch app. The Watch app uses the existing Auth App Store Connect
-record and distribution certificate. CI supplies `AUTH_WATCH_PROFILE_SPECIFIER`
-for manual signing; local development uses automatic signing.
 
 Locker:
 

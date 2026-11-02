@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use ente_vecdb::VecDb;
 
 use super::fill::decode_centroid;
 use super::{Error, FillState, Index, IndexResult, MlStore, Result, state};
-use crate::ml_db::{ClipEmbedding, ClusterSummary};
+use crate::ml_db::{self, ClipEmbedding, ClusterSummary};
 
 #[derive(Default)]
 struct IndexBatch {
@@ -25,6 +25,10 @@ impl FromIterator<(String, Option<Vec<f32>>)> for IndexBatch {
                 None => batch.rejected_keys.push(key),
             }
         }
+        let accepted: HashSet<&str> = batch.keys.iter().map(String::as_str).collect();
+        batch
+            .rejected_keys
+            .retain(|key| !accepted.contains(key.as_str()));
         batch
     }
 }
@@ -35,11 +39,9 @@ impl MlStore {
             return Ok(());
         }
         let _mutations = self.lock_mutations();
-        self.db.insert_clip_rows(embeddings)?;
-        if self.index_is_stale(Index::Clip)? {
-            return Ok(());
-        }
-        self.apply_batch(Index::Clip, &clip_batch(embeddings))
+        self.upsert(Index::Clip, &clip_batch(embeddings), || {
+            self.db.insert_clip_rows(embeddings)
+        })
     }
 
     pub fn delete_clip(&self, file_ids: &[i64]) -> Result<()> {
@@ -66,11 +68,24 @@ impl MlStore {
             return Ok(());
         }
         let _mutations = self.lock_mutations();
-        self.db.upsert_cluster_summary_rows(summary)?;
-        if self.index_is_stale(Index::ClusterCentroid)? {
+        self.upsert(Index::ClusterCentroid, &centroid_batch(summary), || {
+            self.db.upsert_cluster_summary_rows(summary)
+        })
+    }
+
+    pub(super) fn assign_face_clusters(
+        &self,
+        face_id_to_cluster_id: &HashMap<String, String>,
+        summary: &HashMap<String, ClusterSummary>,
+    ) -> Result<()> {
+        if face_id_to_cluster_id.is_empty() {
             return Ok(());
         }
-        self.apply_batch(Index::ClusterCentroid, &centroid_batch(summary))
+        let _mutations = self.lock_mutations();
+        self.upsert(Index::ClusterCentroid, &centroid_batch(summary), || {
+            self.db
+                .update_face_clusters_and_summaries(face_id_to_cluster_id, summary)
+        })
     }
 
     pub fn delete_cluster_summary(&self, cluster_id: &str) -> Result<()> {
@@ -90,9 +105,7 @@ impl MlStore {
 
     pub fn clear_all(&self) -> Result<()> {
         let _mutations = self.lock_mutations();
-        self.db.clear_non_pet_tables()?;
-        self.db.clear_pet_tables()?;
-        self.db.clear_meta()?;
+        self.db.clear_all_tables()?;
         for slot in &self.indexes {
             slot.purge()?;
         }
@@ -103,14 +116,29 @@ impl MlStore {
         Ok(state::read(&self.db, index)? == FillState::Stale)
     }
 
-    fn apply_batch(&self, index: Index, batch: &IndexBatch) -> Result<()> {
-        self.index_write(index, |vecdb| {
-            vecdb.bulk_remove(&batch.rejected_keys)?;
-            vecdb.bulk_add(&batch.keys, &batch.vectors)
-        })
+    fn upsert(
+        &self,
+        index: Index,
+        batch: &IndexBatch,
+        write_rows: impl FnOnce() -> ml_db::Result<()>,
+    ) -> Result<()> {
+        if self.index_is_stale(index)? {
+            return write_rows().map_err(Into::into);
+        }
+        match self.index_write(index, |vecdb| vecdb.bulk_add(&batch.keys, &batch.vectors)) {
+            Ok(()) => {
+                write_rows()?;
+                self.index_write(index, |vecdb| vecdb.bulk_remove(&batch.rejected_keys))
+            }
+            Err(Error::Index(error)) => {
+                write_rows()?;
+                Err(Error::Index(error))
+            }
+            Err(error) => Err(error),
+        }
     }
 
-    fn index_write<T>(
+    pub(super) fn index_write<T>(
         &self,
         index: Index,
         operation: impl Fn(&VecDb) -> IndexResult<T>,
@@ -118,6 +146,9 @@ impl MlStore {
         let outcome = self.with_index(index, operation);
         if let Err(Error::Index(_)) = &outcome {
             state::mark_stale(&self.db, index)?;
+            if let Err(error) = self.indexes[index.position()].purge() {
+                log::warn!("could not purge the stale {} index: {error}", index.name());
+            }
         }
         outcome.map(drop)
     }
@@ -162,6 +193,7 @@ mod tests {
 
     use ente_vecdb::{OpenCost, SearchParams, VecDb, VecDbError};
 
+    use crate::db::Connection;
     use crate::ml_db::tests::deny_cluster_summary_inserts_after;
     use crate::ml_db::vector_encoding::encode_evector;
     use crate::ml_db::{CLIP_EMBEDDING_DIMENSIONS, ClusterSummary};
@@ -169,7 +201,9 @@ mod tests {
         DB_FILE, centroid, clips, empty, hot_position, index_path, live_count, meta, nearest,
         one_hot, open, open_with_unusable_clip_index,
     };
-    use crate::ml_store::{Error, FillOutcome, FillState, Index};
+    #[cfg(unix)]
+    use crate::ml_store::tests::{degrade_clip_index_through_a_failed_compaction, open_in};
+    use crate::ml_store::{Error, FillOutcome, FillState, Index, MlStore};
 
     #[test]
     fn put_clip_round_trips_through_sql_and_index() {
@@ -385,7 +419,7 @@ mod tests {
     }
 
     #[test]
-    fn failed_cluster_summary_upserts_leave_sql_and_index_untouched() {
+    fn failed_cluster_summary_upserts_leave_sql_untouched_and_the_index_ahead() {
         let (directory, store) = open();
         store.fill_cluster_centroid_index(false).unwrap();
         let summaries: HashMap<String, ClusterSummary> = (0..=400)
@@ -398,11 +432,61 @@ mod tests {
             Err(Error::Database(_))
         ));
         assert_eq!(store.db().count_cluster_summaries().unwrap(), 0);
-        assert_eq!(live_count(&store, Index::ClusterCentroid), 0);
+        assert_eq!(live_count(&store, Index::ClusterCentroid), 401);
         assert_eq!(
             store.fill_state(Index::ClusterCentroid).unwrap(),
             FillState::Filled
         );
+    }
+
+    #[test]
+    fn failed_upserts_keep_vectors_of_rejected_keys() {
+        let (directory, store) = open();
+        store.fill_cluster_centroid_index(false).unwrap();
+        store
+            .cluster_summary_update(&HashMap::from([centroid("c1", 1)]))
+            .unwrap();
+        deny_cluster_summary_inserts_after(&directory.path().join(DB_FILE), 1);
+        let malformed = ClusterSummary {
+            avg: encode_evector(&[1.0, 2.0]),
+            count: 1,
+        };
+
+        assert!(matches!(
+            store.cluster_summary_update(&HashMap::from([
+                ("c1".to_string(), malformed),
+                centroid("c2", 2)
+            ])),
+            Err(Error::Database(_))
+        ));
+        assert_eq!(store.db().count_cluster_summaries().unwrap(), 1);
+        assert!(store.contains(Index::ClusterCentroid, "c1").unwrap());
+        assert!(store.contains(Index::ClusterCentroid, "c2").unwrap());
+        assert_eq!(
+            store.fill_state(Index::ClusterCentroid).unwrap(),
+            FillState::Filled
+        );
+    }
+
+    #[test]
+    fn accepted_embeddings_win_over_rejected_duplicates_in_one_batch() {
+        let (_directory, store) = open();
+        store.fill_clip_index(false).unwrap();
+        for accepted_first in [true, false] {
+            let mut marker = clips([1]);
+            marker[0].embedding = vec![];
+            let mut batch = clips([1]);
+            if accepted_first {
+                batch.extend(marker);
+            } else {
+                batch.splice(0..0, marker);
+            }
+            store.put_clip(&batch).unwrap();
+            assert!(
+                store.contains(Index::Clip, "1").unwrap(),
+                "accepted_first: {accepted_first}"
+            );
+        }
     }
 
     #[test]
@@ -476,13 +560,201 @@ mod tests {
     }
 
     #[test]
+    fn clear_all_rolls_back_when_pet_clear_fails() {
+        assert_clear_all_rolls_back("pet_face_vector_id_map");
+    }
+
+    #[test]
+    fn clear_all_rolls_back_when_metadata_clear_fails() {
+        assert_clear_all_rolls_back("ml_store_meta");
+    }
+
+    fn assert_clear_all_rolls_back(table: &str) {
+        let (directory, store) = open();
+        let path = directory.path().join(DB_FILE);
+        store.put_clip(&clips([1])).unwrap();
+        store
+            .cluster_summary_update(&HashMap::from([centroid("c1", 1)]))
+            .unwrap();
+        store.fill_clip_index(false).unwrap();
+        store.fill_cluster_centroid_index(false).unwrap();
+        store
+            .db()
+            .put_repeated_text_embedding_cache("dog", &[0.5])
+            .unwrap();
+        store
+            .db()
+            .put_face_id_cached_for_person_or_cluster("p1", "1_0")
+            .unwrap();
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "INSERT INTO pet_faces (file_id, pet_face_id, detection, species, score)
+             VALUES (1, 'pet_face', '{}', 1, 0.9);
+             INSERT INTO pet_bodies (file_id, pet_body_id, detection, species, score)
+             VALUES (1, 'pet_body', '{}', 1, 0.9);
+             INSERT INTO pet_face_vector_id_map (pet_face_id) VALUES ('pet_face');
+             INSERT INTO pet_body_vector_id_map (pet_body_id) VALUES ('pet_body');",
+            )
+            .unwrap();
+        let pet_rows = || {
+            connection
+                .query_row(
+                    "SELECT (SELECT COUNT(*) FROM pet_faces)
+                      + (SELECT COUNT(*) FROM pet_bodies)
+                      + (SELECT COUNT(*) FROM pet_face_vector_id_map)
+                      + (SELECT COUNT(*) FROM pet_body_vector_id_map)",
+                    (),
+                    |row| Ok(row.get::<_, i64>(0)?),
+                )
+                .unwrap()
+        };
+        connection
+            .execute_batch(&format!(
+                "CREATE TRIGGER fail_clear BEFORE DELETE ON {table}
+             BEGIN SELECT RAISE(ABORT, 'injected clear failure'); END;"
+            ))
+            .unwrap();
+
+        let error = store.clear_all().unwrap_err();
+        assert!(matches!(error, Error::Database(_)));
+        assert!(error.to_string().contains("injected clear failure"));
+        assert_eq!(store.db().count_clip_rows().unwrap(), 1);
+        assert_eq!(store.db().count_cluster_summaries().unwrap(), 1);
+        assert_eq!(pet_rows(), 4);
+        for index in Index::ALL {
+            assert_eq!(store.fill_state(index).unwrap(), FillState::Filled);
+            assert_eq!(live_count(&store, index), 1);
+        }
+        drop(store);
+
+        let reopened = MlStore::open(&path).unwrap();
+        assert_eq!(reopened.db().count_clip_rows().unwrap(), 1);
+        assert_eq!(reopened.db().count_cluster_summaries().unwrap(), 1);
+        assert_eq!(
+            reopened.fill_clip_index(false).unwrap().outcome,
+            FillOutcome::AlreadyFilled
+        );
+        assert_eq!(
+            reopened.fill_cluster_centroid_index(false).unwrap().outcome,
+            FillOutcome::AlreadyFilled
+        );
+        for (index, key) in [(Index::Clip, "1"), (Index::ClusterCentroid, "c1")] {
+            assert_eq!(nearest(&reopened, index, &one_hot(index.dims(), 1)), key);
+        }
+
+        connection.execute_batch("DROP TRIGGER fail_clear").unwrap();
+        reopened.clear_all().unwrap();
+        assert_eq!(reopened.db().count_clip_rows().unwrap(), 0);
+        assert_eq!(reopened.db().count_cluster_summaries().unwrap(), 0);
+        assert_eq!(pet_rows(), 0);
+        assert_eq!(
+            reopened
+                .db()
+                .get_repeated_text_embedding_cache("dog")
+                .unwrap(),
+            Some(vec![0.5])
+        );
+        assert_eq!(
+            reopened
+                .db()
+                .get_face_id_used_for_person_or_cluster("p1")
+                .unwrap()
+                .as_deref(),
+            Some("1_0")
+        );
+        drop(reopened);
+
+        let cleared = MlStore::open(&path).unwrap();
+        for index in Index::ALL {
+            assert_eq!(cleared.fill_state(index).unwrap(), FillState::Stale);
+            assert_eq!(live_count(&cleared, index), 0);
+        }
+    }
+
+    #[test]
     fn index_write_failure_marks_the_index_stale() {
         let (_directory, store) = open_with_unusable_clip_index();
         store.db().set_meta("clip.fill", "filled").unwrap();
         assert!(matches!(store.put_clip(&clips([1])), Err(Error::Index(_))));
         assert_eq!(store.db().count_clip_rows().unwrap(), 1);
-        assert_eq!(store.fill_state(Index::Clip).unwrap(), FillState::Stale);
+        assert!(matches!(
+            store.fill_state(Index::Clip),
+            Err(Error::Index(_))
+        ));
+        assert_eq!(meta(&store, "clip.fill"), None);
         store.put_clip(&clips([2])).unwrap();
         assert_eq!(store.db().count_clip_rows().unwrap(), 2);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_index_writes_leave_no_vectors_of_rows_deleted_while_stale() {
+        let (directory, store) = open();
+        let other = open_in(&directory);
+        store.fill_clip_index(false).unwrap();
+        assert_eq!(other.fill_state(Index::Clip).unwrap(), FillState::Filled);
+        degrade_clip_index_through_a_failed_compaction(&directory, &store);
+        assert!(other.contains(Index::Clip, "66").unwrap());
+
+        assert!(matches!(
+            store.delete_clip(&[66]),
+            Err(Error::Index(VecDbError::ReadOnly))
+        ));
+        store.delete_clip(&[67]).unwrap();
+        assert_eq!(store.fill_state(Index::Clip).unwrap(), FillState::Stale);
+        assert_eq!(store.db().count_clip_rows().unwrap(), 3);
+        let query = one_hot(CLIP_EMBEDDING_DIMENSIONS, 66);
+        let params = SearchParams {
+            max_distance: Some(0.5),
+            exact: true,
+            ..SearchParams::default()
+        };
+        for reader in [&store, &other] {
+            assert!(!reader.contains(Index::Clip, "66").unwrap());
+            assert!(!reader.contains(Index::Clip, "67").unwrap());
+            assert!(
+                reader
+                    .search(Index::Clip, &query, &params)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert_eq!(live_count(reader, Index::Clip), 0);
+        }
+
+        let refill = store.fill_clip_index(false).unwrap();
+        assert_eq!(
+            (refill.outcome, refill.indexed),
+            (FillOutcome::Completed, 3)
+        );
+        assert_eq!(other.fill_state(Index::Clip).unwrap(), FillState::Filled);
+        assert_eq!(live_count(&other, Index::Clip), 3);
+        assert!(other.contains(Index::Clip, "65").unwrap());
+        assert!(!other.contains(Index::Clip, "66").unwrap());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_fill_resets_leave_no_vectors_of_rows_deleted_while_stale() {
+        let (directory, store) = open();
+        store.fill_clip_index(false).unwrap();
+        degrade_clip_index_through_a_failed_compaction(&directory, &store);
+
+        assert!(matches!(
+            store.fill_clip_index(true),
+            Err(Error::Index(VecDbError::ReadOnly))
+        ));
+        assert_eq!(store.fill_state(Index::Clip).unwrap(), FillState::Stale);
+        store.delete_clip(&[66]).unwrap();
+        assert!(!store.contains(Index::Clip, "66").unwrap());
+        assert_eq!(live_count(&store, Index::Clip), 0);
+
+        let refill = store.fill_clip_index(false).unwrap();
+        assert_eq!(
+            (refill.outcome, refill.indexed),
+            (FillOutcome::Completed, 4)
+        );
+        assert!(store.contains(Index::Clip, "65").unwrap());
+        assert!(!store.contains(Index::Clip, "66").unwrap());
     }
 }

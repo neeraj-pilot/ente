@@ -74,14 +74,6 @@ class SemanticSearchService {
     return _prepareVectorDbFuture!;
   }
 
-  bool get _shouldUseRustExactSearch =>
-      flagService.internalUser &&
-      flagService.usearchForSearch &&
-      localSettings.semanticSearchExactInRustEnabled;
-
-  bool get _shouldUseVectorDbApproximateSearch =>
-      flagService.usearchForSearch && !_shouldUseRustExactSearch;
-
   void _initializeIfNeeded() {
     if (_hasInitialized) {
       return;
@@ -99,7 +91,7 @@ class SemanticSearchService {
   }
 
   void _scheduleWarmup({required bool delayTextModelLoad}) {
-    if (_shouldUseVectorDbApproximateSearch) {
+    if (flagService.usearchForSearch) {
       unawaited(_prepareVectorDbForSearch());
     }
 
@@ -112,11 +104,11 @@ class SemanticSearchService {
 
   Future<void> _prepareVectorDbForSearchInternal() async {
     try {
-      if (!_shouldUseVectorDbApproximateSearch) return;
+      if (!flagService.usearchForSearch) return;
       if (!flagService.hasGrantedMLConsent) return;
       if (!await _vectorDB.isReady()) {
         await Future.delayed(_vectorDbMigrationDelay);
-        if (!_shouldUseVectorDbApproximateSearch) return;
+        if (!flagService.usearchForSearch) return;
         if (!flagService.hasGrantedMLConsent) return;
         await _mlDataDB.checkMigrateFillClipVectorDB();
       }
@@ -194,10 +186,7 @@ class SemanticSearchService {
       _logger.info(
         "read all ${imageEmbeddings.length} embeddings from DB in ${DateTime.now().difference(now).inMilliseconds} ms",
       );
-      await MLComputer.instance.cacheImageEmbeddings(
-        imageEmbeddings,
-        cacheRustExact: _shouldUseRustExactSearch,
-      );
+      await MLComputer.instance.cacheImageEmbeddings(imageEmbeddings);
       _imageEmbeddingsAreCached = true;
       _cachedEmbeddingsLocalGallery = isLocalGalleryMode;
       return;
@@ -422,31 +411,6 @@ class SemanticSearchService {
     }
 
     await _cacheClipVectors();
-    if (_shouldUseRustExactSearch) {
-      final startTime = DateTime.now();
-      try {
-        final queryResults = await MLComputer.instance
-            .computeBulkSimilaritiesWithRust(
-              textQueryToEmbeddingMap,
-              minimumSimilarityMap,
-            );
-        final endTime = DateTime.now();
-        _logger.info(
-          "computingSimilarities (rust simsimd exact) took for ${textQueryToEmbeddingMap.length} queries " +
-              (endTime.millisecondsSinceEpoch -
-                      startTime.millisecondsSinceEpoch)
-                  .toString() +
-              "ms",
-        );
-        return queryResults;
-      } catch (e, s) {
-        _logger.severe(
-          "Rust exact similarity search failed, falling back to Dart in-memory dot-product",
-          e,
-          s,
-        );
-      }
-    }
 
     final startTime = DateTime.now();
     final Map<String, List<QueryResult>> queryResults = await MLComputer
@@ -487,7 +451,7 @@ class SemanticSearchService {
   }
 
   Future<bool> _canUseVectorDbForSearch() async {
-    if (!_shouldUseVectorDbApproximateSearch) return false;
+    if (!flagService.usearchForSearch) return false;
     if (!flagService.hasGrantedMLConsent) return false;
     if (await _vectorDB.isReady()) return true;
     // Keep interactive search responsive: prepare/migrate in the background and

@@ -1,6 +1,6 @@
 use super::{
-    AccountSpaceCtx, PostPhotoInput, decrypt_post_object_metadata, ensure_post_objects_supported,
-    retain_content_error,
+    AccountSpaceCtx, MESSAGE_KIND_POKE, MESSAGE_KIND_REGULAR, PostPhotoInput,
+    decrypt_post_object_metadata, ensure_post_objects_supported, retain_content_error,
 };
 use crate::crypto::{decrypt_secretbox_payload, encrypt_secretbox_payload, generate_key};
 use crate::error::{Error, Result};
@@ -10,7 +10,8 @@ use crate::models::{
 };
 use crate::transport::{
     CreatePostRequest, CreatePostResponse, LikePostResponse, PostObjectPayload, PostPageResponse,
-    PostResponse, SpaceActorResponse, SpaceUnreadStatusResponse, UpdatePostCaptionRequest,
+    PostResponse, SpaceActorResponse, SpaceUnreadStatusResponse, UnreadActivityPageResponse,
+    UpdatePostCaptionRequest,
 };
 use ente_core::{b64, http};
 
@@ -94,20 +95,32 @@ impl AccountSpaceCtx {
             objects: objects.to_vec(),
         };
         let path = format!("/spaces/{space_id}/posts");
-        let response = self
-            .api()
-            .post(&path)
-            .json(&request)
-            .send()
-            .await?
-            .error_for_code()
-            .await
-            .map_err(|error| match &error {
-                http::Error::Api { code, .. } if code == "CONFLICT" => Error::PostLimitReached,
-                _ => error.into(),
-            })?
-            .json::<CreatePostResponse>()
-            .await?;
+        let response = http::retry_if(
+            http::RetryProfile::Interactive,
+            || async {
+                self.api()
+                    .post(&path)
+                    .json(&request)
+                    .send()
+                    .await?
+                    .error_for_code()
+                    .await?
+                    .json::<CreatePostResponse>()
+                    .await
+            },
+            |error| {
+                request
+                    .client_request_id
+                    .as_ref()
+                    .is_some_and(|id| !id.is_empty())
+                    && error.is_retryable()
+            },
+        )
+        .await
+        .map_err(|error| match &error {
+            http::Error::Api { code, .. } if code == "CONFLICT" => Error::PostLimitReached,
+            _ => error.into(),
+        })?;
         Ok((response.post_id, post_key_bytes))
     }
 
@@ -175,14 +188,51 @@ impl AccountSpaceCtx {
 
     pub async fn unread_status(&self, space_id: &str) -> Result<SpaceUnreadStatusResponse> {
         let path = format!("/spaces/{space_id}/unread");
-        Ok(self
+        let mut status: SpaceUnreadStatusResponse = self
             .api()
             .get(&path)
             .send()
             .await?
             .error_for_status()?
             .json()
-            .await?)
+            .await?;
+        if status.notifications_unread {
+            let path = format!("/spaces/{space_id}/unread/activities");
+            let mut cursor = String::new();
+            loop {
+                let page: UnreadActivityPageResponse = self
+                    .api()
+                    .get(&path)
+                    .query(&[("cursor", &cursor)])
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .json()
+                    .await?;
+                for activity in page.items {
+                    if activity.kind != MESSAGE_KIND_REGULAR
+                        || !retain_content_error(
+                            self.decrypt_message_fields(
+                                space_id,
+                                &activity.kind,
+                                &activity.encrypted_message_key,
+                                &activity.message_cipher,
+                            )
+                            .await,
+                        )?
+                        .is_ok_and(|payload| payload.kind == MESSAGE_KIND_POKE)
+                    {
+                        return Ok(status);
+                    }
+                }
+                if page.next_cursor.is_empty() {
+                    status.notifications_unread = false;
+                    break;
+                }
+                cursor = page.next_cursor;
+            }
+        }
+        Ok(status)
     }
 
     pub async fn mark_notifications_read(
@@ -321,7 +371,7 @@ impl AccountSpaceCtx {
         Ok(HydratedKeys { owned, friends })
     }
 
-    async fn decrypt_post_key_fields(
+    pub(super) async fn decrypt_post_key_fields(
         &self,
         space_id: &str,
         viewer_space_id: Option<&str>,
@@ -410,6 +460,35 @@ impl AccountSpaceCtx {
         let path = format!("/spaces/{space_id}/posts/{post_id}");
         self.api().delete(&path).send().await?.error_for_status()?;
         Ok(())
+    }
+
+    pub async fn list_post_likes(&self, space_id: &str, post_id: i64) -> Result<Vec<SpaceActor>> {
+        let path = format!("/spaces/{space_id}/posts/{post_id}/likes");
+        let actors: Vec<SpaceActorResponse> = self
+            .api()
+            .get(&path)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        if actors.is_empty() {
+            return Ok(Vec::new());
+        }
+        let shares = self.list_decrypted_friend_shares_cached(space_id).await?;
+        if actors.iter().any(|actor| {
+            !actor.encrypted_profile.is_empty()
+                && !shares.iter().any(|share| share.space_id == actor.space_id)
+        }) {
+            self.clear_friend_share_cache()?;
+            self.list_decrypted_friend_shares_cached(space_id).await?;
+        }
+        let mut items = Vec::with_capacity(actors.len());
+        for actor in actors {
+            let profile = retain_content_error(self.decrypt_actor_profile(&actor).await)?;
+            items.push(SpaceActor::from_response(actor, profile));
+        }
+        Ok(items)
     }
 
     pub async fn like_post(
@@ -545,6 +624,8 @@ pub(super) fn opened_post(
         content,
         created_at: post.created_at,
         viewer_liked: post.viewer_liked,
+        comment_count: post.comment_count,
+        like_count: post.like_count,
     }
 }
 
@@ -575,6 +656,8 @@ mod tests {
             }],
             created_at: format!("2026-08-0{post_id}T00:00:00Z"),
             viewer_liked: false,
+            comment_count: 0,
+            like_count: 0,
         }
     }
 
@@ -608,6 +691,8 @@ mod tests {
         post_with_corrupt_actor_profile.author.key_version = 1;
         post_with_corrupt_actor_profile.author.encrypted_profile = "not-base64".into();
         let mut valid_post = post(3, b64::encode(&valid_post_key));
+        valid_post.comment_count = 3;
+        valid_post.like_count = 8;
         valid_post.author.key_version = 1;
         valid_post.author.encrypted_profile = b64::encode(&secretbox::encrypt_combined(
             br#"{"fullName":"Alice"}"#,
@@ -691,6 +776,8 @@ mod tests {
         assert!(matches!(page.items[1].content, Err(Error::Base64Decode(_))));
         assert_eq!(page.items[1].post_id, 2);
         assert!(page.items[2].content.is_ok());
+        assert_eq!(page.items[2].comment_count, 3);
+        assert_eq!(page.items[2].like_count, 8);
         assert_eq!(
             page.items[2]
                 .author

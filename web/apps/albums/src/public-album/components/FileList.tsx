@@ -99,6 +99,7 @@ export interface FileListProps {
     width: number;
     annotatedFiles: FileListAnnotatedFile[];
     layout?: "grid" | "masonry";
+    disableGrouping?: boolean;
     header?: FileListHeaderOrFooter;
     footer?: FileListHeaderOrFooter;
     enableSelect?: boolean;
@@ -115,6 +116,7 @@ export const FileList: React.FC<FileListProps> = ({
     height,
     width,
     layout = "grid",
+    disableGrouping,
     header,
     footer,
     annotatedFiles,
@@ -145,7 +147,10 @@ export const FileList: React.FC<FileListProps> = ({
     const outerRef = useRef<HTMLDivElement | null>(null);
 
     const layoutParams = useMemo(
-        () => computeThumbnailGridLayoutParams(width),
+        () =>
+            computeThumbnailGridLayoutParams(width, {
+                smallLayoutPadding: thumbnailGap,
+            }),
         [width],
     );
     const shouldUseMasonry = layout === "masonry";
@@ -178,25 +183,19 @@ export const FileList: React.FC<FileListProps> = ({
             }) satisfies FileListItem;
 
         const pushItemsFromSplits = (splits: FileListAnnotatedFile[][]) => {
-            if (splits.length > 1) {
+            if (!disableGrouping) {
                 items.push({
                     height: dateListItemHeight,
                     type: "date",
                     groups: splits.map((s) => ({
                         date: s[0]!.timelineDateString,
-                        dateSpan: s.length,
+                        dateSpan: splits.length > 1 ? s.length : columns,
                     })),
                 });
+            }
+            if (splits.length > 1) {
                 items.push(createFileItem(splits));
             } else {
-                items.push({
-                    height: dateListItemHeight,
-                    type: "date",
-                    groups: splits.map((s) => ({
-                        date: s[0]!.timelineDateString,
-                        dateSpan: columns,
-                    })),
-                });
                 items = items.concat(
                     batch(splits[0]!, columns).map((batchFiles) =>
                         createFileItem([batchFiles]),
@@ -206,9 +205,12 @@ export const FileList: React.FC<FileListProps> = ({
         };
 
         const spaceBetweenDatesToImageContainerWidthRatio = 0.244;
+        const splits = disableGrouping
+            ? [annotatedFiles]
+            : splitByDate(annotatedFiles);
 
         let pendingSplits = new Array<FileListAnnotatedFile[]>();
-        for (const split of splitByDate(annotatedFiles)) {
+        for (const split of splits) {
             const filledColumns = pendingSplits.reduce(
                 (a, s) => a + s.length,
                 0,
@@ -267,6 +269,7 @@ export const FileList: React.FC<FileListProps> = ({
         footer,
         annotatedFiles,
         shouldUseMasonry,
+        disableGrouping,
         layoutParams,
         emptyStateAction,
     ]);

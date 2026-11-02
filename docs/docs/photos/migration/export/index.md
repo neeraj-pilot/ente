@@ -15,6 +15,8 @@ Please follow the following simple steps to keep a local copy of the photos and 
 
     ![Ente - Export data](export-1.png)
 
+    ![Ente Photos desktop Export data dialog with a destination folder chosen and the Start button ready](https://docs-assets.ente.com/screenshots/desktop-export-data.png){width=720px}
+
 3. Choose the destination folder by clicking on three dots icon.
 
 <div align="center">
@@ -28,6 +30,8 @@ Please follow the following simple steps to keep a local copy of the photos and 
 <div align="center">
 
 ![Ente - Export in progress](export-3.png){width=400px}
+
+![Ente Photos desktop Export data dialog highlighting the Start button](https://docs-assets.ente.com/screenshots/desktop-export-data-start-callout.png){width=720px}
 
 </div>
 
@@ -57,4 +61,4 @@ You can switch on the toggle to **Sync continuously** to eliminate manual export
 
 If you run into any issues during your data export, please reach out to [support@ente.com](mailto:support@ente.com) and we will be happy to help you!
 
-Note that we also provide a [CLI tool](https://github.com/ente/ente/tree/main/cli#export) to export your data. You can find more information about the export in the [export FAQ](/photos/faq/advanced-features).
+Note that we also provide a [CLI tool](/cli/photos) to export your data. You can find more information about the export in the [export FAQ](/photos/faq/advanced-features).

@@ -103,8 +103,6 @@ class AuthenticatorDB extends EnteBaseDatabase {
     final db = await database;
     final batch = db.batch();
     for (final entity in authEntities) {
-      // REPLACE normally allocates a new local ID, which would discard watch
-      // consent on each cloud edit. Preserve the existing ID within this statement.
       batch.rawInsert(
         '''
         INSERT OR REPLACE INTO $entityTable

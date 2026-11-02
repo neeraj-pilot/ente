@@ -6,12 +6,16 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"errors"
+	"fmt"
 	"testing"
+	gotime "time"
 
 	"github.com/ente/museum/ente"
 	"github.com/ente/museum/internal/testutil"
 	"github.com/ente/museum/pkg/utils/time"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -177,7 +181,7 @@ func TestAddLoginResultRejectsInvalidatedCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = repo.AddLoginResult(context.Background(), userID, srpAuth, &keyAttributes, ente.Photos, "token", "", "", "", "", 0)
+	err = repo.AddLoginResult(context.Background(), userID, srpAuth, &keyAttributes, ente.Photos, "token", "", "", "", "", 0, false)
 	if !errors.Is(err, ente.ErrAuthenticationRequired) {
 		t.Fatalf("stale key attributes returned %v", err)
 	}
@@ -187,7 +191,7 @@ func TestAddLoginResultRejectsInvalidatedCredentials(t *testing.T) {
 	if _, err = db.Exec(`UPDATE srp_auth SET verifier = 'new-verifier' WHERE user_id = $1`, userID); err != nil {
 		t.Fatal(err)
 	}
-	err = repo.AddLoginResult(context.Background(), userID, srpAuth, &keyAttributes, ente.Photos, "token", "", "", "", "", 0)
+	err = repo.AddLoginResult(context.Background(), userID, srpAuth, &keyAttributes, ente.Photos, "token", "", "", "", "", 0, false)
 	if !errors.Is(err, ente.ErrInvalidPassword) {
 		t.Fatalf("stale SRP returned %v", err)
 	}
@@ -196,8 +200,59 @@ func TestAddLoginResultRejectsInvalidatedCredentials(t *testing.T) {
 		t.Fatalf("token count = %d, err = %v", tokenCount, err)
 	}
 	require.NoError(t, (&UserRepository{DB: db}).Delete(userID))
-	err = repo.AddLoginResult(context.Background(), userID, srpAuth, &keyAttributes, ente.Photos, "token", "", "", "", "", 0)
+	err = repo.AddLoginResult(context.Background(), userID, srpAuth, &keyAttributes, ente.Photos, "token", "", "", "", "", 0, false)
 	require.ErrorIs(t, err, ente.ErrUserDeleted)
+}
+
+func TestAddLoginResultOrdersSRPLoginWithEmailMFAUpdate(t *testing.T) {
+	testutil.WithServerRoot(t)
+	db := testutil.RequireTestDB(t)
+	testutil.ResetTables(t, db)
+	t.Cleanup(func() { testutil.ResetTables(t, db) })
+
+	userID := testutil.InsertUser(t, db, testutil.UserFixture{Email: "srp-mfa-race@example.com", CreationTime: 1})
+	_, err := db.Exec(`INSERT INTO srp_auth(user_id, srp_user_id, salt, verifier) VALUES($1, $2, 'salt', 'verifier')`, userID, uuid.New())
+	require.NoError(t, err)
+	repo := &UserAuthRepository{DB: db}
+	srpAuth, err := repo.GetSRPAuthEntity(t.Context(), userID)
+	require.NoError(t, err)
+
+	update, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = update.Rollback() })
+	_, err = update.ExecContext(t.Context(), `UPDATE users SET email_mfa = true WHERE user_id = $1`, userID)
+	require.NoError(t, err)
+	var updatePID int
+	require.NoError(t, update.QueryRowContext(t.Context(), `SELECT pg_backend_pid()`).Scan(&updatePID))
+	loginResult := make(chan error, 1)
+	go func() {
+		loginResult <- repo.AddLoginResult(t.Context(), userID, srpAuth, nil, ente.Photos, "srp-token", "", "", "", "", 0, true)
+	}()
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		var blocked bool
+		require.NoError(collect, db.QueryRow(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity
+			WHERE datname = current_database() AND $1 = ANY(pg_blocking_pids(pid)))`, updatePID).Scan(&blocked))
+		require.True(collect, blocked)
+	}, 5*gotime.Second, 10*gotime.Millisecond)
+	require.NoError(t, update.Commit())
+	err = <-loginResult
+	var apiError *ente.ApiError
+	require.ErrorAs(t, err, &apiError)
+	require.Equal(t, ente.ErrorCode("EMAIL_MFA_ENABLED"), apiError.Code)
+	require.Equal(t, 409, apiError.HttpStatusCode)
+
+	err = repo.AddLoginResult(t.Context(), userID, srpAuth, nil, ente.Photos, "", "", "", "", "srp-pending", time.Microseconds()+1000000, true)
+	require.ErrorAs(t, err, &apiError)
+	require.Equal(t, ente.ErrorCode("EMAIL_MFA_ENABLED"), apiError.Code)
+	var issued int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM tokens WHERE user_id = $1`, userID).Scan(&issued))
+	require.Zero(t, issued)
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM two_factor_sessions WHERE user_id = $1`, userID).Scan(&issued))
+	require.Zero(t, issued)
+
+	require.NoError(t, repo.AddLoginResult(t.Context(), userID, srpAuth, nil, ente.Photos, "email-token", "", "", "", "", 0, false))
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM tokens WHERE user_id = $1`, userID).Scan(&issued))
+	require.Equal(t, 1, issued)
 }
 
 func TestPasswordUpdateRollsBackRecoveryAuthorization(t *testing.T) {
@@ -250,4 +305,135 @@ func TestPasswordUpdateRollsBackRecoveryAuthorization(t *testing.T) {
 		EXISTS (SELECT FROM space_browser_sessions WHERE token_hash=$6 AND user_id=$1)`,
 		userID, oldSRPUserID, tokenHash[:], recoveryID, ente.RecoveryStatusReady, browserTokenHash).Scan(&unchanged))
 	require.True(t, unchanged)
+}
+
+func TestPushTokensRemovedOnSessionRevocation(t *testing.T) {
+	testutil.WithServerRoot(t)
+	db := testutil.RequireTestDB(t)
+	for _, tc := range []struct {
+		name      string
+		remaining []string
+	}{
+		{"session", []string{"other", "locker", "other-account"}},
+		{"other sessions", []string{"current", "rotated", "other-account"}},
+		{"apps", []string{"locker", "other-account"}},
+		{"wrong user", []string{"current", "rotated", "other", "locker", "other-account"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testutil.ResetTables(t, db)
+			t.Cleanup(func() { testutil.ResetTables(t, db) })
+			for _, id := range []int64{1, 2} {
+				testutil.InsertUser(t, db, testutil.UserFixture{UserID: id, Email: fmt.Sprintf("user%d@example.com", id), CreationTime: 1})
+			}
+			r := &UserAuthRepository{DB: db}
+			for _, session := range []struct {
+				token  string
+				userID int64
+				app    ente.App
+			}{
+				{"current", 1, ente.Photos}, {"other", 1, ente.Photos},
+				{"locker", 1, ente.Locker}, {"other-account", 2, ente.Photos},
+			} {
+				require.NoError(t, r.AddToken(session.userID, session.app, session.token, "", ""))
+				hash := sha256.Sum256([]byte(session.token))
+				_, err := db.Exec(`INSERT INTO push_tokens(user_id, fcm_token, session_token_hash) VALUES($1, $2, $3)`, session.userID, session.token, hash[:])
+				require.NoError(t, err)
+			}
+			currentHash := sha256.Sum256([]byte("current"))
+			_, err := db.Exec(`INSERT INTO push_tokens(user_id, fcm_token, session_token_hash) VALUES(1, 'rotated', $1)`, currentHash[:])
+			require.NoError(t, err)
+			var revoked []RevokedToken
+			switch tc.name {
+			case "session":
+				revoked, err = r.RemoveTokenByHash(1, currentHash[:])
+			case "other sessions":
+				revoked, err = r.RemoveAllOtherTokensByHash(1, currentHash[:])
+			case "apps":
+				revoked, err = r.RemoveTokensForApps(1, []ente.App{ente.Photos})
+			case "wrong user":
+				revoked, err = r.RemoveTokenByHash(2, currentHash[:])
+			}
+			require.NoError(t, err)
+			for _, session := range revoked {
+				var deleted bool
+				require.NoError(t, db.QueryRow(`SELECT is_deleted FROM tokens WHERE token_hash = $1`, session.TokenHash).Scan(&deleted))
+				require.True(t, deleted)
+			}
+			var remaining pq.StringArray
+			require.NoError(t, db.QueryRow(`SELECT ARRAY(SELECT fcm_token FROM push_tokens)`).Scan(&remaining))
+			require.ElementsMatch(t, tc.remaining, []string(remaining))
+		})
+	}
+}
+
+func TestPushTokenCleanupFailureRollsBackSessionRevocation(t *testing.T) {
+	testutil.WithServerRoot(t)
+	db := testutil.RequireTestDB(t)
+	testutil.ResetTables(t, db)
+	t.Cleanup(func() { testutil.ResetTables(t, db) })
+	userID := testutil.InsertUser(t, db, testutil.UserFixture{Email: "rollback@example.com", CreationTime: 1})
+	r := &UserAuthRepository{DB: db}
+	require.NoError(t, r.AddToken(userID, ente.Photos, "session", "", ""))
+	hash := sha256.Sum256([]byte("session"))
+	_, err := db.Exec(`INSERT INTO push_tokens(user_id, fcm_token, session_token_hash) VALUES($1, 'device', $2)`, userID, hash[:])
+	require.NoError(t, err)
+	_, err = db.Exec(`CREATE FUNCTION fail_push_cleanup() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN RAISE EXCEPTION 'push cleanup failed'; END;
+		$$;
+		CREATE TRIGGER fail_push_cleanup BEFORE DELETE ON push_tokens
+		FOR EACH ROW EXECUTE FUNCTION fail_push_cleanup()`)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := db.Exec(`DROP TRIGGER fail_push_cleanup ON push_tokens; DROP FUNCTION fail_push_cleanup()`)
+		require.NoError(t, err)
+	})
+	_, err = r.RemoveTokenByHash(userID, hash[:])
+	require.ErrorContains(t, err, "push cleanup failed")
+	var deleted bool
+	require.NoError(t, db.QueryRow(`SELECT is_deleted FROM tokens WHERE token_hash = $1`, hash[:]).Scan(&deleted))
+	require.False(t, deleted)
+	var count int
+	require.NoError(t, db.QueryRow(`SELECT count(*) FROM push_tokens WHERE fcm_token = 'device'`).Scan(&count))
+	require.Equal(t, 1, count)
+}
+
+func TestSessionRevocationDeletesConcurrentPushRegistration(t *testing.T) {
+	testutil.WithServerRoot(t)
+	db := testutil.RequireTestDB(t)
+	testutil.ResetTables(t, db)
+	t.Cleanup(func() { testutil.ResetTables(t, db) })
+	userID := testutil.InsertUser(t, db, testutil.UserFixture{Email: "concurrent@example.com", CreationTime: 1})
+	r := &UserAuthRepository{DB: db}
+	require.NoError(t, r.AddToken(userID, ente.Photos, "session", "", ""))
+	hash := sha256.Sum256([]byte("session"))
+	registration, err := db.Begin()
+	require.NoError(t, err)
+	defer registration.Rollback()
+	var sessionUserID int64
+	require.NoError(t, registration.QueryRow(`SELECT user_id FROM tokens WHERE token_hash = $1 FOR SHARE`, hash[:]).Scan(&sessionUserID))
+	_, err = registration.Exec(`INSERT INTO push_tokens(user_id, fcm_token, session_token_hash) VALUES($1, 'device', $2)`, userID, hash[:])
+	require.NoError(t, err)
+	var pid int
+	require.NoError(t, registration.QueryRow(`SELECT pg_backend_pid()`).Scan(&pid))
+	done := make(chan error, 1)
+	go func() {
+		_, err := r.RemoveTokenByHash(userID, hash[:])
+		done <- err
+	}()
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		var blocked bool
+		require.NoError(collect, db.QueryRow(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity
+			WHERE datname = current_database() AND $1 = ANY(pg_blocking_pids(pid)))`, pid).Scan(&blocked))
+		require.True(collect, blocked)
+	}, 5*gotime.Second, 10*gotime.Millisecond)
+	require.NoError(t, registration.Commit())
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-gotime.After(5 * gotime.Second):
+		t.Fatal("session revocation did not finish")
+	}
+	var count int
+	require.NoError(t, db.QueryRow(`SELECT count(*) FROM push_tokens`).Scan(&count))
+	require.Zero(t, count)
 }

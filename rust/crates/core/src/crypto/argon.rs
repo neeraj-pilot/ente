@@ -6,7 +6,7 @@ use crate::crypto::{Error, Key, Result, Salt};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Params {
-    pub mem_limit: u32,
+    pub mem_limit: u64,
     pub ops_limit: u32,
 }
 
@@ -31,9 +31,41 @@ impl Params {
         mem_limit: 8_192,
         ops_limit: 1,
     };
+
+    pub fn validate(self) -> Result<()> {
+        if self.mem_limit < Self::MIN.mem_limit {
+            return Err(Error::InvalidKeyDerivationParams(format!(
+                "Memory limit {} is below minimum {}",
+                self.mem_limit,
+                Self::MIN.mem_limit
+            )));
+        }
+        if !self.mem_limit.is_multiple_of(1024) {
+            return Err(Error::InvalidKeyDerivationParams(format!(
+                "Memory limit {} must be a multiple of 1024 bytes",
+                self.mem_limit
+            )));
+        }
+        if self.ops_limit < Self::MIN.ops_limit {
+            return Err(Error::InvalidKeyDerivationParams(format!(
+                "Operations limit {} is below minimum {}",
+                self.ops_limit,
+                Self::MIN.ops_limit
+            )));
+        }
+        let max_memory = 4 * Self::SENSITIVE.mem_limit;
+        let max_work = max_memory * u64::from(Self::SENSITIVE.ops_limit);
+        let work = u128::from(self.mem_limit) * u128::from(self.ops_limit);
+        if self.mem_limit > max_memory || work > u128::from(max_work) {
+            return Err(Error::InvalidKeyDerivationParams(
+                "Password derivation exceeds supported resource limits".into(),
+            ));
+        }
+        Ok(())
+    }
 }
 
-const MEMLIMIT_SENSITIVE_MIN: u32 = 134_217_728;
+const MEMLIMIT_SENSITIVE_MIN: u64 = 134_217_728;
 
 pub struct DerivedKey {
     pub key: Key,
@@ -58,30 +90,9 @@ pub fn derive_key(password: &str, salt: &Salt, params: Params) -> Result<Key> {
 }
 
 fn derive_key_impl(password: &[u8], salt: &Salt, params: Params) -> Result<Key> {
-    if params.mem_limit < Params::MIN.mem_limit {
-        return Err(Error::InvalidKeyDerivationParams(format!(
-            "Memory limit {} is below minimum {}",
-            params.mem_limit,
-            Params::MIN.mem_limit
-        )));
-    }
+    params.validate()?;
 
-    if !params.mem_limit.is_multiple_of(1024) {
-        return Err(Error::InvalidKeyDerivationParams(format!(
-            "Memory limit {} must be a multiple of 1024 bytes",
-            params.mem_limit
-        )));
-    }
-
-    if params.ops_limit < Params::MIN.ops_limit {
-        return Err(Error::InvalidKeyDerivationParams(format!(
-            "Operations limit {} is below minimum {}",
-            params.ops_limit,
-            Params::MIN.ops_limit
-        )));
-    }
-
-    let m_cost = params.mem_limit / 1024;
+    let m_cost = (params.mem_limit / 1024) as u32;
     let t_cost = params.ops_limit;
     let p_cost = 1;
 
@@ -135,9 +146,8 @@ fn derive_sensitive_adaptive(password: &[u8], salt: &Salt) -> Result<DerivedKey>
         )));
     }
 
-    let desired_strength =
-        u64::from(Params::SENSITIVE.mem_limit) * u64::from(Params::SENSITIVE.ops_limit);
-    let factor = Params::SENSITIVE.mem_limit / Params::MODERATE.mem_limit;
+    let desired_strength = Params::SENSITIVE.mem_limit * u64::from(Params::SENSITIVE.ops_limit);
+    let factor = (Params::SENSITIVE.mem_limit / Params::MODERATE.mem_limit) as u32;
     let mut mem_limit = Params::MODERATE.mem_limit;
     let mut ops_limit = Params::SENSITIVE
         .ops_limit
@@ -146,7 +156,7 @@ fn derive_sensitive_adaptive(password: &[u8], salt: &Salt) -> Result<DerivedKey>
             Error::InvalidKeyDerivationParams("Operations limit overflow".to_string())
         })?;
 
-    if u64::from(mem_limit) * u64::from(ops_limit) != desired_strength {
+    if mem_limit * u64::from(ops_limit) != desired_strength {
         return Err(Error::InvalidKeyDerivationParams(format!(
             "Unexpected mem/ops limits: mem_limit {mem_limit}, ops_limit {ops_limit}"
         )));
@@ -193,9 +203,8 @@ mod tests {
 
     #[test]
     fn test_sensitive_policy_matches_existing_client_bounds() {
-        let desired_strength =
-            u64::from(Params::SENSITIVE.mem_limit) * u64::from(Params::SENSITIVE.ops_limit);
-        let factor = Params::SENSITIVE.mem_limit / Params::MODERATE.mem_limit;
+        let desired_strength = Params::SENSITIVE.mem_limit * u64::from(Params::SENSITIVE.ops_limit);
+        let factor = (Params::SENSITIVE.mem_limit / Params::MODERATE.mem_limit) as u32;
         let mut mem_limit = Params::MODERATE.mem_limit;
         let mut ops_limit = Params::SENSITIVE.ops_limit * factor;
         let mut attempts = Vec::new();
@@ -217,7 +226,7 @@ mod tests {
         assert!(
             attempts
                 .iter()
-                .all(|(mem, ops)| u64::from(*mem) * u64::from(*ops) == desired_strength)
+                .all(|(mem, ops)| *mem * u64::from(*ops) == desired_strength)
         );
     }
 
@@ -271,6 +280,34 @@ mod tests {
             },
         );
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_params_bound_memory_and_work() {
+        for (memory, operations, accepted) in [
+            (1 << 30, 4, true),
+            (1 << 28, 16, true),
+            (1 << 27, 32, true),
+            (1 << 32, 4, true),
+            (1 << 28, 64, true),
+            (8192, 1 << 21, true),
+            ((1 << 32) + 1024, 1, false),
+            (1 << 32, 5, false),
+            (1 << 28, 65, false),
+            (8192, u32::MAX, false),
+            (u64::MAX - 1023, u32::MAX, false),
+        ] {
+            assert_eq!(
+                Params {
+                    mem_limit: memory,
+                    ops_limit: operations,
+                }
+                .validate()
+                .is_ok(),
+                accepted,
+                "{memory} bytes, {operations} operations"
+            );
+        }
     }
 
     #[test]

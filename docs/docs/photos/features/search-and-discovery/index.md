@@ -9,20 +9,26 @@ Ente provides multiple ways to search and discover your photos. From basic date 
 
 ## Basic Search
 
+![People search on Ente Photos mobile with Emma, Kenji, and James real face thumbnails](https://docs-assets.ente.com/screenshots/phone-search-tab.png){width=320px}
+
 You can quickly access search using the keyboard shortcut:
 
 - **Windows/Linux**: `Ctrl + K`
 - **Mac**: `Cmd + K`
 
-This focuses the search bar from anywhere in the app, letting you start searching immediately.
+Close Settings before using this shortcut. It does not open search while Settings is displayed.
 
-### Date search
+On mobile, open **Search** and scroll to **File types** to find **Photos**, **Videos**, **Live**, and file extensions such as **JPG** or **MP4**. These shortcuts search your library; they do not change an album's contents.
 
-Search for photos by specific dates, months, or years. Simply type a date in the search bar:
+### Date search {#date-search}
 
-- "January 2024" - finds all photos from that month
-- "2023" - finds all photos from that year
-- Specific dates like "July 15, 2024"
+Type a date, month, or year in the search bar **without quotation marks**. For example:
+
+- January 2024
+- 2023
+- July 15, 2024
+
+Then select the matching date suggestion under **Moments** on mobile or **Date** on desktop. This searches by date. Selecting a Magic search suggestion instead searches the visual content of your photos.
 
 ### File name search
 
@@ -70,6 +76,8 @@ Create custom location labels to organize and find photos by place. Location tag
 
 Location tags work entirely on your device and are end-to-end encrypted.
 
+![Map view with location pins for photos on Ente Photos web](https://docs-assets.ente.com/screenshots/web-map-view.png){width=720px}
+
 **Learn more:** [Map and location features](/photos/features/search-and-discovery/map-and-location)
 
 ## AI-Powered Search
@@ -88,6 +96,8 @@ Search for photos by the people in them:
 
 All face recognition happens on your device. Your photos and face data are never sent to Ente's servers.
 
+![Named person with populated memories on Ente Photos desktop](https://docs-assets.ente.com/screenshots/desktop-face-named-person.png){width=720px}
+
 **Learn more:** [Face recognition](/photos/features/search-and-discovery/face-recognition)
 
 ### Magic search
@@ -100,6 +110,8 @@ Search for photos using natural language descriptions of their content:
 - Search activities: "birthday cake", "swimming"
 
 Magic search uses on-device AI (CLIP) to understand the content of your photos. You can type natural language queries like "the red motorcycle next to a fountain" to find specific photos.
+
+![Magic search for dog playing in the snow on Ente Photos mobile and desktop](https://docs-assets.ente.com/screenshots/duo-magic-search-long.png){width=900px}
 
 **Learn more:** [Magic search](/photos/features/search-and-discovery/magic-search)
 
@@ -117,6 +129,8 @@ Open `Settings > Preferences > Machine learning` and enable **Machine learning**
 
 After enabling, the app will download and index your photos locally. This is faster over WiFi and on desktop computers.
 
+![Enable machine learning button highlighted on Ente Photos desktop](https://docs-assets.ente.com/screenshots/desktop-ml-enable-callout.png){width=720px}
+
 **Learn more:** [Machine learning overview](/photos/features/search-and-discovery/machine-learning)
 
 ## Discovery Features
@@ -124,6 +138,8 @@ After enabling, the app will download and index your photos locally. This is fas
 ### Memories
 
 Ente automatically creates collections of photos from past years on the same date, helping you rediscover memories.
+
+![Home gallery with Memories strip on Ente Photos mobile](https://docs-assets.ente.com/screenshots/phone-home-populated.png){width=320px}
 
 To share items from a memory on mobile:
 

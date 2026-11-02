@@ -58,6 +58,7 @@ interface SelectedFileOptionsProps {
     selectedOwnFileCount: number;
     selectedFavoriteCount: number;
     onClearSelection: () => void;
+    onDelete: () => void;
     onRemoveFilesFromCollection: (collection: Collection) => void;
     onOpenCollectionSelector: (
         attributes: CollectionSelectorAttributes,
@@ -82,6 +83,7 @@ export const SelectedFileOptions: React.FC<SelectedFileOptionsProps> = ({
     selectedOwnFileCount,
     selectedFavoriteCount,
     onClearSelection,
+    onDelete,
     onRemoveFilesFromCollection,
     onOpenCollectionSelector,
     createOnCreateForCollectionOp,
@@ -102,17 +104,6 @@ export const SelectedFileOptions: React.FC<SelectedFileOptionsProps> = ({
     const handleArchive = createFileOpHandler("archive");
     const handleUnarchive = createFileOpHandler("unarchive");
 
-    const handleDelete = () =>
-        showMiniDialog({
-            title: t("trash_files_title"),
-            message: t("trash_files_message"),
-            continue: {
-                text: t("move_to_trash"),
-                color: "critical",
-                action: createFileOpHandler("trash"),
-            },
-        });
-
     const handleRestore = () =>
         onOpenCollectionSelector({
             action: "restore",
@@ -123,6 +114,7 @@ export const SelectedFileOptions: React.FC<SelectedFileOptionsProps> = ({
     const handleDeletePermanently = () =>
         showMiniDialog({
             title: t("delete_files_title"),
+            kind: "warning",
             message: t("delete_files_message"),
             continue: {
                 text: t("delete"),
@@ -226,6 +218,7 @@ export const SelectedFileOptions: React.FC<SelectedFileOptionsProps> = ({
         barMode,
         isInSearchMode,
         collectionSummary,
+        hasOwnFiles: selectedOwnFileCount > 0,
         hasOnlyOwnFiles,
         showAddPerson: !!onShowAssignPersonDialog,
         showEditLocation: !!onEditLocation && hasOnlyOwnFiles,
@@ -263,7 +256,7 @@ export const SelectedFileOptions: React.FC<SelectedFileOptionsProps> = ({
             case "unhide":
                 return <UnhideButton key={action} onClick={handleUnhide} />;
             case "trash":
-                return <DeleteButton key={action} onClick={handleDelete} />;
+                return <DeleteButton key={action} onClick={onDelete} />;
             case "deletePermanently":
                 return (
                     <DeletePermanentlyButton
@@ -305,9 +298,9 @@ export const SelectedFileOptions: React.FC<SelectedFileOptionsProps> = ({
     };
 
     return (
-        <>
-            <SpacedRow sx={{ flex: 1, gap: 1, flexWrap: "wrap" }}>
-                <IconButton onClick={onClearSelection}>
+        <SpacedRow sx={{ flex: 1, minWidth: 0, gap: 1, flexWrap: "wrap" }}>
+            <SpacedRow sx={{ gap: 1, flexShrink: 0 }}>
+                <IconButton onClick={onClearSelection} aria-label={t("close")}>
                     <CloseIcon />
                 </IconButton>
                 <Typography>
@@ -322,12 +315,27 @@ export const SelectedFileOptions: React.FC<SelectedFileOptionsProps> = ({
                     isAllSelected={isAllSelected}
                     onClick={isAllSelected ? onClearSelection : onSelectAll}
                 />
-
-                <Box sx={{ mr: "auto" }} />
-
-                {toolbarActions.map(renderActionButton)}
             </SpacedRow>
-        </>
+            <Box
+                sx={{
+                    display: "flex",
+                    flex: "1 1 320px",
+                    minWidth: 0,
+                    overflowX: "auto",
+                }}
+            >
+                <Box
+                    sx={{
+                        display: "flex",
+                        flexShrink: 0,
+                        ml: "auto",
+                        "& .MuiIconButton-root": { p: 1 },
+                    }}
+                >
+                    {toolbarActions.map(renderActionButton)}
+                </Box>
+            </Box>
+        </SpacedRow>
     );
 };
 

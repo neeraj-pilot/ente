@@ -1,13 +1,13 @@
-import "package:dio/dio.dart";
+import 'package:ente_base/models/accounts.dart';
 import "package:ente_components/ente_components.dart";
-import "package:ente_crypto/ente_crypto.dart";
 import "package:ente_strings/ente_strings.dart";
 import "package:flutter/foundation.dart";
 import 'package:flutter/material.dart';
+import "package:flutter/services.dart";
 import "package:logging/logging.dart";
 import 'package:photos/core/configuration.dart';
-import "package:photos/gateways/users/models/srp.dart";
 import "package:photos/services/account/user_service.dart";
+import "package:photos/ui/account/onboarding_page_scaffold.dart";
 import "package:photos/ui/components/buttons/button_widget.dart"
     show ButtonAction;
 import "package:photos/utils/dialog_util.dart";
@@ -26,8 +26,11 @@ class LoginPasswordVerificationPage extends StatefulWidget {
 class _LoginPasswordVerificationPageState
     extends State<LoginPasswordVerificationPage> {
   final _passwordController = TextEditingController();
+  final _passwordFocusNode = FocusNode();
+  bool _isSubmitting = false;
   String? email;
   bool _hasPassword = false;
+  bool _isPasswordIncorrect = false;
   final Logger _logger = Logger("LoginPasswordVerificationPage");
 
   @override
@@ -42,62 +45,49 @@ class _LoginPasswordVerificationPageState
 
   @override
   void dispose() {
+    _passwordFocusNode.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.componentColors;
-
-    return Scaffold(
-      resizeToAvoidBottomInset: true,
-      backgroundColor: colors.backgroundBase,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: colors.backgroundBase,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          color: colors.iconColor,
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
-        ),
-        title: Text(
-          context.strings.logInLabel,
-          style: TextStyles.large.copyWith(color: colors.textBase),
-        ),
-        centerTitle: true,
-      ),
+    return OnboardingPageScaffold(
+      title: context.strings.enterPassword,
+      illustration: OnboardingIllustration.password,
       body: _getBody(),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: ButtonComponent(
+      actions: [
+        ButtonComponent(
           key: const ValueKey("verifyPasswordButton"),
           label: context.strings.logInLabel,
+          shouldShowSuccessState: false,
           isDisabled: !_hasPassword,
           onTap: _verifyEnteredPassword,
         ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      ],
     );
   }
 
   Future<void> _verifyEnteredPassword() async {
-    if (!_hasPassword) {
+    if (!_hasPassword || _isSubmitting) {
       return;
     }
-    FocusScope.of(context).unfocus();
-    await verifyPassword(context, _passwordController.text);
+    _isSubmitting = true;
+    _passwordFocusNode.unfocus();
+    try {
+      await verifyPassword(context, _passwordController.text);
+    } finally {
+      _isSubmitting = false;
+    }
   }
 
   Widget _getBody() {
     return AutofillGroup(
-      child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+      onDisposeAction: AutofillContextAction.cancel,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 24),
           Visibility(
             visible: false,
             child: TextFormField(
@@ -113,33 +103,42 @@ class _LoginPasswordVerificationPageState
             label: context.strings.password,
             hintText: context.strings.enterYourPassword,
             controller: _passwordController,
+            focusNode: _passwordFocusNode,
             isPasswordInput: true,
             isRequired: true,
             autocorrect: false,
             autofocus: true,
             shouldUnfocusOnClearOrSubmit: true,
             onSubmit: (_) => _verifyEnteredPassword(),
+            message: _isPasswordIncorrect
+                ? context.strings.incorrectPasswordTitle
+                : null,
+            messageType: _isPasswordIncorrect
+                ? TextInputComponentMessageType.alert
+                : TextInputComponentMessageType.helper,
             onChanged: (value) {
               final hasPassword = value.isNotEmpty;
-              if (_hasPassword != hasPassword) {
+              if (_hasPassword != hasPassword || _isPasswordIncorrect) {
                 setState(() {
                   _hasPassword = hasPassword;
+                  _isPasswordIncorrect = false;
                 });
               }
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: Spacing.md),
           Align(
             alignment: Alignment.centerRight,
             child: ButtonComponent(
               variant: ButtonComponentVariant.link,
-              label: context.strings.forgotPassword,
+              label: context.strings.forgotPasswordPrompt,
               size: ButtonComponentSize.small,
               onTap: () async {
                 await UserService.instance.sendOtt(
                   context,
                   email!,
                   isResetPasswordScreen: true,
+                  isForgotPassword: true,
                 );
               },
             ),
@@ -150,6 +149,9 @@ class _LoginPasswordVerificationPageState
   }
 
   Future<void> verifyPassword(BuildContext context, String password) async {
+    setState(() {
+      _isPasswordIncorrect = false;
+    });
     final dialog = createProgressDialog(
       context,
       context.strings.pleaseWait,
@@ -167,21 +169,34 @@ class _LoginPasswordVerificationPageState
         password,
         dialog,
       );
-    } on DioException catch (e, s) {
+      if (mounted) TextInput.finishAutofillContext();
+    } on AccountsError catch (e, s) {
       await dialog.hide();
-      if (e.response != null && e.response!.statusCode == 401) {
-        _logger.severe('server reject, failed verify SRP login', e, s);
+      if (e == const AccountsError.keyDerivation()) {
         if (!context.mounted) return;
-        await _showContactSupportDialog(
+        final dialogChoice = await showChoiceDialog(
           context,
-          context.strings.incorrectPasswordTitle,
-          context.strings.pleaseTryAgain,
+          title: context.strings.recreatePasswordTitle,
+          body: context.strings.recreatePasswordBody,
+          firstButtonLabel: context.strings.useRecoveryKey,
         );
+        if (dialogChoice?.action == ButtonAction.first && context.mounted) {
+          await UserService.instance.sendOtt(
+            context,
+            email!,
+            isResetPasswordScreen: true,
+          );
+        }
+        return;
+      } else if (e == const AccountsError.incorrectPassword()) {
+        _logger.info("Incorrect password");
+        if (!mounted || !context.mounted) return;
+        setState(() {
+          _isPasswordIncorrect = true;
+        });
       } else {
-        _logger.severe('API failure during SRP login ${e.type}', e, s);
-        if (e.type == DioExceptionType.connectionTimeout ||
-            e.type == DioExceptionType.receiveTimeout ||
-            e.type == DioExceptionType.sendTimeout) {
+        _logger.severe('API failure during SRP login', e, s);
+        if (e is AccountsError_Network) {
           if (!context.mounted) return;
           await _showContactSupportDialog(
             context,
@@ -200,41 +215,14 @@ class _LoginPasswordVerificationPageState
     } catch (e, s) {
       _logger.info('error during loginViaPassword', e);
       await dialog.hide();
-      if (e is LoginKeyDerivationError) {
-        _logger.severe('loginKey derivation error', e, s);
-        if (!context.mounted) return;
-        await UserService.instance.sendOtt(
-          context,
-          email!,
-          isCreateAccountScreen: true,
-        );
-        return;
-      } else if (e is KeyDerivationError) {
-        // This device is not powerful enough to derive the key.
-        if (!context.mounted) return;
-        final dialogChoice = await showChoiceDialog(
-          context,
-          title: context.strings.recreatePasswordTitle,
-          body: context.strings.recreatePasswordBody,
-          firstButtonLabel: context.strings.useRecoveryKey,
-        );
-        if (dialogChoice?.action == ButtonAction.first && context.mounted) {
-          await UserService.instance.sendOtt(
-            context,
-            email!,
-            isResetPasswordScreen: true,
-          );
-        }
-        return;
-      } else {
-        _logger.severe('unexpected error while verifying password', e, s);
-        if (!context.mounted) return;
-        await _showContactSupportDialog(
-          context,
-          context.strings.oops,
-          context.strings.verificationFailedPleaseTryAgain,
-        );
-      }
+
+      _logger.severe('unexpected error while verifying password', e, s);
+      if (!context.mounted) return;
+      await _showContactSupportDialog(
+        context,
+        context.strings.oops,
+        context.strings.verificationFailedPleaseTryAgain,
+      );
     }
   }
 

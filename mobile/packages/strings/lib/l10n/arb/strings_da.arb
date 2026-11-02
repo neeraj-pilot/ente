@@ -284,10 +284,6 @@
     "description": "Do not sign out button label"
   },
   "dontHaveAnAccount": "Har du ikke en konto?",
-  "doThisLater": "Gør det senere",
-  "@doThisLater": {
-    "description": "Do this later button label"
-  },
   "doubleTapToViewHiddenCode": "Du kan dobbelt-klikke på et felt for at se koden",
   "downloadFailed": "Download mislykkedes",
   "downloading": "Downloader...",
@@ -661,7 +657,6 @@
   "markingAsImportant": "Markerer som vigtig...",
   "minimizeAppOnCopy": "Minimer app ved kopiering",
   "mlConsent": "Aktiver maskinlæring",
-  "mlConsentPrivacy": "Klik her for flere detaljer om denne funktion i vores privatlivspolitik",
   "moments": "Øjeblikke",
   "name": "Navn",
   "networkConnectionRefusedErr": "Ude af stand til at forbinde til Ente. Forsøg igen efter et stykke tid. Hvis fejlen varer ved, kontakt da venligst support.",
@@ -939,7 +934,6 @@
   },
   "selectExportFormat": "Vælg eksportformat",
   "selectFile": "Vælg fil",
-  "selectFoldersForBackup": "Vælg mapper til sikkerhedskopiering",
   "selectLanguage": "Vælg sprog",
   "selectTime": "Vælg tid",
   "sendInvite": "Send invitation",

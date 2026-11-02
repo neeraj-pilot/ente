@@ -1,4 +1,5 @@
 {
+  "allCleanedUp": "All cleaned up!",
   "bringMemoriesTogether": "Bring your memories together",
   "@bringMemoriesTogether": {
     "description": "Title on the Local Gallery photo permission screen"
@@ -62,6 +63,7 @@
   "add": "Add",
   "addAlbumWidgetPrompt": "Add an album widget to your home screen to customize it here.",
   "addANameAndPhoto": "Add a name and photo",
+  "addAnyway": "Add anyway",
   "addCode": "Add code",
   "addedAMemoryTo": "added a memory to {albumName}",
   "@addedAMemoryTo": {
@@ -133,6 +135,7 @@
       "count": {}
     }
   },
+  "addItems": "Add items",
   "addLocation": "Add location",
   "addLocationButton": "Add",
   "addMember": "Add member",
@@ -168,6 +171,7 @@
   "addTo": "Add to",
   "addToAlbum": "Add to album",
   "addToCollection": "Add to collection",
+  "addToCollections": "Add to collections",
   "addToEnte": "Add to Ente",
   "addToHiddenAlbum": "Add to hidden album",
   "addToPerson": "Add to person",
@@ -209,20 +213,25 @@
     }
   },
   "albumsOnDevicePermissionCta": "Allow access",
-  "albumsOnDevicePermissionFeatureAllowAccessFaceRecognition": "Allow Ente to access and organize your photos with face recognition",
-  "albumsOnDevicePermissionFeatureControlUploads": "You're in control of what gets uploaded",
-  "albumsOnDevicePermissionFeatureLocalProcessing": "All processing happens on your device",
+  "albumsOnDevicePermissionDescription": "Your photos get organized with face recognition, right on your device.",
+  "@albumsOnDevicePermissionDescription": {
+    "description": "Body of the on-device albums empty state shown before photo access is granted"
+  },
   "albumsOnEnteEmptyCta": "Select albums to backup",
-  "albumsOnEnteEmptyFeatureAccessAnyDevice": "Access them on any device",
-  "albumsOnEnteEmptyFeaturePrivacy": "Full privacy with end-to-end encryption",
-  "albumsOnEnteEmptyFeatureShareLovedOnes": "Share them with loved ones - they can react and chat, without an account",
+  "albumsOnEnteEmptyDescription": "Access them on any device and share them with loved ones.",
+  "@albumsOnEnteEmptyDescription": {
+    "description": "Body of the Ente albums empty state, under the title 'Back up your memories'"
+  },
   "albumsOnEnteEmptyTitle": "Back up your memories",
-  "albumsReceivedEmptyFeatureAcceptInvites": "Accept invites to view photos and videos",
-  "albumsReceivedEmptyFeatureSaveToLibrary": "Save shared memories to your own library",
-  "albumsReceivedEmptyFeatureSharedByOthers": "Albums shared by others will appear here",
-  "albumsReceivedEmptyTitle": "View memories shared\n with you",
-  "albumsSharedEmptyFeatureReactAndComment": "They can view, react and add comments, without an account",
-  "albumsSharedEmptyFeatureShareLovedOnes": "Share your photos and videos with loved ones",
+  "albumsReceivedEmptyDescription": "Albums shared with you appear here, ready to view and save.",
+  "@albumsReceivedEmptyDescription": {
+    "description": "Body of the received albums empty state"
+  },
+  "albumsReceivedEmptyTitle": "Memories shared with you",
+  "albumsSharedEmptyDescription": "Loved ones can view, react and add comments, without an account.",
+  "@albumsSharedEmptyDescription": {
+    "description": "Body of the shared albums and feed empty states, under the title 'Share your memories'"
+  },
   "albumsSharedEmptyTitle": "Share your memories",
   "albumsWidgetDesc": "Select the albums you want to see on your home screen.",
   "albumTitle": "Album title",
@@ -430,6 +439,10 @@
   "backupFailed": "Backup failed",
   "backupFile": "Backup file",
   "backupFolderLabel": "Backup folder:",
+  "backupLatestPhotos": "Backup latest photos",
+  "@backupLatestPhotos": {
+    "description": "Button on the photo permission screen that backs up only recent photos"
+  },
   "backupLocationChoiceDescription": "Where do you want to save your backups?",
   "backupMode": "Backup mode",
   "backupModeBackingUpItems": "{count, plural, one{Backing up {formattedCount} item} other{Backing up {formattedCount} items}}",
@@ -590,6 +603,10 @@
   "checkStatus": "Check status",
   "@checkStatus": {
     "description": "Check status button label"
+  },
+  "chooseAlbumsToBackup": "Choose albums to backup",
+  "@chooseAlbumsToBackup": {
+    "description": "Button on the photo permission screen that opens album selection for backup"
   },
   "chooseARecoveryTime": "Choose a recovery time",
   "chooseBackupLocation": "Choose a backup location",
@@ -1064,6 +1081,9 @@
     "description": "Instructions for enabling device lock"
   },
   "deviceNotFound": "Device not found",
+  "devicePickerLimitedAccess": "Showing the photos you allowed",
+  "devicePickerPermissionHint": "To add photos and videos to this album, allow access in settings.",
+  "devicePickerSelectionChanged": "Some selected items couldn't be found. Check your selection and try again.",
   "didYouKnow": "Did you know?",
   "digits": "Digits",
   "disableBackup": "Disable backup",
@@ -1079,6 +1099,8 @@
   "disablingTwofactorAuthentication": "Disabling two-factor authentication...",
   "discardChanges": "Discard",
   "discardEditsQuestion": "Discard edits?",
+  "discardUploadMessage": "The items you picked won't be saved.",
+  "discardUploadTitle": "Discard upload?",
   "discover": "Discover",
   "@discover": {
     "description": "The text to display for the discover section under which we show receipts, screenshots, sunsets, greenery, etc."
@@ -1109,16 +1131,16 @@
   "doesGroupContainMultiplePeople": "Does this grouping contain multiple people?",
   "dog": "Dog",
   "done": "Done",
+  "dontShowAgain": "Don’t show again",
+  "@dontShowAgain": {
+    "description": "Checkbox label for hiding an informational notice after confirming the action"
+  },
   "doNotSignOut": "Do not sign out",
   "@doNotSignOut": {
     "description": "Do not sign out button label"
   },
   "dontHaveAnAccount": "Don't have an account?",
   "dontSave": "Don't save",
-  "doThisLater": "Do this later",
-  "@doThisLater": {
-    "description": "Do this later button label"
-  },
   "doubleTapToViewHiddenCode": "You can double tap on an entry to view code",
   "download": "Download",
   "downloadApplicationUpdate": "Download update",
@@ -1495,62 +1517,22 @@
       }
     }
   },
-  "memoryLaneCaptionMonthsAgo": "{name} {count, plural, one{{number} month ago} other{{number} months ago}}",
-  "@memoryLaneCaptionMonthsAgo": {
-    "description": "Memory Lane caption in elapsed months. Always keep the number, including for one.",
+  "memoryLaneCaptionNow": "{name} {now}",
+  "@memoryLaneCaptionNow": {
+    "description": "Memory Lane caption for a photo taken less than a year ago, without a number. Keep both placeholders in the natural word order for your language.",
     "placeholders": {
       "name": {
         "type": "String"
       },
-      "count": {
-        "type": "int"
-      },
-      "number": {
+      "now": {
         "type": "String",
-        "description": "Placeholder rendered as a separate, larger number; retain in every plural form."
+        "description": "The localized word for now, rendered in a handwritten style. Keep this placeholder rather than writing the word directly."
       }
     }
   },
-  "memoryLaneCaptionWeeksAgo": "{name} {count, plural, one{{number} week ago} other{{number} weeks ago}}",
-  "@memoryLaneCaptionWeeksAgo": {
-    "description": "Memory Lane caption in elapsed weeks. Always keep the number, including for one.",
-    "placeholders": {
-      "name": {
-        "type": "String"
-      },
-      "count": {
-        "type": "int"
-      },
-      "number": {
-        "type": "String",
-        "description": "Placeholder rendered as a separate, larger number; retain in every plural form."
-      }
-    }
-  },
-  "memoryLaneCaptionDaysAgo": "{name} {count, plural, one{{number} day ago} other{{number} days ago}}",
-  "@memoryLaneCaptionDaysAgo": {
-    "description": "Memory Lane caption in elapsed days. Always keep the number, including for one.",
-    "placeholders": {
-      "name": {
-        "type": "String"
-      },
-      "count": {
-        "type": "int"
-      },
-      "number": {
-        "type": "String",
-        "description": "Placeholder rendered as a separate, larger number; retain in every plural form."
-      }
-    }
-  },
-  "memoryLaneCaptionToday": "{name} today",
-  "@memoryLaneCaptionToday": {
-    "description": "Memory Lane caption for a photo taken today, without a number.",
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
+  "memoryLaneNow": "now",
+  "@memoryLaneNow": {
+    "description": "The current moment in a Memory Lane caption, such as Ashil now. This word is styled separately from the person's name."
   },
   "facesTimelinePlaybackPause": "Pause",
   "@facesTimelinePlaybackPause": {
@@ -1850,10 +1832,12 @@
   "@forgotPassword": {
     "description": "Forgot password link label"
   },
+  "forgotPasswordPrompt": "Forgot password?",
   "forgotRecoveryKey": "Forgot recovery key?",
   "free10GB": "10GB free on <bold-green>ente</bold-green> Photos",
   "freeStorageOffer": "10% off on <bold-green>ente</bold-green> photos",
   "freeStorageOfferDescription": "Use code \"AUTH\" to get 10% off first year",
+  "free": "Free",
   "freeTrial": "Free trial",
   "freeUpAmount": "Free up {sizeInMBorGB}",
   "@freeUpAmount": {
@@ -1910,6 +1894,9 @@
   "grantPermissionDesc": "Please allow Ente to access your library so we can organize it with face recognition. All processing happens on your device.",
   "greenery": "The green life",
   "grid": "Grid",
+  "photosInOriginalProportions": "Photos in original proportions",
+  "squarePhotos": "Square photos",
+  "photosPerRow": "Photos per row",
   "groupBy": "Group by",
   "groupByDay": "Day",
   "groupByMonth": "Month",
@@ -1968,14 +1955,48 @@
   "ignore": "Ignore",
   "ignored": "ignored",
   "ignorePerson": "Ignore person",
+  "imageEditorAlignCenter": "Align center",
+  "imageEditorAlignLeft": "Align left",
+  "imageEditorAlignRight": "Align right",
+  "imageEditorBackgroundColor": "Background color",
+  "imageEditorBlue": "Blue",
+  "imageEditorBold": "Bold",
   "imageEditorBrightness": "Brightness",
   "imageEditorContrast": "Contrast",
+  "imageEditorCustomColor": "Custom color",
+  "imageEditorDuplicate": "Duplicate",
+  "imageEditorEnterText": "Enter text",
   "imageEditorExposure": "Exposure",
   "imageEditorFade": "Fade",
+  "imageEditorGreen": "Green",
   "imageEditorHue": "Hue",
+  "imageEditorItalic": "Italic",
+  "imageEditorNoBackground": "No background",
+  "@imageEditorNoBackground": {
+    "description": "Text background style with no visible background"
+  },
+  "imageEditorOrange": "Orange",
+  "imageEditorPink": "Pink",
+  "imageEditorPurple": "Purple",
+  "imageEditorRed": "Red",
   "imageEditorSaturation": "Saturation",
+  "imageEditorSolidBackground": "Solid background",
+  "@imageEditorSolidBackground": {
+    "description": "Text background style with a fully opaque color"
+  },
+  "imageEditorTeal": "Teal",
   "imageEditorTemperature": "Temperature",
+  "imageEditorText": "Text",
+  "@imageEditorText": {
+    "description": "Tool for adding text to a photo"
+  },
+  "imageEditorTextColor": "Text color",
   "imageEditorTint": "Tint",
+  "imageEditorTranslucentBackground": "Translucent background",
+  "@imageEditorTranslucentBackground": {
+    "description": "Text background style with a half-transparent color"
+  },
+  "imageEditorWhite": "White",
   "imageNotAnalyzed": "Image not analyzed",
   "immediate": "Immediate",
   "immediately": "Immediately",
@@ -2126,6 +2147,8 @@
       }
     }
   },
+  "itemsLabel": "Items",
+  "itemsQueuedForDeletion": "Items queued for deletion",
   "itemsShowTheNumberOfDaysRemainingBeforePermanentDeletion": "Items show the number of days remaining before permanent deletion",
   "itemsStored": "Items stored",
   "itemsWillBeDeletedFromAllCollections": "{count, plural, one{This item will be deleted from all collections. You can recover it from Trash.} other{These items will be deleted from all collections. You can recover them from Trash.}}",
@@ -2151,6 +2174,10 @@
   "joinAlbumConfirmationDialogBody": "Joining an album will make your email visible to its participants.",
   "joinAlbumSubtext": "to view and add your photos",
   "joinAlbumSubtextViewer": "to add this to shared albums",
+  "keep": "Keep",
+  "@keep": {
+    "description": "Tooltip for the button that keeps the current photo while reviewing old photos."
+  },
   "keepOffline": "Keep offline",
   "keepPhotos": "Keep photos",
   "kiloMeterUnit": "km",
@@ -2162,9 +2189,6 @@
   "lastYearsTrip": "Last year's trip",
   "layout": "Layout",
   "layoutGrouped": "Grouped",
-  "layoutJustified": "Justified",
-  "layoutJustifiedComfort": "Justified · Comfort",
-  "layoutJustifiedFlex": "Justified · Flex",
   "layoutMasonry": "Masonry",
   "layoutTrip": "Trip",
   "leave": "Leave",
@@ -2535,6 +2559,7 @@
   },
   "maps": "Maps",
   "mapsPrivacyNotice": "Approximate coordinates will be sent to privacy conscious third parties like OpenStreetMap to show the map and location.",
+  "markAsReviewed": "Mark as reviewed",
   "markingAsImportant": "Marking as important...",
   "me": "Me",
   "mediaManagementHintMessage": "Turn on media management for Ente in settings, and the prompts stop.",
@@ -2561,7 +2586,7 @@
   },
   "memories": "Memories",
   "memoriesReadyNotificationTitle": "Rediscover your memories ✨",
-  "memoriesReadyNotificationBody": "Tailored for you, crafted on your phone.",
+  "memoriesReadyNotificationBody": "Curated for you, on your phone",
   "memoriesWidgetDesc": "Select the kinds of memories you want to see on your home screen.",
   "memoryCount": "{count, plural, =0{no memories} one{{formattedCount} memory} other{{formattedCount} memories}}",
   "@memoryCount": {
@@ -2635,7 +2660,10 @@
   "mlConsent": "Enable machine learning",
   "mlConsentConfirmation": "I understand, and wish to enable machine learning",
   "mlConsentDescription": "If you enable machine learning, Ente will extract information like face geometry from files, including those shared with you.\n\nThis will happen on your device, and any generated biometric information will be end-to-end encrypted.",
-  "mlConsentPrivacy": "Please click here for more details about this feature in our privacy policy",
+  "mlConsentPrivacyDetails": "Please <policy>click here</policy> for more details about this feature in our privacy policy",
+  "@mlConsentPrivacyDetails": {
+    "description": "Machine learning consent screen sentence; only the text inside the policy tags is tappable and opens the privacy policy"
+  },
   "mlCouldNotProcessItems": "{count, plural, one{Could not process {count} item} other{Could not process {count} items}}",
   "@mlCouldNotProcessItems": {
     "description": "Title shown when machine learning could not process one or more items",
@@ -2679,6 +2707,7 @@
   "modifyYourQueryOrTrySearchingFor": "Modify your query, or try searching for",
   "moments": "Moments",
   "month": "month",
+  "mostPopular": "Most popular",
   "monthly": "Monthly",
   "@monthly": {
     "description": "The text to display for monthly plans",
@@ -2767,7 +2796,7 @@
   },
   "nightLights": "Neon nights",
   "no": "No",
-  "noAlbumsOnThisDevice": "No albums\non this device",
+  "noAlbumsOnThisDevice": "No albums on this device",
   "noAppToOpenFileDownloadInstead": "No app is available to preview this file. You can download it and open it with another app.",
   "@noAppToOpenFileDownloadInstead": {
     "description": "Message shown when Android cannot find an app to open or preview a file"
@@ -2865,10 +2894,13 @@
       }
     }
   },
+  "nothingToReviewYet": "Nothing to review yet",
+  "nothingToReviewYetDesc": "Your photos will show up here, month by month.",
   "nothingToSeeHere": "Nothing to see here",
   "nothingToCleanUp": "Nothing to clean up",
   "nothingToTidyUpHere": "Nothing to tidy up here",
   "notifications": "Notifications",
+  "notificationNewActivity": "New activity",
   "notifyMe": "Notify me",
   "notPersonLabel": "Not {name}?",
   "@notPersonLabel": {
@@ -2901,6 +2933,8 @@
   "offlineNameFaceBannerTitle": "Give this face a name",
   "offlineSettingsBannerDesc": "Zero-knowledge encryption means your memories stay yours.",
   "offlineSettingsBannerTitle": "We can't see your photos. Ever.",
+  "oldPhotos": "Old photos",
+  "oldPhotosDesc": "Look back, keep what matters",
   "onboardingDesc": "Save your photos and videos. Every memory, in one place.",
   "onboardingTitle": "For everything you don't want to forget",
   "onDevice": "Device",
@@ -2942,6 +2976,7 @@
   "openAlbumInBrowser": "Open album in browser",
   "openAlbumInBrowserTitle": "Please use the web app to add photos to this album",
   "openFile": "Open file",
+  "openInAnotherApp": "Open in another app",
   "openLink": "Open link",
   "openSettings": "Open settings",
   "openstreetmapContributors": "OpenStreetMap contributors",
@@ -3027,6 +3062,8 @@
       }
     }
   },
+  "pdfNeedsPassword": "This PDF needs a password",
+  "pdfPasswordNotSupportedOnDevice": "This device cannot unlock password-protected PDFs. Open it in another app.",
   "pending": "Pending",
   "pendingSync": "Pending sync",
   "pendingSyncs": "Warning",
@@ -3240,6 +3277,7 @@
     }
   },
   "publicLink": "Public link",
+  "publicCollectionLinkAccessDescription": "Anyone with the link can open the collection without an Ente account.",
   "publicLinkAccessDescription": "Anyone with the link can open the album without an Ente account.",
   "publicLinkCollectDescription": "Anyone with this link can add photos to your album.",
   "publicLinkEnabled": "Public link enabled",
@@ -3605,7 +3643,72 @@
   "retake": "Retake",
   "retry": "Retry",
   "review": "Review",
+  "reviewAgain": "Review again",
+  "reviewFreedUpSummary": "{count, plural, one{You freed up {size} from {count} item.} other{You freed up {size} from {count} items.}}",
+  "@reviewFreedUpSummary": {
+    "placeholders": {
+      "size": {
+        "example": "128 MB",
+        "type": "String"
+      },
+      "count": {
+        "example": "24",
+        "type": "int"
+      }
+    }
+  },
+  "reviewKeptEverything": "You kept everything in this month.",
+  "reviewLetsGetStartedWith": "Let’s get started with",
+  "@reviewLetsGetStartedWith": {
+    "description": "Caption above the month name on the Review old photos banner before any month has been started."
+  },
+  "reviewNextMonth": "Review next month",
+  "reviewOldPhotos": "Review old photos",
+  "reviewPercentReviewed": "{percent}% reviewed",
+  "@reviewPercentReviewed": {
+    "placeholders": {
+      "percent": {
+        "example": "40",
+        "type": "int"
+      }
+    }
+  },
+  "reviewPickUpAgain": "Pick up again",
+  "@reviewPickUpAgain": {
+    "description": "Caption above the month name on the Review old photos banner when a month is partly reviewed."
+  },
+  "reviewProgressCount": "{reviewed}/{total} reviewed",
+  "@reviewProgressCount": {
+    "placeholders": {
+      "reviewed": {
+        "example": "40",
+        "type": "int"
+      },
+      "total": {
+        "example": "60",
+        "type": "int"
+      }
+    }
+  },
+  "reviewRemovedItemsSummary": "{count, plural, one{You removed {count} item.} other{You removed {count} items.}}",
+  "@reviewRemovedItemsSummary": {
+    "placeholders": {
+      "count": {
+        "example": "24",
+        "type": "int"
+      }
+    }
+  },
   "reviewSuggestions": "Review suggestions",
+  "reviewYouReviewedYear": "You reviewed {year}!",
+  "@reviewYouReviewedYear": {
+    "placeholders": {
+      "year": {
+        "example": "2026",
+        "type": "String"
+      }
+    }
+  },
   "revoke": "Revoke",
   "revokeInvite": "Revoke invite",
   "@revokeInvite": {
@@ -3807,6 +3910,7 @@
   "searchLocationEmptySection": "Group photos that are taken within some radius of a photo",
   "searchPeopleEmptySection": "Invite people, and you'll see all photos shared by them here",
   "searchPersonsEmptySection": "People will be shown here once processing and syncing is complete",
+  "searchPhotosPeoplePlaces": "Search photos, people, places...",
   "searchResultCameraMake": "Camera make",
   "@searchResultCameraMake": {
     "description": "Search result subtitle label for camera make matches"
@@ -3886,7 +3990,9 @@
   "secretCanNotBeEmpty": "Secret can not be empty",
   "security": "Security",
   "securityDesc": "Encryption, recovery keys, app lock, and account protection",
+  "seeAll": "See all",
   "seeAllCollections": "All collections",
+  "seeLess": "See less",
   "seePublicAlbumLinksInApp": "See public album links in app",
   "selectAlbumsToBackUpToEnte": "Select albums to back up to Ente",
   "selectAlbumToLikePhoto": "Select the album to like this photo",
@@ -3921,6 +4027,20 @@
       "count": {
         "type": "int",
         "example": "3"
+      }
+    }
+  },
+  "selectedCountWithLimit": "{count}/{limit} selected",
+  "@selectedCountWithLimit": {
+    "description": "Selected item count and the selection limit",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "3"
+      },
+      "limit": {
+        "type": "int",
+        "example": "50"
       }
     }
   },
@@ -3965,7 +4085,6 @@
   "selectFile": "Select file",
   "selectFolder": "Select folder",
   "selectFolders": "Select folders",
-  "selectFoldersForBackup": "Select folders for backup",
   "selectFolderToContinue": "Select a folder to continue",
   "selectItemsToAdd": "Select items to add",
   "selectLanguage": "Select language",
@@ -3981,6 +4100,16 @@
   },
   "selectStartOfRange": "Select start of range",
   "selectTime": "Select time",
+  "selectYear": "Select {year}",
+  "@selectYear": {
+    "description": "Accessibility label of the control that selects every month of a year.",
+    "placeholders": {
+      "year": {
+        "example": "2026",
+        "type": "String"
+      }
+    }
+  },
   "selectYourFace": "Select your face",
   "selfiesWithThem": "Selfies with {name}",
   "@selfiesWithThem": {
@@ -3992,6 +4121,10 @@
   "@send": {
     "description": "Label for send button"
   },
+  "sendACopy": "Send a copy",
+  "@sendACopy": {
+    "description": "Share a copy of the current photo or video using the system share sheet, as opposed to sending a viewing link"
+  },
   "sendCountInvites": "{count, plural, =0{Send invites} one{Send {count} invite} other{Send {count} invites}}",
   "@sendCountInvites": {
     "placeholders": {
@@ -4001,9 +4134,17 @@
       }
     }
   },
+  "sendFileToAnotherApp": "Send the file to another app",
+  "@sendFileToAnotherApp": {
+    "description": "Subtitle for sending a copy of the current photo or video from the file viewer"
+  },
   "sendInvite": "Send invite",
   "sendLink": "Send link",
   "sendLogsDescription": "This will send across logs to help us debug your issue. While we take precautions to ensure that sensitive information is not logged, we encourage you to view these logs before sharing them.",
+  "sendPhoto": "Send photo",
+  "@sendPhoto": {
+    "description": "Share a copy of the current photo using the system share sheet, as opposed to sending a viewing link"
+  },
   "sendQrCode": "Send QR code",
   "sendToEmail": "Send to {email}",
   "@sendToEmail": {
@@ -4013,6 +4154,10 @@
         "example": "support@ente.com"
       }
     }
+  },
+  "sendVideo": "Send video",
+  "@sendVideo": {
+    "description": "Share a copy of the current video using the system share sheet, as opposed to sending a viewing link"
   },
   "serverEndpoint": "Server endpoint",
   "@serverEndpoint": {
@@ -4088,6 +4233,12 @@
     }
   },
   "sharedPhotoNotifications": "New shared photos and albums",
+  "sharedPhotoLocationWarningTitle": "Keep photo locations",
+  "sharedPhotoLocationWarningMessage": "Photos shared from other apps may be missing their locations. Use “{addFromDevice}” in an album to keep them.",
+  "@sharedPhotoLocationWarningMessage": {
+    "description": "Precaution before backing up photos shared from another app. addFromDevice is the localized action label.",
+    "placeholders": {"addFromDevice": {"type": "String"}}
+  },
   "sharedPhotoNotificationsExplanation": "New photos and albums you are in or shared with you",
   "sharedWith": "Shared with",
   "shareItemCount": "{count, plural, one{Share {count} item} other{Share {count} items}}",
@@ -4103,6 +4254,10 @@
   "shareKey": "Share key",
   "shareLegacyDescription": "Send each card to the person it's for. No single card works alone.",
   "shareLink": "Share link",
+  "shareLinkToThisItem": "Share a link to this item",
+  "@shareLinkToThisItem": {
+    "description": "Subtitle for sending a viewing link to the current photo or video from the file viewer"
+  },
   "shareMemory": "Share memory",
   "shareMyVerificationID": "Here's my verification ID: {verificationID} for ente.com.",
   "@shareMyVerificationID": {
@@ -4203,6 +4358,7 @@
   },
   "skip": "Skip",
   "skippedFiles": "Skipped files",
+  "sharedFilesSkipped": "Some shared files could not be read or had the same name. They were skipped.",
   "slideshow": "Slideshow",
   "slideshowSettings": "Slideshow settings",
   "smartMemories": "Smart memories",
@@ -4245,6 +4401,7 @@
   "sortAToZ": "A-Z",
   "sortNewestFirst": "Newest first",
   "sortOldestFirst": "Oldest first",
+  "sortPhotos": "Sort photos",
   "sortZToA": "Z-A",
   "speed": "Speed",
   "sportsAction": "Game on",
@@ -4273,9 +4430,8 @@
       }
     }
   },
-  "startSnappingYourPhotosWillShowUpHere": "Start snapping, your photos will show up here",
+  "startSnappingYourPhotosWillShowUpHere": "Start snapping, your photos will show up here.",
   "startWithAddingPhotosOrFamiliarFaces": "Start with adding\nphotos or familiar faces",
-  "startWithLatestPhotos": "Start with latest photos",
   "status": "Status",
   "sticker": "Sticker",
   "stopCastingBody": "Do you want to stop casting?",
@@ -4330,6 +4486,35 @@
   "subscribe": "Subscribe",
   "subscribeToChangeLinkSetting": "You need a paid subscription to change this link setting.",
   "subscribeToEnableSharing": "You need an active paid subscription to enable sharing.",
+  "subscriptionLearnMore": "Learn more",
+  "subscriptionCurrentPlan": "Current plan",
+  "subscriptionFaqDescription": "Your questions, answered",
+  "subscriptionFamilyDescription": "Share your plan with your family",
+  "subscriptionContinueWithPlan": "Continue with {storage} plan",
+  "@subscriptionContinueWithPlan": {
+    "description": "Continue button on the Photos plan picker with the selected storage allowance",
+    "placeholders": {
+      "storage": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionLockerItems": "+ {count} items on {appName}",
+  "@subscriptionLockerItems": {
+    "description": "Locker allowance included with a Photos plan",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "appName": {
+        "type": "String",
+        "description": "Placeholder for the styled Locker app name"
+      }
+    }
+  },
+  "subscriptionLockerTitle": "Some things\ndeserve a Locker.",
+  "subscriptionLockerDescription": "Passports, certificates, and life’s important documents. Keep them private and together.",
   "subscription": "Subscription",
   "subscriptionRequiredForSharing": "You need a paid subscription to share links",
   "subWillBeCancelledOn": "Your subscription will be cancelled on {endDate}",
@@ -4481,6 +4666,7 @@
   },
   "totalSize": "Total size",
   "trash": "Trash",
+  "trashAutoDeleteNotice": "Items in Trash are permanently deleted after 30 days",
   "restoreOrPermanentlyDeleteItems": "Restore or permanently delete items",
   "trashClearedSuccessfully": "Trash cleared successfully",
   "trashCode": "Trash code?",
@@ -4585,6 +4771,7 @@
   "unavailableReferralCode": "This code is already taken",
   "uncategorized": "Uncategorized",
   "uncategorizedItemsWillShowUpHere": "Uncategorized items will show up here",
+  "uncategorizedUploadHint": "If you skip this, items go to Uncategorized",
   "undo": "Undo",
   "unhide": "Unhide",
   "unhideToAlbum": "Unhide to album",
@@ -4595,6 +4782,7 @@
   "@unlock": {
     "description": "Short action label used as the system authentication reason when unlocking the app"
   },
+  "unlockPdf": "Unlock",
   "unnamedCollection": "Unnamed collection",
   "unnamedPeopleDoingSomethingTogether": "Doing it together",
   "unnamedPeopleSpotlight": "A familiar face",
@@ -4683,6 +4871,7 @@
     }
   },
   "uploadingSingleMemory": "Preserving 1 memory...",
+  "uploadItemsRemoved": "No items left to upload",
   "uploadIsIgnoredDueToIgnorereason": "Upload is ignored due to {ignoreReason}",
   "@uploadIsIgnoredDueToIgnorereason": {
     "placeholders": {
@@ -4720,6 +4909,10 @@
   "@useRecoveryKey": {
     "description": "Use recovery key button label"
   },
+  "useTwoFactorInstead": "Use 2FA instead",
+  "@useTwoFactorInstead": {
+    "description": "Link on the passkey verification screen to verify with an authenticator code instead"
+  },
   "username": "Username",
   "usernameHint": "Login ID or email",
   "useSelectedPhoto": "Use selected photo",
@@ -4731,6 +4924,10 @@
         "example": "20 GB"
       }
     }
+  },
+  "validEmailAddress": "Valid email address",
+  "@validEmailAddress": {
+    "description": "Success message under the email field once the address is valid"
   },
   "validTill": "Valid till {endDate}",
   "@validTill": {
@@ -4865,6 +5062,10 @@
     "placeholders": {
       "count": {}
     }
+  },
+  "year": "year",
+  "@year": {
+    "description": "Billing period suffix on the pricing page (/year)"
   },
   "yearShort": "yr",
   "@yearShort": {
@@ -5106,30 +5307,40 @@
   "notEnoughStorageTitle": "Not enough storage",
   "notEnoughStorageBody": "You do not have enough free space on Ente to add new photos. Free up space or upgrade to keep adding.",
   "watch": "Watch",
-  "watchOfflineDescription": "Keep selected codes on your watch. They work when your phone is unavailable. A watch passcode is required.",
-  "watchOfflineDeletionNotice": "Changes reach the watch when it next connects. A disconnected watch keeps its codes. If you lose it, change the two-factor secret with each service.",
-  "watchSupportedAccounts": "Time-based codes and Steam codes are supported. Counter-based codes are not supported.",
+  "watchOfflineDescription": "Copies two-factor secrets to your watch.",
+  "watchUnsupportedAccounts": "Counter-based (HOTP) codes aren’t supported.",
   "watchUnavailableApple": "Requires iOS 17 or later and watchOS 10 or later. Pair your Apple Watch and install Ente Auth on it.",
   "watchUnavailableAndroid": "Wear OS sync needs Android 8 or later, Wear OS 3 or later, the Google Play version of Ente Auth, and Google Play services on both devices.",
   "watchReplacement": "A new watch setup is waiting. Stop sharing with the previous watch, then approve the new setup.",
   "watchAmbiguous": "More than one watch is requesting setup. Connect only the watch you want to set up, then try again.",
   "watchSetupInstructions": "Open Ente Auth on your watch and select Set up watch.",
-  "watchApproveInstructions": "Your watch is ready. Approve it, then select the accounts to keep on it.",
-  "watchApprove": "Approve watch",
-  "watchSelectAccounts": "Select accounts",
-  "watchSelectedAccounts": "{count, plural, one{1 account selected} other{{count} accounts selected}}",
+  "watchApproveInstructions": "Ready to set up.",
+  "watchApprove": "Set up sharing",
   "watchCheckAgain": "Check again",
-  "watchNoSupportedAccounts": "No supported accounts yet. Add a time-based or Steam account in Ente Auth first.",
   "watchPending": "Changes are waiting for your watch. Open Ente Auth on it to sync.",
-  "watchSynced": "Your watch has the latest selected accounts.",
+  "watchSynced": "Your watch has the latest shared accounts.",
   "watchRetiring": "Removal is waiting for your watch. Open Ente Auth on it to finish.",
   "watchDisabled": "Watch sharing is off. Set up the watch again to share codes.",
   "watchSyncFailed": "Could not update the watch. Keep both apps open and try again.",
   "watchDisable": "Stop sharing with this watch",
-  "watchAuthenticationReason": "Authenticate to change the accounts shared with your watch.",
+  "watchAuthenticationReason": "Authenticate to change what you share with your watch.",
   "watchPhoneLocked": "Unlock Ente Auth, then try again.",
   "watchAuthenticationRequired": "Set up a device passcode or an Ente app PIN or password first.",
-  "watchPayloadTooLarge": "These accounts exceed the watch transfer limit. Select fewer accounts.",
-  "watchOmittedAccounts": "{count, plural, one{One selected account could not be sent. Check its OTP settings.} other{{count} selected accounts could not be sent. Check their OTP settings.}}",
-  "watchSelectionChanged": "The account or watch changed. Open this page again."
+  "watchPayloadTooLarge": "These accounts exceed the watch transfer limit. Use Selected tags in Watch settings and choose fewer tags.",
+  "watchOmittedAccounts": "{count, plural, one{One account could not be sent. Check its OTP settings.} other{{count} accounts could not be sent. Check their OTP settings.}}",
+  "watchSelectionChanged": "The account or watch changed. Open this page again.",
+  "watchSharing": "Accounts on watch",
+  "watchChooseSharing": "Choose what to share",
+  "watchAllAccounts": "All accounts",
+  "watchAllAccountsDescription": "Includes future accounts.",
+  "watchSelectedTags": "Selected tags",
+  "watchSelectedTagsDescription": "Includes future matches.",
+  "watchShare": "Share",
+  "watchNoTags": "Add tags to your accounts first.",
+  "watchAccountCount": "{count, plural, =0{No matches} one{1 account} other{{count} accounts}}",
+  "watchSharedTag": "Used for watch sharing",
+  "watchTagSharingNotice": "Tags with a watch icon share accounts.",
+  "watchRenameTagNotice": "Reselect the new name in Watch settings.",
+  "watchRenameIntoSharedTagNotice": "This tag shares its accounts with your watch.",
+  "watchDeleteTagNotice": "Reusing this tag name shares matching accounts again."
 }

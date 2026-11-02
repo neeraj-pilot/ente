@@ -19,7 +19,6 @@ import { setPublicAlbumsCredentials } from "@/public-album/data/auth/public-link
 import { ActiveDownloadStatusNotifications } from "@/public-album/download/components/ActiveDownloadStatusNotifications";
 import { downloadManager } from "@/public-album/download/services/download-manager";
 import { thumbnailManager } from "@/public-album/media/thumbnails/thumbnail-manager";
-import { sortFiles } from "@/public-album/media/utils/sort-files";
 import type { UploadProps } from "@/public-album/upload/components/Upload";
 import {
     getSelectedFiles,
@@ -29,7 +28,7 @@ import type { FileViewerInitialSidebar } from "@/public-album/viewer/components/
 import type { PublicAlbumSingleFileViewerProps } from "@/public-album/viewer/components/PublicAlbumSingleFileViewer";
 import type { PublicFeedItemClickInfo } from "@/public-album/viewer/components/PublicFeedSidebar";
 import { LazyPublicFeedSidebar } from "@/public-album/viewer/lib/lazy";
-import CheckIcon from "@mui/icons-material/Check";
+import { Tick02Icon } from "@hugeicons/core-free-icons";
 import CloseIcon from "@mui/icons-material/Close";
 import {
     Box,
@@ -71,6 +70,7 @@ import {
     quickLinkDateRangeForFiles,
 } from "ente-gallery/utils/quick-link";
 import type { Collection } from "ente-media/collection";
+import { sortCollectionFiles } from "ente-media/collection-sort";
 import type { EnteFile } from "ente-media/file";
 import { fileCreationTime, fileFileName } from "ente-media/file-metadata";
 import { FileType } from "ente-media/file-type";
@@ -694,6 +694,8 @@ export default function PublicAlbumPage() {
         );
     }
 
+    const disableGrouping =
+        publicCollection?.pubMagicMetadata?.data.sortBy === "fileName";
     const layout = publicAlbumLayout;
     const quickLinkDateRange = quickLinkDateRangeForFiles(publicFiles);
     const isSingleFileAlbum = publicFiles.length === 1;
@@ -787,6 +789,7 @@ export default function PublicAlbumPage() {
                     </NavbarBase>
                     <FileListWithViewer
                         files={publicFiles}
+                        disableGrouping={disableGrouping}
                         layout={layout === "masonry" ? "masonry" : "grid"}
                         header={fileListHeader}
                         footer={fileListFooter}
@@ -861,7 +864,7 @@ export default function PublicAlbumPage() {
 }
 
 const sortFilesForCollection = (files: EnteFile[], collection?: Collection) =>
-    sortFiles(files, collection?.pubMagicMetadata?.data.asc ?? false);
+    sortCollectionFiles(files, collection?.pubMagicMetadata?.data);
 
 type PublicAlbumLayout = "masonry" | "grouped" | "trip";
 
@@ -1123,9 +1126,9 @@ interface FileListHeaderProps {
     onDescriptionHeightChange?: (height: number) => void;
 }
 
-const fileListHeaderHeight = 84;
+const fileListHeaderHeight = 88;
 
-const fileListHeaderHeightMobile = 132;
+const fileListHeaderHeightMobile = 136;
 
 const FileListHeader: React.FC<FileListHeaderProps> = ({
     publicCollection,
@@ -1298,7 +1301,7 @@ const FileListHeader: React.FC<FileListHeaderProps> = ({
                     horizontal="left"
                     attributes={{
                         color: "secondary",
-                        startIcon: <CheckIcon />,
+                        startIcon: Tick02Icon,
                         title: "Copied!",
                     }}
                 />
