@@ -105,18 +105,22 @@ func TestStripeVerificationAfterPaymentFailure(t *testing.T) {
 
 func TestStripeInvoicePaidDoesNotGrantLaterUnpaidPeriod(t *testing.T) {
 	for _, tc := range []struct {
-		name           string
-		invoiceID      string
-		paidDays       int
-		productID      string
-		proration      bool
-		pendingUpgrade bool
+		name            string
+		invoiceID       string
+		paidDays        int
+		productID       string
+		proration       bool
+		pendingUpgrade  bool
+		paginated       bool
+		paginationError bool
 	}{
 		{name: "old paid period", invoiceID: "in_previous", paidDays: -1, productID: "price_current"},
 		{name: "current paid period", invoiceID: "in_current", paidDays: 30, productID: "price_current"},
 		{name: "paid renewal before pending upgrade", invoiceID: "in_previous", paidDays: 30, productID: "price_current", pendingUpgrade: true},
 		{name: "different plan", invoiceID: "in_current", paidDays: 30, productID: "price_previous"},
 		{name: "paid upgrade proration", invoiceID: "in_current", paidDays: 30, productID: "price_current", proration: true},
+		{name: "paid renewal on later page", invoiceID: "in_current", paidDays: 30, productID: "price_current", paginated: true},
+		{name: "later invoice page unavailable", invoiceID: "in_current", paidDays: 30, productID: "price_current", paginated: true, paginationError: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			subscription, _ := stripeTestSubscription()
@@ -124,26 +128,58 @@ func TestStripeInvoicePaidDoesNotGrantLaterUnpaidPeriod(t *testing.T) {
 				subscription.Status = stripe.SubscriptionStatusPastDue
 				subscription.Items.Data[0].Price.ID = "price_upgrade"
 			}
-			controller := stripeTestController(t, func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "/v1/subscriptions/sub_current", r.URL.Path)
-				assert.NoError(t, json.NewEncoder(w).Encode(subscription))
-			})
-			current := stripeTestStoredSubscription(t, controller)
 			paidThrough := time.Now().AddDate(0, 0, tc.paidDays).Unix()
 			lineType := stripe.InvoiceLineTypeSubscription
 			if tc.proration {
 				lineType = stripe.InvoiceLineTypeInvoiceItem
 			}
+			paidLine := &stripe.InvoiceLine{
+				ID: "il_subscription", Type: lineType, Proration: tc.proration, Subscription: subscription.ID,
+				Price: &stripe.Price{ID: tc.productID}, Amount: 100,
+				Period: &stripe.Period{End: paidThrough},
+			}
+			firstPage := &stripe.InvoiceLineList{Data: []*stripe.InvoiceLine{paidLine}}
+			if tc.paginated {
+				firstPage = &stripe.InvoiceLineList{
+					ListMeta: stripe.ListMeta{HasMore: true},
+					Data:     []*stripe.InvoiceLine{{ID: "il_unrelated", Type: stripe.InvoiceLineTypeInvoiceItem, Amount: 100}},
+				}
+			}
+			controller := stripeTestController(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/v1/subscriptions/sub_current":
+					assert.NoError(t, json.NewEncoder(w).Encode(subscription))
+				case "/v1/invoices/" + tc.invoiceID + "/lines":
+					assert.True(t, tc.paginated)
+					if r.URL.Query().Get("starting_after") == "" {
+						assert.NoError(t, json.NewEncoder(w).Encode(firstPage))
+					} else {
+						assert.Equal(t, "il_unrelated", r.URL.Query().Get("starting_after"))
+						if tc.paginationError {
+							http.Error(w, `{"error":{"type":"api_error","message":"invoice lines unavailable"}}`, http.StatusInternalServerError)
+							return
+						}
+						assert.NoError(t, json.NewEncoder(w).Encode(stripe.InvoiceLineList{Data: []*stripe.InvoiceLine{paidLine}}))
+					}
+				default:
+					t.Errorf("unexpected Stripe request: %s", r.URL.Path)
+					w.WriteHeader(http.StatusNotFound)
+				}
+			})
+			current := stripeTestStoredSubscription(t, controller)
 			payload, err := json.Marshal(stripe.Invoice{
 				ID: tc.invoiceID, Status: stripe.InvoiceStatusPaid, Subscription: &stripe.Subscription{ID: subscription.ID},
-				Lines: &stripe.InvoiceLineList{Data: []*stripe.InvoiceLine{{
-					Type: lineType, Proration: tc.proration, Subscription: subscription.ID,
-					Price: &stripe.Price{ID: tc.productID}, Amount: 100,
-					Period: &stripe.Period{End: paidThrough},
-				}}},
+				Lines: firstPage,
 			})
 			require.NoError(t, err)
 			_, err = controller.handleInvoicePaid(stripe.Event{Data: &stripe.EventData{Raw: payload}}, ente.StripeUS)
+			if tc.paginationError {
+				require.ErrorContains(t, err, "fetch lines for paid Stripe invoice "+tc.invoiceID)
+				stored, readErr := controller.BillingRepo.GetUserSubscription(1)
+				require.NoError(t, readErr)
+				require.Equal(t, current, stored)
+				return
+			}
 			require.NoError(t, err)
 			stored, err := controller.BillingRepo.GetUserSubscription(1)
 			require.NoError(t, err)

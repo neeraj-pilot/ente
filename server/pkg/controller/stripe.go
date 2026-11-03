@@ -355,7 +355,19 @@ func (c *StripeController) handleInvoicePaid(event stripe.Event, country ente.St
 	newExpiryTime := currentSubscription.ExpiryTime
 	matchedPaidLine := false
 	if invoice.Lines != nil {
-		for _, line := range invoice.Lines.Data {
+		lines := invoice.Lines.Data
+		if invoice.Lines.HasMore {
+			lines = nil
+			iter := client.Invoices.ListLines(&stripe.InvoiceLineListParams{ID: stripe.String(invoice.ID)})
+			for iter.Next() {
+				lines = append(lines, iter.InvoiceLine())
+			}
+			if err := iter.Err(); err != nil {
+				return ente.StripeEventLog{}, stacktrace.Propagate(err, "fetch lines for paid Stripe invoice %s", invoice.ID)
+			}
+		}
+		logger = logger.WithField("invoice_lines_paginated", invoice.Lines.HasMore)
+		for _, line := range lines {
 			if line.Subscription == stripeSubscriptionID &&
 				line.Price != nil && line.Price.ID == currentSubscription.ProductID && line.Amount >= 0 && line.Period != nil {
 				matchedPaidLine = true
