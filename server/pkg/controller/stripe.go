@@ -332,13 +332,14 @@ func (c *StripeController) handleInvoicePaid(event stripe.Event, country ente.St
 	if err != nil {
 		return ente.StripeEventLog{}, stacktrace.Propagate(err, "fetch Stripe subscription %s for paid invoice %s", stripeSubscriptionID, invoice.ID)
 	}
+	stripeProductID := stripeSubscription.Items.Data[0].Price.ID
 	logger := log.WithFields(log.Fields{
 		"user_id": userID, "stripe_event_id": event.ID, "stripe_subscription_id": stripeSubscriptionID,
 		"stripe_invoice_id": invoice.ID, "stored_product_id": currentSubscription.ProductID,
-		"stripe_product_id": stripeSubscription.Items.Data[0].Price.ID, "old_expiry_us": currentSubscription.ExpiryTime,
+		"stripe_product_id": stripeProductID, "old_expiry_us": currentSubscription.ExpiryTime,
 		"stripe_period_end_us": stripeSubscription.CurrentPeriodEnd * 1_000_000,
 	})
-	if currentSubscription.ProductID != stripeSubscription.Items.Data[0].Price.ID {
+	if currentSubscription.ProductID != stripeProductID {
 		newSubscription, err := c.getEnteSubscriptionFromStripeSubscription(userID, *stripeSubscription)
 		if err == nil {
 			err = c.BillingRepo.ReplaceSubscription(currentSubscription.ID, newSubscription)
@@ -353,6 +354,8 @@ func (c *StripeController) handleInvoicePaid(event stripe.Event, country ente.St
 		logger.Info("Retaining stored Stripe product; checking paid invoice lines")
 	}
 	newExpiryTime := currentSubscription.ExpiryTime
+	var paidStripeProductExpiryTime int64
+	now := timeUtil.Microseconds()
 	matchedPaidLine := false
 	if invoice.Lines != nil {
 		lines := invoice.Lines.Data
@@ -369,12 +372,33 @@ func (c *StripeController) handleInvoicePaid(event stripe.Event, country ente.St
 		logger = logger.WithField("invoice_lines_paginated", invoice.Lines.HasMore)
 		for _, line := range lines {
 			if line.Subscription == stripeSubscriptionID &&
-				line.Price != nil && line.Price.ID == currentSubscription.ProductID && line.Amount >= 0 && line.Period != nil {
-				matchedPaidLine = true
+				line.Price != nil && line.Amount >= 0 && line.Period != nil {
 				paidThrough := min(line.Period.End, stripeSubscription.CurrentPeriodEnd) * 1000 * 1000
-				newExpiryTime = max(newExpiryTime, paidThrough)
+				if line.Price.ID == currentSubscription.ProductID {
+					matchedPaidLine = true
+					newExpiryTime = max(newExpiryTime, paidThrough)
+				}
+				if line.Price.ID == stripeProductID && line.Period.Start <= now/1_000_000 {
+					paidStripeProductExpiryTime = max(paidStripeProductExpiryTime, paidThrough)
+				}
 			}
 		}
+	}
+	if currentSubscription.ProductID != stripeProductID && stripeSubscription.Status == stripe.SubscriptionStatusActive && paidStripeProductExpiryTime > now {
+		plan, _, err := c.getPlanAndAccount(stripeProductID)
+		if err != nil {
+			return ente.StripeEventLog{}, stacktrace.Propagate(err, "resolve paid Stripe price %s for subscription %s", stripeProductID, stripeSubscriptionID)
+		}
+		newSubscription := currentSubscription
+		newSubscription.ProductID = stripeProductID
+		newSubscription.Storage = plan.Storage
+		newSubscription.ExpiryTime = paidStripeProductExpiryTime
+		newSubscription.Attributes.IsCancelled = stripeSubscription.CancelAtPeriodEnd
+		if err := c.BillingRepo.ReplaceSubscription(currentSubscription.ID, newSubscription); err != nil {
+			return ente.StripeEventLog{}, stacktrace.Propagate(err, "apply paid Stripe price %s for subscription %s from invoice %s", stripeProductID, stripeSubscriptionID, invoice.ID)
+		}
+		logger.WithField("new_expiry_us", newSubscription.ExpiryTime).Info("Reconciled Stripe product from paid invoice lines")
+		return ente.StripeEventLog{UserID: userID, StripeSubscription: *stripeSubscription, Event: event}, nil
 	}
 	logger = logger.WithFields(log.Fields{"matched_paid_line": matchedPaidLine, "new_expiry_us": newExpiryTime})
 	if currentSubscription.ExpiryTime == newExpiryTime {

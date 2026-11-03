@@ -254,6 +254,72 @@ func TestStripeProductUpdateUsesCurrentInvoice(t *testing.T) {
 	}
 }
 
+func TestStripePaidUpgradeBeforeFailedPendingUpgrade(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		startDays int
+		endDays   int
+		allowed   bool
+	}{
+		{name: "paid current period", startDays: -1, endDays: 30, allowed: true},
+		{name: "expired paid period", startDays: -60, endDays: -30},
+		{name: "future paid period", startDays: 1, endDays: 30},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			subscription, latestInvoice := stripeTestSubscription()
+			latestInvoice.Status = stripe.InvoiceStatusVoid
+			controller := stripeTestController(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/v1/subscriptions/sub_current":
+					assert.NoError(t, json.NewEncoder(w).Encode(subscription))
+				case "/v1/invoices/in_current":
+					assert.NoError(t, json.NewEncoder(w).Encode(latestInvoice))
+				default:
+					t.Errorf("unexpected Stripe request: %s", r.URL.Path)
+					w.WriteHeader(http.StatusNotFound)
+				}
+			})
+			now := time.Now()
+			current := stripeTestStoredSubscription(t, controller)
+			current.ProductID = "price_previous"
+			current.Storage = 50
+			current.ExpiryTime = now.AddDate(0, 0, 30).Unix() * 1_000_000
+			require.NoError(t, controller.BillingRepo.ReplaceSubscription(current.ID, current))
+			paidThrough := now.AddDate(0, 0, tc.endDays).Unix()
+			paidInvoice := stripe.Invoice{
+				ID: "in_paid_upgrade", Status: stripe.InvoiceStatusPaid, Subscription: &stripe.Subscription{ID: subscription.ID},
+				Lines: &stripe.InvoiceLineList{Data: []*stripe.InvoiceLine{{
+					Type: stripe.InvoiceLineTypeInvoiceItem, Proration: true, Subscription: subscription.ID,
+					Price: &stripe.Price{ID: "price_current"}, Amount: 100,
+					Period: &stripe.Period{Start: now.AddDate(0, 0, tc.startDays).Unix(), End: paidThrough},
+				}}},
+			}
+			paidPayload, err := json.Marshal(paidInvoice)
+			require.NoError(t, err)
+			delayedSubscription := subscription
+			delayedSubscription.LatestInvoice = &paidInvoice
+			updatePayload, err := json.Marshal(delayedSubscription)
+			require.NoError(t, err)
+			_, err = controller.handleCustomerSubscriptionUpdated(stripe.Event{Data: &stripe.EventData{Raw: updatePayload}}, ente.StripeUS)
+			require.NoError(t, err)
+			for range 2 {
+				_, err = controller.handleInvoicePaid(stripe.Event{Data: &stripe.EventData{Raw: paidPayload}}, ente.StripeUS)
+				require.NoError(t, err)
+				stored, err := controller.BillingRepo.GetUserSubscription(1)
+				require.NoError(t, err)
+				if tc.allowed {
+					require.Equal(t, "price_current", stored.ProductID)
+					require.EqualValues(t, 100, stored.Storage)
+					require.Equal(t, paidThrough*1_000_000, stored.ExpiryTime)
+					require.False(t, stored.Attributes.IsCancelled)
+				} else {
+					require.Equal(t, current, stored)
+				}
+			}
+		})
+	}
+}
+
 func stripeTestSubscription() (stripe.Subscription, stripe.Invoice) {
 	subscription := stripe.Subscription{
 		ID: "sub_current", Status: stripe.SubscriptionStatusActive,
