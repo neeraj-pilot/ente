@@ -169,7 +169,7 @@ func (c *StripeController) handleWebhookEvent(event stripe.Event, country ente.S
 	}
 	eventLog, err := handler(event, country)
 	if err != nil {
-		return stacktrace.Propagate(err, "")
+		return stacktrace.Propagate(err, "handle Stripe event %s (%s)", event.ID, event.Type)
 	}
 	if eventLog.UserID == 0 {
 		// Out-of-order events may have no user. Offer events are logged by
@@ -177,7 +177,7 @@ func (c *StripeController) handleWebhookEvent(event stripe.Event, country ente.S
 		return nil
 	}
 	err = c.BillingRepo.LogStripePush(eventLog)
-	return stacktrace.Propagate(err, "")
+	return stacktrace.Propagate(err, "record Stripe event %s (%s)", event.ID, event.Type)
 }
 
 func (c *StripeController) findHandlerForEvent(event stripe.Event) func(event stripe.Event, country ente.StripeAccountCountry) (ente.StripeEventLog, error) {
@@ -267,21 +267,31 @@ func (c *StripeController) handleCustomerSubscriptionUpdated(event stripe.Event,
 			log.Warn("Webhook is reporting an event for un-verified subscription stripeSubscriptionID:", stripeSubscription.ID)
 			return ente.StripeEventLog{}, nil
 		}
-		return ente.StripeEventLog{}, stacktrace.Propagate(err, "")
+		return ente.StripeEventLog{}, stacktrace.Propagate(err, "load subscription %s for Stripe update", stripeSubscription.ID)
 	}
 	userID := currentSubscription.UserID
-	newSubscription, err := c.getEnteSubscriptionFromStripeSubscription(userID, stripeSubscription)
-	if err != nil {
-		return ente.StripeEventLog{}, stacktrace.Propagate(err, "")
-	}
-	// Other events update subscription state when the product is unchanged.
-	if currentSubscription.ProductID != newSubscription.ProductID {
-		c.BillingRepo.ReplaceSubscription(currentSubscription.ID, newSubscription)
-	}
-
 	fullStripeSub, err := c.getStripeSubscriptionWithPaymentMethod(currentSubscription)
 	if err != nil {
-		return ente.StripeEventLog{}, stacktrace.Propagate(err, "")
+		return ente.StripeEventLog{}, stacktrace.Propagate(err, "fetch current Stripe subscription %s for update", stripeSubscription.ID)
+	}
+	// Other events update subscription state when the product is unchanged.
+	if currentSubscription.ProductID != fullStripeSub.Items.Data[0].Price.ID {
+		logger := log.WithFields(log.Fields{
+			"user_id": userID, "stripe_event_id": event.ID, "stripe_subscription_id": fullStripeSub.ID,
+			"stored_product_id": currentSubscription.ProductID, "stripe_product_id": fullStripeSub.Items.Data[0].Price.ID,
+			"old_expiry_us": currentSubscription.ExpiryTime,
+		})
+		newSubscription, err := c.getEnteSubscriptionFromStripeSubscription(userID, fullStripeSub)
+		if err == nil {
+			if err := c.BillingRepo.ReplaceSubscription(currentSubscription.ID, newSubscription); err != nil {
+				return ente.StripeEventLog{}, stacktrace.Propagate(err, "apply Stripe product update for subscription %s", fullStripeSub.ID)
+			}
+			logger.WithField("new_expiry_us", newSubscription.ExpiryTime).Info("Applied validated Stripe product update")
+		} else if !errors.Is(err, ente.ErrNoActiveSubscription) {
+			return ente.StripeEventLog{}, stacktrace.Propagate(err, "validate Stripe product update for subscription %s", fullStripeSub.ID)
+		} else {
+			logger.Info("Skipped Stripe product update: current entitlement validation failed")
+		}
 	}
 	defaultPaymentMethodType := getSubscriptionPaymentMethodType(fullStripeSub)
 
@@ -292,7 +302,7 @@ func (c *StripeController) handleCustomerSubscriptionUpdated(event stripe.Event,
 		// handlePaymentIntentFailed to avoid duplicate on-hold emails.
 		err = c.sendAccountOnHoldEmail(userID)
 		if err != nil {
-			return ente.StripeEventLog{}, stacktrace.Propagate(err, "")
+			return ente.StripeEventLog{}, stacktrace.Propagate(err, "send account-on-hold email for Stripe subscription %s", fullStripeSub.ID)
 		}
 	}
 
@@ -312,7 +322,7 @@ func (c *StripeController) handleInvoicePaid(event stripe.Event, country ente.St
 			log.Warn("Webhook is reporting an event for un-verified subscription stripeSubscriptionID:", stripeSubscriptionID)
 			return ente.StripeEventLog{}, nil
 		}
-		return ente.StripeEventLog{}, stacktrace.Propagate(err, "")
+		return ente.StripeEventLog{}, stacktrace.Propagate(err, "load subscription %s for paid invoice %s", stripeSubscriptionID, invoice.ID)
 	}
 
 	userID := currentSubscription.UserID
@@ -320,19 +330,51 @@ func (c *StripeController) handleInvoicePaid(event stripe.Event, country ente.St
 
 	stripeSubscription, err := client.Subscriptions.Get(stripeSubscriptionID, nil)
 	if err != nil {
-		return ente.StripeEventLog{}, stacktrace.Propagate(err, "")
+		return ente.StripeEventLog{}, stacktrace.Propagate(err, "fetch Stripe subscription %s for paid invoice %s", stripeSubscriptionID, invoice.ID)
 	}
-
-	newExpiryTime := stripeSubscription.CurrentPeriodEnd * 1000 * 1000
+	logger := log.WithFields(log.Fields{
+		"user_id": userID, "stripe_event_id": event.ID, "stripe_subscription_id": stripeSubscriptionID,
+		"stripe_invoice_id": invoice.ID, "stored_product_id": currentSubscription.ProductID,
+		"stripe_product_id": stripeSubscription.Items.Data[0].Price.ID, "old_expiry_us": currentSubscription.ExpiryTime,
+		"stripe_period_end_us": stripeSubscription.CurrentPeriodEnd * 1_000_000,
+	})
+	if currentSubscription.ProductID != stripeSubscription.Items.Data[0].Price.ID {
+		newSubscription, err := c.getEnteSubscriptionFromStripeSubscription(userID, *stripeSubscription)
+		if err == nil {
+			err = c.BillingRepo.ReplaceSubscription(currentSubscription.ID, newSubscription)
+			if err != nil {
+				return ente.StripeEventLog{}, stacktrace.Propagate(err, "reconcile Stripe product for subscription %s after paid invoice %s", stripeSubscriptionID, invoice.ID)
+			}
+			logger.WithField("new_expiry_us", newSubscription.ExpiryTime).Info("Reconciled Stripe product after paid invoice")
+			return ente.StripeEventLog{UserID: userID, StripeSubscription: *stripeSubscription, Event: event}, nil
+		} else if !errors.Is(err, ente.ErrNoActiveSubscription) {
+			return ente.StripeEventLog{}, stacktrace.Propagate(err, "validate Stripe product for subscription %s after paid invoice %s", stripeSubscriptionID, invoice.ID)
+		}
+		logger.Info("Retaining stored Stripe product; checking paid invoice lines")
+	}
+	newExpiryTime := currentSubscription.ExpiryTime
+	matchedPaidLine := false
+	if invoice.Lines != nil {
+		for _, line := range invoice.Lines.Data {
+			if line.Subscription == stripeSubscriptionID &&
+				line.Price != nil && line.Price.ID == currentSubscription.ProductID && line.Amount >= 0 && line.Period != nil {
+				matchedPaidLine = true
+				paidThrough := min(line.Period.End, stripeSubscription.CurrentPeriodEnd) * 1000 * 1000
+				newExpiryTime = max(newExpiryTime, paidThrough)
+			}
+		}
+	}
+	logger = logger.WithFields(log.Fields{"matched_paid_line": matchedPaidLine, "new_expiry_us": newExpiryTime})
 	if currentSubscription.ExpiryTime == newExpiryTime {
-		log.Warn("Webhook is reporting an outdated purchase that was already verified stripeSubscriptionID:", stripeSubscription.ID)
+		logger.Info("Paid Stripe invoice did not extend entitlement")
 		return ente.StripeEventLog{UserID: userID, StripeSubscription: *stripeSubscription, Event: event}, nil
 	}
 	err = c.BillingRepo.UpdateSubscriptionExpiryTime(
 		currentSubscription.ID, newExpiryTime)
 	if err != nil {
-		return ente.StripeEventLog{}, stacktrace.Propagate(err, "")
+		return ente.StripeEventLog{}, stacktrace.Propagate(err, "extend Stripe subscription %s from paid invoice %s", stripeSubscriptionID, invoice.ID)
 	}
+	logger.Info("Extended Stripe entitlement from paid invoice lines")
 	return ente.StripeEventLog{UserID: userID, StripeSubscription: *stripeSubscription, Event: event}, nil
 }
 
@@ -658,10 +700,40 @@ func (c *StripeController) getPlanAndAccount(stripeID string) (ente.BillingPlan,
 }
 
 func (c *StripeController) getEnteSubscriptionFromStripeSubscription(userID int64, stripeSubscription stripe.Subscription) (ente.Subscription, error) {
+	logger := log.WithFields(log.Fields{
+		"user_id": userID, "stripe_subscription_id": stripeSubscription.ID, "subscription_status": stripeSubscription.Status,
+	})
+	if stripeSubscription.Status != stripe.SubscriptionStatusActive {
+		logger.Info("Rejected Stripe entitlement: subscription is not active")
+		return ente.Subscription{}, stacktrace.Propagate(ente.ErrNoActiveSubscription, "Stripe subscription %s has status %s", stripeSubscription.ID, stripeSubscription.Status)
+	}
+	if stripeSubscription.LatestInvoice == nil {
+		logger.Info("Rejected Stripe entitlement: missing latest invoice")
+		return ente.Subscription{}, stacktrace.Propagate(ente.ErrNoActiveSubscription, "Stripe subscription %s has no latest invoice", stripeSubscription.ID)
+	}
 	productID := stripeSubscription.Items.Data[0].Price.ID
 	plan, stripeAccountCountry, err := c.getPlanAndAccount(productID)
 	if err != nil {
-		return ente.Subscription{}, stacktrace.Propagate(err, "")
+		return ente.Subscription{}, stacktrace.Propagate(err, "resolve Stripe price %s for subscription %s", productID, stripeSubscription.ID)
+	}
+	params := &stripe.InvoiceParams{}
+	params.AddExpand("payment_intent")
+	invoice, err := c.StripeClients[stripeAccountCountry].Invoices.Get(stripeSubscription.LatestInvoice.ID, params)
+	if err != nil {
+		return ente.Subscription{}, stacktrace.Propagate(err, "fetch latest Stripe invoice %s for subscription %s", stripeSubscription.LatestInvoice.ID, stripeSubscription.ID)
+	}
+	logger = logger.WithFields(log.Fields{"stripe_invoice_id": invoice.ID, "invoice_status": invoice.Status})
+	if invoice.PaymentIntent != nil {
+		logger = logger.WithField("payment_intent_status", invoice.PaymentIntent.Status)
+	}
+	processing := invoice.Status == stripe.InvoiceStatusOpen && invoice.PaymentIntent != nil &&
+		invoice.PaymentIntent.Status == stripe.PaymentIntentStatusProcessing
+	if !isPaidStripeInvoice(invoice) && !processing {
+		logger.Info("Rejected Stripe entitlement: latest invoice is not paid or processing")
+		return ente.Subscription{}, stacktrace.Propagate(ente.ErrNoActiveSubscription, "Stripe invoice %s is not paid or processing (status %s)", invoice.ID, invoice.Status)
+	}
+	if processing {
+		logger.Info("Validated Stripe entitlement while payment is processing")
 	}
 	s := ente.Subscription{
 		UserID:                userID,
