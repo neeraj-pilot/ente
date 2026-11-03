@@ -44,14 +44,15 @@ func (c *CollectionController) Share(ctx *gin.Context, req ente.AlterShareReques
 	if err := validateShareRecipient(fromUserID, collection.Owner.ID, toUserID); err != nil {
 		return nil, err
 	}
-	err = c.CollectionRepo.Share(
-		req.CollectionID,
-		collection.Owner.ID,
-		toUserID,
-		req.EncryptedKey,
-		role,
-		time.Microseconds(),
-	)
+	if collection.App == string(ente.Photos) {
+		err = c.CollectionRepo.ShareWithAcceptance(ctx.Request.Context(), req.CollectionID,
+			collection.Owner.ID, fromUserID, []repo.CollectionShareItem{{
+				ToUserID: toUserID, EncryptedKey: req.EncryptedKey, Role: role,
+			}}, time.Microseconds())
+	} else {
+		err = c.CollectionRepo.Share(req.CollectionID, collection.Owner.ID, toUserID,
+			req.EncryptedKey, role, time.Microseconds())
+	}
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
@@ -107,13 +108,13 @@ func (c *CollectionController) BatchShare(ctx *gin.Context, shares []ente.AlterS
 		})
 	}
 
-	err = c.CollectionRepo.BatchShare(
-		ctx.Request.Context(),
-		collection.ID,
-		collection.Owner.ID,
-		resolvedShares,
-		time.Microseconds(),
-	)
+	if collection.App == string(ente.Photos) {
+		err = c.CollectionRepo.ShareWithAcceptance(ctx.Request.Context(), collection.ID,
+			collection.Owner.ID, fromUserID, resolvedShares, time.Microseconds())
+	} else {
+		err = c.CollectionRepo.BatchShare(ctx.Request.Context(), collection.ID,
+			collection.Owner.ID, resolvedShares, time.Microseconds())
+	}
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
@@ -258,14 +259,16 @@ func (c *CollectionController) shareCollectionWithUserID(
 	}
 	updationTime := time.Microseconds()
 	if source == ente.ManualShare {
-		err := c.CollectionRepo.Share(
-			item.CollectionID,
-			collection.Owner.ID,
-			toUserID,
-			item.EncryptedKey,
-			item.Role,
-			updationTime,
-		)
+		var err error
+		if collection.App == string(ente.Photos) {
+			err = c.CollectionRepo.ShareWithAcceptance(ctx, item.CollectionID,
+				collection.Owner.ID, fromUserID, []repo.CollectionShareItem{{
+					ToUserID: toUserID, EncryptedKey: item.EncryptedKey, Role: item.Role,
+				}}, updationTime)
+		} else {
+			err = c.CollectionRepo.Share(item.CollectionID, collection.Owner.ID,
+				toUserID, item.EncryptedKey, item.Role, updationTime)
+		}
 		return ente.CollectionShared, collection.App == string(ente.Photos), err
 	}
 	status, err := c.CollectionRepo.ShareAutomatically(
@@ -343,6 +346,12 @@ func (c *CollectionController) JoinViaLink(ctx *gin.Context, req ente.JoinCollec
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
+	if app, ok := auth.GetAuthenticatedApp(ctx); ok && collection.App != string(app) {
+		return stacktrace.Propagate(ente.ErrPermissionDenied, "collection app mismatch")
+	}
+	if collection.IsDeleted {
+		return ente.ErrCollectionDeleted
+	}
 	if collection.Owner.ID == userID {
 		return stacktrace.Propagate(ente.ErrBadRequest, "owner can not join via link")
 	}
@@ -377,7 +386,7 @@ func (c *CollectionController) JoinViaLink(ctx *gin.Context, req ente.JoinCollec
 	if collectionLinkToken.EnableCollect {
 		role = ente.COLLABORATOR
 	}
-	joinErr := c.CollectionRepo.Share(req.CollectionID, collection.Owner.ID, userID, req.EncryptedKey, role, time.Microseconds())
+	joinErr := c.CollectionRepo.JoinViaLink(req.CollectionID, collection.Owner.ID, userID, req.EncryptedKey, role, time.Microseconds())
 	if joinErr != nil {
 		return stacktrace.Propagate(joinErr, "")
 	}
@@ -644,7 +653,7 @@ func (c *CollectionController) DisableSharedURL(ctx context.Context, userID int6
 }
 
 func (c *CollectionController) GetSharees(ctx *gin.Context, cID int64, userID int64) ([]ente.CollectionUser, error) {
-	_, err := c.AccessCtrl.GetCollection(ctx, &access.GetCollectionParams{
+	accessResult, err := c.AccessCtrl.GetCollection(ctx, &access.GetCollectionParams{
 		CollectionID: cID,
 		ActorUserID:  userID,
 	})
@@ -654,6 +663,9 @@ func (c *CollectionController) GetSharees(ctx *gin.Context, cID int64, userID in
 	sharees, err := c.CollectionRepo.GetSharees(cID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
+	}
+	if accessResult.Role == nil || (*accessResult.Role != ente.OWNER && *accessResult.Role != ente.ADMIN) {
+		sharees = slices.DeleteFunc(sharees, func(sharee ente.CollectionUser) bool { return sharee.Pending })
 	}
 	return sharees, nil
 }

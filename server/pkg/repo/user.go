@@ -98,6 +98,21 @@ func (repo *UserRepository) DeleteTx(ctx context.Context, tx *sql.Tx, userID int
 	if !active {
 		return "", nil, ente.ErrUserDeleted
 	}
+	if _, err := tx.ExecContext(ctx, `WITH removed AS (
+		DELETE FROM collection_invitations ci
+		WHERE ci.to_user_id = $1 OR ci.invited_by_user_id = $1
+			OR EXISTS (SELECT 1 FROM collections c
+				WHERE c.collection_id = ci.collection_id AND c.owner_id = $1)
+		RETURNING collection_id
+	)
+	UPDATE collections SET updation_time = GREATEST(updation_time + 1, $2)
+	WHERE collection_id IN (SELECT collection_id FROM removed)`, userID, time.Microseconds()); err != nil {
+		return "", nil, stacktrace.Propagate(err, "failed to remove pending collection invitations")
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM trusted_sharers
+		WHERE to_user_id = $1 OR sharer_user_id = $1`, userID); err != nil {
+		return "", nil, stacktrace.Propagate(err, "failed to remove collection share trust")
+	}
 	revokedTokens, err := markTokensDeleted(tx, `UPDATE tokens SET is_deleted = true WHERE user_id = $1 AND is_deleted = false RETURNING app, token_hash`, userID)
 	if err != nil {
 		return "", nil, err

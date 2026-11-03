@@ -904,14 +904,8 @@ func storageWarningStageKey(snapshot storageWarningSnapshot) string {
 	}
 }
 
-func isEnteDomainStorageWarningAccount(email string) bool {
-	normalizedEmail := emailUtil.NormalizeEmail(email)
-	return strings.HasSuffix(normalizedEmail, "@ente.io") ||
-		strings.HasSuffix(normalizedEmail, "@ente.com")
-}
-
 func isInStorageWarningRollout(userID int64, email string) bool {
-	if isEnteDomainStorageWarningAccount(email) {
+	if emailUtil.IsEnteDomain(email) {
 		return true
 	}
 	return rollout.IsInPercentageRollout(userID, storageWarningRolloutNonce, storageWarningRolloutPercentage)
