@@ -148,9 +148,10 @@ jobs:
                   SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD_AUTH }}
                   SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD_AUTH }}
 
-            - name: Build PlayStore AAB
+            - name: Build Play Store bundles
               run: |
                   flutter build appbundle --build-name="${RELEASE_VERSION}" --build-number="${BUILD_NUMBER}" --release --flavor playstore --dart-define=cronetHttpNoPlay=true
+                  android/gradlew -p wear :app:bundleRelease
               env:
                   SIGNING_KEY_PATH: ${{ runner.temp }}/ente_auth_key.jks
                   SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS_AUTH }}
@@ -159,6 +160,12 @@ jobs:
 
             - name: Generate checksums
               run: cd artifacts && sha256sum ente-auth-*.apk > SHA256SUMS-android
+
+            - name: Save Wear OS bundle for the Wear OS release track
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: auth-wear-aab
+                  path: mobile/apps/auth/wear/app/build/outputs/bundle/release/app-release.aab
 
             - name: Upload checksum snippet
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -775,7 +782,8 @@ jobs:
                       CODE_SIGN_STYLE=Manual \
                       CODE_SIGN_IDENTITY="Apple Distribution" \
                       DEVELOPMENT_TEAM="${APPLE_TEAM_ID}" \
-                      APP_STORE_PROFILE_SPECIFIER="Auth App Store"
+                      APP_STORE_PROFILE_SPECIFIER="Auth App Store" \
+                      AUTH_WATCH_PROFILE_SPECIFIER="Auth Watch App Store"
 
                   xcodebuild -exportArchive \
                       -archivePath build/ios/archive/Runner.xcarchive \

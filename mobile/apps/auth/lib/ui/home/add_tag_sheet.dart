@@ -4,6 +4,7 @@ import 'package:ente_auth/models/code.dart';
 import 'package:ente_auth/onboarding/model/tag_enums.dart';
 import 'package:ente_auth/onboarding/view/common/tag_chip.dart';
 import 'package:ente_auth/services/authenticator_service.dart';
+import 'package:ente_auth/services/watch/service.dart';
 import 'package:ente_auth/store/code_display_store.dart';
 import 'package:ente_auth/store/code_store.dart';
 import 'package:ente_auth/ui/components/horizontal_scroll_area.dart';
@@ -171,6 +172,13 @@ class _AddTagSheetState extends State<AddTagSheet> {
               context.strings.tags,
               style: TextStyles.bodyBold.copyWith(color: colors.textBase),
             ),
+            if (WatchService.sharedTags.isNotEmpty) ...[
+              const SizedBox(height: Spacing.sm),
+              Text(
+                context.strings.watchTagSharingNotice,
+                style: TextStyles.mini.copyWith(color: colors.textLight),
+              ),
+            ],
             const SizedBox(height: Spacing.md),
             ConstrainedBox(
               constraints: BoxConstraints(
