@@ -59,8 +59,9 @@ type CollectionUser struct {
 	ID    int64  `json:"id"`
 	Email string `json:"email"`
 	// Deprecated
-	Name string                    `json:"name"`
-	Role CollectionParticipantRole `json:"role"`
+	Name    string                    `json:"name"`
+	Role    CollectionParticipantRole `json:"role"`
+	Pending bool                      `json:"pending,omitempty"`
 }
 
 type CollectionAttributes struct {
