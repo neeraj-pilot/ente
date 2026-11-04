@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ente/museum/pkg/repo/public"
-	"slices"
 	"strconv"
 	t "time"
 
@@ -120,9 +119,8 @@ func (repo *CollectionRepository) WithSharingDetailsForUser(c ente.Collection, a
 	if actorUserID != c.Owner.ID {
 		var encryptedKey sql.NullString
 		var sharedAt sql.NullInt64
-		var role ente.CollectionParticipantRole
-		err := repo.DB.QueryRow(`SELECT encrypted_key, magic_metadata, shared_at, role_type FROM collection_shares WHERE collection_id = $1 AND to_user_id = $2 AND is_deleted = $3`,
-			c.ID, actorUserID, false).Scan(&encryptedKey, &c.SharedMagicMetadata, &sharedAt, &role)
+		err := repo.DB.QueryRow(`SELECT encrypted_key, magic_metadata, shared_at FROM collection_shares WHERE collection_id = $1 AND to_user_id = $2 AND is_deleted = $3`,
+			c.ID, actorUserID, false).Scan(&encryptedKey, &c.SharedMagicMetadata, &sharedAt)
 		if err != nil {
 			return ente.Collection{}, stacktrace.Propagate(err, "failed to fetch sharee encrypted key")
 		}
@@ -132,9 +130,6 @@ func (repo *CollectionRepository) WithSharingDetailsForUser(c ente.Collection, a
 		c.EncryptedKey = encryptedKey.String
 		if sharedAt.Valid {
 			c.SharedAt = &sharedAt.Int64
-		}
-		if role != ente.ADMIN {
-			c.Sharees = slices.DeleteFunc(c.Sharees, func(sharee ente.CollectionUser) bool { return sharee.Pending })
 		}
 	}
 	return c, nil
@@ -348,9 +343,6 @@ func (repo *CollectionRepository) GetCollectionsSharedWithUser(userID int64, upd
 			sharees, err := repo.GetSharees(c.ID)
 			if err != nil {
 				return collections, stacktrace.Propagate(err, "")
-			}
-			if role != ente.ADMIN {
-				sharees = slices.DeleteFunc(sharees, func(sharee ente.CollectionUser) bool { return sharee.Pending })
 			}
 			c.Sharees = sharees
 		}
@@ -858,16 +850,15 @@ func (repo *CollectionRepository) UnShareContext(
 		if invitationCount == 0 {
 			return ente.CollectionNotShared, nil
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE collections SET updation_time = GREATEST(updation_time + 1, $1)
-			WHERE collection_id = $2`, updationTime, collectionID); err != nil {
-			return "", err
-		}
 		return ente.CollectionUnshared, tx.Commit()
 	}
 	if err != nil {
 		return "", stacktrace.Propagate(err, "")
 	}
-	if !isDeleted || invitationCount > 0 {
+	if isDeleted && invitationCount > 0 {
+		return ente.CollectionUnshared, tx.Commit()
+	}
+	if !isDeleted {
 		status = ente.CollectionUnshared
 	}
 	_, err = tx.ExecContext(ctx, `UPDATE collection_shares
@@ -1241,14 +1232,23 @@ func (repo *CollectionRepository) GetFile(collectionID int64, fileID int64) ([]e
 }
 
 func (repo *CollectionRepository) GetSharees(cID int64) ([]ente.CollectionUser, error) {
-	rows, err := repo.DB.Query(`
+	return repo.getSharees(cID, false)
+}
+
+func (repo *CollectionRepository) GetShareesWithPending(cID int64) ([]ente.CollectionUser, error) {
+	return repo.getSharees(cID, true)
+}
+
+func (repo *CollectionRepository) getSharees(cID int64, includePending bool) ([]ente.CollectionUser, error) {
+	query := `
 		SELECT users.user_id, users.encrypted_email, users.email_decryption_nonce,
 			collection_shares.role_type, FALSE
 		FROM collection_shares
 		JOIN users ON users.user_id = collection_shares.to_user_id
 		WHERE collection_shares.collection_id = $1 AND collection_shares.is_deleted = FALSE
-			AND users.encrypted_email IS NOT NULL
-		UNION ALL
+			AND users.encrypted_email IS NOT NULL`
+	if includePending {
+		query += ` UNION ALL
 		SELECT users.user_id, users.encrypted_email, users.email_decryption_nonce,
 			ci.role_type, TRUE
 		FROM collection_invitations ci
@@ -1256,7 +1256,9 @@ func (repo *CollectionRepository) GetSharees(cID int64) ([]ente.CollectionUser, 
 		WHERE ci.collection_id = $1 AND users.encrypted_email IS NOT NULL
 			AND NOT EXISTS (SELECT 1 FROM collection_shares cs
 				WHERE cs.collection_id = ci.collection_id AND cs.to_user_id = ci.to_user_id
-					AND cs.is_deleted = FALSE)`, cID)
+					AND cs.is_deleted = FALSE)`
+	}
+	rows, err := repo.DB.Query(query, cID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}

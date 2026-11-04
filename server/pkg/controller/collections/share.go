@@ -59,7 +59,7 @@ func (c *CollectionController) Share(ctx *gin.Context, req ente.AlterShareReques
 	if collection.App == string(ente.Photos) {
 		go c.PushCtrl.NotifyAlbumShare(ctx.Request.Context(), []int64{toUserID})
 	}
-	sharees, err := c.GetSharees(ctx, req.CollectionID, fromUserID)
+	sharees, err := c.CollectionRepo.GetSharees(req.CollectionID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
@@ -125,7 +125,7 @@ func (c *CollectionController) BatchShare(ctx *gin.Context, shares []ente.AlterS
 		}
 		go c.PushCtrl.NotifyAlbumShare(ctx.Request.Context(), recipients)
 	}
-	sharees, err := c.GetSharees(ctx, collection.ID, fromUserID)
+	sharees, err := c.CollectionRepo.GetSharees(collection.ID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
@@ -400,7 +400,7 @@ func (c *CollectionController) UnShare(ctx *gin.Context, cID int64, fromUserID i
 		return nil, err
 	}
 
-	sharees, err := c.CollectionRepo.GetSharees(cID)
+	sharees, err := c.CollectionRepo.GetShareesWithPending(cID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
@@ -420,7 +420,11 @@ func (c *CollectionController) UnShare(ctx *gin.Context, cID int64, fromUserID i
 	if err := c.cleanupRevokedShare(ctx, cID, toUserID); err != nil {
 		return nil, err
 	}
-	return slices.Delete(sharees, toUserIndex, toUserIndex+1), nil
+	updatedSharees, err := c.CollectionRepo.GetSharees(cID)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	return updatedSharees, nil
 }
 
 func (c *CollectionController) BulkUnShare(
@@ -660,12 +664,12 @@ func (c *CollectionController) GetSharees(ctx *gin.Context, cID int64, userID in
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Access check failed")
 	}
+	if accessResult.Role != nil && (*accessResult.Role == ente.OWNER || *accessResult.Role == ente.ADMIN) {
+		return c.CollectionRepo.GetShareesWithPending(cID)
+	}
 	sharees, err := c.CollectionRepo.GetSharees(cID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
-	}
-	if accessResult.Role == nil || (*accessResult.Role != ente.OWNER && *accessResult.Role != ente.ADMIN) {
-		sharees = slices.DeleteFunc(sharees, func(sharee ente.CollectionUser) bool { return sharee.Pending })
 	}
 	return sharees, nil
 }

@@ -160,6 +160,7 @@ func (repo *CollectionRepository) ShareWithAcceptance(ctx context.Context, colle
 			return ente.ErrPermissionDenied
 		}
 	}
+	activeShareUpdated := false
 	for _, share := range shares {
 		if !validInvitationRole(share.Role) || share.ToUserID == ownerID || share.ToUserID == inviterID {
 			return ente.ErrBadRequest
@@ -178,6 +179,7 @@ func (repo *CollectionRepository) ShareWithAcceptance(ctx context.Context, colle
 			}
 		}
 		if !acceptanceEnabled || alreadyShared || trusted {
+			activeShareUpdated = true
 			if _, err := tx.ExecContext(ctx, `DELETE FROM collection_invitations
 				WHERE collection_id = $1 AND to_user_id = $2`, collectionID, share.ToUserID); err != nil {
 				return err
@@ -210,17 +212,18 @@ func (repo *CollectionRepository) ShareWithAcceptance(ctx context.Context, colle
 	if err := withdrawInvitationsOfNonAdmins(ctx, tx, collectionID, recipientIDs); err != nil {
 		return err
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE collections SET updation_time = GREATEST(updation_time + 1, $1)
-		WHERE collection_id = $2 AND is_deleted = FALSE`, updationTime, collectionID)
-	if err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT is_deleted FROM collections WHERE collection_id = $1 FOR UPDATE`,
+		collectionID).Scan(&deleted); err != nil {
 		return err
 	}
-	updated, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if updated != 1 {
+	if deleted {
 		return ente.ErrCollectionDeleted
+	}
+	if activeShareUpdated {
+		if _, err := tx.ExecContext(ctx, `UPDATE collections SET updation_time = GREATEST(updation_time + 1, $1)
+			WHERE collection_id = $2`, updationTime, collectionID); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }
@@ -435,17 +438,8 @@ func (repo *CollectionRepository) RejectInvitation(ctx context.Context, userID, 
 	if err := lockShareRecipients(ctx, tx, []int64{userID}, true); err != nil {
 		return err
 	}
-	var collectionID int64
-	err = tx.QueryRowContext(ctx, `DELETE FROM collection_invitations
-		WHERE invitation_id = $1 AND to_user_id = $2 RETURNING collection_id`, invitationID, userID).Scan(&collectionID)
-	if err == sql.ErrNoRows {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE collections SET updation_time = GREATEST(updation_time + 1, $1)
-		WHERE collection_id = $2`, time.Microseconds(), collectionID); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM collection_invitations
+		WHERE invitation_id = $1 AND to_user_id = $2`, invitationID, userID); err != nil {
 		return err
 	}
 	return tx.Commit()
