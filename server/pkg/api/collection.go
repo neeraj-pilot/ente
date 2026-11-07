@@ -76,12 +76,17 @@ func (h *CollectionHandler) GetV2(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, "Failed to get shared collections"))
 		return
 	}
+	hasPendingInvitations, err := h.Controller.HasPendingInvitations(c.Request.Context(), userID, app)
+	if err != nil {
+		handler.Error(c, stacktrace.Propagate(err, "Failed to check pending invitations"))
+		return
+	}
 	collections := make([]any, 0, len(ownedCollections)+len(sharedCollections))
 	for _, collection := range ownedCollections {
 		collections = append(collections, collection)
 	}
 	collections = append(collections, sharedCollectionResponses(sharedCollections)...)
-	c.JSON(http.StatusOK, gin.H{"collections": collections})
+	c.JSON(http.StatusOK, gin.H{"collections": collections, "hasPendingInvitations": hasPendingInvitations})
 }
 
 func (h *CollectionHandler) GetWithLimit(c *gin.Context) {
@@ -106,9 +111,15 @@ func (h *CollectionHandler) GetWithLimit(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, "Failed to get shared collections"))
 		return
 	}
+	hasPendingInvitations, err := h.Controller.HasPendingInvitations(c.Request.Context(), userID, app)
+	if err != nil {
+		handler.Error(c, stacktrace.Propagate(err, "Failed to check pending invitations"))
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"owned":  ownedCollections,
-		"shared": sharedCollectionResponses(sharedCollections),
+		"owned":                 ownedCollections,
+		"shared":                sharedCollectionResponses(sharedCollections),
+		"hasPendingInvitations": hasPendingInvitations,
 	})
 }
 

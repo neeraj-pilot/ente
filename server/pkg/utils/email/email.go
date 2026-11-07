@@ -31,6 +31,11 @@ func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+func IsEnteDomain(email string) bool {
+	normalized := NormalizeEmail(email)
+	return strings.HasSuffix(normalized, "@ente.com") || strings.HasSuffix(normalized, "@ente.io")
+}
+
 // https://datatracker.ietf.org/doc/html/rfc5322#section-2.1.1
 const base64LineLength = 900 // standard MIME line length for base64 content
 

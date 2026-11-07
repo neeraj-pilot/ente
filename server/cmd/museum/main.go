@@ -755,6 +755,7 @@ func main() {
 	storageAPI.GET("/collection-actions/delete-suggestions", collectionActionsHandler.ListDeleteSuggestions)
 	storageAPI.POST("/collection-actions/reject-delete-suggestions", collectionActionsHandler.RejectDeleteSuggestions)
 
+	storageAPI.GET("/collections/invitations", collectionHandler.ListInvitations)
 	storageAPI.GET("/collections/:collectionID", collectionHandler.GetCollectionByID)
 	//lint:ignore SA1019 Deprecated API will be removed in the future
 	storageAPI.GET("/collections", collectionHandler.Get)
@@ -763,6 +764,8 @@ func main() {
 	storageAPI.POST("/collections/share", collectionHandler.Share)
 	storageAPI.POST("/collections/share/batch", collectionHandler.BatchShare)
 	storageAPI.POST("/collections/share/bulk", collectionHandler.BulkShare)
+	storageAPI.POST("/collections/accept", collectionHandler.AcceptInvitations)
+	storageAPI.POST("/collections/reject", collectionHandler.RejectInvitation)
 	storageAPI.POST("/collections/join-link", collectionHandler.JoinLink)
 	storageAPI.POST("/collections/share-url", collectionHandler.ShareURL)
 	storageAPI.PUT("/collections/share-url", collectionHandler.UpdateShareURL)

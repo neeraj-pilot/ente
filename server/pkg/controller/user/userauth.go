@@ -502,9 +502,7 @@ func (c *UserController) notifyLogin(ctx *gin.Context, userID int64, app ente.Ap
 		templateData := map[string]interface{}{
 			"Date": t.Now().UTC().Format("02 Jan, 2006 15:04"),
 		}
-		normalizedEmail := emailUtil.NormalizeEmail(user.Email)
-		if strings.HasSuffix(normalizedEmail, "@ente.io") ||
-			strings.HasSuffix(normalizedEmail, "@ente.com") {
+		if emailUtil.IsEnteDomain(user.Email) {
 			appDisplayNames := map[ente.App]string{
 				ente.Photos: "Ente Photos",
 				ente.Auth:   "Ente Auth",
