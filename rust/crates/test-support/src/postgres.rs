@@ -1,7 +1,7 @@
 use std::{path::PathBuf, process::Command};
 
-use postgresql_embedded::Settings;
 use postgresql_embedded::blocking::PostgreSQL;
+use postgresql_embedded::{Settings, VersionReq};
 
 use crate::{
     TestResult,
@@ -9,6 +9,12 @@ use crate::{
 };
 
 const DATABASE: &str = "ente_test";
+
+// Pin an exact release. With the default `*`, postgresql_embedded reuses the
+// newest version already in the install dir, so the result depends on what CI
+// restored from cache. Archives published before October 2026, such as 18.6.0,
+// link the system libxml2.so.2, which Ubuntu 26.04 no longer ships.
+const POSTGRESQL_VERSION: &str = "=18.7.0";
 
 pub struct Postgres {
     inner: PostgreSQL,
@@ -68,6 +74,7 @@ impl Postgres {
 
 pub fn start() -> TestResult<Postgres> {
     let settings = Settings {
+        version: VersionReq::parse(POSTGRESQL_VERSION)?,
         temporary: true,
         host: LOCAL_HOST.to_string(),
         port: free_port()?,

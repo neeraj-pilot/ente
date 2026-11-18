@@ -3312,6 +3312,9 @@ mod tests {
                 .is_empty()
                 .unwrap()
         );
+        // Unlock explicitly. A child spawned by a concurrent test shares this
+        // descriptor until it execs, so closing alone can leave the lock held.
+        holder.unlock().unwrap();
         drop(holder);
         let writer = open_writer(&alias);
         assert!(writer.is_empty().unwrap());
