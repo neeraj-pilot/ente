@@ -17,6 +17,7 @@ jobs:
             - name: Checkout code and submodules
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
+                  fetch-depth: 2
                   submodules: recursive
 
             - name: Verify frozen mobile pubspecs
@@ -118,32 +119,40 @@ jobs:
             - run: flutter analyze --no-pub
               working-directory: mobile
 
+            - name: Select mobile tests
+              id: tests
+              run: node .github/scripts/mobile-tests/select.mjs ${{ github.event_name == 'pull_request' && 'HEAD^1 HEAD' || '--all' }}
+
             - name: Build Rust libraries for tests
-              if: steps.frb.outputs.cache-hit != 'true'
-              run: cargo build -p ente-auth-frb -p ente-photos-frb --features flutter --locked
+              if: steps.frb.outputs.cache-hit != 'true' && (steps.tests.outputs.build_auth_frb == 'true' || steps.tests.outputs.build_photos_frb == 'true')
               working-directory: rust
+              env:
+                  BUILD_AUTH_FRB: ${{ steps.tests.outputs.build_auth_frb }}
+                  BUILD_PHOTOS_FRB: ${{ steps.tests.outputs.build_photos_frb }}
+              run: |
+                  packages=()
+                  [[ "$BUILD_AUTH_FRB" == "true" ]] && packages+=(-p ente-auth-frb)
+                  [[ "$BUILD_PHOTOS_FRB" == "true" ]] && packages+=(-p ente-photos-frb)
+                  cargo build "${packages[@]}" --features flutter --locked
 
             - name: Test
+              if: steps.tests.outputs.packages != '[]'
               working-directory: mobile
               env:
+                  BUILD_AUTH_FRB: ${{ steps.tests.outputs.build_auth_frb }}
+                  BUILD_PHOTOS_FRB: ${{ steps.tests.outputs.build_photos_frb }}
                   ENTE_AUTH_FRB_LIBRARY: ${{ github.workspace }}/rust/target/debug/libente_auth_frb.so
                   ENTE_PHOTOS_FRB_LIBRARY: ${{ github.workspace }}/rust/target/debug/libente_photos_frb.so
+                  PACKAGES: ${{ steps.tests.outputs.packages }}
               run: |
-                  test -f "$ENTE_AUTH_FRB_LIBRARY"
-                  test -f "$ENTE_PHOTOS_FRB_LIBRARY"
+                  [[ "$BUILD_AUTH_FRB" == "true" ]] && test -f "$ENTE_AUTH_FRB_LIBRARY"
+                  [[ "$BUILD_PHOTOS_FRB" == "true" ]] && test -f "$ENTE_PHOTOS_FRB_LIBRARY"
                   test_package() (
-                      member=${1#"$PWD/"}
-                      echo "Testing $member"
-                      cd "$member"
+                      echo "Testing $1"
+                      cd "$1"
                       flutter test --no-pub
                   )
                   export -f test_package
 
-                  dart pub workspace list --json |
-                      jq -r '.packages[] | select(.name != "ente_workspace") | .path' |
-                      while IFS= read -r member; do
-                          if [[ -d "$member/test" ]]; then
-                              printf '%s\n' "$member"
-                          fi
-                      done |
+                  jq -r '.[]' <<< "$PACKAGES" |
                       xargs -P4 -n1 bash -e -c 'test_package "$1"' _
