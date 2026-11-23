@@ -7,11 +7,13 @@ import {
     readFileSync,
     renameSync,
     rmSync,
+    symlinkSync,
     writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 
 import { selectMobileTests } from "./select.mjs";
 
@@ -68,6 +70,29 @@ test("Rust changes select the members of the FRB crates they feed", () => {
         "packages/sharing",
         "packages/ui",
     ]);
+});
+
+test("selects Rust owners through a symlinked root", (t) => {
+    const dir = mkdtempSync(join(tmpdir(), "ente-mobile-symlink-"));
+    t.after(() => rmSync(dir, { recursive: true }));
+    const link = join(dir, "repo");
+    symlinkSync(root, link);
+    assert.deepEqual(selectMobileTests(link, ["rust/crates/auth/src/lib.rs"]), [
+        "apps/auth",
+    ]);
+});
+
+test("evaluates as a module import without process.argv[1]", () => {
+    const result = spawnSync(
+        process.execPath,
+        ["-e", "await import(process.env.SCRIPT)"],
+        {
+            encoding: "utf8",
+            env: { ...process.env, SCRIPT: pathToFileURL(script).href },
+        },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
 });
 
 test("files outside every member and FRB crate select all", () => {

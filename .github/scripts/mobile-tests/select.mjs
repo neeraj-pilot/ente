@@ -95,7 +95,11 @@ function rustOwners(root) {
                     closure.add(dependency.path);
         }
     }
-    return [...owners].map(([dir, members]) => [relative(root, dir), members]);
+    const resolvedRoot = realpathSync(root);
+    return [...owners].map(([dir, members]) => [
+        relative(resolvedRoot, dir),
+        members,
+    ]);
 }
 
 function parseWorkspaceMembers(source) {
@@ -185,7 +189,11 @@ function changedFiles(base, head) {
         .filter(Boolean);
 }
 
-if (realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+    process.argv[1] &&
+    realpathSync(process.argv[1]) ===
+        realpathSync(fileURLToPath(import.meta.url))
+) {
     const args = process.argv.slice(2);
     const all = args.length === 1 && args[0] === "--all";
     if (!all && args.length !== 2)
