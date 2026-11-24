@@ -13,6 +13,7 @@ import io.ente.ensu.bindings.GroundedSource
 import io.ente.ensu.bindings.KnowledgeDatasetConfig
 import io.ente.ensu.bindings.LlmException
 import io.ente.ensu.bindings.PassageLocator
+import io.ente.ensu.bindings.ToolTurnStatus
 import io.ente.ensu.bindings.buildGroundedPromptContext
 import io.ente.ensu.bindings.cleanAssistantText
 import io.ente.ensu.bindings.finalizeGroundedAssistantText
@@ -34,10 +35,15 @@ import io.ente.ensu.llm.automaticMaxOutputTokens
 import io.ente.ensu.logging.FileLogRepository
 import io.ente.ensu.logging.LogLevel
 import io.ente.ensu.notes.NotesStore
+import io.ente.ensu.notifications.BackgroundGeneration
+import io.ente.ensu.notifications.NotificationPermissions
 import io.ente.ensu.settings.SessionPreferencesDataStore
+import io.ente.ensu.todo.message
+import io.ente.ensu.todo.todoErrorDetail
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -59,6 +65,8 @@ import kotlinx.coroutines.withContext
 
 internal class ChatStoreActions(
     private val state: MutableStateFlow<AppState>,
+    private val backgroundGeneration: BackgroundGeneration,
+    private val notificationPermissions: NotificationPermissions,
     private val sessionPreferences: SessionPreferencesDataStore,
     private val chatRepository: ChatRepository,
     private val llmProvider: LlmProvider,
@@ -80,12 +88,25 @@ internal class ChatStoreActions(
     private val sessionAccessTimes = mutableMapOf<String, Long>()
     private var scope: CoroutineScope? = null
     private var generationJob: Job? = null
+    private var todoTurnChangeJob: Job? = null
+    private var initialSessionLoad: Job? = null
+    private val notificationNavigation = NotificationNavigation { error ->
+        logRepository.log(
+            LogLevel.Error,
+            "Failed to open notification conversation",
+            details = error.message,
+            tag = "Chat",
+            throwable = error,
+        )
+    }
+    val openedNotification = notificationNavigation.opened
     private var sessionSummaryJob: Job? = null
     @Volatile private var stopRequested = false
     @Volatile private var activePreparation: ConversationPreparationControl? = null
     @Volatile private var activeFollowup: ConversationFollowup? = null
     private var streamingParentId: String? = null
     private var activeGenerationToken = 0L
+    private val todoTurnsRevision = AtomicLong()
     private var pendingOverflow: PendingOverflow? = null
     private var overflowBypassMessageId: String? = null
 
@@ -131,7 +152,7 @@ internal class ChatStoreActions(
         }
 
         if (state.value.chat.sessions.isEmpty()) {
-            loadSessionsFromDb()
+            initialSessionLoad = loadSessionsFromDb()
         }
 
         scope.launch {
@@ -181,6 +202,7 @@ internal class ChatStoreActions(
 
     fun createNewSession(): String {
         check(sourceInventoryReady)
+        notificationNavigation.cancel()
         resetGenerationState()
 
         val session = chatRepository.createSession("New Chat")
@@ -210,6 +232,7 @@ internal class ChatStoreActions(
     fun startNewSessionDraft() {
         if (state.value.chat.isDownloading) return
 
+        notificationNavigation.cancel()
         resetGenerationState()
         attachmentActions.discardAttachments(state.value.chat.attachments)
         state.update { appState ->
@@ -227,7 +250,40 @@ internal class ChatStoreActions(
         }
     }
 
+    suspend fun openNotification(
+        sessionId: String,
+        messageId: String?,
+        awaitReady: suspend () -> Unit,
+    ) = notificationNavigation.open {
+        awaitReady()
+        if (messageId == null && state.value.chat.currentSessionId == sessionId) return@open true
+        val conversation =
+            loadNotificationConversation(
+                initialSessionLoad = initialSessionLoad,
+                sessionId = sessionId,
+                messageId = messageId,
+                cachedSessions = { state.value.chat.sessions },
+                listSessions = chatRepository::listSessions,
+                getMessages = chatRepository::getMessages,
+                onConversationLoaded = ::resetGenerationState,
+            ) ?: return@open false
+        state.update {
+            it.copy(
+                chat = it.chat.copy(sessions = conversation.sessions, currentSessionId = sessionId)
+            )
+        }
+        cacheMessages(sessionId, conversation.messages)
+        branchSelections[sessionId] = conversation.branchSelections.toMutableMap()
+        rebuildChatState(sessionId)
+        true
+    }
+
+    fun cancelNotificationNavigation() = notificationNavigation.cancel()
+
+    fun acknowledgeOpenedNotification(token: String) = notificationNavigation.acknowledge(token)
+
     fun selectSession(sessionId: String) {
+        notificationNavigation.cancel()
         resetGenerationState()
         state.update { appState ->
             appState.copy(chat = appState.chat.copy(currentSessionId = sessionId))
@@ -240,6 +296,7 @@ internal class ChatStoreActions(
     }
 
     fun deleteSession(sessionId: String) {
+        notificationNavigation.cancel()
         val currentState = state.value
         val isCurrent = currentState.chat.currentSessionId == sessionId
 
@@ -329,6 +386,7 @@ internal class ChatStoreActions(
     }
 
     fun updateBranchSelection(messageId: String, selectedIndex: Int) {
+        notificationNavigation.cancel()
         if (state.value.chat.isGenerating) {
             resetGenerationState()
         }
@@ -353,6 +411,7 @@ internal class ChatStoreActions(
         val message = messageStore[sessionId]?.firstOrNull { it.id == messageId } ?: return
         if (message.author != MessageAuthor.User) return
 
+        notificationNavigation.cancel()
         clearTransientAssistantError()
         state.update { appState ->
             appState.copy(
@@ -382,6 +441,7 @@ internal class ChatStoreActions(
     }
 
     fun stopGeneration() {
+        backgroundGeneration.cancelAttempt(activeGenerationToken)
         if (state.value.chat.preparationStatus != null) activePreparation?.cancel()
         activeFollowup?.cancel()
         stopRequested = true
@@ -394,8 +454,6 @@ internal class ChatStoreActions(
             refreshSourceInventory()
             return
         }
-        val priorGeneration = generationJob
-        val priorSummary = sessionSummaryJob
         if (state.value.chat.isGenerating) {
             stopGeneration()
         }
@@ -414,24 +472,7 @@ internal class ChatStoreActions(
                 messageStore[sessionId]?.firstOrNull { it.id == parentId }
             } ?: return
 
-        val sourceSelection = currentSourceSelection()
-        priorGeneration?.cancel()
-        priorSummary?.cancel()
-        llmProvider.stopGeneration()
-        val ownerScope = scope ?: return
-        ownerScope.launch {
-            priorGeneration?.join()
-            priorSummary?.join()
-            if (
-                parent.attachments.none { it.type == AttachmentType.Image } ||
-                    llmProvider.supportsImages(
-                        modelSettingsActions.resolveSelection(state.value.modelSettings)
-                    )
-            ) {
-                llmProvider.resetContext()
-            }
-            startGeneration(sessionId, parent, sourceSelection)
-        }
+        startGeneration(sessionId, parent)
     }
 
     fun sendMessage() {
@@ -493,6 +534,7 @@ internal class ChatStoreActions(
         updateCurrentSessionPreview(sessionId, text, timestamp)
         rebuildChatState(sessionId)
         startGeneration(sessionId, userMessage)
+        notificationPermissions.onSend()
         logRepository.log(
             LogLevel.Info,
             "Message sent",
@@ -528,9 +570,9 @@ internal class ChatStoreActions(
         rebuildChatState(state.value.chat.currentSessionId)
     }
 
-    fun loadSessionsFromDb() {
-        val scope = scope ?: return
-        scope.launch(Dispatchers.IO) {
+    private fun loadSessionsFromDb(): Job? {
+        val scope = scope ?: return null
+        return scope.launch(Dispatchers.IO) {
             val loaded =
                 try {
                     chatRepository.listSessions()
@@ -587,8 +629,10 @@ internal class ChatStoreActions(
             return
         }
         modelSettingsActions.cancelChatWarmup(releaseLoadedModel = false)
+        notificationNavigation.cancel()
         val priorGeneration = generationJob
         val priorSummary = sessionSummaryJob
+        val priorTodoTurnChange = todoTurnChangeJob
         activePreparation?.cancel()
         activeFollowup?.cancel()
         priorGeneration?.cancel()
@@ -619,6 +663,13 @@ internal class ChatStoreActions(
 
         clearTransientAssistantError()
         val generationToken = nextGenerationToken()
+        backgroundGeneration.begin(
+            generationToken,
+            sessionId,
+            userMessage.id,
+            userMessage.text,
+            ::stopGeneration,
+        )
         streamingParentId = userMessage.id
         state.update { appState ->
             appState.copy(
@@ -640,19 +691,20 @@ internal class ChatStoreActions(
 
         val notesScope = notesStore.suspendMaintenance()
         var followup: ConversationFollowup? = null
-        val activeJob = scope.launch {
+        val generateResponse: suspend CoroutineScope.() -> Unit = generateResponse@{
             notesStore.awaitMaintenance()
             priorGeneration?.join()
             priorSummary?.join()
+            priorTodoTurnChange?.join()
             val runningJob = coroutineContext[Job]
             val isActive = {
                 isGenerationActive(generationToken, sessionId) &&
                     (runningJob?.isActive != false || stopRequested)
             }
-            if (!isActive()) return@launch
+            if (!isActive()) return@generateResponse
             awaitKnowledgeReady()
             notesStore.awaitReady()
-            if (!isActive()) return@launch
+            if (!isActive()) return@generateResponse
             val progressTracker = DownloadProgressTracker()
             var embeddingAssetInvalid = false
             val enabledDatasets =
@@ -687,7 +739,7 @@ internal class ChatStoreActions(
                         }
                     if (!isActive() || stopRequested) {
                         closeFollowup(turn)
-                        return@launch
+                        return@generateResponse
                     }
                     followup = turn
                     activeFollowup = turn
@@ -699,11 +751,17 @@ internal class ChatStoreActions(
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (_: ConversationException.Cancelled) {
-                return@launch
+                return@generateResponse
             } catch (error: Throwable) {
-                if (!isActive() || stopRequested) return@launch
-                if (reportFollowupError(error, userMessage.id, "Unable to prepare source search"))
-                    return@launch
+                if (!isActive() || stopRequested) return@generateResponse
+                if (
+                    reportFollowupError(
+                        error,
+                        userMessage.id,
+                        "Unable to prepare source search",
+                    )
+                )
+                    return@generateResponse
             }
             val retrievalQuery = userMessage.text.trim()
             val knowledgeHits =
@@ -734,12 +792,12 @@ internal class ChatStoreActions(
                                     )
                                 )
                             }
-                        if (!isActive()) return@launch
+                        if (!isActive()) return@generateResponse
                         hits
                     } catch (error: kotlinx.coroutines.CancellationException) {
                         throw error
                     } catch (error: ModelMemoryUnavailable) {
-                        if (!isActive() || stopRequested) return@launch
+                        if (!isActive() || stopRequested) return@generateResponse
                         state.update {
                             it.copy(
                                 chat =
@@ -749,17 +807,17 @@ internal class ChatStoreActions(
                                     )
                             )
                         }
-                        return@launch
+                        return@generateResponse
                     } catch (_: LlmProvider.EmbeddingAssetInvalid) {
                         embeddingAssetInvalid = true
                         emptyList()
                     } catch (_: LlmException.Cancelled) {
-                        return@launch
+                        return@generateResponse
                     } catch (_: AssetDownloadException.Cancelled) {
-                        return@launch
+                        return@generateResponse
                     } catch (error: Throwable) {
                         if (!isActive() || stopRequested) {
-                            return@launch
+                            return@generateResponse
                         }
                         logRepository.log(
                             LogLevel.Warning,
@@ -781,7 +839,7 @@ internal class ChatStoreActions(
                                 withContext(Dispatchers.IO) {
                                     turn.searchWithHistory(knowledgeHits)
                                 }
-                            if (!isActive() || stopRequested) return@launch
+                            if (!isActive() || stopRequested) return@generateResponse
                             locators.mapNotNull {
                                 reloadPassage(it, enabledDatasets, enabledFolderIds)
                             }
@@ -790,9 +848,9 @@ internal class ChatStoreActions(
                 } catch (error: kotlinx.coroutines.CancellationException) {
                     throw error
                 } catch (_: ConversationException.Cancelled) {
-                    return@launch
+                    return@generateResponse
                 } catch (error: Throwable) {
-                    if (!isActive() || stopRequested) return@launch
+                    if (!isActive() || stopRequested) return@generateResponse
                     if (
                         reportFollowupError(
                             error,
@@ -800,13 +858,13 @@ internal class ChatStoreActions(
                             "Unable to resolve earlier sources",
                         )
                     )
-                        return@launch
+                        return@generateResponse
                     closeFollowup(followup)
                     followup = null
                     emptyList()
                 }
 
-            if (!isActive()) return@launch
+            if (!isActive()) return@generateResponse
             val onModelProgress: (DownloadProgress) -> Unit = { progress ->
                 if (isActive()) {
                     val resolvedProgress = progressTracker.resolve(progress)
@@ -870,9 +928,9 @@ internal class ChatStoreActions(
                     }
                 }
             }
-            if (!assetsReady) return@launch
+            if (!assetsReady) return@generateResponse
 
-            if (!isActive()) return@launch
+            if (!isActive()) return@generateResponse
 
             if (prompt.imageFiles.isEmpty()) {
                 generateTextConversation(
@@ -902,11 +960,15 @@ internal class ChatStoreActions(
             }
             if (embeddingAssetInvalid) modelSettingsActions.refreshModelDownloadInfo()
         }
+        val activeJob = scope.launch { llmProvider.withChatResources { generateResponse() } }
         generationJob = activeJob
         activeJob.invokeOnCompletion {
             closeFollowup(followup)
             notesScope.close()
-            scope.launch { settleGenerationIfActive(generationToken, sessionId) }
+            scope.launch {
+                backgroundGeneration.finish(generationToken)
+                settleGenerationIfActive(generationToken, sessionId)
+            }
         }
     }
 
@@ -1111,8 +1173,8 @@ internal class ChatStoreActions(
                 }
             }
         } catch (err: Throwable) {
-            interrupted = stopRequested
-            if (!interrupted) {
+            interrupted = true
+            if (!stopRequested) {
                 logRepository.log(
                     LogLevel.Error,
                     "Generation failed",
@@ -1135,6 +1197,85 @@ internal class ChatStoreActions(
                     citations = activeCitations,
                 )
         }
+    }
+
+    fun loadTodoTurns() {
+        val scope = scope ?: return
+        val revision = todoTurnsRevision.incrementAndGet()
+        scope.launch(Dispatchers.Main) {
+            val session = state.value.chat.currentSessionId
+            val statuses =
+                if (session == null) emptyMap()
+                else
+                    withContext(Dispatchers.IO) {
+                            runCatching { chatRepository.toolTurnStatuses(session) }
+                        }
+                        .getOrElse { error ->
+                            logRepository.log(
+                                LogLevel.Warning,
+                                "Failed to load To Do turn statuses",
+                                tag = "Chat",
+                                throwable = error,
+                            )
+                            return@launch
+                        }
+            if (
+                revision == todoTurnsRevision.get() && state.value.chat.currentSessionId == session
+            ) {
+                state.update { it.copy(chat = it.chat.copy(todoTurns = statuses)) }
+            }
+        }
+    }
+
+    fun confirmToolTurn(replyId: String) =
+        updateTodoTurn(replyId, "Couldn't confirm") { chatRepository.confirmToolTurn(it) }
+
+    fun undoToolTurn(replyId: String) =
+        updateTodoTurn(replyId, "Couldn't undo") { chatRepository.undoToolTurn(it) }
+
+    fun dismissTodoTurnError() {
+        state.update { it.copy(chat = it.chat.copy(todoTurnError = null)) }
+    }
+
+    private fun updateTodoTurn(
+        replyId: String,
+        errorTitle: String,
+        action: (String) -> ToolTurnStatus,
+    ) {
+        val scope = scope ?: return
+        if (state.value.chat.isGenerating || todoTurnChangeJob?.isActive == true) return
+        todoTurnChangeJob = scope.launch {
+            withContext(Dispatchers.IO) { runCatching { action(replyId) } }
+                .onSuccess { status -> publishTodoTurn(replyId, status) }
+                .onFailure { error ->
+                    logRepository.log(
+                        LogLevel.Warning,
+                        errorTitle,
+                        details = error.message,
+                        tag = "Chat",
+                        throwable = error,
+                    )
+                    state.update {
+                        it.copy(
+                            chat =
+                                it.chat.copy(
+                                    todoTurnError =
+                                        TodoTurnError(
+                                            errorTitle,
+                                            error.todoErrorDetail() ?: "Something went wrong",
+                                        )
+                                )
+                        )
+                    }
+                }
+        }
+    }
+
+    private fun publishTodoTurn(replyId: String, status: ToolTurnStatus) {
+        state.update {
+            it.copy(chat = it.chat.copy(todoTurns = it.chat.todoTurns + (replyId to status)))
+        }
+        loadTodoTurns()
     }
 
     private fun closeFollowup(followup: ConversationFollowup?) {
@@ -1238,6 +1379,9 @@ internal class ChatStoreActions(
                     if (!isActive() || stopRequested) preparationControl.cancel()
                     val progress =
                         object : ConversationProgressCallback {
+                            override fun preferLargeSummaryChunks(): Boolean =
+                                selection.id == "lfm-350m" && !backgroundGeneration.isForeground
+
                             override fun onProgress() {
                                 if (!isActive() || stopRequested) preparationControl.cancel()
                                 else
@@ -1270,6 +1414,7 @@ internal class ChatStoreActions(
                             result.messages,
                             result.maxTokens,
                             temperature,
+                            result.tools,
                         ) { token ->
                             if (!isActive() || stopRequested) llmProvider.stopGeneration()
                             else {
@@ -1285,18 +1430,23 @@ internal class ChatStoreActions(
                     }
                     withContext(Dispatchers.Main + NonCancellable) {
                         val error = generated.exceptionOrNull()
+                        val interrupted = stopRequested || error != null
+                        val calledTools = !interrupted && generated.getOrNull()?.calledTools == true
                         finishGeneration(
                             sessionId,
                             userMessage,
                             buffer,
                             tokens,
                             generated.getOrNull()?.totalTimeMs,
-                            interrupted =
-                                stopRequested ||
-                                    error is LlmException.Cancelled ||
-                                    error is kotlinx.coroutines.CancellationException,
+                            interrupted = interrupted,
                             shouldUpdateUi = isActive(),
                             saveAnswer = { chatRepository.insertPreparedAnswer(preparation, it) },
+                            saveTodoTurn =
+                                if (calledTools) {
+                                    { chatRepository.applyToolCalls(preparation) }
+                                } else {
+                                    null
+                                },
                         )
                     }
                     generated.getOrThrow()
@@ -1356,7 +1506,12 @@ internal class ChatStoreActions(
         shouldUpdateUi: Boolean,
         citations: List<GroundedSource> = emptyList(),
         saveAnswer: ((String) -> ChatMessage)? = null,
+        saveTodoTurn: (() -> TodoTurn)? = null,
     ) {
+        if (saveTodoTurn != null) {
+            finishTodoTurn(sessionId, parentMessage, shouldUpdateUi, saveTodoTurn)
+            return
+        }
         val rawText = buffer.toString().trim()
         val finalText =
             if (rawText.isNotEmpty() && saveAnswer == null) {
@@ -1411,12 +1566,11 @@ internal class ChatStoreActions(
                             tokensPerSecond = tokensPerSecond,
                         )
 
-                    messageStore.getOrPut(sessionId) { mutableListOf() }.add(assistantMessage)
-                    updateSelectionForParent(sessionId, parentMessage.id, assistantMessage.id)
-                    updateCurrentSessionPreview(
+                    recordAssistantReply(
                         sessionId,
-                        cleanAssistantText(assistantMessage.text),
-                        assistantMessage.timestampMillis,
+                        parentMessage.id,
+                        assistantMessage,
+                        notifyCompletion = !interrupted,
                     )
                 }
             } else {
@@ -1430,6 +1584,76 @@ internal class ChatStoreActions(
             }
         }
 
+        endGeneration(sessionId, shouldUpdateUi)
+    }
+
+    private fun finishTodoTurn(
+        sessionId: String,
+        parentMessage: ChatMessage,
+        shouldUpdateUi: Boolean,
+        saveTodoTurn: () -> TodoTurn,
+    ) {
+        if (!shouldUpdateUi) {
+            logRepository.log(
+                LogLevel.Info,
+                "Dropped stale To Do turn",
+                details = "session=$sessionId parent=${parentMessage.id}",
+                tag = "Chat",
+            )
+            endGeneration(sessionId, shouldUpdateUi)
+            return
+        }
+        val turn =
+            runCatching(saveTodoTurn).getOrElse { error ->
+                logRepository.log(
+                    LogLevel.Error,
+                    "Failed to apply To Do calls",
+                    details = "session=$sessionId parent=${parentMessage.id}",
+                    tag = "Chat",
+                    throwable = error,
+                )
+                val refused =
+                    (error as? ConversationException.Refused)?.let {
+                        TodoTurnError("Couldn't update To Dos", it.reason.message())
+                    }
+                state.update {
+                    it.copy(
+                        chat =
+                            if (refused != null) {
+                                it.chat.copy(todoTurnError = refused)
+                            } else {
+                                it.chat.copy(
+                                    transientAssistantError =
+                                        "Couldn't update your To Dos. Retry the message.",
+                                    transientAssistantParentId = parentMessage.id,
+                                )
+                            }
+                    )
+                }
+                null
+            }
+        if (turn != null) {
+            recordAssistantReply(sessionId, parentMessage.id, turn.reply)
+            publishTodoTurn(turn.reply.id, turn.status)
+        }
+        endGeneration(sessionId, shouldUpdateUi)
+    }
+
+    private fun recordAssistantReply(
+        sessionId: String,
+        parentId: String,
+        reply: ChatMessage,
+        notifyCompletion: Boolean = true,
+    ) {
+        val text = cleanAssistantText(reply.text)
+        if (notifyCompletion && !stopRequested)
+            backgroundGeneration.completed(activeGenerationToken, reply.id, text)
+        messageStore.getOrPut(sessionId) { mutableListOf() }.add(reply)
+        updateSelectionForParent(sessionId, parentId, reply.id)
+        updateCurrentSessionPreview(sessionId, text, reply.timestampMillis)
+    }
+
+    private fun endGeneration(sessionId: String, shouldUpdateUi: Boolean) {
         if (shouldUpdateUi) {
             streamingParentId = null
             val (displayMessages, branchSelectionIndices) =
@@ -1451,7 +1675,7 @@ internal class ChatStoreActions(
                 )
             }
         }
-        if (shouldUpdateUi) {
+        if (shouldUpdateUi && backgroundGeneration.isForeground) {
             scheduleSessionSummary(sessionId)
         }
     }
@@ -1636,7 +1860,22 @@ internal class ChatStoreActions(
 
     private suspend fun loadMessagesFromDb(sessionId: String) {
         val messages = withContext(Dispatchers.IO) { chatRepository.getMessages(sessionId) }
-        messageStore[sessionId] = messages.toMutableList()
+        cacheMessages(sessionId, messages)
+    }
+
+    private fun cacheMessages(sessionId: String, messages: List<ChatMessage>) {
+        val interrupted =
+            messageStore[sessionId]
+                .orEmpty()
+                .filter { it.isInterrupted }
+                .associate { it.id to it.text }
+        messageStore[sessionId] =
+            messages
+                .map { message ->
+                    if (interrupted[message.id] == message.text) message.copy(isInterrupted = true)
+                    else message
+                }
+                .toMutableList()
         branchSelections.getOrPut(sessionId) { mutableMapOf() }.clear()
         markSessionAccess(sessionId)
         trimSessionCaches()
@@ -1822,7 +2061,7 @@ internal class ChatStoreActions(
     }
 
     private fun isDuplicate(left: ChatMessage, right: ChatMessage): Boolean {
-        if (left.author != right.author) return false
+        if (left.author != right.author || left.author == MessageAuthor.Assistant) return false
         if (left.text != right.text) return false
         if (
             !attachmentsSignature(left.attachments)
@@ -2017,6 +2256,7 @@ internal class ChatStoreActions(
     }
 
     private fun cancelGeneration() {
+        backgroundGeneration.cancelAttempt(activeGenerationToken)
         clearTransientAssistantError()
         activePreparation?.cancel()
         activeFollowup?.cancel()

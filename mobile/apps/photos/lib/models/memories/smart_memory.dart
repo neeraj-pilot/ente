@@ -2,7 +2,7 @@ import "package:ente_strings/ente_strings.dart";
 import "package:photos/models/base/id.dart";
 import "package:photos/models/memories/memory.dart";
 
-enum MemoryType { people, trips, clip, time, filler, onThisDay }
+enum MemoryType { people, trips, clip, time, filler, onThisDay, special }
 
 const int kMaxSmartMemoryItems = 100;
 
@@ -20,6 +20,8 @@ MemoryType memoryTypeFromString(String type) {
       return MemoryType.clip;
     case "onThisDay":
       return MemoryType.onThisDay;
+    case "special":
+      return MemoryType.special;
     default:
       throw ArgumentError("Invalid memory type: $type");
   }
@@ -45,7 +47,8 @@ class SmartMemory {
     String? id,
     this.firstCreationTime,
     this.lastCreationTime,
-  }) : memories = _capMemories(memories) {
+    bool capMemories = true,
+  }) : memories = capMemories ? _capMemories(memories) : memories {
     this.id = id ?? newID(type.name);
   }
 
@@ -57,6 +60,8 @@ class SmartMemory {
   }
 
   bool get notForShow => firstDateToShow == 0 && lastDateToShow == 0;
+
+  bool get isShowable => memories.isNotEmpty;
 
   bool isOld() {
     return lastDateToShow < DateTime.now().microsecondsSinceEpoch;

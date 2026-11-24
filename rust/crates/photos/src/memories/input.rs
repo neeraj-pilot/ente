@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use ente_location::{CityMatch, Coordinate};
+use ente_location::{CityMatch, Coordinate, CountryCode};
 
 use super::calendar::{LocalDate, MICROS_PER_DAY, MICROS_PER_SECOND};
 use super::output::{ClipMemoryType, PeopleMemoryType};
@@ -15,6 +15,7 @@ pub struct MemoryFile {
     pub utc_offset_seconds: i32,
     pub collection_id: Option<i64>,
     pub location: Option<Coordinate>,
+    pub shared: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -22,12 +23,15 @@ pub struct MemoriesRequest {
     pub files: Vec<MemoryFile>,
     pub excluded_collection_ids: Vec<i64>,
     pub people: Vec<MemoryPerson>,
+    pub people_hidden_from_memories: Vec<String>,
     pub me_person_id: Option<String>,
     pub shows_unnamed_people: bool,
     pub shown_people: Vec<ShownPerson>,
     pub shown_trips: Vec<ShownTrip>,
     pub cached_trips: Vec<CachedTrip>,
     pub shown_clip_memories: Vec<ShownClipMemory>,
+    pub shown_specials: Vec<ShownSpecial>,
+    pub shows_specials: bool,
     pub surface_all: bool,
     pub local_gallery_mode: bool,
     pub seed: u64,
@@ -61,10 +65,22 @@ pub struct ShownClipMemory {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShownSpecial {
+    pub key: String,
+    pub last_time_shown: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CachedTrip {
     pub identity_key: String,
     pub first_date_to_show: i64,
     pub last_date_to_show: i64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TripDetection {
+    Legacy,
+    Improved,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -124,10 +140,25 @@ pub(super) trait PhotoSignals {
 
 pub trait CityLookup {
     fn group_cities(&self, coordinates: &[Coordinate]) -> Vec<CityMatch>;
+    fn urban_centers(&self, coordinates: &[Coordinate]) -> Vec<Option<u32>>;
+    fn countries(&self, coordinates: &[Coordinate]) -> Vec<Option<CountryCode>>;
+    fn country_name(&self, country: CountryCode) -> Option<String>;
 }
 
 impl CityLookup for LocationIndex {
     fn group_cities(&self, coordinates: &[Coordinate]) -> Vec<CityMatch> {
         LocationIndex::group_cities(self, coordinates, "")
+    }
+
+    fn urban_centers(&self, coordinates: &[Coordinate]) -> Vec<Option<u32>> {
+        self.urban_center_ids(coordinates)
+    }
+
+    fn countries(&self, coordinates: &[Coordinate]) -> Vec<Option<CountryCode>> {
+        self.country_codes(coordinates)
+    }
+
+    fn country_name(&self, country: CountryCode) -> Option<String> {
+        LocationIndex::country_name(self, country).map(str::to_owned)
     }
 }

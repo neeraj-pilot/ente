@@ -7,13 +7,15 @@ import {
     metadataHash,
 } from "ente-media/file-metadata";
 import {
-    addToCollection,
     createCollectionNameByID,
-    moveToTrash,
+    forgetPendingFavoriteFileIDs,
+    isHiddenCollection,
+    savedAllCollections,
     savedNormalCollections,
 } from "ente-new/photos/services/collection";
 import { savedCollectionFiles } from "ente-new/photos/services/photos-fdb";
-import { findDuplicates, planDuplicateRemoval } from "ente-photos-wasm";
+import { executeDuplicateRemoval, findDuplicates } from "ente-photos-wasm";
+import { ensureAuthenticatedSession } from "./authenticated-session";
 
 export interface DuplicateGroup {
     id: string;
@@ -31,14 +33,18 @@ export interface DuplicateGroup {
 export const deduceDuplicates = async () => {
     const userID = ensureLocalUser().id;
 
-    const normalCollections = await savedNormalCollections();
+    const collections = await savedAllCollections();
+    const normalCollections = collections.filter(
+        (c) => !isHiddenCollection(c, userID),
+    );
     const collectionNameByID = createCollectionNameByID(normalCollections);
     const collectionFiles = await savedCollectionFiles();
     const { groups } = await findDuplicates({
         userId: userID,
-        collections: normalCollections.map(({ id, owner }) => ({
-            id,
-            ownerId: owner.id,
+        collections: collections.map((collection) => ({
+            id: collection.id,
+            ownerId: collection.owner.id,
+            isHidden: isHiddenCollection(collection, userID),
         })),
         files: collectionFiles.map((file) => ({
             id: file.id,
@@ -94,47 +100,45 @@ export const removeSelectedDuplicateGroups = async (
 ) => {
     const selectedDuplicateGroups = duplicateGroups.filter((g) => g.isSelected);
 
+    if (!selectedDuplicateGroups.length) {
+        await onRemoteFilesPull();
+        onProgress(100);
+        return new Set<string>();
+    }
+
     const filesByID = new Map(
         selectedDuplicateGroups.flatMap((group) =>
             group.items.map(({ file }) => [file.id, file] as const),
         ),
     );
-    const plan = await planDuplicateRemoval({
-        groups: selectedDuplicateGroups.map((group) =>
-            group.items.map(({ file, collectionIDs }) => ({
-                fileId: file.id,
-                collectionIds: [...collectionIDs],
-                caption: FilePublicMagicMetadataData.shape.caption.parse(
-                    file.pubMagicMetadata?.data.caption,
-                ),
-                editedName: file.pubMagicMetadata?.data.editedName,
-                editedTime: file.pubMagicMetadata?.data.editedTime,
-            })),
-        ),
-    });
-
-    let np = 0;
-    const ntotal =
-        plan.additions.length + (plan.trashIds.length ? 1 : 0) + /* sync */ 1;
-    const tickProgress = () => onProgress((++np / ntotal) * 100);
-
     const collections = await savedNormalCollections();
-    const collectionsByID = new Map(collections.map((c) => [c.id, c]));
-    for (const { collectionId, fileIds } of plan.additions) {
-        await addToCollection(
-            collectionsByID.get(collectionId)!,
-            fileIds.map((id) => filesByID.get(id)!),
-        );
-        tickProgress();
-    }
-
-    if (plan.trashIds.length) {
-        await moveToTrash(plan.trashIds.map((id) => filesByID.get(id)!));
-        tickProgress();
-    }
+    const { trashIds } = await executeDuplicateRemoval(
+        await ensureAuthenticatedSession(),
+        {
+            groups: selectedDuplicateGroups.map((group) =>
+                group.items.map(({ file, collectionIDs }) => ({
+                    fileId: file.id,
+                    collectionIds: [...collectionIDs],
+                    caption: FilePublicMagicMetadataData.shape.caption.parse(
+                        file.pubMagicMetadata?.data.caption,
+                    ),
+                    editedName: file.pubMagicMetadata?.data.editedName,
+                    editedTime: file.pubMagicMetadata?.data.editedTime,
+                })),
+            ),
+            collections: collections.map(({ id, key }) => ({ id, key })),
+            files: [...filesByID.values()].map(({ id, collectionID, key }) => ({
+                id,
+                collectionId: collectionID,
+                key,
+            })),
+        },
+        (completed, total) => onProgress((completed / (total + 1)) * 100),
+    );
+    forgetPendingFavoriteFileIDs(trashIds);
 
     await onRemoteFilesPull();
-    tickProgress();
+    onProgress(100);
 
     return new Set(selectedDuplicateGroups.map((g) => g.id));
 };

@@ -58,11 +58,15 @@ Day-to-day backups run automatically on iOS. However, iOS gives Ente limited tim
 
 Backup mode helps large backups finish by keeping Ente open and the screen awake. The screen dims to save battery.
 
+Ente offers Backup mode on iOS when an upload session has **50 or more pending files**. You can also open it from Backup settings.
+
 To use Backup mode:
 
 1. Connect your iPhone to power and stable WiFi.
 2. Open `Settings > Backup > Backup settings > Backup mode`.
 3. Tap **Start backup mode** and keep Ente open on screen. Switching apps pauses Backup mode.
+
+Backup mode keeps an upload that is already running going. It doesn't start one by itself. If Backup mode says **No backup in progress**, Ente isn't uploading right now, even if photos are still waiting. Return to the home screen and wait until uploads are moving, then open Backup mode. See [Why does Backup mode say "No backup in progress"?](/photos/faq/backup-and-sync#backup-mode-no-backup).
 
 You only need Backup mode for large uploads. New photos will continue to back up in the background afterwards.
 
@@ -79,6 +83,8 @@ Do not swipe Ente away from the app switcher. iOS cannot wake Ente for a backgro
 On some Android versions, newly downloaded apps activate a mode called "Optimize battery usage" which prevents them from running in the background. So you will need to disable this "Optimize battery usage" mode in the system settings for Ente if you wish for Ente to automatically back up your photos in the background.
 
 On Android versions 15 and later, if an app is in private space and the private space is locked, Android doesn't allow the app to run any background processes. As a result, background sync will not work.
+
+![Unrestricted / Optimize battery usage option highlighted on Ente Photos mobile](https://docs-assets.ente.com/screenshots/phone-android-battery-background-usage-callout.png){width=320px}
 
 ### Desktop
 
@@ -97,6 +103,8 @@ In addition to our mobile apps, the background sync also works on our desktop ap
 - Original quality files (no compression)
 - Photo metadata (EXIF, location, date/time)
 - Live Photos (both photo and video components)
+
+Photos shared to Ente from other apps may not include location information. Ente shows a reminder when you add these photos; it cannot preserve location metadata that the other app did not provide. To preserve the original metadata, back up the original photos from your device library instead.
 
 ### What happens when files are deleted
 
@@ -119,7 +127,7 @@ This option is available in two places:
 - **During signup/login**: On the permissions screen, you can choose to back up only new photos instead of your full library.
 - **In settings**: Open `Settings > Backup > Backup settings` and toggle on **Backup only new photos**.
 
-![Ente Photos Android Backup settings showing Backup only new photos and related toggles](https://docs-assets.ente.com/screenshots/phone-backup-settings.png){width=320px}
+![Mobile: home with Settings menu (three bars) highlighted, then Backup, then Backup settings, then Backup settings page](https://docs-assets.ente.com/screenshots/phone-settings-backup-backup-settings-path-nc.png){width=560px}
 
 ### What "new photos" means
 
@@ -141,6 +149,8 @@ When you first enable this setting, Ente may prompt you to select which folders 
 ### Disabling backup only new photos
 
 To resume backing up all photos (including your existing library), toggle **Backup only new photos** off. Ente will then include all photos from selected folders in the next sync.
+
+![Backup only new photos toggle highlighted on Ente Photos mobile](https://docs-assets.ente.com/screenshots/phone-backup-only-new-photos-callout.png){width=320px}
 
 ### Use cases
 

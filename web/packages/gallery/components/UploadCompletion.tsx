@@ -9,6 +9,7 @@ import {
     type DialogProps,
     type Theme,
 } from "@mui/material";
+import { RiveIllustration } from "ente-base/components/RiveIllustration";
 import type { PreUploadSkippedFile } from "ente-base/types/ipc";
 import { SlideUpTransition } from "ente-new/photos/components/mui/SlideUpTransition";
 import { t } from "i18next";
@@ -41,7 +42,9 @@ export function UploadCompletion({
         finishedUploads,
         preUploadSkippedFiles,
     );
-    const hasReviewableUploads = counts.failed > 0 || counts.skipped > 0;
+    const hasFailedUploads = counts.failed > 0;
+    const hasReviewableUploads = hasFailedUploads || counts.skipped > 0;
+    const hasPartialFailure = hasFailedUploads && counts.completed > 0;
     const isSheet = useIsUploadSheet();
 
     const handleClose: DialogProps["onClose"] = (_, reason) => {
@@ -74,22 +77,57 @@ export function UploadCompletion({
                     </IconButton>
                 </Stack>
                 <Stack sx={completionBodySx}>
-                    <Box
-                        component="img"
-                        alt=""
-                        src="/images/upload-complete-duck.svg"
-                        sx={completionIllustrationSx}
-                    />
+                    {hasFailedUploads ? (
+                        <Box
+                            component="img"
+                            alt=""
+                            src="/images/warning-red.png"
+                            sx={{ width: 68, height: 68, objectFit: "contain" }}
+                        />
+                    ) : (
+                        <Box
+                            component={RiveIllustration}
+                            src={
+                                new URL(
+                                    "../assets/ente-done-ducky.riv",
+                                    import.meta.url,
+                                )
+                            }
+                            stateMachine="Done"
+                            fallback={
+                                <img
+                                    src="/images/upload-complete-duck.svg"
+                                    alt=""
+                                />
+                            }
+                            sx={completionIllustrationSx}
+                        />
+                    )}
                     <Stack sx={{ gap: "6px", alignItems: "center" }}>
                         <Typography
                             id="upload-completion-title"
                             component="h2"
-                            sx={completionTitleSx}
+                            sx={[
+                                completionTitleSx,
+                                hasFailedUploads && { color: "critical.main" },
+                            ]}
                         >
-                            {t("upload_completion_title")}
+                            {t(
+                                hasFailedUploads
+                                    ? hasPartialFailure
+                                        ? "upload_completion_partial_failure_title"
+                                        : "upload_completion_failed_title"
+                                    : "upload_completion_title",
+                            )}
                         </Typography>
                         <Typography sx={completionSubtitleSx}>
-                            {t("upload_completion_subtitle")}
+                            {t(
+                                hasFailedUploads
+                                    ? hasPartialFailure
+                                        ? "upload_completion_partial_failure_subtitle"
+                                        : "upload_completion_failed_subtitle"
+                                    : "upload_completion_subtitle",
+                            )}
                         </Typography>
                     </Stack>
                 </Stack>
@@ -121,7 +159,11 @@ export function UploadCompletion({
                         <Button
                             fullWidth
                             onClick={onReviewFailed}
-                            sx={primaryButtonSx}
+                            sx={
+                                hasFailedUploads
+                                    ? failedReviewButtonSx
+                                    : primaryButtonSx
+                            }
                         >
                             {t("review_items")}
                         </Button>
@@ -188,7 +230,12 @@ const completionCloseButtonSx = (theme: Theme) => ({
 
 const completionBodySx = { alignItems: "center", gap: 3, textAlign: "center" };
 
-const completionIllustrationSx = { width: 138, height: 154, maxWidth: "100%" };
+const completionIllustrationSx = {
+    width: 138,
+    height: 154,
+    maxWidth: "100%",
+    "& img": { display: "block", width: "100%" },
+};
 
 const completionTitleSx = { fontSize: 24, lineHeight: "32px", fontWeight: 600 };
 
@@ -257,6 +304,13 @@ const primaryButtonSx = {
     color: "#fff",
     backgroundColor: uploadStatColors.completed,
     "&:hover": { backgroundColor: "#07ad21", boxShadow: "none" },
+};
+
+const failedReviewButtonSx = {
+    ...baseButtonSx,
+    color: "critical.contrastText",
+    backgroundColor: "critical.main",
+    "&:hover": { backgroundColor: "critical.dark", boxShadow: "none" },
 };
 
 const secondaryButtonSx = (theme: Theme) => ({

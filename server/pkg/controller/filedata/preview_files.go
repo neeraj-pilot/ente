@@ -6,7 +6,9 @@ import (
 	"github.com/ente/museum/pkg/utils/auth"
 	"github.com/ente/museum/pkg/utils/network"
 	"github.com/ente/stacktrace"
+	"github.com/gin-contrib/requestid"
 	"github.com/gin-gonic/gin"
+	log "github.com/sirupsen/logrus"
 )
 
 func (c *Controller) GetPreviewUrl(ctx *gin.Context, actorUser int64, request filedata.GetPreviewURLRequest) (*string, error) {
@@ -34,12 +36,12 @@ func (c *Controller) PreviewUploadURL(ctx *gin.Context, request filedata.Preview
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
-	id, object, err := c.previewUploadObject(ctx, request.FileID, request.Type)
+	id, object, err := c.previewUploadObject(ctx, request.FileID, request.Type, nil)
 	if err != nil {
 		return nil, err
 	}
 	if request.IsMultiPart {
-		multiPartUploadURLs, err2 := c.getMultiPartUploadURL(object, *request.Count, 0, nil)
+		multiPartUploadURLs, err2 := c.getMultiPartUploadURL(ctx.Request.Context(), object, *request.Count, 0, nil)
 		if err2 != nil {
 			return nil, stacktrace.Propagate(err2, "")
 		}
@@ -49,7 +51,7 @@ func (c *Controller) PreviewUploadURL(ctx *gin.Context, request filedata.Preview
 			CompleteURL: &multiPartUploadURLs.CompleteURL,
 		}, nil
 	}
-	url, err := c.getUploadURL(object)
+	url, err := c.getUploadURL(ctx.Request.Context(), object)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
@@ -63,13 +65,13 @@ func (c *Controller) PreviewUploadURLWithMetadata(ctx *gin.Context, request file
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
-	id, object, err := c.previewUploadObject(ctx, request.FileID, request.Type)
+	id, object, err := c.previewUploadObject(ctx, request.FileID, request.Type, &request.ContentLength)
 	if err != nil {
 		return nil, err
 	}
 	object.ContentLength = &request.ContentLength
 	object.ContentMD5 = &request.ContentMD5
-	url, err := c.getUploadURL(object)
+	url, err := c.getUploadURL(ctx.Request.Context(), object)
 	if err != nil {
 		return nil, err
 	}
@@ -80,12 +82,12 @@ func (c *Controller) MultipartPreviewUploadURLWithMetadata(ctx *gin.Context, req
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
-	id, object, err := c.previewUploadObject(ctx, request.FileID, request.Type)
+	id, object, err := c.previewUploadObject(ctx, request.FileID, request.Type, &request.ContentLength)
 	if err != nil {
 		return nil, err
 	}
 	object.ContentLength = &request.ContentLength
-	upload, err := c.getMultiPartUploadURL(object, int64(len(request.PartMD5s)), request.PartLength, request.PartMD5s)
+	upload, err := c.getMultiPartUploadURL(ctx.Request.Context(), object, int64(len(request.PartMD5s)), request.PartLength, request.PartMD5s)
 	if err != nil {
 		return nil, err
 	}
@@ -94,10 +96,21 @@ func (c *Controller) MultipartPreviewUploadURLWithMetadata(ctx *gin.Context, req
 	}, nil
 }
 
-func (c *Controller) previewUploadObject(ctx *gin.Context, fileID int64, objectType ente.ObjectType) (string, ente.TempObject, error) {
+func (c *Controller) previewUploadObject(ctx *gin.Context, fileID int64, objectType ente.ObjectType, contentLength *int64) (string, ente.TempObject, error) {
 	actorUser := auth.GetUserID(ctx.Request.Header)
 	if err := c._checkPreviewWritePerm(ctx, fileID, actorUser); err != nil {
 		return "", ente.TempObject{}, err
+	}
+	if objectType == ente.PreviewVideo && contentLength != nil {
+		if err := c.checkVideoPreviewSize(ctx, &filedata.VidPreviewRequest{
+			FileID: fileID, ObjectSize: *contentLength,
+		}, actorUser, log.WithFields(log.Fields{
+			"req_id":              requestid.Get(ctx),
+			"size_check_stage":    "upload_url",
+			"preview_size_source": "declared",
+		})); err != nil {
+			return "", ente.TempObject{}, err
+		}
 	}
 	id := filedata.NewUploadID(objectType)
 	return id, ente.TempObject{

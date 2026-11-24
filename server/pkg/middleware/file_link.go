@@ -150,18 +150,14 @@ func (m *FileLinkMiddleware) checkDeviceLimit(c *gin.Context, accessToken string
 }
 
 func shouldCheckFileLinkDeviceLimit(reqPath string) bool {
-	// File-link admission is currently anchored to /file-link/info, which is the
-	// discovery endpoint clients call before fetching the actual blob.
+	// Device limits are best effort and gate metadata needed for decryption.
+	// Blob routes still enforce link access and any configured password, but
+	// intentionally allow ciphertext downloads without device admission.
 	return reqPath == "/file-link/info"
 }
 
 func (m *FileLinkMiddleware) isDeviceLimitReached(ctx context.Context,
 	collectionSummary *ente.FileLinkRow, ip string, ua string) (bool, error) {
-	// skip deviceLimit check & record keeping for requests via CF worker
-	if network.IsCFWorkerIP(ip) {
-		return false, nil
-	}
-
 	sharedID := collectionSummary.LinkID
 	hasAccessedInPast, err := m.FileLinkRepo.AccessedInPast(ctx, sharedID, ip, ua)
 	if err != nil {

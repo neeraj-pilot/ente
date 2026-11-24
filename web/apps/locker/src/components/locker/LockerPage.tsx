@@ -4,6 +4,7 @@ import { CreateItemDialog } from "@/components/create-item/CreateItemDialog";
 import { ItemList } from "@/components/items/ItemList";
 import { EmptyTrashDialog } from "@/components/locker/EmptyTrashDialog";
 import { LockerDragOverlay } from "@/components/locker/LockerDragOverlay";
+import { UploadShareDialog } from "@/components/locker/UploadShareDialog";
 import { useCollectionActions } from "@/components/locker/use-collection-actions";
 import { useItemActions } from "@/components/locker/use-item-actions";
 import { useLockerConfirmation } from "@/components/locker/use-locker-confirmation";
@@ -56,6 +57,7 @@ export const LockerPage: React.FC = () => {
         hasFetched,
         initialLoadError,
         masterKey,
+        refreshCollections,
         refreshData,
         removeCollectionFromState,
         trashItems,
@@ -96,7 +98,7 @@ export const LockerPage: React.FC = () => {
         shareCollectionID,
         setShareCollectionID,
         handleCreateCollection,
-        ensureCollectionsExist,
+        createUploadCollection,
         handleRenameCollection,
         handleDeleteCollection,
         handleConfirmDeleteCollection,
@@ -129,6 +131,8 @@ export const LockerPage: React.FC = () => {
         handleDragOver,
         handleDragLeave,
         handleDrop,
+        uploadedFileIDs,
+        dismissUploadSharing,
     } = useLockerUploads({
         masterKey,
         ensureUploadLimitState,
@@ -347,11 +351,21 @@ export const LockerPage: React.FC = () => {
                 onUploadItemComplete={handleUploadItemComplete}
                 onUploadsFinished={handleUploadsFinished}
                 onCreateCollection={handleCreateCollection}
-                onEnsureCollections={ensureCollectionsExist}
+                onCreateUploadCollection={createUploadCollection}
+                onRefreshUploadCollections={refreshCollections}
                 onEnsureUploadLimitState={ensureUploadLimitState}
                 defaultCollectionID={selectedCollectionID}
                 initialItems={prefilledUploadItems}
                 userDetails={userDetails}
+            />
+
+            <UploadShareDialog
+                open={!createDialogOpen && uploadedFileIDs.length > 0}
+                fileIDs={uploadedFileIDs}
+                collections={collections}
+                onClose={dismissUploadSharing}
+                refreshData={refreshData}
+                setFeedbackMessage={setToast}
             />
 
             {editItem && (

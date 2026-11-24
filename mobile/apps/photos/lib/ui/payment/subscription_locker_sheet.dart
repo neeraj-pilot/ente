@@ -1,10 +1,10 @@
 import "dart:math" as math;
 
 import "package:ente_components/ente_components.dart";
+import "package:ente_components/hugeicons.dart";
 import "package:ente_strings/ente_strings.dart";
 import "package:flutter/material.dart";
 import "package:flutter_svg/flutter_svg.dart";
-import "package:hugeicons/hugeicons.dart";
 import "package:url_launcher/url_launcher_string.dart";
 
 Future<void> showSubscriptionLockerSheet(BuildContext context) {
@@ -24,10 +24,7 @@ class SubscriptionLockerSheet extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final scale = constraints.maxWidth / 375;
-        final height = math.min(
-          642 * scale,
-          mediaQuery.size.height - mediaQuery.padding.top,
-        );
+        final height = math.min(642 * scale, constraints.maxHeight);
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(
             top: Radius.circular(Radii.bottomSheet),
@@ -93,14 +90,13 @@ class SubscriptionLockerSheet extends StatelessWidget {
                       ),
                     ),
                   ),
-                  SingleChildScrollView(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: height),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Padding(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: height / 2),
+                        child: SingleChildScrollView(
+                          child: Padding(
                             padding: const EdgeInsets.fromLTRB(
                               Spacing.xxl,
                               36,
@@ -166,18 +162,22 @@ class SubscriptionLockerSheet extends StatelessWidget {
                               ],
                             ),
                           ),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Image.asset(
-                              "assets/subscription/locker_phone.png",
-                              width: 319.414 * scale,
-                              height: 393.965 * scale,
-                              excludeFromSemantics: true,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                      Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.bottomRight,
+                          child: Image.asset(
+                            "assets/subscription/locker_phone.png",
+                            width: 319.414 * scale,
+                            height: 393.965 * scale,
+                            alignment: Alignment.bottomRight,
+                            excludeFromSemantics: true,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   Positioned(
                     right: Spacing.md,

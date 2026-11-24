@@ -8,7 +8,7 @@ import "package:photos/ui/viewer/gallery/state/gallery_boundaries_provider.dart"
 import "package:photos/utils/share_util.dart";
 
 void main() {
-  testWidgets("opens a preview, collapses on gallery scroll, and expands", (
+  testWidgets("scrolls a collapsed row and expands it into a grid", (
     tester,
   ) async {
     final gallery = ScrollController();
@@ -33,33 +33,101 @@ void main() {
       find.byType(DraggableScrollableSheet),
     );
     final controller = sheet.controller!;
-    expect(controller.size, sheet.initialChildSize);
-    gallery.jumpTo(30);
-    await tester.pumpAndSettle();
-    expect(controller.size, sheet.initialChildSize);
+    final rail = find.byWidgetPredicate(
+      (widget) =>
+          widget is ListView && widget.scrollDirection == Axis.horizontal,
+    );
+    expect(controller.size, sheet.minChildSize);
+    expect(
+      tester.getTopLeft(find.text("Add to album")).dy,
+      tester.getTopLeft(find.text("Share")).dy,
+    );
+    final previewRect = tester.getRect(find.text("Add to album"));
+    final railRect = tester.getRect(rail);
+    expect(previewRect.left, lessThan(railRect.right));
+    expect(previewRect.right, greaterThan(railRect.right));
     await tester.tapAt(const Offset(180, 660));
     expect(tapped, isEmpty);
     await tester.tap(find.text("Share"));
     expect(tapped, "Share");
-    await tester.dragFrom(const Offset(180, 200), const Offset(0, -100));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 120));
-    expect(gallery.offset, greaterThan(0));
-    expect(controller.size, sheet.minChildSize);
+    final guestView = find.descendant(
+      of: rail,
+      matching: find.text("Guest view"),
+    );
+    await tester.drag(rail, const Offset(-2000, 0));
     await tester.pumpAndSettle();
-    await tester.fling(
-      find.byType(CustomScrollView),
-      const Offset(0, -100),
-      2000,
+    await tester.tap(guestView);
+    expect(tapped, "Guest view");
+    controller.jumpTo(
+      sheet.minChildSize + (sheet.maxChildSize - sheet.minChildSize) * 0.05,
     );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 60));
-    expect(controller.size, closeTo(sheet.initialChildSize, 0.001));
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -320));
+    expect(tester.getRect(guestView).overlaps(tester.getRect(rail)), isTrue);
+    expect(
+      _paintOpacity(tester, guestView),
+      allOf(greaterThan(0), lessThan(1)),
+    );
+    controller.jumpTo(sheet.minChildSize);
+    await tester.pumpAndSettle();
+    await tester.drag(rail, const Offset(2000, 0));
+    await tester.pumpAndSettle();
+    await tester.drag(rail, const Offset(-400, 0));
+    await tester.pumpAndSettle();
+    expect(controller.size, sheet.minChildSize);
+    await tester.tap(find.text("Download"));
+    expect(tapped, "Download");
+    final download = tester.getCenter(find.text("Download"));
+    controller.jumpTo(
+      sheet.minChildSize + (sheet.maxChildSize - sheet.minChildSize) * 0.03,
+    );
+    await tester.pump();
+    tapped = "";
+    await tester.tapAt(download);
+    expect(tapped, isEmpty);
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.bySemanticsLabel("More")),
+    );
+    await gesture.moveBy(const Offset(0, -20));
+    await gesture.moveBy(const Offset(0, -60));
+    await tester.pumpAndSettle();
+    expect(find.text("Delete"), findsNWidgets(2));
+    expect(_paintOpacity(tester, find.text("Delete").first), 1);
+    expect(_paintOpacity(tester, find.text("Delete").last), 0);
+    final deleteRect = tester.getRect(find.text("Delete").first);
+    expect(deleteRect.overlaps(tester.getRect(rail)), isTrue);
+    expect(
+      tester
+          .getRect(find.text("Add to album").last)
+          .overlaps(tester.getRect(find.byType(CustomScrollView))),
+      isTrue,
+    );
+    expect(
+      _paintOpacity(tester, find.text("Add to album").last),
+      greaterThan(0),
+    );
+    await gesture.moveBy(const Offset(0, -320));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(controller.size, sheet.maxChildSize);
+    expect(
+      tester.getTopLeft(find.text("Add to album")).dy,
+      greaterThan(tester.getTopLeft(find.text("Share")).dy),
+    );
+    gallery.jumpTo(30);
     await tester.pumpAndSettle();
     expect(controller.size, sheet.maxChildSize);
     await tester.tap(find.text("Guest view"));
     expect(tapped, "Guest view");
+    await tester.dragFrom(const Offset(180, 30), const Offset(0, -100));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 360));
+    expect(gallery.offset, greaterThan(30));
+    expect(controller.size, sheet.minChildSize);
+    await tester.pumpAndSettle();
+    expect(rail, findsOneWidget);
+    await tester.tap(find.bySemanticsLabel("More"));
+    await tester.pumpAndSettle();
+    expect(controller.size, sheet.maxChildSize);
     swipeActive.value = true;
     gallery.jumpTo(gallery.offset + 50);
     await tester.pumpAndSettle();
@@ -67,7 +135,7 @@ void main() {
     swipeActive.value = false;
     await tester.tap(find.bySemanticsLabel("More"));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 120));
+    await tester.pump(const Duration(milliseconds: 360));
     expect(controller.size, sheet.maxChildSize);
     await tester.pumpAndSettle();
     await tester.dragFrom(const Offset(180, 100), const Offset(0, -60));
@@ -100,6 +168,7 @@ void main() {
         640.0,
       ),
       (const Size(1366, 1024), const EdgeInsets.all(24), 640.0),
+      (const Size(390, 844), EdgeInsets.zero, 390.0),
       (
         const Size(320, 1024),
         const EdgeInsets.only(top: 24, bottom: 20),
@@ -122,13 +191,35 @@ void main() {
       controller ??= sheet.controller;
       expect(sheet.controller, same(controller));
       if (sheet.controller!.isAttached) {
-        sheet.controller!.jumpTo(sheet.maxChildSize);
+        sheet.controller!.jumpTo(sheet.minChildSize);
       }
-      final scrollable = find.descendant(
-        of: find.byType(CustomScrollView),
-        matching: find.byType(Scrollable),
-      );
+      final scrollable = find
+          .descendant(
+            of: find.byType(CustomScrollView),
+            matching: find.byType(Scrollable),
+          )
+          .first;
       tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+      await tester.pumpAndSettle();
+      final rail = find.byWidgetPredicate(
+        (widget) =>
+            widget is ListView && widget.scrollDirection == Axis.horizontal,
+      );
+      if (sheet.maxChildSize > sheet.minChildSize) {
+        await tester.drag(rail, const Offset(-2000, 0));
+        await tester.pumpAndSettle();
+        sheet.controller!.jumpTo(
+          sheet.minChildSize + (sheet.maxChildSize - sheet.minChildSize) * 0.25,
+        );
+        await tester.pump();
+        final action = find.descendant(of: rail, matching: find.text("Share"));
+        final actionRect = tester.getRect(action);
+        final railRect = tester.getRect(rail);
+        final sheetRect = tester.getRect(find.byType(CustomScrollView));
+        expect(_paintOpacity(tester, action), 1);
+        expect(actionRect.overlaps(railRect.intersect(sheetRect)), isTrue);
+      }
+      sheet.controller!.jumpTo(sheet.maxChildSize);
       await tester.pumpAndSettle();
       final material = find.descendant(
         of: find.byType(SelectionActionSheet),
@@ -151,6 +242,42 @@ void main() {
     }
     await tester.pumpWidget(const SizedBox.shrink());
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets("keeps row actions visible when the sheet cannot expand", (
+    tester,
+  ) async {
+    final gallery = ScrollController();
+    addTearDown(gallery.dispose);
+    var tapped = "";
+    await _pumpSheet(
+      tester,
+      gallery,
+      size: const Size(740, 260),
+      textScale: 2,
+      onTap: (label) => tapped = label,
+    );
+    final sheet = tester.widget<DraggableScrollableSheet>(
+      find.byType(DraggableScrollableSheet),
+    );
+    expect(sheet.maxChildSize, sheet.minChildSize);
+    final rail = find.byWidgetPredicate(
+      (widget) =>
+          widget is ListView && widget.scrollDirection == Axis.horizontal,
+    );
+    await tester.drag(rail, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    final action = find.descendant(
+      of: rail,
+      matching: find.text("Add to album"),
+    );
+    expect(_paintOpacity(tester, action), 1);
+    await tester.tap(action);
+    expect(tapped, "Add to album");
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("Guest view"));
+    expect(tapped, "Guest view");
   });
 
   testWidgets("preserves hidden and disabled actions and reduced motion", (
@@ -214,6 +341,12 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
+
+double _paintOpacity(WidgetTester tester, Finder label) => tester
+    .widgetList<Opacity>(
+      find.ancestor(of: label, matching: find.byType(Opacity)),
+    )
+    .fold(1.0, (opacity, widget) => opacity * widget.opacity);
 
 Future<void> _pumpSheet(
   WidgetTester tester,

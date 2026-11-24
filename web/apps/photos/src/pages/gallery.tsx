@@ -1,6 +1,7 @@
 import { AuthenticateUser } from "@/components/AuthenticateUser";
 import { CollectionSelector } from "@/components/CollectionSelector";
 import { DesktopWhatsNew } from "@/components/DesktopWhatsNew";
+import { PhotosToastStackPortal } from "@/components/PhotosToastStack";
 import { QuickLinkCreatedNotification } from "@/components/QuickLinkCreatedNotification";
 import { Upload } from "@/components/Upload";
 import { PeopleConsentDialog } from "@/components/gallery";
@@ -19,7 +20,8 @@ import { useMemo } from "react";
 
 const Page: React.FC = () => {
     const libraryOwner = useGalleryLibrary();
-    const { state, isFirstLoad, searchIndexRevision } = libraryOwner;
+    const { state, isFirstLoad, searchIndexRevision, remotePullRevision } =
+        libraryOwner;
     const { authenticateUser, authenticateUserDialogProps } =
         useGalleryAuthentication();
     const navigation = useGalleryNavigation(libraryOwner, authenticateUser);
@@ -39,8 +41,13 @@ const Page: React.FC = () => {
         navigation.showSettings,
     );
     const library = useMemo(
-        () => ({ ...state, isFirstLoad, searchIndexRevision }),
-        [state, isFirstLoad, searchIndexRevision],
+        () => ({
+            ...state,
+            isFirstLoad,
+            searchIndexRevision,
+            remotePullRevision,
+        }),
+        [state, isFirstLoad, searchIndexRevision, remotePullRevision],
     );
     const { View } = sectionDefinition(navigation.sectionID);
     if (!state.user) return <div />;
@@ -71,9 +78,15 @@ const Page: React.FC = () => {
                 {blockingLoad && <TranslucentLoadingOverlay />}
                 <CollectionSelector {...collectionSelectorProps} />
                 <SingleInputDialog {...albumNameInputProps} />
-                <GalleryDownloadNotifications {...downloadNotificationsProps} />
-                {uploadProps && <Upload {...uploadProps} />}
-                <QuickLinkCreatedNotification {...quickLinkNotificationProps} />
+                <PhotosToastStackPortal>
+                    {uploadProps && <Upload {...uploadProps} />}
+                    <GalleryDownloadNotifications
+                        {...downloadNotificationsProps}
+                    />
+                    <QuickLinkCreatedNotification
+                        {...quickLinkNotificationProps}
+                    />
+                </PhotosToastStackPortal>
                 <DesktopWhatsNew />
                 <PeopleConsentDialog {...navigation.peopleConsentDialogProps} />
                 <AuthenticateUser {...authenticateUserDialogProps} />

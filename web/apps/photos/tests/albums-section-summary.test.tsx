@@ -1,16 +1,18 @@
 import { AlbumContentHeader } from "@/components/collections/AlbumContentHeader";
-import type { Collection } from "ente-media/collection";
+import { CollectionSubType, type Collection } from "ente-media/collection";
 import type { EnteFile } from "ente-media/file";
 import { ItemVisibility } from "ente-media/file-metadata";
 import { PseudoCollectionID } from "ente-new/photos/services/collection-summary";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, test, vi } from "vitest";
+import { GalleryMedia } from "../src/components/gallery/media/GalleryMedia";
 import {
     galleryReducer,
     initialGalleryState,
     type GalleryState,
 } from "../src/components/gallery/reducer";
+import { AlbumsNavigation } from "../src/components/gallery/sections/albums/AlbumsNavigation";
 import { AlbumsSection } from "../src/components/gallery/sections/albums/AlbumsSection";
 import type { GallerySectionProps } from "../src/components/gallery/sections/types";
 
@@ -48,17 +50,22 @@ vi.mock(
 vi.mock("@/utils/album-filters", () => import("../src/utils/album-filters"));
 vi.mock("@/services/upload-manager", () => ({ uploadManager: {} }));
 vi.mock("../src/components/gallery/sections/albums/AlbumsNavigation", () => ({
-    AlbumsNavigation: () => null,
+    AlbumsNavigation: vi.fn(() => null),
 }));
 vi.mock("../src/components/gallery/media/GalleryMedia", () => ({
-    GalleryMedia: ({
-        children,
-    }: {
-        children?: (hasSelection: boolean) => ReactNode;
-    }) => children?.(false),
+    GalleryMedia: vi.fn(
+        ({ children }: { children?: (hasSelection: boolean) => ReactNode }) =>
+            children?.(false),
+    ),
 }));
 vi.mock("../src/components/gallery/navigation/GallerySectionLayout", () => ({
-    GallerySectionLayout: ({ children }: { children: ReactNode }) => children,
+    GallerySectionLayout: ({
+        children,
+        navigation,
+    }: {
+        children: ReactNode;
+        navigation: ReactNode;
+    }) => [navigation, children],
 }));
 vi.mock("../src/components/gallery/navigation/PhotosNavigationContext", () => ({
     usePhotosNavigation: () => ({
@@ -88,6 +95,7 @@ const files: EnteFile[] = [1, 2].map((id) => ({
 const openAlbum = (
     visibility: ItemVisibility = ItemVisibility.visible,
     collectionFiles: EnteFile[] = [],
+    defaultHidden = false,
 ) => {
     const album: Collection = {
         id: 10,
@@ -98,7 +106,16 @@ const openAlbum = (
         sharees: [],
         publicURLs: [],
         updationTime: 1,
-        magicMetadata: { version: 1, count: 1, data: { visibility } },
+        magicMetadata: {
+            version: 1,
+            count: 1,
+            data: {
+                visibility,
+                subType: defaultHidden
+                    ? CollectionSubType.defaultHidden
+                    : undefined,
+            },
+        },
     };
     const state = galleryReducer(initialGalleryState, {
         type: "mount",
@@ -111,9 +128,19 @@ const openAlbum = (
     return state;
 };
 
-const headerSummary = (state: GalleryState, collectionID = 10) => {
+const headerSummary = (
+    state: GalleryState,
+    collectionID = 10,
+    overlay?: GallerySectionProps["navigation"]["overlay"],
+    isFirstLoad = false,
+) => {
     const props: GallerySectionProps = {
-        library: { ...state, isFirstLoad: false, searchIndexRevision: 0 },
+        library: {
+            ...state,
+            isFirstLoad,
+            searchIndexRevision: 0,
+            remotePullRevision: 0,
+        },
         operations: {
             dispatch: vi.fn(),
             peopleState: undefined,
@@ -135,17 +162,17 @@ const headerSummary = (state: GalleryState, collectionID = 10) => {
             onAddFileToCollection: vi.fn(),
             setBlockingLoad: vi.fn(),
             onUpload: vi.fn(),
-            onCreateAlbum: vi.fn(),
             saveGroups: [],
             setSectionActivity: vi.fn(),
         },
         navigation: {
+            overlay,
             destination: {
                 section: "albums",
                 collectionID,
-                albumMode: state.hiddenCollectionIDs.has(collectionID)
+                albumMode: state.hiddenCollectionSummaries.has(collectionID)
                     ? "hidden-albums"
-                    : state.archivedCollectionIDs.has(collectionID)
+                    : state.archivedCollectionSummaries.has(collectionID)
                       ? "archive-albums"
                       : "albums",
             },
@@ -180,6 +207,100 @@ const headerSummary = (state: GalleryState, collectionID = 10) => {
     renderToStaticMarkup(<AlbumsSection {...props} />);
     return vi.mocked(AlbumContentHeader).mock.lastCall![0].collectionSummary;
 };
+
+test("enables the date scrubber only for the normal All grid", () => {
+    const state = openAlbum(ItemVisibility.visible, files);
+    headerSummary(state, PseudoCollectionID.all, undefined, true);
+    expect(vi.mocked(GalleryMedia).mock.lastCall![0]).toMatchObject({
+        enableDateScrubber: false,
+    });
+    headerSummary(state, PseudoCollectionID.all);
+    expect(vi.mocked(GalleryMedia).mock.lastCall![0]).toMatchObject({
+        enableDateScrubber: true,
+    });
+    for (const id of [10, PseudoCollectionID.trash]) {
+        headerSummary(state, id);
+        expect(vi.mocked(GalleryMedia).mock.lastCall![0]).toMatchObject({
+            enableDateScrubber: false,
+        });
+    }
+    headerSummary(state, PseudoCollectionID.all, { section: "search" });
+    expect(vi.mocked(GalleryMedia).mock.lastCall![0]).toMatchObject({
+        enableDateScrubber: false,
+    });
+    headerSummary(openAlbum(ItemVisibility.hidden, files));
+    expect(vi.mocked(GalleryMedia).mock.lastCall![0]).toMatchObject({
+        enableDateScrubber: false,
+    });
+    headerSummary(openAlbum(ItemVisibility.archived, files));
+    expect(vi.mocked(GalleryMedia).mock.lastCall![0]).toMatchObject({
+        enableDateScrubber: false,
+    });
+});
+
+test("keeps the Albums list when Archive only contains individually archived photos", () => {
+    const archivedFile = {
+        ...files[0]!,
+        magicMetadata: {
+            version: 1,
+            count: 1,
+            data: { visibility: ItemVisibility.archived },
+        },
+    };
+    const state = openAlbum(ItemVisibility.visible, [archivedFile]);
+    const summary = headerSummary(state, PseudoCollectionID.archiveItems);
+
+    expect(vi.mocked(AlbumsNavigation).mock.lastCall![0]).toMatchObject({
+        mode: "albums",
+        activeCollectionID: PseudoCollectionID.archiveItems,
+        collectionSummaries: [{ id: 10, name: "Album" }],
+    });
+    expect(summary).toMatchObject({ type: "archiveItems", fileCount: 1 });
+    expect(vi.mocked(AlbumContentHeader).mock.lastCall![0].albums).toEqual([]);
+    expect(vi.mocked(GalleryMedia).mock.lastCall![0]).toMatchObject({
+        source: { mode: "archive-albums", files: [archivedFile] },
+        suppressEmptyState: false,
+    });
+});
+
+test("keeps the Albums list when Hidden only contains individually hidden photos", () => {
+    const state = openAlbum(ItemVisibility.hidden, files, true);
+    const summary = headerSummary(state, PseudoCollectionID.hiddenItems);
+
+    expect(vi.mocked(AlbumsNavigation).mock.lastCall![0]).toMatchObject({
+        mode: "albums",
+        activeCollectionID: PseudoCollectionID.hiddenItems,
+    });
+    expect(summary).toMatchObject({ type: "hiddenItems", fileCount: 2 });
+    expect(vi.mocked(AlbumContentHeader).mock.lastCall![0].albums).toEqual([]);
+    expect(vi.mocked(GalleryMedia).mock.lastCall![0]).toMatchObject({
+        source: { mode: "hidden-albums", files: [...files].reverse() },
+        suppressEmptyState: false,
+    });
+});
+
+test.each([
+    [
+        "Archive",
+        ItemVisibility.archived,
+        PseudoCollectionID.archiveItems,
+        "archive-albums",
+    ],
+    [
+        "Hidden",
+        ItemVisibility.hidden,
+        PseudoCollectionID.hiddenItems,
+        "hidden-albums",
+    ],
+])("shows the %s list when it has an album", (_, visibility, id, mode) => {
+    const state = openAlbum(visibility);
+    headerSummary(state, id);
+
+    expect(vi.mocked(AlbumsNavigation).mock.lastCall![0]).toMatchObject({
+        mode,
+        collectionSummaries: [{ id: 10, name: "Album" }],
+    });
+});
 
 test.each([
     ["normal", ItemVisibility.visible],

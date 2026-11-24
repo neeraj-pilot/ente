@@ -23,8 +23,11 @@ import io.ente.ensu.llm.ModelSettingsState
 import io.ente.ensu.logging.FileLogRepository
 import io.ente.ensu.logging.LogLevel
 import io.ente.ensu.notes.NotesStore
+import io.ente.ensu.notifications.BackgroundGeneration
+import io.ente.ensu.notifications.NotificationPermissions
 import io.ente.ensu.settings.DeveloperSettingsState
 import io.ente.ensu.settings.SessionPreferencesDataStore
+import io.ente.ensu.todo.TodoStore
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
@@ -36,8 +39,10 @@ import kotlinx.coroutines.launch
 
 class AppStore(
     context: Context,
+    backgroundGeneration: BackgroundGeneration,
+    notificationPermissions: NotificationPermissions,
     private val sessionPreferences: SessionPreferencesDataStore,
-    chatRepository: ChatRepository,
+    private val chatRepository: ChatRepository,
     val llmProvider: LlmProvider,
     knowledgeProvider: KnowledgeProvider,
     val assetStore: AssetStore,
@@ -53,6 +58,8 @@ class AppStore(
 
     val notesStore =
         NotesStore(context, llmProvider, logRepository).also { llmProvider.modelMaintenance = it }
+
+    val todoStore: TodoStore = TodoStore(chatRepository, logRepository)
 
     private val messageStore = mutableMapOf<String, MutableList<ChatMessage>>()
     private val attachmentActions = AttachmentStoreActions(_state, messageStore)
@@ -76,6 +83,8 @@ class AppStore(
     private val chatActions =
         ChatStoreActions(
             state = _state,
+            backgroundGeneration = backgroundGeneration,
+            notificationPermissions = notificationPermissions,
             sessionPreferences = sessionPreferences,
             chatRepository = chatRepository,
             llmProvider = llmProvider,
@@ -173,11 +182,14 @@ class AppStore(
         }
     }
 
-    fun dispose() = voiceController.dispose()
-
     fun bootstrap(scope: CoroutineScope) {
         notesStore.bootstrap(scope)
+        todoStore.bootstrap(scope)
         chatActions.setScope(scope)
+        chatRepository.onToolsChanged = {
+            chatActions.loadTodoTurns()
+            todoStore.reload()
+        }
         modelSettingsActions.bootstrap(scope)
         refreshDeviceCapability(scope)
         chatActions.bootstrap(scope)
@@ -286,6 +298,19 @@ class AppStore(
         chatActions.startNewSessionDraft()
     }
 
+    val openedNotification = chatActions.openedNotification
+
+    suspend fun openNotification(
+        sessionId: String,
+        messageId: String?,
+        awaitReady: suspend () -> Unit,
+    ) = chatActions.openNotification(sessionId, messageId, awaitReady)
+
+    fun cancelNotificationNavigation() = chatActions.cancelNotificationNavigation()
+
+    fun acknowledgeOpenedNotification(token: String) =
+        chatActions.acknowledgeOpenedNotification(token)
+
     fun selectSession(sessionId: String) {
         voiceController.discard(keepDownload = true)
         invalidateComposer()
@@ -374,6 +399,14 @@ class AppStore(
         invalidateComposer()
         chatActions.sendMessage()
     }
+
+    fun loadTodoTurns() = chatActions.loadTodoTurns()
+
+    fun confirmToolTurn(replyId: String) = chatActions.confirmToolTurn(replyId)
+
+    fun undoToolTurn(replyId: String) = chatActions.undoToolTurn(replyId)
+
+    fun dismissTodoTurnError() = chatActions.dismissTodoTurnError()
 
     fun confirmOverflowTrim() = chatActions.confirmOverflowTrim()
 

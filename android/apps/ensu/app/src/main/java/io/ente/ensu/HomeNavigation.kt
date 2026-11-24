@@ -33,6 +33,7 @@ import io.ente.ensu.settings.AdvancedSettingsDataStore
 import io.ente.ensu.settings.KnowledgeSettingsScreen
 import io.ente.ensu.settings.SettingsScreen
 import io.ente.ensu.settings.SystemPromptSettingsScreen
+import io.ente.ensu.todo.TodoScreen
 
 @Composable
 internal fun HomeNavigation(
@@ -53,6 +54,15 @@ internal fun HomeNavigation(
     onAttachmentSelected: (AttachmentType) -> Unit,
     onOpenAttachment: (Attachment) -> Unit,
 ) {
+    val navigate: (String) -> Unit = { route ->
+        store.cancelNotificationNavigation()
+        navController.navigate(route)
+    }
+    val goBack: () -> Unit = {
+        store.cancelNotificationNavigation()
+        navController.popBackStack()
+    }
+
     Scaffold(
         containerColor = EnsuColor.backgroundBase(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -73,25 +83,28 @@ internal fun HomeNavigation(
                 }
                 HomeRoute.Logs -> {
                     LogsTopBar(
-                        onBack = { navController.popBackStack() },
+                        onBack = goBack,
                         onShare = onShowLogShareDialog,
                     )
                 }
                 HomeRoute.ModelSettings -> {
-                    SimpleTopBar(title = "Model Settings") { navController.popBackStack() }
+                    SimpleTopBar(title = "Model Settings", onBack = goBack)
                 }
                 HomeRoute.SystemPromptSettings -> {
-                    SimpleTopBar(title = "System Prompt") { navController.popBackStack() }
+                    SimpleTopBar(title = "System Prompt", onBack = goBack)
                 }
                 HomeRoute.Settings -> {
-                    SimpleTopBar(title = "Settings") { navController.popBackStack() }
+                    SimpleTopBar(title = "Settings", onBack = goBack)
                 }
                 HomeRoute.Notes,
                 HomeRoute.NotesSetup -> {
-                    SimpleTopBar(title = "Your Notes") { navController.popBackStack() }
+                    SimpleTopBar(title = "Your Notes", onBack = goBack)
                 }
                 HomeRoute.Knowledge -> {
-                    SimpleTopBar(title = "Ensu Packs") { navController.popBackStack() }
+                    SimpleTopBar(title = "Ensu Packs", onBack = goBack)
+                }
+                HomeRoute.Todos -> {
+                    SimpleTopBar(title = "To Do", onBack = goBack)
                 }
                 else -> Unit
             }
@@ -120,8 +133,8 @@ internal fun HomeNavigation(
                                 value.composition != null,
                             )
                         },
-                        onOpenPacks = { navController.navigate(HomeRoute.Knowledge) },
-                        onOpenNotes = { navController.navigate(HomeRoute.NotesSetup) },
+                        onOpenPacks = { navigate(HomeRoute.Knowledge) },
+                        onOpenNotes = { navigate(HomeRoute.NotesSetup) },
                         hasSeenSourceIntroduction = store.hasSeenSourceIntroduction(),
                         onCompleteSourceIntroduction = store::completeSourceIntroduction,
                         onRetrySources = store::retrySourceInventory,
@@ -145,6 +158,10 @@ internal fun HomeNavigation(
                         onDismissUnsupportedDeviceDialog = store::dismissUnsupportedDeviceDialog,
                         onOverflowTrim = store::confirmOverflowTrim,
                         onOverflowCancel = store::cancelOverflowDialog,
+                        onLoadTodoTurns = store::loadTodoTurns,
+                        onConfirmTodoTurn = store::confirmToolTurn,
+                        onUndoTodoTurn = store::undoToolTurn,
+                        onDismissTodoTurnError = store::dismissTodoTurnError,
                     )
                 }
                 composable(
@@ -157,13 +174,11 @@ internal fun HomeNavigation(
                     SettingsScreen(
                         buildVersion = appVersion,
                         isAdvancedUnlocked = appState.developerSettings.isAdvancedUnlocked,
-                        onOpenLogs = { navController.navigate(HomeRoute.Logs) },
-                        onOpenKnowledge = { navController.navigate(HomeRoute.Knowledge) },
-                        onOpenNotes = { navController.navigate(HomeRoute.Notes) },
-                        onOpenModelSettings = { navController.navigate(HomeRoute.ModelSettings) },
-                        onOpenSystemPromptSettings = {
-                            navController.navigate(HomeRoute.SystemPromptSettings)
-                        },
+                        onOpenLogs = { navigate(HomeRoute.Logs) },
+                        onOpenKnowledge = { navigate(HomeRoute.Knowledge) },
+                        onOpenNotes = { navigate(HomeRoute.Notes) },
+                        onOpenModelSettings = { navigate(HomeRoute.ModelSettings) },
+                        onOpenSystemPromptSettings = { navigate(HomeRoute.SystemPromptSettings) },
                         onUnlockAdvanced = {
                             store.unlockAdvancedSettings()
                             advancedSettingsDataStore.persistUnlockAdvancedSettings()
@@ -200,6 +215,15 @@ internal fun HomeNavigation(
                         onCancel = store::cancelKnowledgePackDownload,
                         onSetEnabled = store::setKnowledgePackEnabled,
                     )
+                }
+                composable(
+                    route = HomeRoute.Todos,
+                    enterTransition = { forwardEnter() },
+                    exitTransition = { forwardExit() },
+                    popEnterTransition = { backEnter() },
+                    popExitTransition = { backExit() },
+                ) {
+                    TodoScreen(store.todoStore)
                 }
                 composable(
                     route = HomeRoute.Logs,
@@ -245,13 +269,13 @@ internal fun HomeNavigation(
                             val updated = appState.developerSettings.copy(systemPrompt = value)
                             store.updateDeveloperSettings(updated)
                             advancedSettingsDataStore.persistSystemPrompt(value)
-                            navController.popBackStack()
+                            goBack()
                         },
                         onReset = {
                             val updated = appState.developerSettings.copy(systemPrompt = "")
                             store.updateDeveloperSettings(updated)
                             advancedSettingsDataStore.persistSystemPrompt("")
-                            navController.popBackStack()
+                            goBack()
                         },
                     )
                 }
@@ -269,6 +293,7 @@ internal object HomeRoute {
     const val Knowledge = "knowledge"
     const val Notes = "notes"
     const val NotesSetup = "notes-setup"
+    const val Todos = "todos"
 }
 
 internal fun AnimatedContentTransitionScope<NavBackStackEntry>.forwardEnter() =

@@ -159,7 +159,7 @@ Learn more: [Collaboration guide](/photos/features/sharing-and-collaboration/col
 
 ### Can collaborators delete photos from shared albums? {#collab-permissions}
 
-Permissions depend on your role:
+For albums shared directly with other Ente users, permissions depend on your role:
 
 **Viewers can:**
 
@@ -171,7 +171,7 @@ Permissions depend on your role:
 
 - Everything viewers can do, plus:
 - Add photos to the shared album
-- Delete photos they uploaded themselves
+- Remove photos they uploaded from the album
 
 **Admins can:**
 
@@ -185,6 +185,20 @@ Permissions depend on your role:
 - Everything admins can do, plus:
 - Manage link settings (passwords, expiry, device limits)
 - Delete the entire album
+
+### Who can edit photo details in a shared album? {#shared-photo-metadata}
+
+Only a photo's owner can rename it or edit its description, date, or location. Album permissions, including Admin, do not let you edit metadata for photos owned by someone else.
+
+### Are people names and face labels shared with other members? {#shared-face-labels}
+
+No. Names you assign to people and face labels are not shared with other accounts, including family members.
+
+### How can I share names and family history with a photo? {#shared-photo-descriptions}
+
+The photo's owner can add names, relationships, and historical context to its description. In an album shared directly with other Ente accounts, recipients can read and search these descriptions in their Ente app after the shared album has synced.
+
+This does not share your [Assigned People Names or Face Labels](#shared-face-labels).
 
 ### What happens when I remove a collaborator from an album? {#remove-collaborator}
 
@@ -223,6 +237,7 @@ Admins have elevated permissions that help them manage shared albums:
 - Manage link settings (passwords, expiry, device limits)
 - Delete the album itself
 - Permanently delete photos they don't own
+- [Edit Metadata for Photos They Don't Own](#shared-photo-metadata)
 
 Admins are ideal for trusted participants who help curate and manage the album, such as family members or event co-organizers.
 
@@ -536,6 +551,10 @@ By default, shared items can appear in your home gallery.
 
 To hide them, open `Settings > Appearance > Gallery` and enable **Hide shared items from home gallery**.
 
+You can also toggle this from the gallery's Layout menu: tap the three-dot icon next to any date heading, then switch on **Hide shared items from home gallery**.
+
+![Three-dot icon next to a gallery date heading and Hide shared items from home gallery highlighted in the Layout menu on Ente Photos mobile](https://docs-assets.ente.com/screenshots/phone-gallery-layout-shared-callout.png){width=560px}
+
 ### Can I remove myself from a shared album? {#leave-shared-album}
 
 Yes, if someone has shared an album with you, you can leave it at any time:
@@ -565,7 +584,17 @@ This creates copies that you fully own, so they remain in your library even if t
 
 ### Why are there duplicate photos in a shared album we both add to? {#shared-album-duplicates}
 
-When two people add photos to a shared album, Ente does not detect or warn about duplicates across the different owners. If you and another member each add the same video or photo (for example, one received it through another sharing method and already had it), both copies appear in the album.
+Ente does not detect duplicates across different owners. If you and another member each add the same photo or video, both copies appear in the album.
+
+Your home gallery can also include photos shared by others. If you select these along with your own photos and add them to an album, Ente can create copies owned by your account. The shared album can then contain both the original and your copy.
+
+To select only photos owned by your account on mobile:
+
+1. Open **Search**, search for the month or year, and open the matching result under **Moments**.
+2. Tap the filter button and choose **You** under **Uploaded by**.
+3. Select the photos you want, then choose **Add to album** and select the shared album.
+
+The **You** filter includes copies you previously saved from other people. It does not remove duplicates already in the album.
 
 Deduplication and the similar-images tool only work within albums you own, not across photos owned by different people in a shared album.
 
@@ -626,9 +655,9 @@ Receiving shared albums works on free accounts, so if someone shares with you, y
 An expired paid subscription does not automatically switch your account to the free plan. While the account is in this expired state, you cannot create a new public link, even though active free accounts can.
 
 1. To keep your paid plan, renew your subscription.
-2. To move to the free plan, contact support during the 30-day grace period. If your storage exceeds the free plan's 10 GB limit, you will need to reduce it.
+2. To move to the free plan, contact support as soon as possible and before any deletion date in a warning email. If your storage exceeds the free plan's 10 GB limit, you will need to reduce it.
 
-Once your account has an active plan, try creating the link again. See [What happens when my subscription expires?](/photos/faq/storage-and-plans#subscription-expires) for details about the grace period.
+Once your account has an active plan, try creating the link again. See [What happens when my subscription expires?](/photos/faq/storage-and-plans#subscription-expires) for details about the deletion timeline.
 
 ## Security and Privacy
 
@@ -648,12 +677,7 @@ In case of sharable links, the key to decrypt the album is appended by the clien
 
 ### Can Ente see my shared photos? {#ente-see-shared}
 
-No. Ente has no information about:
-
-- Whether you have shared an album
-- What photos are in shared albums
-- Who you've shared with
-- What's in public links
+No. When you share an album with another Ente account, Ente records which album you shared and who has access.
 
 All sharing happens with end-to-end encryption. Only people you share with (or who have the link) can decrypt and view the content.
 
@@ -747,7 +771,13 @@ To share in both directions, each partner enables library sharing for the other.
 
 Not by default. Family members have private libraries and share only the storage allowance. A member can use [library sharing](/photos/features/sharing-and-collaboration/library-sharing) to share current and future albums with another family member.
 
-Tags, face labels, and machine-learning data are not shared, and Ente does not deduplicate photos across family accounts.
+[Assigned People Names and Face Labels](#shared-face-labels) are not shared, and Ente does not deduplicate photos across family accounts.
+
+### Why can't a family member add photos to a shared album? {#family-member-cannot-add-photos}
+
+Family membership and album permissions are separate. Open that album's sharing settings and check that the family member is an **Admin** or **Collaborator** on that specific album. A Viewer cannot add photos.
+
+If they still cannot upload after checking their role, contact [support@ente.com](mailto:support@ente.com) with their app version, device, and a description of what happens when they try.
 
 ### Can I change the initial shown on shared photos? {#shared-photo-initial}
 

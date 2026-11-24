@@ -1,3 +1,4 @@
+import { appName } from "ente-base/app";
 import { isNamedError } from "ente-base/error";
 import log from "ente-base/log";
 import type { FileDownloadProgress } from "ente-gallery/services/download-core";
@@ -22,6 +23,8 @@ import {
     heartFillSVGPath,
     heartSVGPath,
     settingsSVGPath,
+    slideArrowNextSVG,
+    slideArrowPrevSVG,
 } from "./icons";
 
 export interface FileViewerPhotoSwipeAnnotatedFile {
@@ -103,6 +106,13 @@ export const moreMenuID = "ente-pswp-more-menu";
 
 const fullscreenControlsAutoHideDelayMS = 3000;
 
+const islandLayoutPadding = ({ x }: { x: number }) =>
+    document.fullscreenElement
+        ? { top: 0, bottom: 0, left: 0, right: 0 }
+        : x < 450
+          ? { top: 8, bottom: 8, left: 8, right: 8 }
+          : { top: 11 + 24, bottom: 11 + 24, left: 11 + 80, right: 11 + 80 };
+
 export class FileViewerPhotoSwipe<
     T extends FileViewerPhotoSwipeAnnotatedFile =
         FileViewerPhotoSwipeAnnotatedFile,
@@ -131,6 +141,7 @@ export class FileViewerPhotoSwipe<
         onDownload,
         onMore,
     }: FileViewerPhotoSwipeCoreOptions<T>) {
+        const useIslandLayout = appName == "photos" && !isPublicAlbum;
         const pswp = new PhotoSwipe({
             bgOpacity: 1,
             showHideAnimationType: "fade",
@@ -164,7 +175,14 @@ export class FileViewerPhotoSwipe<
             index: initialIndex,
             mainClass: isPublicAlbum
                 ? "pswp-ente pswp-ente-public-album"
-                : "pswp-ente",
+                : useIslandLayout
+                  ? "pswp-ente pswp-ente-island"
+                  : "pswp-ente",
+            ...(useIslandLayout && {
+                paddingFn: islandLayoutPadding,
+                arrowPrevSVG: slideArrowPrevSVG,
+                arrowNextSVG: slideArrowNextSVG,
+            }),
             closeTitle: t("close"),
             zoomTitle: t("zoom"),
             arrowPrevTitle: t("previous"),
@@ -173,6 +191,107 @@ export class FileViewerPhotoSwipe<
         });
 
         this.pswp = pswp;
+
+        if (useIslandLayout) {
+            const opener = document.activeElement;
+            const containKeyboardFocus = (event: KeyboardEvent) => {
+                const isActivationKey =
+                    event.key == "Enter" || event.key == " ";
+                if (
+                    event.defaultPrevented ||
+                    event.altKey ||
+                    event.ctrlKey ||
+                    event.metaKey ||
+                    (event.key != "Tab" && !isActivationKey) ||
+                    delegate.shouldIgnoreKeyboardEvent(event)
+                ) {
+                    return;
+                }
+
+                const viewer = pswp.element!;
+                const active = document.activeElement;
+                const activeInViewer = viewer.contains(active);
+                if (!activeInViewer && active?.closest('[aria-modal="true"]')) {
+                    return;
+                }
+
+                if (isActivationKey) {
+                    if (!activeInViewer) event.preventDefault();
+                    return;
+                }
+
+                viewer.classList.add("pswp--ui-visible");
+                areFullscreenUIControlsHiddenByShortcut = false;
+                clearFullscreenUIControlsHideTimer();
+
+                const controls = Array.from(
+                    viewer.querySelectorAll<HTMLElement>(
+                        "button, a[href], input, select, textarea, [tabindex]",
+                    ),
+                );
+                const isTabbable = (el: HTMLElement) =>
+                    el.tabIndex >= 0 &&
+                    !el.matches(":disabled") &&
+                    !el.closest("[inert]") &&
+                    el.getClientRects().length > 0 &&
+                    getComputedStyle(el).visibility == "visible";
+                if (
+                    !activeInViewer ||
+                    active == viewer ||
+                    active ==
+                        (event.shiftKey
+                            ? controls.find(isTabbable)
+                            : controls.findLast(isTabbable))
+                ) {
+                    event.preventDefault();
+                    const destination = event.shiftKey
+                        ? controls.findLast(isTabbable)
+                        : controls.find(isTabbable);
+                    (destination ?? viewer).focus();
+                }
+            };
+
+            pswp.on("afterInit", () => {
+                pswp.element!.focus({ preventScroll: true });
+                document.addEventListener("keydown", containKeyboardFocus);
+            });
+            pswp.on("destroy", () => {
+                document.removeEventListener("keydown", containKeyboardFocus);
+                if (
+                    opener instanceof HTMLElement &&
+                    (document.activeElement == document.body ||
+                        pswp.element?.contains(document.activeElement))
+                ) {
+                    opener.focus({ preventScroll: true });
+                }
+            });
+
+            pswp.on("afterInit", () => {
+                const counter = pswp.element?.querySelector(".pswp__counter");
+                const progress = pswp.element?.querySelector(
+                    ".pswp__ente-progress-text",
+                );
+                if (!counter || !progress) return;
+                const island = document.createElement("div");
+                island.className = "pswp__status-island";
+                counter.before(island);
+                island.append(counter, progress);
+                const buffering = pswp.element?.querySelector(
+                    "media-control-bar:has(media-loading-indicator)",
+                );
+                if (buffering) {
+                    const statusBuffering = buffering.cloneNode(
+                        true,
+                    ) as HTMLElement;
+                    statusBuffering.classList.add("pswp__status-buffering");
+                    const label = document.createElement("span");
+                    label.textContent = t("buffering");
+                    buffering.append(label);
+                    statusBuffering.append(label.cloneNode(true));
+                    counter.after(statusBuffering);
+                }
+            });
+        }
 
         let _currentAnnotatedFile: T | undefined;
 
@@ -208,50 +327,61 @@ export class FileViewerPhotoSwipe<
 
         const currentFileAnnotation = () => currentAnnotatedFile().annotation;
 
-        // Refreshing slide content resets pan and zoom, so only do it when needed.
-        this.refreshSlideOnFilesUpdateIfNeeded = () => {
-            const prevFileID = _currentAnnotatedFile?.file.id;
-            if (!prevFileID) return;
+        let lastFiles = delegate.getFiles();
+        let slideBeforeFilesUpdate: PhotoSwipe["currSlide"];
+        let shouldUpdateVideoOnChange = true;
+
+        pswp.on("change", () => {
+            shouldUpdateVideoOnChange = true;
+            const previousSlide = slideBeforeFilesUpdate;
+            if (!previousSlide) return;
+            slideBeforeFilesUpdate = undefined;
 
             const files = delegate.getFiles();
-            const newFileCount = files.length;
+            pswp.mainScroll.itemHolders.forEach((holder, offset) => {
+                let index = pswp.currIndex + offset - 1;
+                if (pswp.canLoop()) index = pswp.getLoopedIndex(index);
 
-            const newFile = files[pswp.currIndex];
-            if (newFile?.id != prevFileID) {
-                const newIndex = files.findIndex(({ id }) => id == prevFileID);
-
-                if (newIndex == -1) {
-                    const i = pswp.currIndex;
-
-                    if (i >= newFileCount) {
-                        this.pswp.prev();
-                    }
-
-                    // The preloaded neighbour otherwise repeats the newly current file.
-                    pswp.refreshSlideContent(i);
-                    pswp.refreshSlideContent(i + 1 == newFileCount ? 0 : i + 1);
-                } else {
-                    const i = newIndex;
-
-                    // New files can make an empty neighbour navigable. goTo
-                    // emits change before the refresh below, so fill it first.
-                    pswp.mainScroll.itemHolders.forEach((holder, offset) => {
-                        if (!holder.slide)
-                            pswp.setContent(
-                                holder,
-                                pswp.currIndex + offset - 1,
-                            );
-                    });
-
-                    pswp.goTo(i);
-                    _currentAnnotatedFile = undefined;
-                    pswp.refreshSlideContent(i);
-                    pswp.refreshSlideContent(i == 0 ? newFileCount - 1 : i - 1);
-                    pswp.refreshSlideContent(i + 1 == newFileCount ? 0 : i + 1);
+                const file = files[index];
+                const slide = holder.slide;
+                if (
+                    file
+                        ? slide?.index == index &&
+                          asItemData(slide.content.data).fileID == file.id
+                        : !slide
+                ) {
+                    return;
                 }
-            } else {
-                currentAnnotatedFile();
-            }
+
+                pswp.setContent(holder, index, true);
+                holder.slide?.setIsActive(offset == 1);
+                if (offset == 1) _currentAnnotatedFile = undefined;
+            });
+
+            // PhotoSwipe still needs change to refresh the counter and arrows.
+            shouldUpdateVideoOnChange = pswp.currSlide != previousSlide;
+        });
+
+        this.refreshSlideOnFilesUpdateIfNeeded = () => {
+            const files = delegate.getFiles();
+            if (files == lastFiles || !files.length || !pswp.currSlide) return;
+
+            const currentIndex = pswp.currIndex;
+            const fileID = lastFiles[currentIndex]?.id;
+            lastFiles = files;
+
+            const newIndex =
+                files[currentIndex]?.id == fileID
+                    ? currentIndex
+                    : files.findIndex(({ id }) => id == fileID);
+
+            slideBeforeFilesUpdate = pswp.currSlide;
+            pswp.goTo(
+                newIndex == -1
+                    ? Math.min(currentIndex, files.length - 1)
+                    : newIndex,
+            );
+            if (pswp.currIndex == currentIndex) pswp.dispatch("change");
         };
 
         const originalVideoFileIDs = new Set<number>();
@@ -265,14 +395,29 @@ export class FileViewerPhotoSwipe<
             const files = delegate.getFiles();
             const file = files[index]!;
 
+            const cached = pswp.contentLoader.getContentByIndex(index);
+            if (cached && asItemData(cached.data).fileID != file.id) {
+                pswp.contentLoader.removeByIndex(index);
+                if (!cached.hasSlide) cached.destroy();
+            }
+
             const videoQuality = intendedVideoQualityForFileID(file.id);
 
             const itemData = dataSource.itemDataForFile(
                 file,
                 { videoQuality },
                 () => {
+                    if (!pswp.isOpen || pswp.isDestroying) return;
+
+                    const currentFiles = delegate.getFiles();
+                    const fileIndex =
+                        currentFiles[index]?.id == file.id
+                            ? index
+                            : currentFiles.findIndex(({ id }) => id == file.id);
+                    if (fileIndex == -1) return;
+
                     _currentAnnotatedFile = undefined;
-                    pswp.refreshSlideContent(index);
+                    pswp.refreshSlideContent(fileIndex);
                 },
             );
 
@@ -496,6 +641,7 @@ export class FileViewerPhotoSwipe<
         };
 
         const handleFullscreenChange = () => {
+            if (useIslandLayout) pswp.updateSize(true);
             if (document.fullscreenElement) {
                 document.addEventListener(
                     "mousemove",
@@ -557,7 +703,7 @@ export class FileViewerPhotoSwipe<
             );
 
             const controls =
-                container?.querySelectorAll(
+                pswp.element?.querySelectorAll(
                     "media-control-bar, media-playback-rate-menu",
                 ) ?? [];
             for (const control of controls) {
@@ -972,10 +1118,20 @@ export class FileViewerPhotoSwipe<
                         : "";
                 setText(percentageEl, percentageText);
                 setText(status, statusText);
-                setText(size, sizeText);
+                progressText.classList.toggle(
+                    "pswp__ente-progress-text--downloading",
+                    state?.phase == "downloading",
+                );
+                const compactSize = useIslandLayout ? percentageText : sizeText;
+                setText(size, compactSize);
+                progressText.title = [statusText, sizeText]
+                    .filter(Boolean)
+                    .join(" · ");
                 setText(retry, t("retry"));
-                size.hidden = !sizeText;
-                separator.hidden = !(sizeText || failed);
+                size.hidden = !compactSize;
+                separator.hidden = useIslandLayout
+                    ? !failed
+                    : !(sizeText || failed);
                 retry.hidden = !failed;
                 fill.style.width = `${Math.max(state?.percentage ?? 0, 1)}%`;
                 progressRing.style.strokeDashoffset = `${100 - (state?.percentage ?? 0)}`;
@@ -1316,9 +1472,10 @@ export class FileViewerPhotoSwipe<
                         handleFullscreenButtonClick,
                         { capture: true },
                     );
-                    pswp.on("change", () =>
-                        updateVideoControlsAndPlayback(currSlideData()),
-                    );
+                    pswp.on("change", () => {
+                        if (shouldUpdateVideoOnChange)
+                            updateVideoControlsAndPlayback(currSlideData());
+                    });
                 },
             });
 
@@ -1360,7 +1517,7 @@ export class FileViewerPhotoSwipe<
                             moreLink.addEventListener("click", handleViewInfo);
                             captionP.appendChild(moreLink);
                         }
-                        captionEl.style.display = captionText
+                        captionEl.style.display = captionText?.trim()
                             ? "block"
                             : "none";
                         captionEl.classList.toggle(
@@ -1508,7 +1665,10 @@ export class FileViewerPhotoSwipe<
         pswp.on("keydown", (pswpEvent) => {
             const e: KeyboardEvent = pswpEvent.originalEvent;
 
-            if (delegate.shouldIgnoreKeyboardEvent(e)) {
+            if (
+                (useIslandLayout && e.key == "Tab") ||
+                delegate.shouldIgnoreKeyboardEvent(e)
+            ) {
                 pswpEvent.preventDefault();
                 return;
             }
@@ -1550,12 +1710,22 @@ export class FileViewerPhotoSwipe<
                         cb = handleDelete;
                         break;
                     case "ArrowLeft":
-                        cb = handleSeekBackOrPreviousSlide;
                         pswpEvent.preventDefault();
+                        if (
+                            document.activeElement?.tagName ===
+                            "MEDIA-VOLUME-RANGE"
+                        )
+                            return;
+                        cb = handleSeekBackOrPreviousSlide;
                         break;
                     case "ArrowRight":
-                        cb = handleSeekForwardOrNextSlide;
                         pswpEvent.preventDefault();
+                        if (
+                            document.activeElement?.tagName ===
+                            "MEDIA-VOLUME-RANGE"
+                        )
+                            return;
+                        cb = handleSeekForwardOrNextSlide;
                         break;
                     case "?":
                         cb = handleHelp;
@@ -1599,6 +1769,7 @@ export class FileViewerPhotoSwipe<
             const target = e.target;
             if (target instanceof HTMLElement) {
                 switch (target.tagName) {
+                    case "MEDIA-VOLUME-RANGE":
                     case "MEDIA-TIME-RANGE":
                     case "MEDIA-PLAY-BUTTON":
                     case "MEDIA-MUTE-BUTTON":
@@ -1714,6 +1885,7 @@ const hlsVideoControlsHTML = () => `
   <media-control-bar>
     <media-play-button notooltip></media-play-button>
     <media-mute-button notooltip></media-mute-button>
+    <media-volume-range></media-volume-range>
     <media-time-display showduration notoggle></media-time-display>
     <media-text-display></media-text-display>
     <media-settings-menu-button id="ente-settings-menu-btn" invoketarget="ente-settings-menu" notooltip>
@@ -1732,7 +1904,7 @@ const livePhotoVideoHTML = (videoURL: string) => `
 `;
 
 const bottomRightControlsHTML = () => `
-<div class="pswp__caption"><p></p></div>
+<div class="pswp__caption" style="display: none"><p></p></div>
 <div class="pswp__action-buttons">
   <button class="pswp__action-button" aria-label="Like">
     <svg viewBox="0 0 30 26" fill="none">${heartSVGPath} id="pswp__icn-heart" />${heartFillSVGPath} id="pswp__icn-heart-fill" /></svg>

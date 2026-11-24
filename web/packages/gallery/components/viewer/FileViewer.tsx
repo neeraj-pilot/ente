@@ -17,20 +17,15 @@ import {
     DialogContent,
     DialogTitle,
     Divider,
-    Stack,
     styled,
     Typography,
-    type ModalProps,
 } from "@mui/material";
 import type { LocalUser } from "ente-accounts/services/user";
-import { isDesktop } from "ente-base/app";
+import { appName, isDesktop } from "ente-base/app";
 import { SpacedRow } from "ente-base/components/containers";
 import { ContextMenu, ContextMenuItem } from "ente-base/components/ContextMenu";
-import { InlineErrorIndicator } from "ente-base/components/ErrorIndicator";
-import { TitledMiniDialog } from "ente-base/components/MiniDialog";
+import { AttributedMiniDialog } from "ente-base/components/MiniDialog";
 import { DialogCloseIconButton } from "ente-base/components/mui/DialogCloseIconButton";
-import { FocusVisibleButton } from "ente-base/components/mui/FocusVisibleButton";
-import { LoadingButton } from "ente-base/components/mui/LoadingButton";
 import { useInterval, useIsSmallWidth } from "ente-base/components/utils/hooks";
 import type { ModalVisibilityProps } from "ente-base/components/utils/modal";
 import { useBaseContext } from "ente-base/context";
@@ -162,6 +157,7 @@ export type FileViewerProps = ModalVisibilityProps & {
     disableEscapeClose?: boolean;
     enableComment?: boolean;
     isCommentsFeatureEnabled?: boolean;
+    hasSocialActivity?: boolean;
 } & Pick<
         FileInfoProps,
         "collectionNameByID" | "onSelectCollection" | "onSelectPerson"
@@ -204,6 +200,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
     shouldCloseOnBrowserBack: shouldCloseOnBrowserBackOverride,
     disableEscapeClose = false,
     enableComment = true,
+    hasSocialActivity = false,
     isCommentsFeatureEnabled = true,
 }) => {
     const { onGenericError } = useBaseContext();
@@ -1055,6 +1052,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
         if (!haveUser) return false;
         if (!enableComment) return false;
         if (!isCommentsFeatureEnabled) return false;
+        if (hasSocialActivity) return true;
         if (
             activeCollectionID &&
             activeCollectionID !== 0 &&
@@ -1068,6 +1066,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
     }, [
         haveUser,
         enableComment,
+        hasSocialActivity,
         isCommentsFeatureEnabled,
         activeCollectionID,
         collectionSummaries,
@@ -1256,6 +1255,8 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             ) {
                 return true;
             }
+
+            if (event.key == "Tab") return false;
 
             const activeElement = document.activeElement as HTMLElement | null;
             if (activeElement) {
@@ -1496,8 +1497,8 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                         const { comments, reactions } =
                             await getUnifiedSocialDiff(
                                 collectionId,
-                                activeFileID,
                                 collection.key,
+                                { fileID: activeFileID },
                             );
 
                         commentsMap.set(collectionId, comments);
@@ -1610,8 +1611,8 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                 try {
                     const { comments, reactions } = await getUnifiedSocialDiff(
                         collectionId,
-                        activeFileID,
                         cached.key,
+                        { fileID: activeFileID },
                     );
 
                     commentsMap.set(collectionId, comments);
@@ -1853,6 +1854,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                 id={moreMenuID}
                 disableAutoFocusItem
                 slotProps={{ list: { "aria-labelledby": moreButtonID } }}
+                sx={appName == "photos" ? islandMoreMenuSx : undefined}
             >
                 {activeAnnotatedFile.annotation.showDownload == "menu" && (
                     <ContextMenuItem onClick={handleDownloadMenuAction}>
@@ -1920,10 +1922,28 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                     {t("shortcuts")}
                 </ContextMenuItem>
             </ContextMenu>
-            <ConfirmDeleteFileDialog
+            <AttributedMiniDialog
                 open={openConfirmDelete}
                 onClose={handleConfirmDeleteClose}
-                onConfirm={handleDelete}
+                appearance="centered"
+                attributes={{
+                    title: t("trash_file_title"),
+                    message: t("trash_file_message"),
+                    kind: "warning",
+                    continue: {
+                        text: t("move_to_trash"),
+                        color: "critical",
+                        autoFocus: true,
+                        action: handleDelete,
+                    },
+                }}
+                sx={(theme) => ({
+                    ...theme.applyStyles("light", {
+                        ".MuiBackdrop-root": {
+                            backgroundColor: theme.vars.palette.backdrop.faint,
+                        },
+                    }),
+                })}
             />
             {handleSaveEditedCopy && (
                 <ImageEditorOverlay
@@ -1939,78 +1959,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                 {...{ disableDownload, haveUser }}
             />
         </>
-    );
-};
-
-type ConfirmDeleteFileDialogProps = ModalVisibilityProps & {
-    onConfirm: () => Promise<void>;
-};
-
-const ConfirmDeleteFileDialog: React.FC<ConfirmDeleteFileDialogProps> = ({
-    open,
-    onClose,
-    onConfirm,
-}) => {
-    const [phase, setPhase] = useState<"loading" | "failed" | undefined>();
-
-    const resetPhaseAndClose = () => {
-        setPhase(undefined);
-        onClose();
-    };
-
-    const handleClick = async () => {
-        setPhase("loading");
-        try {
-            await onConfirm();
-            resetPhaseAndClose();
-        } catch (e) {
-            log.error(e);
-            setPhase("failed");
-        }
-    };
-
-    const handleClose: ModalProps["onClose"] = (_, reason) => {
-        if (reason == "backdropClick" && phase == "loading") return;
-        resetPhaseAndClose();
-    };
-
-    return (
-        <TitledMiniDialog
-            open={open}
-            onClose={handleClose}
-            title={t("trash_file_title")}
-            sx={(theme) => ({
-                ...theme.applyStyles("light", {
-                    ".MuiBackdrop-root": {
-                        backgroundColor: theme.vars.palette.backdrop.faint,
-                    },
-                }),
-            })}
-        >
-            <Typography sx={{ color: "text.muted" }}>
-                {t("trash_file_message")}
-            </Typography>
-            <Stack sx={{ pt: 3, gap: 1 }}>
-                {phase == "failed" && <InlineErrorIndicator />}
-                <LoadingButton
-                    loading={phase == "loading"}
-                    fullWidth
-                    color="critical"
-                    autoFocus
-                    onClick={handleClick}
-                >
-                    {t("move_to_trash")}
-                </LoadingButton>
-                <FocusVisibleButton
-                    fullWidth
-                    color="secondary"
-                    disabled={phase == "loading"}
-                    onClick={resetPhaseAndClose}
-                >
-                    {t("cancel")}
-                </FocusVisibleButton>
-            </Stack>
-        </TitledMiniDialog>
     );
 };
 
@@ -2156,3 +2104,19 @@ const createImagePNGBlob = async (imageURL: string): Promise<Blob> =>
         image.onerror = reject;
         image.src = imageURL;
     });
+
+const islandMoreMenuSx = {
+    "& .MuiPaper-root": {
+        borderRadius: "20px",
+        minWidth: 260,
+        marginTop: "4px",
+        boxShadow: "0 24px 60px rgba(0, 0, 0, 0.25)",
+    },
+    "& .MuiList-root": { padding: "6px" },
+    "& .MuiMenuItem-root": {
+        minHeight: 44,
+        borderRadius: "14px",
+        fontSize: 14,
+        fontWeight: 500,
+    },
+} as const;

@@ -201,9 +201,9 @@ func (m *CollectionLinkMiddleware) checkDeviceLimit(c *gin.Context, accessToken 
 }
 
 func shouldCheckCollectionLinkDeviceLimit(reqPath string) bool {
-	// Device admission for public collections is intentionally tied to the two
-	// metadata endpoints used as the browser entry/refresh points. Other routes
-	// (download/upload/social) continue to use the already-admitted session.
+	// Device limits are best effort and gate metadata needed for decryption.
+	// Blob routes still enforce link access and any configured password, but
+	// intentionally allow ciphertext downloads without device admission.
 	return reqPath == "/public-collection/info" ||
 		reqPath == "/public-collection/diff"
 }
@@ -231,11 +231,6 @@ func (m *CollectionLinkMiddleware) validateOwnersSubscription(c *gin.Context, cI
 
 func (m *CollectionLinkMiddleware) isDeviceLimitReached(ctx context.Context,
 	collectionSummary ente.PublicCollectionSummary, ip string, ua string) (bool, error) {
-	// skip deviceLimit check & record keeping for requests via CF worker
-	if network.IsCFWorkerIP(ip) {
-		return false, nil
-	}
-
 	sharedID := collectionSummary.ID
 	hasAccessedInPast, err := m.CollectionLinkRepo.AccessedInPast(ctx, sharedID, ip, ua)
 	if err != nil {

@@ -104,6 +104,7 @@ interface UploadProps {
     dragAndDropFiles: File[];
     uploadTypeSelectorIntent: UploadTypeSelectorIntent;
     activeCollection?: Collection;
+    uploadTargetCollection?: Collection;
     closeUploadTypeSelector: () => void;
     setLoading: (loading: boolean) => void;
     setShouldDisableDropzone: (value: boolean) => void;
@@ -352,6 +353,7 @@ export const Upload: React.FC<UploadProps> = ({
             watcher.init(
                 upload,
                 () => void onRemotePull({ source: "watcher-upload" }),
+                () => uploadRunning.current,
             );
 
             void electron.pendingUploads().then((pending) => {
@@ -529,6 +531,14 @@ export const Upload: React.FC<UploadProps> = ({
                         ...confirmationOptions,
                     });
                 }
+                return;
+            }
+
+            if (props.uploadTargetCollection) {
+                void uploadFilesToExistingCollection(
+                    props.uploadTargetCollection,
+                    prunedItemAndPaths,
+                );
                 return;
             }
 

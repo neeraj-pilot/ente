@@ -4,6 +4,8 @@ struct ChatView: View {
     @ObservedObject var viewModel: ChatViewModel
 
     @Environment(\.scenePhase) private var scenePhase
+    @State private var notificationOwner = UUID()
+    @ObservedObject private var notifications = ResponseNotifications.shared
     @ObservedObject private var modelSettings = ModelSettingsStore.shared
 
     @StateObject private var viewState = ChatViewState()
@@ -32,6 +34,7 @@ struct ChatView: View {
             && !viewState.isDrawerOpen
             && !viewState.didDismissKeyboard
             && !viewState.showSettings
+            && !viewState.showTodos
             && !showSourceIntroduction
             && sourceIntroductionSeen
     }
@@ -44,7 +47,8 @@ struct ChatView: View {
     }
 
     private var isChatActive: Bool {
-        scenePhase == .active && !viewState.showSettings && !showSourceIntroduction
+        scenePhase == .active && !viewState.showSettings && !viewState.showTodos
+            && !showSourceIntroduction
     }
 
     private var overflowDialogPresented: Binding<Bool> {
@@ -158,11 +162,13 @@ struct ChatView: View {
                 viewModel.modelSelectionChanged()
             }
             .onChange(of: scenePhase) { newValue in
+                viewModel.setInferenceForeground(newValue == .active)
                 viewModel.setAppForeground(newValue != .background)
                 viewModel.notesStore.setForeground(newValue == .active)
                 if newValue == .active {
                     viewModel.voiceTranscriber.setForeground(true)
                     viewModel.refreshModelDownloadInfo()
+                    notifications.claimPrompt(owner: notificationOwner)
                 } else {
                     viewModel.voiceTranscriber.setForeground(false)
                 }
@@ -170,20 +176,46 @@ struct ChatView: View {
         }
         .environmentObject(viewModel.notesStore)
         .onAppear {
+            viewModel.setInferenceForeground(scenePhase == .active)
             viewModel.setAppForeground(scenePhase != .background)
             viewModel.notesStore.setForeground(scenePhase == .active)
             viewModel.setChatActive(isChatActive)
         }
         .onChange(of: isChatActive) { viewModel.setChatActive($0) }
-        .onDisappear { viewModel.setChatActive(false) }
+        .onDisappear {
+            viewModel.setChatActive(false)
+            notifications.releasePrompt(owner: notificationOwner)
+        }
         .onReceive(
             NotificationCenter.default.publisher(
                 for: UIApplication.didReceiveMemoryWarningNotification)
         ) { _ in
             viewModel.handleMemoryPressure()
         }
+        .sheet(
+            isPresented: Binding(
+                get: {
+                    notifications.showPermissionContext
+                        && notifications.promptOwner == notificationOwner && !viewState.showSettings
+                },
+                set: { if !$0 { notifications.showPermissionContext = false } })
+        ) {
+            NotificationPermissionContext()
+        }
+        .onChange(of: notifications.showPermissionContext) { show in
+            if show && scenePhase == .active { notifications.claimPrompt(owner: notificationOwner) }
+        }
+        .task(id: notifications.pendingRoute) {
+            guard let route = notifications.pendingRoute else { return }
+            viewState.showSettings = false
+            viewState.showTodos = false
+            viewState.isDrawerOpen = false
+            viewModel.openResponse(route)
+            notifications.pendingRoute = nil
+        }
         .sheet(isPresented: $viewState.showSettings) {
             SettingsView(
+                notificationOwner: notificationOwner,
                 knowledgeStore: viewModel.knowledgeStore,
                 notesStore: viewModel.notesStore,
                 onSignIn: {
@@ -191,6 +223,9 @@ struct ChatView: View {
                     viewState.showSettings = false
                 }
             )
+        }
+        .sheet(isPresented: $viewState.showTodos) {
+            TodoListView(store: viewModel.todoStore)
         }
         .sheet(isPresented: $showSourceIntroduction) {
             SourceIntroductionSheet(
@@ -201,6 +236,13 @@ struct ChatView: View {
                 isInputFocused = false
                 showSourceIntroduction = true
                 sourceIntroductionSeen = true
+            }
+        }
+        .onChange(of: viewState.showTodos) { isPresented in
+            if isPresented {
+                viewModel.voiceTranscriber.interrupt()
+                viewState.didDismissKeyboard = true
+                isInputFocused = false
             }
         }
         .onChange(of: viewState.showSettings) { isPresented in
@@ -232,6 +274,17 @@ struct ChatView: View {
                 },
                 secondaryButton: .cancel()
             )
+        }
+        .alert(
+            viewModel.todoTurnError?.title ?? "",
+            isPresented: Binding(
+                get: { viewModel.todoTurnError != nil },
+                set: { if !$0 { viewModel.todoTurnError = nil } }),
+            presenting: viewModel.todoTurnError
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { error in
+            Text(error.message)
         }
         .alert(
             "Chat unavailable on this device", isPresented: $viewModel.showUnsupportedDeviceDialog
@@ -343,6 +396,13 @@ struct ChatView: View {
                     onRetry: { message in
                         viewModel.retryAssistantResponse(message)
                     },
+                    todoTurns: viewModel.todoTurns,
+                    onConfirmTodoTurn: { message in
+                        viewModel.confirmToolTurn(message)
+                    },
+                    onUndoTodoTurn: { message in
+                        viewModel.undoToolTurn(message)
+                    },
                     onBranchChange: { message, delta in
                         viewModel.changeBranch(for: message, delta: delta)
                     },
@@ -372,7 +432,6 @@ struct ChatView: View {
                         attachments: $viewModel.draftAttachments,
                         supportsImageAttachments: viewModel.supportsImageAttachments,
                         isGenerating: viewModel.isGenerating,
-                        isSendPending: viewModel.isSendPending,
                         isDownloading: viewModel.isDownloading,
                         editingMessage: editingMessage,
                         isProcessingAttachments: viewModel.isProcessingAttachments,
@@ -478,6 +537,10 @@ struct ChatView: View {
             onDeleteSession: { session in
                 viewState.deleteSession = session
             },
+            onOpenTodos: {
+                viewState.isDrawerOpen = false
+                viewState.showTodos = true
+            },
             onOpenSettings: {
                 viewState.isDrawerOpen = false
                 viewState.showSettings = true
@@ -539,6 +602,7 @@ struct ChatView: View {
 private final class ChatViewState: ObservableObject {
     @Published var isDrawerOpen = false
     @Published var showSettings = false
+    @Published var showTodos = false
     @Published var toastMessage: ToastMessage?
     @Published var deleteSession: ChatSession?
     @Published var showSignInComingSoon = false

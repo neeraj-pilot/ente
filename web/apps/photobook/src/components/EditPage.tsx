@@ -3,10 +3,11 @@ import { useAutoScroll } from "@/hooks/useAutoScroll";
 import { usePageDrag } from "@/hooks/usePageDrag";
 import { usePhotoDrag } from "@/hooks/usePhotoDrag";
 import { useSpreads } from "@/hooks/useSpreads";
+import { isRequiredBlankPage } from "@/lib/bookPages";
 import type { PhotoDestination } from "@/lib/photoPlacement";
 import { getSpreadPageIndices } from "@/lib/spreads";
 import type { TextBlock } from "@/lib/types";
-import { toolbarColors, uiColors } from "@/theme/colors";
+import { toolbarColors, toolbarShadow, uiColors } from "@/theme/colors";
 import {
     Alert,
     Backdrop,
@@ -14,8 +15,10 @@ import {
     CircularProgress,
     Snackbar,
     Typography,
+    useMediaQuery,
 } from "@mui/material";
 import React, {
+    memo,
     useCallback,
     useEffect,
     useLayoutEffect,
@@ -27,9 +30,9 @@ import React, {
 import AddPageDialog from "./AddPageDialog";
 import AddPhotosDialog from "./AddPhotosDialog";
 import BookHeader from "./BookHeader";
+import BookSidebar from "./BookSidebar";
 import EditorActions, { EditorPreviewButton } from "./EditorActions";
 import type { PageInsertPosition } from "./PageMenu";
-import PageStrip from "./PageStrip";
 import PrinterBlankPage from "./PrinterBlankPage";
 import SpreadPage, { PICKER_WIDTH } from "./SpreadPage";
 import {
@@ -38,13 +41,20 @@ import {
     EDITOR_PANEL_INSET,
     EDITOR_PANEL_SX,
     EDITOR_SCROLLBAR_SX,
-    EDITOR_SIDEBAR_WIDTH,
+    LARGE_DESKTOP_QUERY,
+    MAX_DISPLAY_PAGE_SIZE,
 } from "./editorLayout";
 
 const PAGE_GAP = 2;
-const NEIGHBORHOOD_RADIUS = 4;
 
-export default function EditPage() {
+function EditPage({
+    sidebarOpen,
+    onToggleSidebar,
+}: {
+    sidebarOpen: boolean;
+    onToggleSidebar: () => void;
+}) {
+    const largeDesktop = useMediaQuery(LARGE_DESKTOP_QUERY);
     const {
         book,
         currentSpreadIndex,
@@ -58,7 +68,20 @@ export default function EditPage() {
         redo,
         processingPhotos,
         processingProgress,
-    } = useBook();
+    } = useBook(
+        "book",
+        "currentSpreadIndex",
+        "setCurrentSpreadIndex",
+        "addPage",
+        "addPhotos",
+        "removeSlot",
+        "updateTextBlock",
+        "removeTextBlock",
+        "undo",
+        "redo",
+        "processingPhotos",
+        "processingProgress",
+    );
 
     const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
     const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
@@ -96,20 +119,13 @@ export default function EditPage() {
 
     const pages = book.pages;
     const totalPages = pages.length;
+    const frontCoverId = pages[0]?.id;
 
     const autoScroll = useAutoScroll(containerRef);
     const photoDrag = usePhotoDrag(containerRef, autoScroll);
     const pageDrag = usePageDrag();
 
     const spreads = useSpreads(pages.length);
-
-    const currentSpreadRow = useMemo(() => {
-        const idx = spreads.findIndex(
-            (s) =>
-                s.left === currentSpreadIndex || s.right === currentSpreadIndex,
-        );
-        return idx >= 0 ? idx : 0;
-    }, [spreads, currentSpreadIndex]);
 
     const [visibleSpreads, setVisibleSpreads] = useState<Set<number>>(
         () => new Set([0, 1, 2]),
@@ -142,7 +158,7 @@ export default function EditPage() {
                     return next;
                 });
             },
-            { root, rootMargin: "2000px 0px" },
+            { root, rootMargin: "600px 0px" },
         );
         observerRef.current = observer;
 
@@ -154,9 +170,9 @@ export default function EditPage() {
         };
     }, [spreads.length]);
 
-    const spreadRefCallback = useCallback(
-        (idx: number): RefCallback<HTMLDivElement> =>
-            (el) => {
+    const spreadRefs = useMemo(
+        () =>
+            spreads.map((_, idx): RefCallback<HTMLDivElement> => (el) => {
                 const prev = spreadElsRef.current.get(idx);
                 if (prev && observerRef.current)
                     observerRef.current.unobserve(prev);
@@ -167,8 +183,8 @@ export default function EditPage() {
                 } else {
                     spreadElsRef.current.delete(idx);
                 }
-            },
-        [],
+            }),
+        [spreads],
     );
 
     useEffect(() => {
@@ -243,10 +259,18 @@ export default function EditPage() {
             EDITOR_CANVAS_PADDING * 2 -
             PAGE_GAP -
             PICKER_WIDTH * 2;
-        const size = Math.round(Math.max(200, Math.min(availW / 2, 500)));
+        const size = Math.round(
+            Math.max(
+                200,
+                Math.min(
+                    availW / 2,
+                    largeDesktop ? MAX_DISPLAY_PAGE_SIZE : 500,
+                ),
+            ),
+        );
 
         return { pageWidth: size, pageHeight: size };
-    }, [containerWidth]);
+    }, [containerWidth, largeDesktop]);
 
     const scrollRafRef = useRef<number | null>(null);
     const handleMainScroll = useCallback(() => {
@@ -346,10 +370,10 @@ export default function EditPage() {
             if (!input || processingPhotos) return;
             setPhotoImportError(null);
             photoDestinationRef.current = pageId;
-            input.multiple = !pageId || pageId !== pages[0]?.id;
+            input.multiple = !pageId || pageId !== frontCoverId;
             input.click();
         },
-        [pages, processingPhotos],
+        [frontCoverId, processingPhotos],
     );
 
     const importPhotos = useCallback(
@@ -410,7 +434,32 @@ export default function EditPage() {
                 bgcolor: uiColors.background,
             }}
         >
-            <BookHeader showBookControls={pages.length > 0}>
+            <BookHeader
+                showBookControls={pages.length > 0}
+                sidebarOpen={sidebarOpen}
+                onToggleSidebar={onToggleSidebar}
+                center={
+                    <Box
+                        component="nav"
+                        aria-label="Photobook tools"
+                        sx={{
+                            "--toolbar-radius": "20px",
+                            "--toolbar-inset": "6px",
+                            bgcolor: toolbarColors.background,
+                            width: "max-content",
+                            maxWidth: "100%",
+                            p: "var(--toolbar-inset)",
+                            borderRadius: "var(--toolbar-radius)",
+                            boxShadow: toolbarShadow,
+                        }}
+                    >
+                        <EditorActions
+                            onAddPage={() => setAddPageDialogOpen(true)}
+                            onAddPhotos={() => handleAddPhotos()}
+                        />
+                    </Box>
+                }
+            >
                 <EditorPreviewButton />
             </BookHeader>
 
@@ -423,22 +472,9 @@ export default function EditPage() {
                     mb: EDITOR_PANEL_BOTTOM_INSET,
                 }}
             >
-                <Box
-                    component="aside"
-                    id="book-pages-sidebar"
-                    aria-label="Book pages"
-                    sx={{
-                        ...EDITOR_PANEL_SX,
-                        borderRadius: "20px",
-                        width: EDITOR_SIDEBAR_WIDTH,
-                        display: pages.length > 0 ? "flex" : "none",
-                        flexDirection: "column",
-                        flexShrink: 0,
-                        overflow: "hidden",
-                    }}
-                >
-                    <PageStrip onSpreadClick={handleSidebarSpreadClick} />
-                </Box>
+                {sidebarOpen && pages.length > 0 && (
+                    <BookSidebar onSpreadClick={handleSidebarSpreadClick} />
+                )}
 
                 <Box
                     component="main"
@@ -486,20 +522,11 @@ export default function EditPage() {
                                     flexDirection: "column",
                                     alignItems: "center",
                                     px: `${EDITOR_CANVAS_PADDING}px`,
-                                    pt: 4,
-                                    pb: {
-                                        xs: "calc(144px + env(safe-area-inset-bottom))",
-                                        sm: "calc(96px + env(safe-area-inset-bottom))",
-                                    },
-                                    gap: 3,
+                                    py: 4,
+                                    gap: 8,
                                 }}
                             >
                                 {spreads.map((spread, spreadIdx) => {
-                                    const isVisible =
-                                        visibleSpreads.has(spreadIdx) ||
-                                        Math.abs(
-                                            spreadIdx - currentSpreadRow,
-                                        ) <= NEIGHBORHOOD_RADIUS;
                                     const leftIndex =
                                         typeof spread.left === "number"
                                             ? spread.left
@@ -517,10 +544,16 @@ export default function EditPage() {
                                             ? pages[rightIndex]
                                             : null;
 
+                                    const isVisible =
+                                        visibleSpreads.has(spreadIdx) ||
+                                        (selectedPageId !== null &&
+                                            (lp?.id === selectedPageId ||
+                                                rp?.id === selectedPageId));
+
                                     return (
                                         <Box
                                             key={spreadIdx}
-                                            ref={spreadRefCallback(spreadIdx)}
+                                            ref={spreadRefs[spreadIdx]}
                                             data-spread-index={spreadIdx}
                                             sx={{
                                                 display: "flex",
@@ -561,17 +594,29 @@ export default function EditPage() {
                                                     pageWidth={pageWidth}
                                                     pageHeight={pageHeight}
                                                     totalPages={totalPages}
+                                                    requiredBlank={isRequiredBlankPage(
+                                                        pages,
+                                                        lp.id,
+                                                    )}
                                                     selectedSlotId={
-                                                        selectedSlotId
+                                                        selectedPageId === lp.id
+                                                            ? selectedSlotId
+                                                            : null
                                                     }
                                                     selectedPageId={
-                                                        selectedPageId
+                                                        selectedPageId === lp.id
+                                                            ? selectedPageId
+                                                            : null
                                                     }
                                                     selectedTextId={
-                                                        selectedTextId
+                                                        selectedPageId === lp.id
+                                                            ? selectedTextId
+                                                            : null
                                                     }
                                                     editingTextId={
-                                                        editingTextId
+                                                        selectedPageId === lp.id
+                                                            ? editingTextId
+                                                            : null
                                                     }
                                                     onSlotClick={
                                                         handleSlotClick
@@ -658,17 +703,29 @@ export default function EditPage() {
                                                     pageWidth={pageWidth}
                                                     pageHeight={pageHeight}
                                                     totalPages={totalPages}
+                                                    requiredBlank={isRequiredBlankPage(
+                                                        pages,
+                                                        rp.id,
+                                                    )}
                                                     selectedSlotId={
-                                                        selectedSlotId
+                                                        selectedPageId === rp.id
+                                                            ? selectedSlotId
+                                                            : null
                                                     }
                                                     selectedPageId={
-                                                        selectedPageId
+                                                        selectedPageId === rp.id
+                                                            ? selectedPageId
+                                                            : null
                                                     }
                                                     selectedTextId={
-                                                        selectedTextId
+                                                        selectedPageId === rp.id
+                                                            ? selectedTextId
+                                                            : null
                                                     }
                                                     editingTextId={
-                                                        editingTextId
+                                                        selectedPageId === rp.id
+                                                            ? editingTextId
+                                                            : null
                                                     }
                                                     onSlotClick={
                                                         handleSlotClick
@@ -771,33 +828,6 @@ export default function EditPage() {
                 </Box>
             </Box>
 
-            <Box
-                component="nav"
-                aria-label="Photobook tools"
-                sx={{
-                    ...EDITOR_PANEL_SX,
-                    "--toolbar-radius": "20px",
-                    "--toolbar-inset": "6px",
-                    bgcolor: toolbarColors.background,
-                    display: pages.length > 0 ? "block" : "none",
-                    position: "fixed",
-                    left: "50%",
-                    bottom: "calc(20px + env(safe-area-inset-bottom))",
-                    transform: "translateX(-50%)",
-                    width: "max-content",
-                    maxWidth: "calc(100% - 32px)",
-                    p: "var(--toolbar-inset)",
-                    borderRadius: "var(--toolbar-radius)",
-                    zIndex: 1200,
-                    boxShadow: `inset 0 0 0 1px ${toolbarColors.border}, 0 8px 24px rgba(0,0,0,0.3)`,
-                }}
-            >
-                <EditorActions
-                    onAddPage={() => setAddPageDialogOpen(true)}
-                    onAddPhotos={() => handleAddPhotos()}
-                />
-            </Box>
-
             <input
                 ref={photoInputRef}
                 type="file"
@@ -896,3 +926,5 @@ export default function EditPage() {
         </Box>
     );
 }
+
+export default memo(EditPage);

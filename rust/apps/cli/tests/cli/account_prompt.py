@@ -15,7 +15,7 @@ import time
 binary, origin, email = sys.argv[1:4]
 
 
-def run(args, replies):
+def run(args, replies, expected_exit=0):
     pid, fd = pty.fork()
     if pid == 0:
         os.execv(binary, args)
@@ -42,7 +42,7 @@ def run(args, replies):
         while time.monotonic() < deadline:
             done, status = os.waitpid(pid, os.WNOHANG)
             if done:
-                assert os.waitstatus_to_exitcode(status) == 0, output.decode(errors="replace")
+                assert os.waitstatus_to_exitcode(status) == expected_exit, output.decode(errors="replace")
                 return
             if select.select([fd], [], [], 0.1)[0]:
                 try:
@@ -72,17 +72,43 @@ def create(expect, send):
     expect(b"Created ")
 
 
-def enable(expect, send):
+def enable(expect, send, expire=False):
     text = expect(b"Authenticator code:")
     secret = re.search(rb"authenticator: ([A-Z2-7]+)", text)[1]
     send(b"invalid", True)
     expect(b"Code not accepted. Check the code and your computer's date and time, then try again.")
     expect(b"Authenticator code:")
+    if expire:
+        print("expire", flush=True)
+        assert sys.stdin.readline().strip() == "expired"
     key = base64.b32decode(secret + b"=" * (-len(secret) % 8))
     digest = hmac.new(key, (int(time.time()) // 30).to_bytes(8, "big"), hashlib.sha1).digest()
     offset = digest[-1] & 15
     code = (int.from_bytes(digest[offset:offset + 4], "big") & 0x7fffffff) % 1000000
     send(f"{code:06d}".encode(), True)
+    if expire:
+        expect(b"401")
+
+
+def change_email(expect, send):
+    changed = b"changed-" + email.encode()
+    expect(b"Email:")
+    send(b" " + changed.upper() + b" ")
+    expect(b"Verification code sent to " + changed + b".")
+    print("code", flush=True)
+    code = sys.stdin.readline().strip()
+    expect(b"Email verification code:")
+    send(f"{(int(code) + 1) % 1000000:06d}".encode(), True)
+    expect(b"Incorrect verification code. Try again.")
+    expect(b"Email verification code:")
+    send(code.encode(), True)
+    expect(b"Email changed to " + changed + b".")
+
+
+def confirm_disable(expect, send, prompt, answer, expected_output):
+    expect(prompt)
+    send(answer)
+    expect(expected_output)
 
 
 def login(expect, send, email_mfa):
@@ -127,4 +153,32 @@ for email_mfa in [True, False]:
     )
     run([binary, "account", "login", "--app", "photos", "--email", email],
         lambda expect, send: login(expect, send, email_mfa))
+run([binary, "account", "totp", "enable"],
+    lambda expect, send: enable(expect, send, expire=True), expected_exit=1)
 run([binary, "account", "totp", "enable"], enable)
+run([binary, "account", "change-email"], change_email)
+
+changed = f"changed-{email}"
+subprocess.run([binary, "account", "email-mfa", "enable"], check=True, capture_output=True)
+email_mfa_prompt = f"Disable email verification for {changed} on {origin}?".encode()
+run([binary, "account", "email-mfa", "disable"],
+    lambda expect, send: confirm_disable(expect, send, email_mfa_prompt, b"", b"cancelled"),
+    expected_exit=1)
+assert json.loads(
+    subprocess.check_output([binary, "account", "email-mfa", "status", "--json"])
+)["emailMfaEnabled"] is True
+run([binary, "account", "email-mfa", "disable"],
+    lambda expect, send: confirm_disable(
+        expect, send, email_mfa_prompt, b"y", b"Email verification is disabled."
+    ))
+totp_prompt = f"Disable authenticator protection for {changed} on {origin}?".encode()
+run([binary, "account", "totp", "disable"],
+    lambda expect, send: confirm_disable(expect, send, totp_prompt, b"n", b"cancelled"),
+    expected_exit=1)
+assert json.loads(
+    subprocess.check_output([binary, "account", "totp", "status", "--json"])
+)["totpEnabled"] is True
+run([binary, "account", "totp", "disable"],
+    lambda expect, send: confirm_disable(
+        expect, send, totp_prompt, b"y", b"Authenticator protection is disabled."
+    ))

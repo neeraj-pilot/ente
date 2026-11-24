@@ -11,10 +11,10 @@ import "package:photos/models/search/index_of_indexed_stack.dart";
 import "package:photos/models/search/search_result.dart";
 import "package:photos/models/search/search_types.dart";
 import "package:photos/service_locator.dart";
-import "package:photos/services/wrapped/wrapped_service.dart";
 import "package:photos/states/all_sections_examples_state.dart";
 import "package:photos/theme/ente_theme.dart";
 import "package:photos/ui/components/banners/ml_progress_banner.dart";
+import "package:photos/ui/rewind/entry/rewind_search_ticket.dart";
 import "package:photos/ui/rituals/rituals_banner.dart";
 import "package:photos/ui/viewer/search/result/no_result_widget.dart";
 import "package:photos/ui/viewer/search/search_suggestions.dart";
@@ -27,7 +27,6 @@ import "package:photos/ui/viewer/search_tab/magic_section.dart";
 import "package:photos/ui/viewer/search_tab/people_section.dart";
 import "package:photos/ui/viewer/search_tab/search_tab_horizontal_scroll.dart";
 import "package:photos/ui/viewer/search_tab/search_tab_preview_limits.dart";
-import "package:photos/ui/wrapped/wrapped_discovery_section.dart";
 
 class SearchTab extends StatefulWidget {
   const SearchTab({
@@ -271,6 +270,17 @@ class _AllSearchSectionsState extends State<AllSearchSections> {
           final hasSurfacedFaces =
               resultsBySection[SectionType.face]!.isNotEmpty;
           final sectionWidgets = [
+            const RewindSearchTicket(),
+            hasSurfacedFaces
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: searchTabSectionHorizontalPadding,
+                    ),
+                    child: MLProgressBanner(
+                      isOnSearchTab: widget.isOnSearchTab,
+                    ),
+                  ),
             if (hasGrantedMLConsent)
               PeopleSection(
                 examples: examplesFor(SectionType.face),
@@ -288,20 +298,6 @@ class _AllSearchSectionsState extends State<AllSearchSections> {
               _RitualsDiscoverySection(
                 resultLimit: widget.previewLimits.ritualResults,
               ),
-            ValueListenableBuilder<WrappedEntryState>(
-              valueListenable: wrappedService.stateListenable,
-              builder: (BuildContext context, WrappedEntryState state, _) {
-                if (!wrappedService.shouldShowDiscoveryEntry) {
-                  return const SizedBox.shrink();
-                }
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: searchTabSectionHorizontalPadding,
-                  ),
-                  child: WrappedDiscoverySection(state: state),
-                );
-              },
-            ),
             ContactsSectionLoader(
               resultLimit: widget.previewLimits.contactResults,
             ),
@@ -313,23 +309,8 @@ class _AllSearchSectionsState extends State<AllSearchSections> {
                   bottom: bottomPadding,
                 ),
                 physics: const BouncingScrollPhysics(),
-                itemCount: sectionWidgets.length + 1,
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    if (hasSurfacedFaces) {
-                      return const SizedBox.shrink();
-                    }
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: searchTabSectionHorizontalPadding,
-                      ),
-                      child: MLProgressBanner(
-                        isOnSearchTab: widget.isOnSearchTab,
-                      ),
-                    );
-                  }
-                  return sectionWidgets[index - 1];
-                },
+                itemCount: sectionWidgets.length,
+                itemBuilder: (context, index) => sectionWidgets[index],
               )
               .animate(delay: const Duration(milliseconds: 150))
               .slide(

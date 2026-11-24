@@ -1,6 +1,6 @@
 {
     "name": "ente",
-    "version": "1.7.32-beta",
+    "version": "2.0.1-beta",
     "private": true,
     "description": "Desktop client for Ente Photos",
     "repository": "github:ente/photos-desktop",
@@ -33,7 +33,6 @@
         "electron-store": "11.0.2",
         "electron-updater": "6.8.9",
         "lru-cache": "11.5.1",
-        "next-electron-server": "1.0.0",
         "node-stream-zip": "1.15.0",
         "zod": "4.6.6"
     },

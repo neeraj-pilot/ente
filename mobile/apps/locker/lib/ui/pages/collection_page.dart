@@ -1,10 +1,10 @@
 import "dart:async";
 
 import 'package:ente_components/ente_components.dart';
+import "package:ente_components/hugeicons.dart";
 import 'package:ente_events/event_bus.dart';
 import 'package:ente_strings/ente_strings.dart';
 import 'package:flutter/material.dart';
-import "package:hugeicons/hugeicons.dart";
 import 'package:locker/events/collections_updated_event.dart';
 import "package:locker/extensions/collection_extension.dart";
 import 'package:locker/models/selected_files.dart';
@@ -85,15 +85,22 @@ class _CollectionPageState extends UploaderPageState<CollectionPage>
     setState(() {
       _filteredFiles = files;
     });
+    _selectedFiles.retainSelection(files);
   }
 
   @override
   void onSearchStateChanged(bool isActive) {
+    onSearchFilterChanged();
     if (!isActive) {
       setState(() {
         _filteredFiles = _files;
       });
     }
+  }
+
+  @override
+  void onSearchFilterChanged() {
+    if (_selectedFiles.hasSelections) _selectedFiles.clearAll();
   }
 
   @override
@@ -156,8 +163,12 @@ class _CollectionPageState extends UploaderPageState<CollectionPage>
   Future<void> _initializeData(Collection collection) async {
     _collection = collection;
     _files = await CollectionService.instance.getFilesInCollection(_collection);
-    _filteredFiles = _files;
-    setState(() {});
+    if (!mounted) return;
+    if (isSearchActive) {
+      refreshSearch();
+    } else {
+      setState(() => _filteredFiles = _files);
+    }
   }
 
   Future<void> _shareCollection() async {
@@ -192,22 +203,39 @@ class _CollectionPageState extends UploaderPageState<CollectionPage>
       onKeyEvent: handleKeyEvent,
       child: Scaffold(
         backgroundColor: colors.backgroundBase,
+        bottomNavigationBar: isSearchActive
+            ? SafeArea(
+                top: false,
+                child: UnconstrainedBox(
+                  constrainedAxis: Axis.horizontal,
+                  child: FileSelectionOverlayBar(
+                    files: _displayedFiles,
+                    selectedFiles: _selectedFiles,
+                    collectionViewType: collectionViewType,
+                    scrollController: _scrollController,
+                  ),
+                ),
+              )
+            : null,
         body: Stack(
           alignment: Alignment.bottomCenter,
           children: [
             AppBarComponent(
               title: _collection.displayName ?? context.strings.untitled,
-              subtitle: context.strings.items(count: _displayedFiles.length),
+              subtitle: context.strings.itemCount(
+                count: _displayedFiles.length,
+              ),
               actions: _buildActions(),
               controller: _scrollController,
               slivers: _buildSlivers(context),
             ),
-            FileSelectionOverlayBar(
-              files: _displayedFiles,
-              selectedFiles: _selectedFiles,
-              collectionViewType: collectionViewType,
-              scrollController: _scrollController,
-            ),
+            if (!isSearchActive)
+              FileSelectionOverlayBar(
+                files: _displayedFiles,
+                selectedFiles: _selectedFiles,
+                collectionViewType: collectionViewType,
+                scrollController: _scrollController,
+              ),
           ],
         ),
       ),
@@ -230,6 +258,7 @@ class _CollectionPageState extends UploaderPageState<CollectionPage>
     if (canShare) {
       actions.add(
         IconButtonComponent(
+          tooltip: context.strings.shareCollection,
           icon: const HugeIcon(icon: HugeIcons.strokeRoundedShare08),
           variant: IconButtonComponentVariant.primary,
           shouldSurfaceExecutionStates: false,
@@ -255,6 +284,8 @@ class _CollectionPageState extends UploaderPageState<CollectionPage>
             files: _filteredFiles,
             searchQuery: searchQuery,
             isHomePage: false,
+            selectedFiles: _selectedFiles,
+            selectionEnabled: _isSelectionEnabled,
             onSearchEverywhere: _searchEverywhere,
           ),
         ),

@@ -1,0 +1,371 @@
+import "dart:async";
+import "dart:math";
+
+import "package:flutter/material.dart";
+import "package:photos/ui/rewind/shell/rewind_music.dart";
+import "package:photos/ui/rewind/shell/rewind_page.dart";
+import "package:photos/ui/rewind/theme/rewind_colors.dart";
+import "package:photos/ui/rewind/theme/rewind_motion.dart";
+import "package:photos/ui/rewind/widgets/rewind_buttons.dart";
+import "package:photos/ui/rewind/widgets/rewind_stage.dart";
+import "package:photos/ui/rewind/widgets/rewind_wordmark.dart";
+
+class RewindChromeLayout {
+  RewindChromeLayout(this.size, EdgeInsets padding)
+    : bottom = max(12.0, padding.bottom),
+      top = padding.top;
+
+  static const buttonSize = 40.0;
+  static const sideInset = 22.0;
+  static const wordmarkSize = Size(50, 15);
+
+  final Size size;
+  final double bottom;
+  final double top;
+
+  Rect get wordmark => Rect.fromLTWH(
+    (size.width - wordmarkSize.width) / 2,
+    size.height - bottom - buttonSize / 2 - wordmarkSize.height / 2 + 2,
+    wordmarkSize.width,
+    wordmarkSize.height,
+  );
+
+  Rect get nextArrow => Rect.fromCenter(
+    center: Offset(size.width / 2, size.height - bottom - buttonSize / 2),
+    width: buttonSize,
+    height: buttonSize,
+  );
+
+  Offset get rail {
+    final scale = RewindStage.scaleFor(size);
+    return Offset(14 * scale, RewindStage.originFor(size).dy + 186 * scale);
+  }
+}
+
+class RewindChromeOverlay extends StatelessWidget {
+  const RewindChromeOverlay({
+    required this.layout,
+    required this.chrome,
+    required this.page,
+    required this.pageCount,
+    required this.music,
+    required this.onClose,
+    required this.onNext,
+    required this.shareKey,
+    required this.videoKey,
+    this.onShare,
+    this.onShareVideo,
+    super.key,
+  });
+
+  final RewindChromeLayout layout;
+  final RewindChrome chrome;
+  final int page;
+  final int pageCount;
+  final RewindMusic music;
+  final VoidCallback onClose;
+  final VoidCallback onNext;
+  final GlobalKey shareKey;
+  final GlobalKey videoKey;
+  final VoidCallback? onShare;
+  final VoidCallback? onShareVideo;
+
+  @override
+  Widget build(BuildContext context) {
+    final wordmark = chrome.wordmark;
+    return Stack(
+      children: [
+        Positioned(
+          top: layout.top + 5,
+          right: RewindChromeLayout.sideInset,
+          child: RewindRoundButton(
+            glyph: RewindGlyph.close,
+            label: "Close",
+            size: 36,
+            ring: false,
+            onTap: onClose,
+          ),
+        ),
+        Positioned(
+          right: layout.rail.dx,
+          top: layout.rail.dy,
+          child: _PeekingRail(
+            index: page,
+            child: RewindProgressRail(
+              index: page,
+              count: pageCount,
+              color: chrome.foreground,
+            ),
+          ),
+        ),
+        if (chrome.muteButton)
+          Positioned(
+            left: RewindChromeLayout.sideInset,
+            bottom: layout.bottom,
+            child: ListenableBuilder(
+              listenable: music,
+              builder: (context, _) => RewindRoundButton(
+                glyph: music.muted ? RewindGlyph.muted : RewindGlyph.sound,
+                label: music.muted ? "Play music" : "Mute music",
+                onTap: music.toggleMuted,
+              ),
+            ),
+          ),
+        Positioned.fromRect(
+          rect: layout.wordmark,
+          child: IgnorePointer(
+            child: AnimatedOpacity(
+              opacity: wordmark == null ? 0 : 1,
+              duration: const Duration(milliseconds: 300),
+              child: TweenAnimationBuilder<Color?>(
+                tween: ColorTween(end: wordmark ?? RewindColors.white),
+                duration: const Duration(milliseconds: 300),
+                builder: (context, color, _) => RewindWordmark(
+                  color: color ?? RewindColors.white,
+                  width: RewindChromeLayout.wordmarkSize.width,
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned.fromRect(
+          rect: layout.nextArrow,
+          child: _NextArrow(visible: chrome.nextArrow, onTap: onNext),
+        ),
+        Positioned(
+          right: RewindChromeLayout.sideInset,
+          bottom: layout.bottom,
+          child: _PopButton(
+            buttonKey: shareKey,
+            glyph: RewindGlyph.share,
+            label: "Share",
+            onTap: onShare,
+          ),
+        ),
+        Positioned(
+          right: RewindChromeLayout.sideInset,
+          bottom: layout.bottom + RewindChromeLayout.buttonSize + 12,
+          child: ExcludeSemantics(
+            excluding: onShareVideo == null,
+            child: _PopButton(
+              buttonKey: videoKey,
+              glyph: RewindGlyph.video,
+              label: "Share video",
+              onTap: onShareVideo,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PopButton extends StatelessWidget {
+  const _PopButton({
+    required this.buttonKey,
+    required this.glyph,
+    required this.label,
+    required this.onTap,
+  });
+
+  final GlobalKey buttonKey;
+  final RewindGlyph glyph;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final onTap = this.onTap;
+    return IgnorePointer(
+      ignoring: onTap == null,
+      child: AnimatedScale(
+        scale: onTap == null ? 0.4 : 1,
+        duration: onTap == null
+            ? const Duration(milliseconds: 200)
+            : RewindMotion.pop.duration,
+        curve: onTap == null ? Curves.easeIn : RewindMotion.pop,
+        child: AnimatedOpacity(
+          opacity: onTap == null ? 0 : 1,
+          duration: const Duration(milliseconds: 200),
+          child: RewindRoundButton(
+            key: buttonKey,
+            glyph: glyph,
+            label: label,
+            onTap: onTap ?? () {},
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NextArrow extends StatefulWidget {
+  const _NextArrow({required this.visible, required this.onTap});
+
+  final bool visible;
+  final VoidCallback onTap;
+
+  @override
+  State<_NextArrow> createState() => _NextArrowState();
+}
+
+class _NextArrowState extends State<_NextArrow>
+    with SingleTickerProviderStateMixin {
+  static const _hopShare = 0.4;
+  static const _hopDepth = 5.0;
+
+  late final _bob = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncBob();
+  }
+
+  @override
+  void didUpdateWidget(_NextArrow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncBob();
+  }
+
+  void _syncBob() {
+    final bobbing = widget.visible && !MediaQuery.disableAnimationsOf(context);
+    if (!bobbing) {
+      _bob.stop();
+    } else if (!_bob.isAnimating) {
+      unawaited(_bob.repeat());
+    }
+  }
+
+  double get _drop {
+    final t = _bob.value;
+    return t < _hopShare ? _hopDepth * sin(pi * t / _hopShare) : 0;
+  }
+
+  @override
+  void dispose() {
+    _bob.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      ignoring: !widget.visible,
+      child: AnimatedOpacity(
+        opacity: widget.visible ? 1 : 0,
+        duration: const Duration(milliseconds: 300),
+        child: AnimatedBuilder(
+          animation: _bob,
+          builder: (context, child) =>
+              Transform.translate(offset: Offset(0, _drop), child: child),
+          child: RewindRoundButton(
+            glyph: RewindGlyph.next,
+            label: "Next card",
+            onTap: widget.onTap,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RewindProgressRail extends StatelessWidget {
+  const RewindProgressRail({
+    required this.index,
+    required this.count,
+    required this.color,
+    super.key,
+  });
+
+  final int index;
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: "Page ${index + 1} of $count",
+      child: ExcludeSemantics(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < count; i++)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 500),
+                curve: RewindMotion.railBounce,
+                width: 4,
+                height: i == index ? 18 : 4,
+                margin: const EdgeInsets.only(bottom: 5),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: i == index ? 1 : 0.45),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PeekingRail extends StatefulWidget {
+  const _PeekingRail({required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<_PeekingRail> createState() => _PeekingRailState();
+}
+
+class _PeekingRailState extends State<_PeekingRail> {
+  static const _shownFor = Duration(milliseconds: 1600);
+
+  Timer? _hide;
+  var _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _peek();
+  }
+
+  @override
+  void didUpdateWidget(_PeekingRail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index != widget.index) _peek();
+  }
+
+  void _peek() {
+    _hide?.cancel();
+    _visible = widget.index > 0;
+    if (_visible) {
+      _hide = Timer(_shownFor, () {
+        if (mounted) setState(() => _visible = false);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _hide?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedOpacity(
+        opacity: _visible ? 1 : 0,
+        duration: Duration(milliseconds: _visible ? 200 : 600),
+        curve: Curves.easeOut,
+        alwaysIncludeSemantics: true,
+        child: widget.child,
+      ),
+    );
+  }
+}

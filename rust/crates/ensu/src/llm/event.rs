@@ -34,10 +34,17 @@ pub struct GenerationSummary {
     pub total_time_ms: Option<i64>,
     #[serde(default)]
     pub finish_reason: FinishReason,
+    #[serde(default)]
+    pub tools: Option<super::ToolOutcome>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GenerationEvent {
+    PromptProgress {
+        job_id: JobId,
+        processed_tokens: i32,
+        total_tokens: i32,
+    },
     Text {
         job_id: JobId,
         text: String,

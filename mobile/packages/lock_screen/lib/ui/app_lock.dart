@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import "package:ente_lock_screen/lock_screen_settings.dart";
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 @visibleForTesting
@@ -54,6 +55,7 @@ class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
 
   late bool _didUnlockForAppLaunch;
   late bool _isLocked;
+  bool _isInactive = false;
   late bool _enabled;
   late ThemeMode _themeMode;
   int? _backgroundedAt;
@@ -83,6 +85,12 @@ class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      setState(() {
+        this._isInactive = state != AppLifecycleState.resumed;
+      });
+    }
+
     if (!this._enabled) {
       return;
     }
@@ -172,7 +180,7 @@ class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
       fit: StackFit.expand,
       children: [
         this.widget.builder(args),
-        if (this._isLocked)
+        if (this._isLocked || (this._enabled && this._isInactive))
           Positioned.fill(
             key: appLockContentObscurerKey,
             child: AbsorbPointer(

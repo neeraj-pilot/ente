@@ -15,6 +15,14 @@ static ICC_PROFILE_CACHE: OnceLock<Mutex<VecDeque<CachedIccProfile>>> = OnceLock
 
 const ICC_PROFILE_CACHE_CAPACITY: usize = 8;
 const MAX_CACHEABLE_ICC_PROFILE_BYTES: usize = 4 * 1024 * 1024;
+const ICC_TAG_TABLE_OFFSET: usize = 128;
+const ICC_TAG_ENTRY_BYTES: usize = 12;
+const LOCALIZED_TEXT_RECORDS_OFFSET: usize = 16;
+const LOCALIZED_TEXT_RECORD_BYTES: usize = 12;
+const MAX_PROFILE_STRINGS: usize = 4096;
+const MAX_PROFILE_TEXT_BYTES: usize = 1024 * 1024;
+const MAX_PROFILE_TAGS: usize = 256;
+const MAX_LOOKUP_TABLE_CHANNELS: u8 = 4;
 
 type U8Transform = Arc<dyn InPlaceTransformExecutor<u8> + Send + Sync>;
 type TransformCache<T> = Vec<(Layout, Result<Arc<T>, String>)>;
@@ -54,9 +62,29 @@ impl<'a> IccConverter<'a> {
         ) {
             Ok(image) => image,
             Err((image, err)) => {
-                eprintln!("[ml][decode] failed to convert embedded ICC profile to sRGB: {err}");
+                log::warn!("failed to convert embedded ICC profile to sRGB: {err}");
                 self.source_profile = None;
                 image
+            }
+        }
+    }
+
+    pub(crate) fn apply_to_rgb8(&mut self, rgb: &mut [u8]) {
+        let Some(source_profile) = &self.source_profile else {
+            return;
+        };
+        match u8::transform_to_srgb(
+            rgb,
+            source_profile,
+            self.encoded_profile,
+            &mut self.transforms,
+            Layout::Rgb,
+        ) {
+            Ok(Some(transformed)) => rgb.copy_from_slice(&transformed),
+            Ok(None) => {}
+            Err(err) => {
+                log::warn!("failed to convert embedded ICC profile to sRGB: {err}");
+                self.source_profile = None;
             }
         }
     }
@@ -81,7 +109,7 @@ fn conversion_profile(icc_profile: Option<&[u8]>) -> Option<Arc<ColorProfile>> {
     let source_profile = match cached_color_profile(icc_profile) {
         Ok(profile) => profile,
         Err(err) => {
-            eprintln!("[ml][decode] failed to parse embedded ICC profile: {err}");
+            log::warn!("failed to parse embedded ICC profile: {err}");
             return None;
         }
     };
@@ -91,8 +119,8 @@ fn conversion_profile(icc_profile: Option<&[u8]>) -> Option<Arc<ColorProfile>> {
     }
 
     if profile_uses_hdr_transfer(&source_profile) {
-        eprintln!(
-            "[ml][decode] embedded ICC profile uses PQ/HLG transfer; skipping ICC transform because tone mapping is not implemented"
+        log::warn!(
+            "embedded ICC profile uses PQ/HLG transfer; skipping ICC transform because tone mapping is not implemented"
         );
         return None;
     }
@@ -336,6 +364,12 @@ fn prepared_transform<T: ?Sized>(
 }
 
 fn cached_color_profile(encoded: &[u8]) -> Result<Arc<ColorProfile>, String> {
+    if !profile_tags_fit(encoded) {
+        return Err("profile tags exceed the supported layout".into());
+    }
+    if !profile_text_fits(encoded) {
+        return Err("profile text exceeds the supported size".into());
+    }
     if !profile_is_cacheable(encoded) {
         return ColorProfile::new_from_slice(encoded)
             .map(Arc::new)
@@ -455,6 +489,84 @@ fn profile_has_device_to_pcs_lut(profile: &ColorProfile) -> bool {
     profile.lut_a_to_b_perceptual.is_some()
         || profile.lut_a_to_b_colorimetric.is_some()
         || profile.lut_a_to_b_saturation.is_some()
+}
+
+fn profile_tags_fit(profile: &[u8]) -> bool {
+    let entries = tag_entries(profile);
+    entries.len() <= MAX_PROFILE_TAGS
+        && entries.iter().enumerate().all(|(index, entry)| {
+            entries[..index]
+                .iter()
+                .all(|earlier| earlier[..4] != entry[..4])
+                && tag_data(profile, entry).is_none_or(lookup_table_channels_fit)
+        })
+}
+
+fn lookup_table_channels_fit(tag: &[u8]) -> bool {
+    if !(tag.starts_with(b"mAB ") || tag.starts_with(b"mBA ")) {
+        return true;
+    }
+    tag.get(8..10).is_some_and(|channels| {
+        channels
+            .iter()
+            .all(|&count| count <= MAX_LOOKUP_TABLE_CHANNELS)
+    })
+}
+
+fn profile_text_fits(profile: &[u8]) -> bool {
+    let mut strings = 0;
+    let mut bytes = 0usize;
+    for tag in tag_entries(profile)
+        .iter()
+        .filter_map(|entry| tag_data(profile, entry))
+    {
+        for length in string_lengths(tag) {
+            strings += 1;
+            bytes = bytes.saturating_add(length);
+            if strings > MAX_PROFILE_STRINGS || bytes > MAX_PROFILE_TEXT_BYTES {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+fn string_lengths(tag: &[u8]) -> impl Iterator<Item = usize> + '_ {
+    let plain = (tag.starts_with(b"text") || tag.starts_with(b"desc")).then_some(tag.len());
+    let localized = if tag.starts_with(b"mluc") {
+        be_u32(tag, 8).unwrap_or(0).max(1)
+    } else {
+        0
+    };
+    let records = tag
+        .get(LOCALIZED_TEXT_RECORDS_OFFSET..)
+        .unwrap_or_default()
+        .as_chunks::<LOCALIZED_TEXT_RECORD_BYTES>()
+        .0
+        .iter()
+        .take(localized)
+        .map(|record| be_u32(record, 4).unwrap_or(0));
+    plain.into_iter().chain(records)
+}
+
+fn tag_entries(profile: &[u8]) -> &[[u8; ICC_TAG_ENTRY_BYTES]] {
+    let entries = profile
+        .get(ICC_TAG_TABLE_OFFSET + 4..)
+        .unwrap_or_default()
+        .as_chunks::<ICC_TAG_ENTRY_BYTES>()
+        .0;
+    let count = be_u32(profile, ICC_TAG_TABLE_OFFSET).unwrap_or(0);
+    &entries[..count.min(entries.len())]
+}
+
+fn tag_data<'a>(profile: &'a [u8], entry: &[u8; ICC_TAG_ENTRY_BYTES]) -> Option<&'a [u8]> {
+    let (offset, size) = (be_u32(entry, 4)?, be_u32(entry, 8)?);
+    profile.get(offset..offset.saturating_add(size))
+}
+
+fn be_u32(bytes: &[u8], offset: usize) -> Option<usize> {
+    let value = bytes.get(offset..offset.checked_add(4)?)?;
+    usize::try_from(u32::from_be_bytes(value.try_into().ok()?)).ok()
 }
 
 fn profile_is_cacheable(encoded: &[u8]) -> bool {
@@ -618,7 +730,7 @@ fn tone_curve_matches_reference(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use image::{DynamicImage, ImageBuffer};
     use moxcms::{
         ColorProfile, Layout, LutMultidimensionalType, LutWarehouse, Matrix3d, ToneReprCurve,
@@ -626,6 +738,198 @@ mod tests {
     };
 
     use super::{IccConverter, apply_icc_profile_to_srgb, profile_is_effectively_srgb};
+    use crate::memory_budget::MemoryBudget;
+
+    pub(crate) fn profile_with_tag(signatures: &[[u8; 4]], data: &[u8]) -> Vec<u8> {
+        let base = ColorProfile::new_display_p3().encode().unwrap();
+        let tag_count = u32::from_be_bytes(base[128..132].try_into().unwrap()) as usize;
+        let table_end = 132 + 12 * tag_count;
+        let existing = base[132..table_end].as_chunks::<12>().0;
+        let mut appended = signatures.to_vec();
+        for entry in existing {
+            if let Some(index) = appended
+                .iter()
+                .position(|signature| signature[..] == entry[..4])
+            {
+                appended.remove(index);
+            }
+        }
+        let shift = 12 * appended.len();
+        let data_offset = u32::try_from((base.len() + shift).next_multiple_of(4)).unwrap();
+        let reference = [data_offset, u32::try_from(data.len()).unwrap()].map(u32::to_be_bytes);
+        let mut profile = base[..128].to_vec();
+        profile.extend_from_slice(
+            &u32::try_from(tag_count + appended.len())
+                .unwrap()
+                .to_be_bytes(),
+        );
+        for entry in existing {
+            profile.extend_from_slice(&entry[..4]);
+            if signatures
+                .iter()
+                .any(|signature| signature[..] == entry[..4])
+            {
+                profile.extend_from_slice(reference.as_flattened());
+            } else {
+                let offset = u32::from_be_bytes(entry[4..8].try_into().unwrap()) as usize + shift;
+                profile.extend_from_slice(&u32::try_from(offset).unwrap().to_be_bytes());
+                profile.extend_from_slice(&entry[8..]);
+            }
+        }
+        for signature in &appended {
+            profile.extend_from_slice(signature);
+            profile.extend_from_slice(reference.as_flattened());
+        }
+        profile.extend_from_slice(&base[table_end..]);
+        profile.resize(data_offset as usize, 0);
+        profile.extend_from_slice(data);
+        let size = u32::try_from(profile.len()).unwrap();
+        profile[0..4].copy_from_slice(&size.to_be_bytes());
+        profile
+    }
+
+    pub(crate) fn localized_text(records: u32, text_bytes: u32) -> Vec<u8> {
+        let mut tag = b"mluc\0\0\0\0".to_vec();
+        tag.extend_from_slice(&records.to_be_bytes());
+        tag.extend_from_slice(&12u32.to_be_bytes());
+        let text_offset = 16 + 12 * records;
+        for _ in 0..records {
+            tag.extend_from_slice(b"enUS");
+            tag.extend_from_slice(&text_bytes.to_be_bytes());
+            tag.extend_from_slice(&text_offset.to_be_bytes());
+        }
+        for index in 0..text_bytes / 2 {
+            tag.extend_from_slice(&[0, b'a' + (index % 26) as u8]);
+        }
+        tag
+    }
+
+    fn plain_text(bytes: usize) -> Vec<u8> {
+        let mut tag = b"text\0\0\0\0".to_vec();
+        tag.resize(8 + bytes, b'a');
+        tag
+    }
+
+    fn description(bytes: u32) -> Vec<u8> {
+        let mut tag = b"desc\0\0\0\0".to_vec();
+        tag.extend_from_slice(&bytes.to_be_bytes());
+        tag.resize(tag.len() + bytes as usize, b'a');
+        tag.extend_from_slice(&[0; 8]);
+        tag
+    }
+
+    #[test]
+    fn profile_text_limits_apply_before_parsing() {
+        let fields = [*b"desc", *b"cprt", *b"dmnd", *b"dmdd", *b"vued", *b"targ"];
+        let mut zero_count = localized_text(1, 1 << 19);
+        zero_count[8..12].fill(0);
+        let fitting = [
+            profile_with_tag(&[*b"desc"], &localized_text(15, 65_536)),
+            profile_with_tag(&[*b"desc"], &localized_text(4000, 2)),
+            profile_with_tag(&fields, &plain_text(65_536)),
+            profile_with_tag(&fields, &description(65_536)),
+            profile_with_tag(&[*b"desc"], &zero_count),
+        ];
+        for (index, profile) in fitting.iter().enumerate() {
+            assert!(
+                IccConverter::new(Some(profile)).source_profile.is_some(),
+                "fitting profile {index}"
+            );
+        }
+        let excessive = [
+            profile_with_tag(&[*b"desc"], &localized_text(17, 65_536)),
+            profile_with_tag(&[*b"desc"], &localized_text(4097, 2)),
+            profile_with_tag(&[*b"desc"], &localized_text(4096, 65_536)),
+            profile_with_tag(&fields, &plain_text(1 << 20)),
+            profile_with_tag(&fields, &description(1 << 20)),
+            profile_with_tag(&[*b"desc", *b"cprt", *b"dmnd"], &zero_count),
+            profile_with_tag(&vec![*b"cprt"; 20_000], &plain_text(65_536)),
+        ];
+        for (index, profile) in excessive.iter().enumerate() {
+            let budget = MemoryBudget::new(4 * 1024 * 1024);
+            let converter = budget.enter(|| IccConverter::new(Some(profile)));
+            assert!(!budget.is_exceeded(), "excessive profile {index}");
+            assert!(
+                converter.source_profile.is_none(),
+                "excessive profile {index}"
+            );
+        }
+    }
+
+    pub(crate) fn lookup_table(output_channels: u8, samples: u32) -> Vec<u8> {
+        let mut tag = b"mAB \0\0\0\0".to_vec();
+        tag.extend_from_slice(&[3, output_channels, 0, 0]);
+        for offset in [32u32, 0, 32, 0, 32] {
+            tag.extend_from_slice(&offset.to_be_bytes());
+        }
+        for _ in 0..output_channels {
+            tag.extend_from_slice(&curve(samples));
+        }
+        tag
+    }
+
+    pub(crate) fn lookup_table_with_inputs(input_channels: u8, samples: u32) -> Vec<u8> {
+        let mut tag = lookup_table(input_channels, samples);
+        tag[..4].copy_from_slice(b"mBA ");
+        tag.swap(8, 9);
+        tag
+    }
+
+    fn curve(samples: u32) -> Vec<u8> {
+        let mut tag = b"curv\0\0\0\0".to_vec();
+        tag.extend_from_slice(&samples.to_be_bytes());
+        for sample in 0..samples {
+            tag.extend_from_slice(&((sample * 65_535 / (samples - 1)) as u16).to_be_bytes());
+        }
+        tag
+    }
+
+    fn private_signatures(count: usize) -> Vec<[u8; 4]> {
+        (0..count)
+            .map(|index| {
+                let mut signature = *b"p000";
+                signature[1..].copy_from_slice(format!("{index:03}").as_bytes());
+                signature
+            })
+            .collect()
+    }
+
+    #[test]
+    fn tag_layout_limits_apply_before_parsing() {
+        let lookup_tables = [
+            *b"A2B0", *b"A2B1", *b"A2B2", *b"B2A0", *b"B2A1", *b"B2A2", *b"gamt",
+        ];
+        let mut device_lookup_table = lookup_table(5, 4_000);
+        device_lookup_table[..4].copy_from_slice(b"mBA ");
+        let fitting = [
+            profile_with_tag(&lookup_tables, &lookup_table(4, 4_000)),
+            profile_with_tag(&private_signatures(200), b""),
+        ];
+        for (index, profile) in fitting.iter().enumerate() {
+            assert!(
+                IccConverter::new(Some(profile)).source_profile.is_some(),
+                "fitting profile {index}"
+            );
+        }
+        let excessive = [
+            profile_with_tag(&[*b"A2B0"], &lookup_table(96, 40_000)),
+            profile_with_tag(&lookup_tables, &lookup_table(96, 4_000)),
+            profile_with_tag(&[*b"B2A0"], &device_lookup_table),
+            profile_with_tag(&lookup_tables, &lookup_table_with_inputs(96, 4_000)),
+            profile_with_tag(&[*b"rTRC", *b"rTRC"], &curve(40_000)),
+            profile_with_tag(&vec![*b"rTRC"; 1_000], &curve(40_000)),
+            profile_with_tag(&private_signatures(300), b""),
+        ];
+        for (index, profile) in excessive.iter().enumerate() {
+            let budget = MemoryBudget::new(4 * 1024 * 1024);
+            let converter = budget.enter(|| IccConverter::new(Some(profile)));
+            assert!(!budget.is_exceeded(), "excessive profile {index}");
+            assert!(
+                converter.source_profile.is_none(),
+                "excessive profile {index}"
+            );
+        }
+    }
 
     fn identity_a_to_b_lut() -> LutWarehouse {
         let identity_curve = || ToneReprCurve::Lut(vec![0, u16::MAX]);

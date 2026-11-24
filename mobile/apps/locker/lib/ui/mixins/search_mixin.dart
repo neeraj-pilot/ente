@@ -1,28 +1,15 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:locker/extensions/collection_extension.dart';
-import 'package:locker/services/collections/collections_service.dart';
 import 'package:locker/services/collections/models/collection.dart';
 import 'package:locker/services/files/sync/models/file.dart';
 
-class CollectionSearchResult {
-  final bool matches;
-  final bool nameMatches;
-  final List<EnteFile> files;
-
-  CollectionSearchResult({
-    required this.matches,
-    required this.nameMatches,
-    required this.files,
-  });
-}
+enum SearchScope { all, items, collections }
 
 mixin SearchMixin<T extends StatefulWidget> on State<T> {
   String _searchQuery = '';
   bool _isSearchActive = false;
-  Timer? _searchDebounceTimer;
+  SearchScope _searchScope = SearchScope.all;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
@@ -36,11 +23,12 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
 
   void onSearchStateChanged(bool isActive) {}
 
+  void onSearchFilterChanged() {}
+
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
-    _searchDebounceTimer?.cancel();
     super.dispose();
   }
 
@@ -58,10 +46,11 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
     setState(() {
       _isSearchActive = false;
       _searchQuery = '';
+      _searchScope = SearchScope.all;
     });
     _searchController.clear();
     onSearchStateChanged(false);
-    unawaited(_performSearch(''));
+    _performSearch('');
   }
 
   void _clearSearch() {
@@ -70,136 +59,61 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
   }
 
   void _onSearchChanged(String query) {
-    _searchDebounceTimer?.cancel();
-
-    if (query.isEmpty && _searchQuery.isNotEmpty) {
-      setState(() {
-        _searchQuery = query;
-      });
-      unawaited(_performSearch(query));
-      return;
-    }
-
-    _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        setState(() {
-          _searchQuery = query;
-        });
-        unawaited(_performSearch(query));
-      }
+    if (!mounted) return;
+    if (query != _searchQuery) onSearchFilterChanged();
+    setState(() {
+      _searchQuery = query;
     });
+    _performSearch(query);
   }
 
-  Future<void> _performSearch(String query) async {
+  void _performSearch(String query) {
     if (!mounted) return;
 
     try {
-      final normalizedQuery = query.trim();
-      if (normalizedQuery.isEmpty) {
-        if (mounted) {
-          onSearchResultsChanged(allCollections, allFiles);
-        }
-        return;
-      }
-
-      final List<Collection> filteredCollections = [];
-      final List<EnteFile> collectionFiles = [];
-      final Set<String> addedFileIds = {};
-
-      for (final collection in allCollections) {
-        if (!mounted) return;
-        final searchResult = await _searchInCollection(
-          collection,
-          normalizedQuery,
-        );
-        if (searchResult.matches) {
-          filteredCollections.add(collection);
-          if (searchResult.nameMatches) {
-            collectionFiles.addAll(
-              searchResult.files.where(
-                (file) => addedFileIds.add(file.uploadedFileID.toString()),
-              ),
-            );
-          }
-        }
-      }
-
-      final filteredFiles = allFiles.where((file) {
-        if (addedFileIds.contains(file.uploadedFileID.toString())) {
-          return false;
-        }
-        return _searchInFile(file, normalizedQuery);
-      }).toList();
-
-      final List<EnteFile> allFilteredFiles = [
-        ...collectionFiles,
-        ...filteredFiles,
-      ];
-
-      if (mounted) {
-        onSearchResultsChanged(filteredCollections, allFilteredFiles);
-      }
+      final normalizedQuery = query.trim().toLowerCase();
+      final collections = _searchScope == SearchScope.items
+          ? <Collection>[]
+          : normalizedQuery.isEmpty
+          ? allCollections
+          : allCollections
+                .where(
+                  (collection) => _containsQuery(
+                    collection.displayName ?? '',
+                    normalizedQuery,
+                  ),
+                )
+                .toList();
+      final files = _searchScope == SearchScope.collections
+          ? <EnteFile>[]
+          : normalizedQuery.isEmpty
+          ? allFiles
+          : allFiles
+                .where((file) => _searchInFile(file, normalizedQuery))
+                .toList();
+      onSearchResultsChanged(collections, files);
     } catch (e) {
       debugPrint('Search error: $e');
       if (mounted) {
-        onSearchResultsChanged(allCollections, allFiles);
+        onSearchResultsChanged(const [], const []);
       }
-    }
-  }
-
-  Future<CollectionSearchResult> _searchInCollection(
-    Collection collection,
-    String query,
-  ) async {
-    try {
-      final files = await CollectionService.instance.getFilesInCollection(
-        collection,
-      );
-      final collectionNameMatches = _containsQuery(
-        collection.displayName ?? '',
-        query,
-      );
-      final fileMatches = files.any((file) => _searchInFile(file, query));
-
-      return CollectionSearchResult(
-        matches: collectionNameMatches || fileMatches,
-        nameMatches: collectionNameMatches,
-        files: collectionNameMatches ? files : [],
-      );
-    } catch (e) {
-      debugPrint('Error searching in collection (ID: ${collection.id}): $e');
-      final collectionNameMatches = _containsQuery(
-        collection.displayName ?? '',
-        query,
-      );
-      return CollectionSearchResult(
-        matches: collectionNameMatches,
-        nameMatches: collectionNameMatches,
-        files: [],
-      );
     }
   }
 
   bool _searchInFile(EnteFile file, String query) {
-    return _containsQuery(file.displayName, query) ||
-        _containsQuery(file.title ?? '', query) ||
-        _containsQuery(file.caption ?? '', query) ||
-        _containsQuery(file.pubMagicMetadata.editedName ?? '', query) ||
-        _containsQuery(file.pubMagicMetadata.uploaderName ?? '', query);
-  }
-
-  bool _containsQuery(String text, String query) {
-    if (text.isEmpty) return false;
-    final lowerText = text.toLowerCase();
-    final lowerQuery = query.trim().toLowerCase();
-    if (lowerQuery.isEmpty) return false;
-
-    if (lowerText.contains(lowerQuery)) {
-      return true;
+    try {
+      return _containsQuery(file.displayName, query) ||
+          _containsQuery(file.title ?? '', query) ||
+          _containsQuery(file.caption ?? '', query) ||
+          _containsQuery(file.pubMagicMetadata.editedName ?? '', query) ||
+          _containsQuery(file.pubMagicMetadata.uploaderName ?? '', query);
+    } catch (_) {
+      return false;
     }
-    final words = lowerText.split(RegExp(r'[\s\-_\.]+'));
-    return words.any((word) => word.startsWith(lowerQuery));
   }
+
+  bool _containsQuery(String text, String query) =>
+      text.toLowerCase().contains(query);
 
   bool handleKeyEvent(KeyEvent event) {
     if (event is KeyDownEvent) {
@@ -226,19 +140,30 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
 
   String get searchQuery => _searchQuery;
   bool get isSearchActive => _isSearchActive;
+  SearchScope get searchScope => _searchScope;
   TextEditingController get searchController => _searchController;
   FocusNode get searchFocusNode => _searchFocusNode;
 
   void updateSearchQuery(String query) => _onSearchChanged(query);
 
+  void refreshSearch() => _performSearch(_searchQuery);
+
+  void updateSearchScope(SearchScope scope) {
+    if (scope == _searchScope) return;
+    onSearchFilterChanged();
+    _searchScope = scope;
+    refreshSearch();
+  }
+
   void activateSearchWithQuery(String query) {
+    if (query != _searchQuery) onSearchFilterChanged();
     setState(() {
       _isSearchActive = true;
       _searchQuery = query;
     });
     _searchController.text = query;
     onSearchStateChanged(true);
-    unawaited(_performSearch(query));
+    _performSearch(query);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _searchFocusNode.requestFocus();

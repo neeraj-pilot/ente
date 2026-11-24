@@ -11,6 +11,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -92,7 +93,6 @@ import (
 	"github.com/robfig/cron/v3"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -293,8 +293,11 @@ func main() {
 		objectRepo,
 		s3Config,
 	)
+	objectCopiesCleanupController := controller.NewObjectCopiesCleanupController(objectCopiesRepo)
 
 	usageController := &controller.UsageController{
+		UploadNotifier:    discordController,
+		UploadURLRepo:     &repo.UploadURLRepository{DB: db},
 		BillingCtrl:       billingController,
 		StorageBonusCtrl:  storageBonusCtrl,
 		UserCacheCtrl:     userCacheCtrl,
@@ -312,12 +315,14 @@ func main() {
 		Repo:           commentsRepo,
 		CollectionRepo: collectionRepo,
 		AccessCtrl:     accessCtrl,
+		PushCtrl:       pushController,
 	}
 	reactionsController := &socialcontroller.ReactionsController{
 		Repo:           reactionsRepo,
 		CommentsRepo:   commentsRepo,
 		CollectionRepo: collectionRepo,
 		AccessCtrl:     accessCtrl,
+		PushCtrl:       pushController,
 	}
 	socialController := &socialcontroller.Controller{
 		CommentsRepo:   commentsRepo,
@@ -326,7 +331,7 @@ func main() {
 		AccessCtrl:     accessCtrl,
 		AnonUsersRepo:  anonUsersRepo,
 	}
-	fileDataCtrl := filedata.New(fileDataRepo, accessCtrl, objectCleanupController, s3Config, fileRepo, collectionRepo, discordController)
+	fileDataCtrl := filedata.New(fileDataRepo, accessCtrl, objectCleanupController, s3Config, fileRepo, collectionRepo, discordController, usageController)
 
 	fileController := &controller.FileController{
 		FileRepo:              fileRepo,
@@ -527,9 +532,7 @@ func main() {
 		server.TrustedPlatform = clientIPHeader
 	}
 
-	p := ginprometheus.NewPrometheus("museum")
-	p.ReqCntURLLabelMappingFn = urlSanitizer
-	server.Use(p.HandlerFunc())
+	server.Use(middleware.RequestMetrics(urlSanitizer))
 
 	server.LoadHTMLGlob("web-templates/*")
 	// note: the recover middleware must be in the last
@@ -553,7 +556,11 @@ func main() {
 	storageAPI.Use(middleware.RejectAuthApp())
 
 	adminAPI := server.Group("/admin")
-	adminAPI.Use(authMiddleware.TokenAuthMiddleware(nil), authMiddleware.AdminAuthMiddleware())
+	adminAPI.Use(
+		authMiddleware.TokenAuthMiddleware(nil),
+		authMiddleware.AdminAuthMiddleware(),
+		rateLimiter.AdminRateLimitMiddleware(urlSanitizer),
+	)
 	paymentJwtAuthAPI := server.Group("/")
 	paymentJwtAuthAPI.Use(authMiddleware.TokenAuthMiddleware(jwt.PAYMENT.Ptr()))
 
@@ -708,6 +715,7 @@ func main() {
 	privateAPI.POST("/users/two-factor/disable", userHandler.DisableTwoFactor)
 	privateAPI.PUT("/users/attributes", userHandler.SetAttributes)
 	privateAPI.PUT("/users/email-mfa", userHandler.UpdateEmailMFA)
+	privateAPI.PUT("/users/source", userHandler.SetSource)
 	privateAPI.POST("/users/srp/setup", userHandler.SetupSRP)
 	privateAPI.POST("/users/srp/complete", userHandler.CompleteSRPSetup)
 	privateAPI.POST("/users/srp/update", userHandler.UpdateSrpAndKeyAttributes)
@@ -962,7 +970,6 @@ func main() {
 	privateAPI.POST("/storage-bonus/referral-claim", storageBonusHandler.ClaimReferral)
 
 	adminHandler := &api.AdminHandler{
-		QueueRepo:              queueRepo,
 		UserRepo:               userRepo,
 		CollectionRepo:         collectionRepo,
 		AuthenticatorRepo:      authRepo,
@@ -989,6 +996,8 @@ func main() {
 	adminAPI.GET("/users", adminHandler.GetUsers)
 	adminAPI.GET("/user", adminHandler.GetUser)
 	adminAPI.GET("/user/scheduled-deletions", adminHandler.GetScheduledDeletions)
+	adminAPI.POST("/user/suspend", adminHandler.SuspendUser)
+	adminAPI.POST("/user/unsuspend", adminHandler.UnsuspendUser)
 	adminAPI.POST("/user/disable-2fa", adminHandler.DisableTwoFactor)
 	adminAPI.POST("/user/update-referral", adminHandler.UpdateReferral)
 	adminAPI.POST("/user/disable-passkeys", adminHandler.RemovePasskeys)
@@ -1004,7 +1013,6 @@ func main() {
 	adminAPI.GET("/email-hash", adminHandler.GetEmailHash)
 	adminAPI.POST("/emails-from-hashes", adminHandler.GetEmailsFromHashes)
 	adminAPI.PUT("/user/subscription", adminHandler.UpdateSubscription)
-	adminAPI.POST("/queue/re-queue", adminHandler.ReQueueItem)
 	adminAPI.POST("/collection/repair-deleted-share", adminHandler.RepairDeletedCollectionShare)
 	adminAPI.POST("/user/init-file-counts", adminHandler.InitializeFileCounts)
 	adminAPI.POST("/user/bonus", adminHandler.UpdateBonus)
@@ -1041,7 +1049,7 @@ func main() {
 	spaceapi.RegisterTokenSessionRoutes(privateAPI, spaceHandlers)
 	spaceapi.Register(spacePrivateAPI, publicAPI, spaceHandlers)
 
-	contactController := contactCtrl.New(contactRepository, objectCleanupController, s3Config)
+	contactController := contactCtrl.New(contactRepository, objectCleanupController, s3Config, usageController)
 	contactHandler := &api.ContactHandler{Controller: contactController}
 
 	storageAPI.POST("/contacts", contactHandler.Create)
@@ -1106,7 +1114,7 @@ func main() {
 	publicAPI.POST("/discount/claim", discountCouponHandler.ClaimCoupon)
 	adminAPI.POST("/discount/add-coupons", discountCouponHandler.AddCoupons)
 
-	setupAndStartBackgroundJobs(objectCleanupController, replicationController3, fileDataCtrl, contactController, spaceModule)
+	setupAndStartBackgroundJobs(objectCleanupController, replicationController3, fileDataCtrl, contactController, spaceModule, objectCopiesCleanupController)
 	time.AfterFunc(10*time.Minute, func() {
 		if err := remoteStoreRepository.MigrateCustomDomainCanonicalValues(context.Background()); err != nil {
 			log.WithError(err).Error("Failed to backfill custom domain canonical values")
@@ -1127,20 +1135,42 @@ func main() {
 	latencySensitiveDBCollector := sqlstats.NewStatsCollector("latency_sensitive_db", latencySensitiveDB)
 	prometheus.MustRegister(primaryDBCollector, latencySensitiveDBCollector)
 
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
+
 	http.Handle("/metrics", promhttp.Handler())
-	go http.ListenAndServe(":2112", nil)
-	go runServer(environment, server)
+	metricsServer := &http.Server{Addr: ":2112"}
+	go metricsServer.ListenAndServe()
+	httpServer := runServer(server)
 	discordController.NotifyStartup()
 	log.Println("We have lift-off.")
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down server...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	var shutdown sync.WaitGroup
+	for _, srv := range []*http.Server{httpServer, metricsServer} {
+		shutdown.Go(func() {
+			err := srv.Shutdown(shutdownCtx)
+			if err == nil {
+				return
+			}
+			log.WithError(err).WithField("addr", srv.Addr).Error("Failed to shut down server")
+			if err == context.DeadlineExceeded {
+				if closeErr := srv.Close(); closeErr != nil {
+					log.WithError(closeErr).WithField("addr", srv.Addr).Error("Failed to close server connections")
+				}
+			}
+		})
+	}
+	shutdown.Wait()
 	discordController.NotifyShutdown()
 }
 
-func runServer(environment string, server *gin.Engine) {
+func runServer(server *gin.Engine) *http.Server {
+	httpServer := &http.Server{Handler: server.Handler()}
 	useTLS := viper.GetBool("http.use-tls")
 	if useTLS {
 		certPath, err := config.CredentialFilePath("tls.cert")
@@ -1153,7 +1183,12 @@ func runServer(environment string, server *gin.Engine) {
 			log.Fatal(err)
 		}
 
-		log.Fatal(server.RunTLS(":443", certPath, keyPath))
+		httpServer.Addr = ":443"
+		go func() {
+			if err := httpServer.ListenAndServeTLS(certPath, keyPath); err != http.ErrServerClosed {
+				log.Fatal(err)
+			}
+		}()
 	} else {
 		port := 8080
 		if viper.IsSet("http.port") {
@@ -1163,8 +1198,14 @@ func runServer(environment string, server *gin.Engine) {
 		if server.TrustedPlatform != "" {
 			log.Infof("trusted platform header: %s", server.TrustedPlatform)
 		}
-		server.Run(fmt.Sprintf(":%d", port))
+		httpServer.Addr = fmt.Sprintf(":%d", port)
+		go func() {
+			if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
+				log.Error(err)
+			}
+		}()
 	}
+	return httpServer
 }
 
 func setupLogger(environment string) {
@@ -1267,6 +1308,7 @@ func setupAndStartBackgroundJobs(
 	fileDataCtrl *filedata.Controller,
 	contactController *contactCtrl.Controller,
 	spaceModule *spacecontroller.Module,
+	objectCopiesCleanupController *controller.ObjectCopiesCleanupController,
 ) {
 	isReplicationEnabled := viper.GetBool("replication.enabled")
 	if isReplicationEnabled {
@@ -1295,6 +1337,7 @@ func setupAndStartBackgroundJobs(
 	contactController.StartDataDeletion()
 	objectCleanupController.StartRemovingUnreportedObjects()
 	spaceModule.Cleanup.StartRemovingUnreportedObjects()
+	objectCopiesCleanupController.StartCleanup()
 }
 
 func setupAndStartCrons(userAuthRepo *repo.UserAuthRepository, collectionLinkRepo *public.CollectionLinkRepo,
@@ -1318,33 +1361,54 @@ func setupAndStartCrons(userAuthRepo *repo.UserAuthRepository, collectionLinkRep
 	}
 
 	const deletedTokenRetentionDays = 427 // 13-month deletion window (395 days) + 32-day safety buffer
+	const srpSessionCleanupBatchSize = 10_000
 
 	c := cron.New()
 	schedule(c, "@every 1m", func() {
-		_ = userAuthRepo.RemoveExpiredOTTs()
+		if err := userAuthRepo.RemoveExpiredOTTs(); err != nil {
+			log.WithError(err).Error("Failed to remove expired OTTs")
+		}
 	})
 
 	schedule(c, "@every 24h", func() {
-		_ = userAuthRepo.RemoveDeletedTokens(timeUtil.MicrosecondsBeforeDays(deletedTokenRetentionDays))
-		_ = castDb.DeleteOldSessions(context.Background(), timeUtil.MicrosecondsBeforeDays(7))
-		_ = collectionLinkRepo.CleanupAccessHistory(context.Background())
-		_ = fileLinkRepo.CleanupAccessHistory(context.Background())
+		if err := userAuthRepo.RemoveDeletedTokens(timeUtil.MicrosecondsBeforeDays(deletedTokenRetentionDays)); err != nil {
+			log.WithError(err).Error("Failed to remove deleted tokens")
+		}
+		if err := castDb.DeleteOldSessions(context.Background(), timeUtil.MicrosecondsBeforeDays(7)); err != nil {
+			log.WithError(err).Error("Failed to remove old cast sessions")
+		}
+		if err := collectionLinkRepo.CleanupAccessHistory(context.Background()); err != nil {
+			log.WithError(err).Error("Failed to clean up collection link access history")
+		}
+		if err := fileLinkRepo.CleanupAccessHistory(context.Background()); err != nil {
+			log.WithError(err).Error("Failed to clean up file link access history")
+		}
 	})
 
 	schedule(c, "@every 30m", func() {
-		_ = pasteRepo.CleanupExpired(context.Background())
+		if err := pasteRepo.CleanupExpired(context.Background()); err != nil {
+			log.WithError(err).Error("Failed to remove expired pastes")
+		}
 	})
 
 	schedule(c, "@every 1m", func() {
-		_ = twoFactorRepo.RemoveExpiredTwoFactorSessions()
-		_ = twoFactorRepo.RemoveExpiredUsedOTPCodes(90 * 1000 * 1000)
+		if err := twoFactorRepo.RemoveExpiredTwoFactorSessions(); err != nil {
+			log.WithError(err).Error("Failed to remove expired two-factor sessions")
+		}
+		if err := twoFactorRepo.RemoveExpiredUsedOTPCodes(90 * 1000 * 1000); err != nil {
+			log.WithError(err).Error("Failed to remove expired used OTP codes")
+		}
 	})
 	schedule(c, "@every 1m", func() {
-		_ = twoFactorRepo.RemoveExpiredTempTwoFactorSecrets()
+		if err := twoFactorRepo.RemoveExpiredTempTwoFactorSecrets(); err != nil {
+			log.WithError(err).Error("Failed to remove expired temporary two-factor secrets")
+		}
 	})
 
 	schedule(c, "@every 1m", func() {
-		_ = passkeysRepo.RemoveExpiredPasskeySessions()
+		if err := passkeysRepo.RemoveExpiredPasskeySessions(); err != nil {
+			log.WithError(err).Error("Failed to remove expired passkey sessions")
+		}
 	})
 	schedule(c, "@every 1m", func() {
 		healthCheckHandler.PerformHealthCheck()
@@ -1395,7 +1459,9 @@ func setupAndStartCrons(userAuthRepo *repo.UserAuthRepository, collectionLinkRep
 	})
 
 	schedule(c, "@every 45m", func() {
-		_ = castDb.DeleteUnclaimedCodes(context.Background(), timeUtil.MicrosecondsBeforeMinutes(60))
+		if err := castDb.DeleteUnclaimedCodes(context.Background(), timeUtil.MicrosecondsBeforeMinutes(60)); err != nil {
+			log.WithError(err).Error("Failed to remove unclaimed cast codes")
+		}
 		dataCleanupCtrl.DeleteDataCron()
 	})
 
@@ -1409,11 +1475,14 @@ func setupAndStartCrons(userAuthRepo *repo.UserAuthRepository, collectionLinkRep
 
 	scheduleAndRun(c, "@every 24h", func() {
 		emailNotificationCtrl.NudgePaidSubscriberForFamily()
-		deleted, err := userAuthRepo.CleanupOldFakeSessions(context.Background())
+	})
+
+	scheduleAndRun(c, "@every 1m", func() {
+		deleted, err := userAuthRepo.CleanupOldSRPSessions(context.Background(), srpSessionCleanupBatchSize)
 		if err != nil {
-			log.WithError(err).Error("Failed to cleanup old fake SRP sessions")
+			log.WithError(err).Error("Failed to cleanup old SRP sessions")
 		} else if deleted > 0 {
-			log.WithField("count", deleted).Info("Cleaned up old fake SRP sessions")
+			log.WithField("count", deleted).Info("Cleaned up old SRP sessions")
 		}
 	})
 

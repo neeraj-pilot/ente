@@ -12,9 +12,9 @@ import 'package:photos/module/download/thumbnail.dart';
 import 'package:photos/service_locator.dart';
 import 'package:photos/services/album_home_widget_service.dart';
 import 'package:photos/services/app_navigation_service.dart';
+import 'package:photos/services/memories/smart_memories_service.dart';
 import 'package:photos/services/memory_home_widget_service.dart';
 import 'package:photos/services/people_home_widget_service.dart';
-import 'package:photos/services/smart_memories_service.dart';
 import 'package:photos/ui/settings/ml/ml_consent_sheet.dart';
 import 'package:photos/ui/settings/widgets/albums_widget_settings.dart';
 import 'package:photos/ui/settings/widgets/memories_widget_settings.dart';
@@ -92,7 +92,7 @@ class HomeWidgetService {
     return hw.HomeWidget.getWidgetData<T>(key);
   }
 
-  Future<bool?> setData<T>(String key, T? data) async {
+  Future<bool?> setData<T extends Object>(String key, T data) async {
     return hw.HomeWidget.saveWidgetData<T>(key, data);
   }
 
@@ -220,7 +220,7 @@ class HomeWidgetService {
       AlbumHomeWidgetService.instance.clearWidget(),
       PeopleHomeWidgetService.instance.clearWidget(),
       MemoryHomeWidgetService.instance.clearWidget(),
-      hw.HomeWidget.saveWidgetData<int?>(WIDGET_HIDE_TITLE_FLAGS_KEY, null),
+      setData(WIDGET_HIDE_TITLE_FLAGS_KEY, 0),
     ]);
 
     try {

@@ -120,7 +120,8 @@ impl TwoFactorSetup {
             .map_err(|_| Error::InvalidInput("system clock is before the Unix epoch".into()))?
             .as_secs();
         verify_totp(&self.secret_code, code, time)?;
-        enable_two_factor(client, &self.secret_code, &self.recovery_key, code).await
+        let request = encrypt_two_factor_secret(&self.secret_code, &self.recovery_key, code)?;
+        client.enable_two_factor(&request).await
     }
 }
 
@@ -147,9 +148,10 @@ async fn change_password_with_strength(
     params: ChangePasswordParams,
     key_derivation_strength: KeyDerivationStrength,
 ) -> Result<KeyAttributes> {
+    let master_key = crypto::Key::try_from_slice(&params.master_key)?;
     let (updated_key_attributes, login_key) =
         auth::generate_key_attributes_for_new_password_with_strength(
-            &params.master_key,
+            &master_key,
             &params.key_attributes,
             &params.password,
             key_derivation_strength,
@@ -282,7 +284,10 @@ pub async fn enable_two_factor(
     code: &str,
 ) -> Result<()> {
     let request = encrypt_two_factor_secret(secret, recovery_key, code)?;
-    client.enable_two_factor(&request).await
+    match client.enable_two_factor(&request).await {
+        Err(Error::Http(error)) if error.status_code() == Some(401) => Err(Error::IncorrectTotp),
+        result => result,
+    }
 }
 
 pub async fn passkey_management_url(client: &AccountsClient, recovery_key: &str) -> Result<String> {

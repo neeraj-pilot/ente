@@ -187,7 +187,7 @@ async fn space_bootstrap_posts_and_friend_share_suite(endpoint: &str) {
     let post = owner_ctx
         .create_photo_post(
             &owner_space.space_id,
-            std::iter::once(PostPhotoInput {
+            (0..2).map(|_| PostPhotoInput {
                 bytes: TEST_WEBP_BYTES.to_vec(),
                 options: PostPhotoAssetOptions {
                     width: Some(320),
@@ -317,6 +317,38 @@ async fn space_bootstrap_posts_and_friend_share_suite(endpoint: &str) {
         .await
         .expect("liked post should load");
     assert!(liked_post.viewer_liked);
+    let removed = &owner_content.photos[0].asset;
+    let kept = &owner_content.photos[1].asset;
+    space::assert_http_status(
+        friend_ctx
+            .delete_post_media(&friend_space.space_id, post_id, &removed.object_key)
+            .await,
+        404,
+    );
+    for _ in 0..2 {
+        let updated = owner_ctx
+            .delete_post_media(&owner_space.space_id, post_id, &removed.object_key)
+            .await
+            .unwrap();
+        assert_eq!(updated.like_count, 1);
+        let content = updated.content.unwrap();
+        assert_eq!(content.caption, owner_content.caption);
+        assert_eq!(content.photos.len(), 1);
+        assert_eq!(content.photos[0].asset.object_key, kept.object_key);
+    }
+    space::assert_http_status(
+        owner_ctx
+            .delete_post_media(&owner_space.space_id, post_id, &kept.object_key)
+            .await,
+        409,
+    );
+    let remaining = friend_ctx
+        .get_post(&owner_space.space_id, post_id, Some(&friend_space.space_id))
+        .await
+        .unwrap();
+    let photos = remaining.content.unwrap().photos;
+    assert_eq!(photos.len(), 1);
+    assert_eq!(photos[0].asset.object_key, kept.object_key);
     let notifications = owner_ctx
         .list_notifications(&owner_space.space_id, None, None)
         .await
@@ -506,6 +538,24 @@ async fn space_unfriend_revokes_reciprocal_account_access_suite(endpoint: &str) 
         &owner_thread_message.content,
         Ok(Some(content)) if content.text == "hello before unfriend"
     ));
+    let friend_thread = friend_ctx
+        .list_message_thread(
+            &friend_space.space_id,
+            &owner_space.space_id,
+            None,
+            Some(10),
+        )
+        .await
+        .expect("friend should read direct message thread before unfriend");
+    let friend_thread_message = friend_thread
+        .items
+        .iter()
+        .find(|message| message.message_id == direct_message.message_id)
+        .expect("direct message should be in friend thread before unfriend");
+    assert!(matches!(
+        &friend_thread_message.content,
+        Ok(Some(content)) if content.text == "hello before unfriend"
+    ));
     owner_ctx
         .like_message(&owner_space.space_id, &direct_message.message_id, true)
         .await
@@ -564,24 +614,28 @@ async fn space_unfriend_revokes_reciprocal_account_access_suite(endpoint: &str) 
             .iter()
             .all(|item| item.space_id != owner_space.space_id)
     );
-    let owner_thread = owner_ctx
-        .list_message_thread(
-            &owner_space.space_id,
-            &friend_space.space_id,
-            None,
-            Some(10),
-        )
-        .await
-        .expect("owner should still read direct message thread after unfriend");
-    let owner_thread_message = owner_thread
-        .items
-        .iter()
-        .find(|message| message.message_id == direct_message.message_id)
-        .expect("direct message should remain in owner thread after unfriend");
-    assert!(matches!(
-        &owner_thread_message.content,
-        Ok(Some(content)) if content.text == "hello before unfriend"
-    ));
+    space::assert_http_status(
+        owner_ctx
+            .list_message_thread(
+                &owner_space.space_id,
+                &friend_space.space_id,
+                None,
+                Some(10),
+            )
+            .await,
+        403,
+    );
+    space::assert_http_status(
+        friend_ctx
+            .list_message_thread(
+                &friend_space.space_id,
+                &owner_space.space_id,
+                None,
+                Some(10),
+            )
+            .await,
+        403,
+    );
     space::assert_invalid_input_contains(
         friend_ctx
             .send_message(&friend_space.space_id, &owner_space.space_id, "should fail")

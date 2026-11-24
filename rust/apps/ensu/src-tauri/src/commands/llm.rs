@@ -111,11 +111,13 @@ pub(crate) fn llm_api_error(err: llm::Error) -> ApiError {
     let code = match &err {
         llm::Error::Cancelled => "cancelled",
         llm::Error::Panicked => "panicked",
+        llm::Error::InsufficientMemory => "insufficient_memory",
         llm::Error::InvalidInput(_) => "invalid_input",
         llm::Error::NotFound { .. } => "not_found",
         llm::Error::Unsupported(_) => "unsupported",
         llm::Error::PromptTooLong { .. } => "prompt_too_long",
         llm::Error::Llama { .. } => "llm",
+        llm::Error::ToolCall(_) => "tool_call",
     };
     ApiError::new(code, err.to_string())
 }
@@ -213,23 +215,6 @@ enum Event {
     },
 }
 
-impl From<llm::GenerationEvent> for Event {
-    fn from(value: llm::GenerationEvent) -> Self {
-        match value {
-            llm::GenerationEvent::Text {
-                job_id,
-                text,
-                token_id,
-            } => Self::Text {
-                job_id,
-                text,
-                token_id,
-            },
-            llm::GenerationEvent::Done { summary } => Self::Done { summary },
-        }
-    }
-}
-
 const EVENT_BATCH_MS: u64 = 80;
 const EVENT_BATCH_BYTES: usize = 2048;
 
@@ -279,6 +264,7 @@ impl EventSink {
 impl llm::EventSink for EventSink {
     fn add(&mut self, event: llm::GenerationEvent) {
         match event {
+            llm::GenerationEvent::PromptProgress { .. } => {}
             llm::GenerationEvent::Text {
                 job_id,
                 text,
@@ -626,15 +612,17 @@ pub async fn llm_generate_chat_stream(
     preparation_token: Option<String>,
 ) -> Result<llm::GenerationSummary, ApiError> {
     let _lifecycle = state.lifecycle.lock().await;
-    if let Some(token) = preparation_token.as_deref() {
-        conversation_state.validate_answer(
+    let exchange = match preparation_token.as_deref() {
+        Some(token) => conversation_state.validate_answer(
             window.app_handle(),
             window.label(),
             token,
             state.model_state_epoch(),
             state.retrieval_epoch.load(Ordering::Relaxed),
-        )?;
-    }
+        )?,
+        None => None,
+    };
+
     let context = state
         .context
         .lock()
@@ -645,7 +633,7 @@ pub async fn llm_generate_chat_stream(
     async_runtime::spawn_blocking(move || {
         match catch_unwind(AssertUnwindSafe(|| {
             let mut sink = EventSink::new(window.clone());
-            context.generate_chat_stream(request, &mut sink)
+            context.generate_with_tools(request, exchange.as_deref(), &mut sink)
         })) {
             Ok(Ok(summary)) => Ok(summary),
             Ok(Err(err)) => Err(llm_api_error(err)),

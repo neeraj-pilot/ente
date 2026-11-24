@@ -5,28 +5,24 @@ import {
     Drawer,
     IconButton,
     Stack,
-    styled,
     Typography,
     type DrawerProps,
 } from "@mui/material";
-import { appName, isDesktop } from "ente-base/app";
+import { appName } from "ente-base/app";
 import type { ModalVisibilityProps } from "ente-base/components/utils/modal";
+import { t } from "i18next";
 import React, { useContext } from "react";
 import {
     SidebarDrawerDepthContext,
     SidebarPanelContext,
 } from "./SidebarDrawerContext";
 
-type SidebarDrawerProps = DrawerProps & {
-    maxWidth?: string;
-    disableAppTitlebarBackdrop?: boolean;
-};
+type SidebarDrawerProps = DrawerProps & { maxWidth?: string };
 
 export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
     slotProps,
     children,
     maxWidth = "375px",
-    disableAppTitlebarBackdrop = false,
     ...rest
 }) => {
     const container = useContext(SidebarPanelContext);
@@ -39,7 +35,11 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 container,
                 disableEnforceFocus: true,
                 disableScrollLock: true,
-                sx: { position: "absolute", inset: 0 },
+                sx: {
+                    position: "absolute",
+                    inset: 0,
+                    "& > .MuiBackdrop-root": { top: 0 },
+                },
             })}
             slotProps={{
                 ...(slotProps ?? {}),
@@ -57,6 +57,8 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                         width: "100%",
                         ...(inShell && {
                             position: "absolute",
+                            top: 0,
+                            height: "100%",
                             boxSizing: "border-box",
                             bgcolor: "background.paper2",
                             boxShadow: "none",
@@ -69,25 +71,10 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 },
             }}
         >
-            {isDesktop && !inShell && !disableAppTitlebarBackdrop && (
-                <AppTitlebarBackdrop />
-            )}
             <Box sx={{ p: 1 }}>{children}</Box>
         </Drawer>
     );
 };
-
-// Keep scrolling content behind the desktop titlebar and traffic lights.
-const AppTitlebarBackdrop = styled("div")(({ theme }) => ({
-    position: "sticky",
-    top: 0,
-    left: 0,
-    width: "100%",
-    minHeight: "env(titlebar-area-height, 0px)",
-    zIndex: 1,
-    backgroundColor: theme.vars.palette.backdrop.muted,
-    backdropFilter: "blur(12px)",
-}));
 
 export type NestedSidebarDrawerVisibilityProps = ModalVisibilityProps & {
     // Each nesting level must chain its own onClose into this callback.
@@ -183,7 +170,7 @@ export const SidebarDrawerTitlebar: React.FC<SidebarDrawerTitlebarProps> = ({
             >
                 {showBackButton && (
                     <IconButton
-                        aria-label="Back"
+                        aria-label={t("go_back")}
                         onClick={onClose}
                         color="primary"
                         sx={{ ml: "0.5rem" }}
@@ -196,7 +183,7 @@ export const SidebarDrawerTitlebar: React.FC<SidebarDrawerTitlebarProps> = ({
                     {actionButton && actionButton}
                     {showRootCloseButton && (
                         <IconButton
-                            aria-label="Close"
+                            aria-label={t("close")}
                             onClick={onRootClose}
                             color="secondary"
                         >

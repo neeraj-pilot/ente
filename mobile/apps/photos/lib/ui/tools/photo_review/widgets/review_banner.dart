@@ -1,9 +1,9 @@
 import "dart:math" as math;
 
 import "package:ente_components/ente_components.dart";
+import "package:ente_components/hugeicons.dart";
 import "package:ente_strings/ente_strings.dart";
 import "package:flutter/material.dart";
-import "package:hugeicons/hugeicons.dart";
 import "package:intl/intl.dart";
 import "package:photos/models/photo_review/photo_review_models.dart";
 
@@ -37,6 +37,7 @@ class ReviewBannerCarousel extends StatefulWidget {
 
 class _ReviewBannerCarouselState extends State<ReviewBannerCarousel> {
   static const double _gap = Spacing.md;
+  static const double _nextCardPeek = Spacing.lg * 2;
   static const double _maxCardWidth = 400;
 
   PageController? _controller;
@@ -67,11 +68,14 @@ class _ReviewBannerCarouselState extends State<ReviewBannerCarousel> {
       height: ReviewBannerCarousel.heightFor(context),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final viewportWidth = constraints.maxWidth - widget.horizontalPadding;
           final cardWidth = math.min(
-            constraints.maxWidth - widget.horizontalPadding * 2,
+            viewportWidth -
+                (months.length > 1
+                    ? _gap + _nextCardPeek
+                    : widget.horizontalPadding),
             _maxCardWidth,
           );
-          final viewportWidth = constraints.maxWidth - widget.horizontalPadding;
           final fraction = (cardWidth + _gap) / viewportWidth;
           return Padding(
             padding: EdgeInsets.only(left: widget.horizontalPadding),

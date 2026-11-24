@@ -1,10 +1,10 @@
 import "dart:async";
 
 import "package:ente_components/ente_components.dart";
+import "package:ente_components/hugeicons.dart";
 import "package:ente_strings/ente_strings.dart";
 import "package:ente_ui/components/loading_widget.dart";
 import "package:flutter/material.dart";
-import "package:hugeicons/hugeicons.dart";
 import "package:logging/logging.dart";
 import "package:photos/core/event_bus.dart";
 import "package:photos/db/files_db.dart";
@@ -417,7 +417,9 @@ class _ModelLoadingStateState extends State<ModelLoadingState> {
                 size: IconSizes.small,
               ),
               trailing: Text(
-                '${(entry.value.$1 * 100) ~/ entry.value.$2}%',
+                entry.value.$2 > 0
+                    ? '${(entry.value.$1 * 100) ~/ entry.value.$2}%'
+                    : '0%',
                 style: TextStyles.mini.copyWith(color: colors.textLight),
               ),
             ),

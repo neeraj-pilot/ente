@@ -2,6 +2,8 @@ pub mod collections;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod db;
 pub mod dedup;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod discover;
 pub mod face_clustering;
 pub mod files;
 #[cfg(not(target_arch = "wasm32"))]
@@ -10,10 +12,16 @@ pub mod location;
 pub mod memories;
 pub mod metadata;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod ml_consent;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod ml_db;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod ml_store;
 pub mod motion_photo;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod people;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod rewind;
 pub mod source;
 
 pub use motion_photo::{

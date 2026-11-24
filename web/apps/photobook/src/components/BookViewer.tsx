@@ -1,6 +1,10 @@
 import { useBook } from "@/context/book";
+import { usePreviews } from "@/hooks/usePreviews";
 import { getPrintBinding } from "@/lib/printProducts";
-import { clipSoftcoverInsidePages } from "@/lib/softcoverPreview";
+import {
+    clipSoftcoverInsidePages,
+    setPreviewPageDensity,
+} from "@/lib/softcoverPreview";
 import {
     getFlipPageIndex,
     getFlipPages,
@@ -13,6 +17,7 @@ import { Box, IconButton, useMediaQuery } from "@mui/material";
 import { PageFlip } from "page-flip";
 import {
     forwardRef,
+    memo,
     useCallback,
     useEffect,
     useImperativeHandle,
@@ -24,7 +29,11 @@ import {
 import { createPortal } from "react-dom";
 import { Layer, Stage } from "react-konva";
 import BookPageNavigation from "./BookPageNavigation";
-import { SINGLE_PAGE_QUERY } from "./editorLayout";
+import {
+    LARGE_DESKTOP_QUERY,
+    MAX_DISPLAY_PAGE_SIZE,
+    MOBILE_QUERY,
+} from "./editorLayout";
 import { ChevronLeftIcon, ChevronRightIcon } from "./icons";
 import PageCanvas from "./PageCanvas";
 import PrinterBlankPage from "./PrinterBlankPage";
@@ -47,6 +56,7 @@ const navigationButtonSx = {
 export interface BookViewerHandle {
     flipNext: () => void;
     flipPrev: () => void;
+    goToSpread: (spreadIndex: number) => void;
 }
 
 interface BookViewerProps {
@@ -56,18 +66,16 @@ interface BookViewerProps {
 
 const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
     function BookViewer({ pages, onSpreadChange }, ref) {
-        const singlePage = useMediaQuery(SINGLE_PAGE_QUERY);
+        const singlePage = useMediaQuery(MOBILE_QUERY);
+        const largeDesktop = useMediaQuery(LARGE_DESKTOP_QUERY);
         const swipeStart = useRef<{ x: number; y: number } | null>(null);
-        const { book: bookState, photoUrls, loadPreviews } = useBook();
+        const { book: bookState } = useBook("book");
         const binding = getPrintBinding(bookState.printSelection);
         const flipPages = useMemo(
-            () => getFlipPages(pages.length, binding),
-            [pages.length, binding],
+            () => getFlipPages(pages.length),
+            [pages.length],
         );
-        const spreads = useMemo(
-            () => getSpreads(pages.length, binding),
-            [pages.length, binding],
-        );
+        const spreads = useMemo(() => getSpreads(pages.length), [pages.length]);
         const containerRef = useRef<HTMLDivElement>(null);
         const mountRef = useRef<HTMLDivElement>(null);
         const pageFlipRef = useRef<PageFlip | null>(null);
@@ -79,39 +87,54 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
         onSpreadChangeRef.current = onSpreadChange;
         const startPageRef = useRef(0);
 
-        const allPhotoIds = useMemo(
+        const currentSpread = flipPages[currentPage]?.spreadIndex ?? 0;
+        const renderedPages = useMemo(
+            () =>
+                flipPages
+                    .map((entry, index) => ({ ...entry, index }))
+                    .filter(
+                        (entry) =>
+                            Math.abs(entry.spreadIndex - currentSpread) <= 1,
+                    ),
+            [flipPages, currentSpread],
+        );
+        const nearbyPhotoIds = useMemo(
             () => [
                 ...new Set(
-                    pages.flatMap((page) =>
-                        page.slots.flatMap((slot) =>
-                            slot.photoId ? [slot.photoId] : [],
-                        ),
+                    renderedPages.flatMap(({ pageIndex }) =>
+                        pageIndex === null
+                            ? []
+                            : pages[pageIndex]!.slots.flatMap(({ photoId }) =>
+                                  photoId ? [photoId] : [],
+                              ),
                     ),
                 ),
             ],
-            [pages],
+            [renderedPages, pages],
         );
-        useEffect(() => {
-            if (allPhotoIds.length > 0)
-                void loadPreviews(allPhotoIds).catch((error: unknown) =>
-                    console.error("Failed to load previews", error),
-                );
-        }, [allPhotoIds, loadPreviews]);
+        usePreviews(nearbyPhotoIds);
 
         useLayoutEffect(() => {
             const container = containerRef.current;
             if (!container) return;
             const measure = () => {
                 const { width, height } = container.getBoundingClientRect();
+                const availableSize = Math.min(
+                    width / (singlePage ? 1 : 2),
+                    Math.max(
+                        1,
+                        height - (singlePage ? PAGE_NAVIGATION_SPACE : 0),
+                    ),
+                );
+                const scale = singlePage || largeDesktop ? 1 : 0.768;
                 setPageSize(
                     Math.max(
                         1,
                         Math.floor(
                             Math.min(
-                                width / (singlePage ? 1 : 2),
-                                Math.max(1, height - PAGE_NAVIGATION_SPACE),
-                                1200,
-                            ) * (singlePage ? 1 : 0.768),
+                                availableSize * scale,
+                                MAX_DISPLAY_PAGE_SIZE,
+                            ),
                         ),
                     ),
                 );
@@ -120,7 +143,7 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
             const observer = new ResizeObserver(measure);
             observer.observe(container);
             return () => observer.disconnect();
-        }, [singlePage]);
+        }, [singlePage, largeDesktop]);
 
         const showMobilePage = useCallback(
             (index: number) => {
@@ -150,22 +173,26 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
             const book = pageFlipRef.current;
             if (book?.getState() === "read") book.flipPrev("bottom");
         }, [singlePage, showMobilePage, currentPage]);
-        useImperativeHandle(ref, () => ({ flipNext, flipPrev }), [
-            flipNext,
-            flipPrev,
-        ]);
-
         const goToSpread = useCallback(
             (spreadIndex: number) => {
                 const book = pageFlipRef.current;
                 const physicalIndex = flipPages.findIndex(
-                    (page) => page.spreadIndex === spreadIndex,
+                    (page) =>
+                        page.spreadIndex === spreadIndex &&
+                        (!singlePage || page.pageIndex !== null),
                 );
-                if (book?.getState() === "read" && physicalIndex >= 0)
+                if (physicalIndex < 0) return;
+                if (singlePage) showMobilePage(physicalIndex);
+                else if (book?.getState() === "read")
                     book.turnToPage(physicalIndex);
             },
-            [flipPages],
+            [flipPages, singlePage, showMobilePage],
         );
+        useImperativeHandle(ref, () => ({ flipNext, flipPrev, goToSpread }), [
+            flipNext,
+            flipPrev,
+            goToSpread,
+        ]);
 
         useEffect(() => {
             if (singlePage) {
@@ -173,7 +200,6 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                     getFlipPageIndex(
                         pages.length,
                         Math.min(startPageRef.current, pages.length - 1),
-                        binding,
                     ) ?? 0,
                 );
                 return;
@@ -190,11 +216,12 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                     element.dataset.spineEdge =
                         index % 2 === 0 ? "left" : "right";
                 }
-                element.dataset.density =
-                    binding === "Hardcover" &&
-                    (index < 2 || index >= flipPages.length - 2)
-                        ? "hard"
-                        : "soft";
+                setPreviewPageDensity(
+                    element,
+                    binding,
+                    index,
+                    flipPages.length,
+                );
                 if (pageIndex === null)
                     element.setAttribute("aria-label", "Blank page (required)");
                 root.appendChild(element);
@@ -209,8 +236,8 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                 size: "stretch",
                 minWidth: 1,
                 minHeight: 1,
-                maxWidth: 1200,
-                maxHeight: 1200,
+                maxWidth: MAX_DISPLAY_PAGE_SIZE,
+                maxHeight: MAX_DISPLAY_PAGE_SIZE,
                 autoSize: false,
                 showCover: true,
                 mobileScrollSupport: true,
@@ -221,7 +248,6 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                     getFlipPageIndex(
                         pages.length,
                         Math.min(startPageRef.current, pages.length - 1),
-                        binding,
                     ) ?? 0,
                 drawShadow: false,
                 showPageCorners: false,
@@ -251,10 +277,7 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                     .getPage(index)
                     .setDensity(element.dataset.density as "hard" | "soft"),
             );
-            const restoreCoverDrawing =
-                binding === "Softcover"
-                    ? clipSoftcoverInsidePages(book)
-                    : undefined;
+            const restoreCoverDrawing = clipSoftcoverInsidePages(book);
             book.update();
             startPageRef.current = requestedPage;
             pageFlipRef.current = book;
@@ -272,7 +295,7 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                         indices[0] ??
                         (index < flipPages.length / 2 ? 0 : pages.length - 1);
                 pageFlipRef.current = null;
-                restoreCoverDrawing?.();
+                restoreCoverDrawing();
                 book.destroy();
             };
         }, [
@@ -372,7 +395,7 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                                     <Layer>
                                         <PageCanvas
                                             page={page}
-                                            photoUrls={photoUrls}
+                                            preview
                                             pageWidth={pageSize}
                                             pageHeight={pageSize}
                                             isFrontCover={
@@ -389,7 +412,6 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                                 <PrinterBlankPage
                                     width={pageSize}
                                     height={pageSize}
-                                    showLabel
                                 />
                             )}
                         </Box>
@@ -397,19 +419,16 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                             sx={{
                                 display: "flex",
                                 alignItems: "center",
-                                justifyContent: "center",
+                                justifyContent: "space-between",
+                                width: "max-content",
+                                minWidth: "100%",
+                                position: "relative",
+                                left: "50%",
+                                transform: "translateX(-50%)",
                                 gap: 1,
                                 mt: 3,
                             }}
                         >
-                            <IconButton
-                                aria-label="Previous page"
-                                disabled={currentPage === 0}
-                                onClick={flipPrev}
-                                sx={{ width: 44, height: 44 }}
-                            >
-                                <ChevronLeftIcon />
-                            </IconButton>
                             <BookPageNavigation
                                 pageCount={pages.length}
                                 spreads={navigationPages}
@@ -418,14 +437,26 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                                 turning={false}
                                 onGoToSpread={showMobilePage}
                             />
-                            <IconButton
-                                aria-label="Next page"
-                                disabled={currentPage >= flipPages.length - 1}
-                                onClick={flipNext}
-                                sx={{ width: 44, height: 44 }}
-                            >
-                                <ChevronRightIcon />
-                            </IconButton>
+                            <Box sx={{ display: "flex", gap: 1 }}>
+                                <IconButton
+                                    aria-label="Previous page"
+                                    disabled={currentPage === 0}
+                                    onClick={flipPrev}
+                                    sx={{ width: 44, height: 44 }}
+                                >
+                                    <ChevronLeftIcon />
+                                </IconButton>
+                                <IconButton
+                                    aria-label="Next page"
+                                    disabled={
+                                        currentPage >= flipPages.length - 1
+                                    }
+                                    onClick={flipNext}
+                                    sx={{ width: 44, height: 44 }}
+                                >
+                                    <ChevronRightIcon />
+                                </IconButton>
+                            </Box>
                         </Box>
                     </Box>
                 </Box>
@@ -478,7 +509,7 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                         left: "50%",
                         top: "50%",
                         width: pageSize * 2,
-                        height: pageSize + PAGE_NAVIGATION_SPACE,
+                        height: pageSize,
                         transform: "translate(-50%, -50%)",
                     }}
                 >
@@ -546,27 +577,8 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                             />
                         </IconButton>
                     </Box>
-                    <Box
-                        sx={{
-                            position: "absolute",
-                            top: pageSize + 24,
-                            left: "50%",
-                            transform: "translateX(-50%)",
-                        }}
-                    >
-                        <BookPageNavigation
-                            pageCount={pages.length}
-                            spreads={spreads}
-                            spreadIndex={
-                                flipPages[currentPage]?.spreadIndex ?? 0
-                            }
-                            disabled={pageElements.length === 0}
-                            turning={turning}
-                            onGoToSpread={goToSpread}
-                        />
-                    </Box>
                 </Box>
-                {flipPages.map(({ pageIndex, spreadIndex }, index) => {
+                {renderedPages.map(({ pageIndex, spreadIndex, index }) => {
                     const element = pageElements.at(index);
                     const page = pageIndex === null ? null : pages[pageIndex];
                     if (!element || !page) return null;
@@ -579,7 +591,7 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
                             <Layer>
                                 <PageCanvas
                                     page={page}
-                                    photoUrls={photoUrls}
+                                    preview
                                     pageWidth={pageSize}
                                     pageHeight={pageSize}
                                     isBackCover={pageIndex === pages.length - 1}
@@ -596,4 +608,4 @@ const BookViewer = forwardRef<BookViewerHandle, BookViewerProps>(
     },
 );
 
-export default BookViewer;
+export default memo(BookViewer);

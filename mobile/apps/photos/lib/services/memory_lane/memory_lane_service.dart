@@ -1,4 +1,5 @@
 import "dart:async";
+import "dart:math" show min;
 
 import "package:collection/collection.dart";
 import "package:computer/computer.dart";
@@ -13,8 +14,9 @@ import "package:photos/db/offline_files_db.dart";
 import "package:photos/events/ml_consent_changed_event.dart";
 import "package:photos/events/people_changed_event.dart";
 import "package:photos/models/file/file.dart";
+import "package:photos/models/file/file_type.dart";
 import "package:photos/models/memory_lane/memory_lane_models.dart";
-import "package:photos/models/ml/face/face.dart";
+import "package:photos/models/ml/face/face_with_embedding.dart";
 import "package:photos/models/ml/face/person.dart";
 import "package:photos/service_locator.dart";
 import "package:photos/services/machine_learning/face_ml/person/person_service.dart";
@@ -33,7 +35,8 @@ class MemoryLaneService {
   static const _minimumYears = 2;
   static const _minimumFacesPerYear = 4;
   static const _recomputeCooldown = Duration(hours: 2);
-  static const _timelineLogicVersion = 3;
+  static const _timelineLogicVersion = 4;
+  static const _minimumFaceSidePixels = 128;
   static const _startupBackfillDelay = Duration(seconds: 15);
   static const _startupBackfillBatchSize = 200;
 
@@ -642,15 +645,18 @@ class MemoryLaneService {
 
     final nowMicros = DateTime.now().microsecondsSinceEpoch;
     final existing = await _cacheService.getTimeline(personId);
+    final logEntry = await _cacheService.getComputeLogEntry(personId);
+    final cooldownApplies =
+        !force && logEntry?.logicVersion == _timelineLogicVersion;
     final lastComputedMicros = existing?.updatedAtMicros;
     final lastForcedMicros = _lastForcedComputeMicros[personId];
-    if (!force && lastComputedMicros != null) {
+    if (cooldownApplies && lastComputedMicros != null) {
       final remaining = nowMicros - lastComputedMicros;
       if (remaining < _recomputeCooldown.inMicroseconds) {
         return;
       }
     }
-    if (!force && lastForcedMicros != null) {
+    if (cooldownApplies && lastForcedMicros != null) {
       final remaining = nowMicros - lastForcedMicros;
       if (remaining < _recomputeCooldown.inMicroseconds) {
         return;
@@ -734,21 +740,21 @@ class MemoryLaneService {
         .toSet();
 
     final faces = <_TimelineFaceData>[];
-    final facesByFileId = <int, Map<String, Face>>{};
+    final facesByFileId = <int, Map<String, FaceWithoutEmbedding>>{};
     for (final faceId in faceIds) {
       final fileId = getFileIdFromFaceId<int>(faceId);
       if (hiddenFileIds.contains(fileId)) {
         continue;
       }
       final file = fileMap[fileId];
-      if (file == null) {
+      if (file == null || file.fileType == FileType.video) {
         continue;
       }
       final creationTime = file.creationTime;
       if (creationTime == null || creationTime <= 0) {
         continue;
       }
-      Map<String, Face>? facesForFile = facesByFileId[fileId];
+      Map<String, FaceWithoutEmbedding>? facesForFile = facesByFileId[fileId];
       if (facesForFile == null) {
         final fetchedFaces = await _mlDataDB.getFacesForGivenFileID(fileId);
         if (fetchedFaces == null) {
@@ -759,6 +765,9 @@ class MemoryLaneService {
         facesByFileId[fileId] = facesForFile;
       }
       final faceDetails = facesForFile[faceId];
+      if (faceDetails != null && _isTooSmallForMemoryLane(faceDetails)) {
+        continue;
+      }
       final faceScore = faceDetails?.score ?? 0.0;
       final blurScore = faceDetails?.blur ?? 0.0;
       final date = DateTime.fromMicrosecondsSinceEpoch(creationTime);
@@ -842,6 +851,20 @@ class MemoryLaneService {
     );
   }
 
+  bool _isTooSmallForMemoryLane(FaceWithoutEmbedding face) {
+    final imageWidth = face.fileInfo?.imageWidth ?? 0;
+    final imageHeight = face.fileInfo?.imageHeight ?? 0;
+    if (imageWidth <= 0 || imageHeight <= 0) {
+      return false;
+    }
+    final box = face.detection.box;
+    final shortSidePixels = min(
+      box.width * imageWidth,
+      box.height * imageHeight,
+    );
+    return shortSidePixels < _minimumFaceSidePixels;
+  }
+
   Future<bool> _ensureFaceCrops(
     String personId,
     List<MemoryLaneEntry> entries,
@@ -874,7 +897,7 @@ class MemoryLaneService {
             (entry) =>
                 faces.firstWhereOrNull((face) => face.faceID == entry.faceId),
           )
-          .whereType<Face>()
+          .whereType<FaceWithoutEmbedding>()
           .toList();
       if (selectedFaces.length != group.value.length) {
         allCropsReady = false;
@@ -924,7 +947,7 @@ class MemoryLaneService {
           .toSet()
           .toList();
       final filesById = await getTimelineFiles(uniqueFileIds);
-      final Map<int, Future<List<Face>?>> facesFutures = {};
+      final Map<int, Future<List<FaceWithoutEmbedding>?>> facesFutures = {};
       for (final entry in entries) {
         final file = filesById[entry.fileId];
         if (file == null) {

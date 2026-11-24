@@ -11,16 +11,33 @@ pub struct TurnInput {
     pub output: Option<usize>,
     pub state: Option<ConversationState>,
     pub candidates: GroundingCandidates,
+    pub tools: TurnTools,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TurnTools {
+    pub tools: Option<ToolRequest>,
+    pub history: std::collections::HashMap<Uuid, ToolTurnHistory>,
+    pub current_override: Option<String>,
 }
 
 pub struct PreparedTurn {
     pub preparation: Preparation,
     pub budget: GenerationBudget,
     pub grounding: FittedGrounding,
+    pub tools: Option<ToolRequest>,
 }
 
 pub fn prepare_turn(
+    input: TurnInput,
+    effects: &mut impl Effects,
+) -> Result<PreparedTurn, PrepareError> {
+    prepare_turn_with_anchor(input, None, effects)
+}
+
+pub(super) fn prepare_turn_with_anchor(
     mut input: TurnInput,
+    anchor: Option<GroundingAnchor>,
     effects: &mut impl Effects,
 ) -> Result<PreparedTurn, PrepareError> {
     effects.check_current()?;
@@ -32,40 +49,78 @@ pub fn prepare_turn(
     {
         return Err(Error::InvalidHistory.into());
     }
-    let current = input.messages.pop().ok_or(Error::InvalidHistory)?;
+    let current = input.messages.last().ok_or(Error::InvalidHistory)?;
     if current.sender != Sender::SelfUser || current.text != input.expected_user_text {
         return Err(PrepareError::Stale);
     }
     let budget = resolve_generation_budget(input.context, input.output)?;
+    let asked = input
+        .tools
+        .current_override
+        .take()
+        .unwrap_or_else(|| input.current.clone());
+    let tools = match input.tools.tools.take() {
+        Some(tools)
+            if effects.supports_tools()
+                && effects.measure(
+                    &answer_messages(&input.system, None, &[], &asked),
+                    Some(&tools),
+                )? <= budget.input =>
+        {
+            input.current = asked;
+            Some(tools)
+        }
+        _ => None,
+    };
     let required = input
         .history_query
         .as_deref()
-        .map(|query| requested_history(&input.messages, query, || effects.check_cancelled()))
+        .map(|query| {
+            requested_history(&input.messages[..input.messages.len() - 1], query, || {
+                effects.check_cancelled()
+            })
+        })
         .transpose()?
         .flatten();
     effects.check_cancelled()?;
     let grounding_plan = input.candidates.select_sources(Some(
         input.history_query.as_deref().unwrap_or(&input.current),
     ))?;
+    let placement = if effects.supports_partial_prompt_reuse() {
+        GroundingPlacement::CurrentTurn
+    } else {
+        GroundingPlacement::System
+    };
     let grounding = fit_grounding_with_history(
         &grounding_plan,
         required.as_ref(),
         &input.system,
         &input.current,
         budget.input,
+        placement,
         |messages| {
             effects.check_cancelled()?;
-            let tokens = effects.measure(messages)?;
+            let tokens = effects.measure(messages, tools.as_ref())?;
             effects.check_cancelled()?;
             Ok(tokens)
         },
     )?;
     effects.check_current()?;
-    input.system = grounded_system(&input.system, grounding.context.as_ref());
     if let Some(required) = required.filter(|_| grounding.history_included) {
         input.current = required.prepend_required(&input.current);
         input.history_query = None;
     }
+    let prompt_grounding = match (placement, grounding.context.as_ref()) {
+        (GroundingPlacement::CurrentTurn, Some(context)) => {
+            Some(PromptGrounding::new(context, anchor, &input.messages)?)
+        }
+        _ => {
+            (input.system, input.current) =
+                placement.apply(&input.system, &input.current, grounding.context.as_ref());
+            None
+        }
+    };
+    input.messages.pop();
     let preparation = Preparation::new(
         input.session,
         input.messages,
@@ -75,11 +130,14 @@ pub fn prepare_turn(
         budget.output,
         input.state,
     )?
-    .with_history_query(input.history_query);
+    .with_history_query(input.history_query)
+    .with_grounding(prompt_grounding)
+    .with_tools(input.tools.history, tools.clone());
     effects.check_current()?;
     Ok(PreparedTurn {
         preparation,
         budget,
         grounding,
+        tools,
     })
 }

@@ -110,7 +110,7 @@ export const SearchBar: React.FC<SearchBarProps> = (props) => {
     }, [props.isSettingsOpen]);
 
     const closeButton = isSmallWidth && props.isInSearchMode && (
-        <Tooltip title={t("close")}>
+        <Tooltip title={t("close")} placement="right" disableInteractive>
             <IconButton aria-label={t("close")} onClick={clearSearch}>
                 <CloseIcon />
             </IconButton>
@@ -121,7 +121,11 @@ export const SearchBar: React.FC<SearchBarProps> = (props) => {
         <>
             <Stack sx={{ alignItems: "center", gap: "12px" }}>
                 {closeButton}
-                <Tooltip title={`Search (${shortcut})`}>
+                <Tooltip
+                    title={`Search (${shortcut})`}
+                    placement="right"
+                    disableInteractive
+                >
                     <FocusVisibleButton
                         color="secondary"
                         aria-label={t("search")}
@@ -165,7 +169,7 @@ export const SearchBar: React.FC<SearchBarProps> = (props) => {
                                 width: "621px",
                                 maxWidth: "calc(100% - 24px)",
                                 m: "12px",
-                                maxHeight: "calc(100dvh - 24px)",
+                                maxHeight: "calc(100% - 24px)",
                                 p: "20px",
                                 borderRadius: "20px",
                                 bgcolor: "background.default",
@@ -574,8 +578,10 @@ const createSelectStyles = (
     }),
     menuList: (style) => ({
         ...style,
-        minHeight: "clamp(120px, calc(100dvh - 280px), 320px)",
-        maxHeight: "clamp(120px, calc(100dvh - 280px), 320px)",
+        minHeight:
+            "clamp(120px, calc(100dvh - 280px - env(titlebar-area-height, 0px)), 320px)",
+        maxHeight:
+            "clamp(120px, calc(100dvh - 280px - env(titlebar-area-height, 0px)), 320px)",
         display: "flex",
         flexDirection: "column",
         gap: "8px",

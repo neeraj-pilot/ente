@@ -38,7 +38,6 @@ import (
 )
 
 type AdminHandler struct {
-	QueueRepo              *repo.QueueRepository
 	UserRepo               *repo.UserRepository
 	CollectionRepo         *repo.CollectionRepository
 	AuthenticatorRepo      *authenticator.Repository
@@ -97,6 +96,10 @@ func (h *AdminHandler) UnsubscribeMail(c *gin.Context) {
 }
 
 func (h *AdminHandler) GetUsers(c *gin.Context) {
+	if !h.UserRepo.IsLikelySelfHosted() {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
 	err := h.isFreshAdminToken(c)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -501,23 +504,6 @@ func (h *AdminHandler) ChangeEmail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{})
 }
 
-func (h *AdminHandler) ReQueueItem(c *gin.Context) {
-	var r ente.ReQueueItemRequest
-	if err := handler.BindJSON(c, &r); err != nil {
-		handler.Error(c, stacktrace.Propagate(err, "Bad request"))
-		return
-	}
-	adminID := auth.GetUserID(c.Request.Header)
-	h.notifyAdminAction(adminID, "requeueing item %d for queue: %s", r.ID, r.QueueName)
-	err := h.QueueRepo.RequeueItem(c, r.QueueName, r.ID)
-	if err != nil {
-		logrus.WithError(err).Error("Failed to re-queue item")
-		handler.Error(c, stacktrace.Propagate(err, ""))
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{})
-}
-
 func (h *AdminHandler) RepairDeletedCollectionShare(c *gin.Context) {
 	var request ente.RepairDeletedCollectionShareRequest
 	if err := handler.BindJSON(c, &request); err != nil {
@@ -631,6 +617,10 @@ func (h *AdminHandler) RecoverAccount(c *gin.Context) {
 }
 
 func (h *AdminHandler) GetEmailHash(c *gin.Context) {
+	if !h.UserRepo.IsLikelySelfHosted() {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
 	e := emailUtil.NormalizeEmail(c.Query("email"))
 	hash, err := crypto.GetHash(e, h.HashingKey)
 	if err != nil {
@@ -641,6 +631,10 @@ func (h *AdminHandler) GetEmailHash(c *gin.Context) {
 }
 
 func (h *AdminHandler) GetEmailsFromHashes(c *gin.Context) {
+	if !h.UserRepo.IsLikelySelfHosted() {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
 	var request ente.GetEmailsFromHashesRequest
 	if err := handler.BindJSON(c, &request); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))

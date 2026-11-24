@@ -2,6 +2,7 @@ use std::{io::IsTerminal, num::NonZeroUsize, path::PathBuf};
 
 use clap::{Arg, ArgAction, Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
+use ente_location::Coordinate;
 use serde::{Deserialize, Serialize};
 
 #[derive(Parser)]
@@ -127,6 +128,21 @@ pub enum Command {
         #[command(subcommand)]
         command: PasteCommand,
     },
+    #[command(
+        about = "Send feedback about the CLI to Ente",
+        after_long_help = "Send MESSAGE, read it from --input PATH, or pipe feedback on stdin.
+--input - explicitly reads stdin. Messages must be nonblank and at most
+2,000 characters.
+
+Sends your message, CLI version and OS to Ente's private feedback inbox.
+Requires network access; no login needed.
+Prints a receipt ID. With --json: {\"id\": \"...\"}.
+
+Examples:
+  ente feedback \"Export restarted after reconnecting\"
+  ente feedback --input feedback.txt --json"
+    )]
+    Feedback(FeedbackArgs),
     #[command(about = "Manage Ente accounts", alias = "accounts")]
     Account {
         #[command(subcommand)]
@@ -168,7 +184,10 @@ Fish loads a saved script on demand. Write it once, and again after upgrading:
 
 Prints the script to stdout, including when --json is set."
     )]
-    Completion { shell: Shell },
+    Completion {
+        #[arg(help = "Shell to generate the script for")]
+        shell: Shell,
+    },
     #[command(about = "Administer an Ente server", after_long_help = ADMIN_HELP)]
     Admin {
         #[command(flatten)]
@@ -243,6 +262,28 @@ With --json: {\"text\": \"...\"}. --raw affects plain terminal output only. Requ
         #[arg(long, help = "Ente API server; defaults to api.ente.com")]
         host: Option<String>,
     },
+}
+
+#[derive(Args)]
+pub struct FeedbackArgs {
+    #[arg(
+        conflicts_with = "input",
+        help = "Feedback text; defaults to piped stdin"
+    )]
+    pub message: Option<String>,
+    #[arg(
+        long,
+        value_name = "PATH|-",
+        help = "Read plain UTF-8 text from a file, or stdin with -"
+    )]
+    pub input: Option<PathBuf>,
+    #[arg(
+        long,
+        hide = true,
+        default_value = "https://feedback.ente.com",
+        help = "Feedback server"
+    )]
+    pub host: String,
 }
 
 #[derive(Subcommand)]
@@ -386,6 +427,14 @@ family is null outside a family; otherwise it contains usedBytes, storageBytes a
 Each member has email, status, admin, usedBytes and storageLimitBytes (null without a cap)."
     )]
     Usage,
+    #[command(
+        about = "Find and remove exact duplicate photos and videos",
+        visible_alias = "duplicates"
+    )]
+    Duplicate {
+        #[command(subcommand)]
+        command: DuplicateCommand,
+    },
     #[command(about = "Manage albums")]
     Album {
         #[command(subcommand)]
@@ -522,6 +571,7 @@ pub struct CreateArgs {
 pub enum VerificationPurpose {
     Create,
     Login,
+    Change,
 }
 
 const API_HELP: &str = "The response body is written unchanged, including when --json is set.";
@@ -604,6 +654,49 @@ pub enum FileCommand {
     },
 }
 
+const DUPLICATES_HELP: &str = "Uses the same duplicate detection and removal rules as Ente Photos.
+Scans files you own in non-hidden albums, including Favorites and archived albums.
+Matches stored hashes; a file in several albums is counted once. Files without a hash or known group size are omitted.
+Group IDs are the smallest file ID in each group, not row numbers.
+Keeps a copy with a caption first, then one with an edited name or date, then the first copy in album-name order.
+The retained copy is added to the other copies' albums before extra copies move to trash.
+List refreshes metadata first; --offline reads a previous sync. Groups are ordered by reclaimable size.
+Remove always refreshes online. Pass group IDs or --all, or omit both to select with space and enter.
+Without --dry-run, removal asks for confirmation; --yes approves it and --no-input only disables prompts.
+List JSON: an array of groups with id, sizeBytes, reclaimableBytes, retainedId and files.
+Each file has id, name and albums (id and name). All IDs are strings; byte counts are integers.
+sizeBytes is the stored encrypted size of one copy; reclaimableBytes is the total for the extra copies in the group.
+Remove JSON: dryRun, groupIds, retainedIds, trashIds and reclaimableBytes.
+Removal reclaimableBytes is the total for all selected groups.
+With --dry-run, trashIds are planned; otherwise they were moved to trash. Preview and progress go to stderr.
+
+Examples:
+  ente photos duplicate list
+  ente photos duplicate remove
+  ente photos duplicate remove 1580559962386999 --dry-run
+  ente photos duplicate remove 1580559962386999 --yes --no-input --json";
+
+#[derive(Subcommand)]
+pub enum DuplicateCommand {
+    #[command(about = "List duplicate groups and the copies to keep or trash", after_long_help = DUPLICATES_HELP)]
+    List(ListArgs),
+    #[command(about = "Select duplicate groups and move extra copies to trash", after_long_help = DUPLICATES_HELP)]
+    Remove {
+        #[arg(
+            value_name = "GROUP",
+            conflicts_with = "all",
+            help = "Group IDs from duplicates list; omit to select interactively"
+        )]
+        groups: Vec<i64>,
+        #[arg(long, help = "Select every current duplicate group")]
+        all: bool,
+        #[arg(long, help = "Show the selected removal plan without changing files")]
+        dry_run: bool,
+        #[arg(long, help = "Approve removal without a confirmation prompt")]
+        yes: bool,
+    },
+}
+
 #[derive(Args)]
 pub struct FileQuery {
     #[arg(
@@ -655,6 +748,24 @@ pub struct FileQuery {
         long_help = "Include files taken in the country with this two-letter code, such as PT, or this full English name. UK also selects the United Kingdom (GB); an unknown two-letter code is an error. Other text includes every country whose English name contains it. Names ignore case and accent marks, and are the ones `place list --countries` shows. Downloads location data on first use; see `place list --help`."
     )]
     pub country: Option<String>,
+    #[arg(
+        long,
+        value_name = "LAT,LON",
+        requires = "radius",
+        allow_hyphen_values = true,
+        value_parser = parse_coordinate,
+        help = "Include files taken within --radius of this point",
+        long_help = "Include files whose location lies within --radius of LAT,LON, given in decimal degrees such as 48.8566,2.3522. Uses the same check as location tags in the Ente apps. Files without a location are left out."
+    )]
+    pub near: Option<Coordinate>,
+    #[arg(
+        long,
+        value_name = "KM",
+        requires = "near",
+        value_parser = parse_radius,
+        help = "Distance from --near in kilometres, e.g. 10"
+    )]
+    pub radius: Option<f64>,
     #[arg(
         long,
         value_name = "SIZE",
@@ -726,6 +837,25 @@ fn nonempty_search(text: &str) -> Result<String, String> {
     }
 }
 
+fn parse_coordinate(input: &str) -> Result<Coordinate, String> {
+    const HINT: &str = "use LAT,LON in decimal degrees, such as 48.8566,2.3522";
+    let (latitude, longitude) = input.split_once(',').ok_or(HINT)?;
+    let degrees = |part: &str| part.trim().parse::<f64>().map_err(|_| HINT);
+    let coordinate = Coordinate::new(degrees(latitude)?, degrees(longitude)?);
+    if coordinate.is_valid() {
+        Ok(coordinate)
+    } else {
+        Err("latitude must be between -90 and 90 and longitude between -180 and 180".into())
+    }
+}
+
+fn parse_radius(input: &str) -> Result<f64, String> {
+    match input.parse::<f64>() {
+        Ok(radius) if radius.is_finite() && radius > 0.0 => Ok(radius),
+        _ => Err("use a distance in kilometres greater than zero, such as 10".into()),
+    }
+}
+
 fn min_file_size(input: &str) -> Result<u64, String> {
     crate::admin::parse_file_size(input).map(|bytes| bytes.ceil() as u64)
 }
@@ -766,8 +896,9 @@ Examples:
     #[command(
         about = "Request an email verification code",
         after_long_help = "Requests one email and returns; success means the server accepted the request.
-Use the same email, app and server when completing creation or login.
-Defaults to creation; use --purpose login for an existing account."
+Use the same email, app and server when completing creation, login or an email change.
+Defaults to creation; use --purpose login for an existing account,
+or --purpose change with the new address for account change-email."
     )]
     RequestOtp {
         #[arg(long, help = "Email address to verify")]
@@ -879,7 +1010,24 @@ Without --app, logs out of all this account's saved app logins on this device.
         local: bool,
     },
     #[command(
-        about = "Set up authenticator protection for your Ente account",
+        about = "List and revoke active logins",
+        after_long_help = "Sessions are the logins the server accepts for one app; --app selects the app and its saved login."
+    )]
+    Session {
+        #[command(flatten)]
+        selector: AccountSelector,
+        #[arg(
+            long,
+            global = true,
+            value_enum,
+            help = "Saved app login; defaults to the only app, otherwise Photos"
+        )]
+        app: Option<App>,
+        #[command(subcommand)]
+        command: SessionCommand,
+    },
+    #[command(
+        about = "Manage authenticator protection for your Ente account",
         after_long_help = "Protects account login, separate from codes stored in Ente Auth."
     )]
     Totp {
@@ -896,6 +1044,52 @@ Without --app, logs out of all this account's saved app logins on this device.
         command: TotpCommand,
     },
     #[command(
+        about = "Manage your family plan",
+        after_long_help = FAMILY_HELP
+    )]
+    Family {
+        #[command(flatten)]
+        selector: AccountSelector,
+        #[arg(
+            long,
+            global = true,
+            value_enum,
+            help = "Saved app login; defaults to the only app, otherwise Photos"
+        )]
+        app: Option<App>,
+        #[command(subcommand)]
+        command: FamilyCommand,
+    },
+    #[command(
+        about = "Require an email code at login",
+        after_long_help = "Email verification asks for a code sent to your email each time you log in.
+Disabling it requires password login (SRP) to be set up for the account.
+Requires network access."
+    )]
+    EmailMfa {
+        #[command(flatten)]
+        selector: AccountSelector,
+        #[arg(
+            long,
+            global = true,
+            value_enum,
+            help = "Saved app login; defaults to the only app, otherwise Photos"
+        )]
+        app: Option<App>,
+        #[command(subcommand)]
+        command: EmailMfaCommand,
+    },
+    #[command(
+        about = "Change your Ente account's email",
+        after_long_help = "Prompts for the code sent to the new email.
+Unattended changes read JSON from --input containing an otp string.
+Request the code first with account request-otp --email NEW_EMAIL --purpose change --app APP --host URL,
+using the same app and server as the account.
+Updates the email saved on this device; the local account name is unchanged.
+Requires network access. With --json, returns the updated account."
+    )]
+    ChangeEmail(ChangeEmailArgs),
+    #[command(
         about = "Print the saved 24-word recovery key",
         after_long_help = "Prints a secret from the local vault without network access.
 With --json, returns {\"recoveryKey\":\"...\"}."
@@ -907,6 +1101,30 @@ With --json, returns {\"recoveryKey\":\"...\"}."
             help = "Account name; defaults to the selected or only saved account"
         )]
         name: Option<String>,
+    },
+}
+
+const SESSION_HELP: &str = "Requires network access. The session of this CLI's saved login is marked current.
+Device, user agent and IP come from a recent request made with that session.
+List JSON returns an array: id, device, userAgent, ip (strings); current (boolean); createdAt, lastUsedAt (RFC3339).
+Revoke logs that session out on the server and asks for confirmation; --yes approves it and --no-input only disables prompts.
+The current session cannot be revoked; use account logout instead.
+Revoke JSON returns app and session, with the revoked session's list fields.
+
+Examples:
+  ente account session list --app photos
+  ente account session revoke th:UNhY4JhezH9gQYqvDMWrWH9CwlcKiECVqejMrND2VFw --yes --no-input --json";
+
+#[derive(Subcommand)]
+pub enum SessionCommand {
+    #[command(about = "List active sessions, most recently used first", after_long_help = SESSION_HELP)]
+    List,
+    #[command(about = "Log a session out on the server", after_long_help = SESSION_HELP)]
+    Revoke {
+        #[arg(value_name = "ID", help = "Session ID from account session list")]
+        id: String,
+        #[arg(long, help = "Approve revocation without a confirmation prompt")]
+        yes: bool,
     },
 }
 
@@ -939,6 +1157,143 @@ Verifying an authenticator code requires your computer's date and time to be cor
 JSON field: totpEnabled (boolean)."
     )]
     Status,
+    #[command(
+        about = "Disable authenticator protection",
+        after_long_help = "Login no longer asks for an authenticator code. Requires network access.
+Asks for confirmation; --no-input requires --yes.
+To protect login again, run account totp enable with a new secret."
+    )]
+    Disable {
+        #[arg(long, help = "Disable without prompting")]
+        yes: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum EmailMfaCommand {
+    #[command(
+        about = "Show whether email verification is enabled",
+        after_long_help = "Checks the current setting on the server.
+JSON fields: emailMfaEnabled, canDisableEmailMfa (booleans)."
+    )]
+    Status,
+    #[command(about = "Require an email code at every login")]
+    Enable,
+    #[command(
+        about = "Stop asking for an email code at login",
+        after_long_help = "Asks for confirmation; --no-input requires --yes."
+    )]
+    Disable {
+        #[arg(long, help = "Disable without prompting")]
+        yes: bool,
+    },
+}
+
+#[derive(Args)]
+pub struct ChangeEmailArgs {
+    #[command(flatten)]
+    pub selector: AccountSelector,
+    #[arg(
+        long,
+        value_enum,
+        help = "Saved app login; defaults to the only app, otherwise Photos"
+    )]
+    pub app: Option<App>,
+    #[arg(long, help = "New email address")]
+    pub email: Option<String>,
+    #[arg(
+        long,
+        value_name = "PATH|-",
+        help = "Read the otp string as JSON from a file or stdin"
+    )]
+    pub input: Option<PathBuf>,
+}
+
+const FAMILY_HELP: &str = "A family shares the admin's paid plan with up to five other Ente accounts.
+All family commands require network access. MEMBER is an ID or email from family view.
+Every command except leave prints the family afterwards, like family view.
+Removing a member or leaving asks for confirmation; --yes approves it and --no-input only disables prompts.";
+
+const FAMILY_VIEW_HELP: &str =
+    "JSON: storageBytes, usedBytes, expiresAt (RFC3339) and members, or null outside a family.
+Each member has id, email, status (SELF for the admin, ACCEPTED or INVITED), admin,
+usedBytes and storageLimitBytes (null without a limit). Byte counts are integers.
+
+Examples:
+  ente account family create
+  ente account family member add bob@example.com
+  ente account family member set-storage bob@example.com 100GB
+  ente account family member remove bob@example.com --yes";
+
+#[derive(Subcommand)]
+pub enum FamilyCommand {
+    #[command(about = "Show the family's storage and members", after_long_help = FAMILY_VIEW_HELP)]
+    View,
+    #[command(
+        about = "Start a family on your paid plan",
+        after_long_help = "Makes this account the family admin. Running it again changes nothing."
+    )]
+    Create,
+    #[command(
+        about = "Leave the family you joined",
+        after_long_help = "Your account returns to its own plan. The admin cannot leave their family.
+JSON: {\"left\": true}."
+    )]
+    Leave {
+        #[arg(long, help = "Approve leaving without a confirmation prompt")]
+        yes: bool,
+    },
+    #[command(about = "Invite, remove and limit members")]
+    Member {
+        #[command(subcommand)]
+        command: FamilyMemberCommand,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum FamilyMemberCommand {
+    #[command(
+        about = "Invite an Ente account to the family",
+        after_long_help = "Ente emails the invite; the member joins by accepting it.
+The account must already exist and must not have a paid plan or another family.
+Inviting a pending member again keeps the original invite."
+    )]
+    Add {
+        #[arg(help = "Email address of the account to invite")]
+        email: String,
+    },
+    #[command(
+        about = "Remove a member or cancel a pending invite",
+        after_long_help = "A removed member's account returns to its own plan; their data stays."
+    )]
+    Remove {
+        #[arg(help = "Member ID or email from family view")]
+        member: String,
+        #[arg(long, help = "Approve removal without a confirmation prompt")]
+        yes: bool,
+    },
+    #[command(
+        about = "Limit how much of the family storage a member can use",
+        after_long_help = "Sizes accept MB, GB and TB, case-insensitive, using powers of 1024; fractions are allowed.
+The limit cannot exceed the family storage or be below what the member already uses.
+--no-limit lets the member use any free family storage. Applies to members who have joined.
+
+Example:
+  ente account family member set-storage bob@example.com 1.5TB"
+    )]
+    SetStorage {
+        #[arg(help = "Member ID or email from family view")]
+        member: String,
+        #[arg(
+            value_name = "SIZE",
+            value_parser = crate::admin::parse_storage,
+            required_unless_present = "no_limit",
+            help = "Storage limit, e.g. 500GB or 1.5TB"
+        )]
+        size: Option<i64>,
+        #[arg(long, conflicts_with = "size", help = "Remove the member's limit")]
+        no_limit: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1116,6 +1471,91 @@ impl App {
             Self::Photos => "io.ente.photos",
             Self::Locker => "io.ente.locker",
             Self::Auth => "io.ente.auth",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::command;
+
+    fn commands(command: &clap::Command, path: &str) -> Vec<(String, clap::Command)> {
+        let path = format!("{path} {}", command.get_name()).trim().to_owned();
+        let mut all = vec![(path.clone(), command.clone())];
+        for child in command.get_subcommands() {
+            all.extend(commands(child, &path));
+        }
+        all
+    }
+
+    #[test]
+    fn account_selector() {
+        let mut root = command();
+        root.build();
+        for (path, command) in commands(&root, "") {
+            if command.has_subcommands() || path.contains(" help") {
+                continue;
+            }
+            let selector = command
+                .get_arguments()
+                .any(|arg| arg.get_id() == "account" && arg.is_global_set());
+            let expected = [
+                "ente photos ",
+                "ente locker ",
+                "ente auth ",
+                "ente admin ",
+                "ente account totp ",
+                "ente account family ",
+                "ente account session ",
+                "ente account email-mfa ",
+                "ente account change-email",
+            ]
+            .iter()
+            .any(|group| path.starts_with(group));
+            assert_eq!(selector, expected, "{path}: --account selector");
+        }
+    }
+
+    #[test]
+    fn help_shape() {
+        let mut root = command();
+        root.build();
+        for (path, command) in commands(&root, "") {
+            let about = command
+                .get_about()
+                .map(ToString::to_string)
+                .unwrap_or_default();
+            assert!(
+                !about.is_empty() && !about.ends_with('.'),
+                "{path}: about {about:?}"
+            );
+            for arg in command.get_arguments() {
+                let help = arg
+                    .get_help()
+                    .or(arg.get_long_help())
+                    .map(ToString::to_string);
+                assert!(
+                    help.is_some_and(|help| !help.is_empty()),
+                    "{path}: {} has no help",
+                    arg.get_id()
+                );
+            }
+            let notes = [command.get_after_help(), command.get_after_long_help()]
+                .into_iter()
+                .flatten()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n");
+            let Some(examples) = notes.split("Examples:\n").nth(1) else {
+                continue;
+            };
+            assert!(
+                !command.has_subcommands(),
+                "{path}: group help carries examples"
+            );
+            for line in examples.lines().take_while(|line| !line.is_empty()) {
+                assert!(line.starts_with("  ente "), "{path}: example {line:?}");
+            }
         }
     }
 }

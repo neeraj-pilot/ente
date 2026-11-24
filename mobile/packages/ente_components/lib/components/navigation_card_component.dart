@@ -1,18 +1,18 @@
 import 'dart:async';
 
+import 'package:ente_components/hugeicons.dart';
 import 'package:ente_components/theme/icon_sizes.dart';
 import 'package:ente_components/theme/radii.dart';
 import 'package:ente_components/theme/spacing.dart';
 import 'package:ente_components/theme/text_styles.dart';
 import 'package:ente_components/theme/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:hugeicons/hugeicons.dart';
 
 class NavigationCardComponent extends StatefulWidget {
   const NavigationCardComponent({
     super.key,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     required this.leading,
     required this.onTap,
   });
@@ -20,7 +20,7 @@ class NavigationCardComponent extends StatefulWidget {
   static const double leadingSize = 34;
 
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final Widget leading;
   final FutureOr<void> Function() onTap;
 
@@ -76,13 +76,14 @@ class _NavigationCardComponentState extends State<NavigationCardComponent> {
                               height: 20 / 15,
                             ),
                           ),
-                          Text(
-                            widget.subtitle,
-                            style: TextStyles.mini.copyWith(
-                              color: colors.textLight,
-                              height: 18 / 12,
+                          if (widget.subtitle != null)
+                            Text(
+                              widget.subtitle!,
+                              style: TextStyles.mini.copyWith(
+                                color: colors.textLight,
+                                height: 18 / 12,
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),

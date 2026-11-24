@@ -24,6 +24,7 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(commands::llm::State::default())
+        .manage(commands::voice::State::default())
         .manage(commands::chat_db::ChatDbState::default())
         .manage(commands::knowledge::State::default())
         .manage(commands::conversation::State::default())
@@ -66,7 +67,36 @@ fn main() {
             logging::log("App", "setup complete");
             Ok(())
         })
+        .on_permission_request(|webview, kind| {
+            use tauri::webview::{PermissionKind, PermissionResponse};
+            if matches!(kind, PermissionKind::Microphone) {
+                if commands::voice::microphone_allowed(webview.app_handle(), webview.label()) {
+                    PermissionResponse::Allow
+                } else {
+                    PermissionResponse::Deny
+                }
+            } else {
+                PermissionResponse::Default
+            }
+        })
+        .on_page_load(|window, payload| {
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+                commands::voice::clear_for_window(window.app_handle(), Some(window.label()));
+            }
+        })
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                commands::voice::clear_for_window(window.app_handle(), Some(window.label()));
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            commands::voice::voice_unavailable_reason,
+            commands::voice::voice_create,
+            commands::voice::voice_run,
+            commands::voice::voice_feed,
+            commands::voice::voice_capture_failed,
+            commands::voice::voice_stop,
+            commands::voice::voice_insert,
             commands::crypto::chat_crypto_generate_key,
             commands::crypto::chat_crypto_encrypt_payload,
             commands::crypto::chat_crypto_decrypt_payload,
@@ -77,6 +107,14 @@ fn main() {
             commands::secure_storage::secure_storage_get,
             commands::secure_storage::secure_storage_set,
             commands::secure_storage::secure_storage_delete,
+            commands::todo::todo_list,
+            commands::todo::todo_create,
+            commands::todo::todo_update,
+            commands::todo::todo_set_completed,
+            commands::todo::todo_delete,
+            commands::todo::tool_turn_confirm,
+            commands::todo::tool_turn_undo,
+            commands::todo::tool_turn_statuses,
             commands::chat_db::chat_db_list_sessions,
             commands::chat_db::chat_db_list_sessions_with_preview,
             commands::chat_db::chat_db_get_session,
@@ -85,6 +123,7 @@ fn main() {
             commands::chat_db::chat_db_delete_session,
             commands::chat_db::chat_db_get_messages,
             commands::chat_db::chat_db_insert_message,
+            commands::chat_db::chat_db_finish_reply,
             commands::chat_db::chat_db_upsert_session,
             commands::chat_db::chat_db_insert_message_with_uuid,
             commands::chat_db::chat_db_compress_attachment_image_file,

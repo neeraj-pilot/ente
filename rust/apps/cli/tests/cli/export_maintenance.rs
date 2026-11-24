@@ -1358,7 +1358,7 @@ fn export_interrupted_replacement_never_binds_old_bytes_to_new_verification() {
                     &mut server,
                     json!([revision(collection(3, "Restored", &key), 80)]),
                 );
-                let restored = revision(if hashed { old.clone() } else { new.clone() }, 70);
+                let restored = revision(if hashed { old } else { new }, 70);
                 page(&mut server, 3, 0, json!([restored]), false).create();
                 let restore_get = download(&mut server, 10, &bytes, usize::from(!hashed));
                 run(&home, &root, &["--album", "Restored"], true);
@@ -2423,6 +2423,8 @@ fn export_recovers_empty_initial_directories_without_claiming_unrelated_contents
             fetched.assert();
             continue;
         }
+        fs::write(folder.join(".DS_Store"), b"finder").unwrap();
+        fs::write(folder.join("._metadata.json"), b"sidecar").unwrap();
         let notes = folder.join("notes.txt");
         fs::write(&notes, b"unrelated").unwrap();
         let result = run(&home, &root, &[], false);

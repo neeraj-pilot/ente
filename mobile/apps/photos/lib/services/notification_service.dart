@@ -61,8 +61,12 @@ class NotificationService {
     }
     if (event == null) {
       await _preferences.reload();
-      if (_preferences.getString(Configuration.tokenKey) == null) return;
-      if (shouldShowNotificationsForSharedPhotosAndAlbums()) {
+      if (!_preferences.containsKey(Configuration.hasSecureTokenKey) &&
+          !_preferences.containsKey(Configuration.tokenKey)) {
+        return;
+      }
+      if (shouldShowNotificationsForSharedPhotosAndAlbums() &&
+          shouldShowSocialNotifications()) {
         final strings = await LanguageService.locals;
         await showNotification(
           strings.entePhotos,
@@ -72,8 +76,11 @@ class NotificationService {
       }
       return;
     }
-    if (event['eventType'] == 'album_shared') {
-      _logger.info('Received encrypted album-share push');
+    if (event['eventType'] == 'album_shared' ||
+        event['eventType'] == 'file_liked' ||
+        event['eventType'] == 'file_commented' ||
+        event['eventType'] == 'comment_replied') {
+      _logger.info('Received encrypted ${event['eventType']} push');
       await onSync();
     }
   }
@@ -373,7 +380,7 @@ class NotificationService {
     );
   }
 
-  Future<void> scheduleNotification(
+  Future<bool> scheduleNotification(
     String title, {
     String? message,
     required int id,
@@ -430,6 +437,7 @@ class NotificationService {
           "Scheduled notification with: $title, $message, $channelID, $channelName, $payload for $dateTime",
         );
       }
+      return true;
     } catch (e, s) {
       // Notification failures must not interrupt memory or ritual updates.
       _logger.severe(
@@ -437,6 +445,7 @@ class NotificationService {
         e,
         s,
       );
+      return false;
     }
   }
 

@@ -3,6 +3,7 @@ import 'package:ente_auth/services/authenticator_service.dart';
 import 'package:ente_auth/services/watch/service.dart';
 import 'package:ente_auth/store/code_store.dart';
 import 'package:ente_auth/utils/dialog_util.dart';
+import 'package:ente_pure_utils/ente_pure_utils.dart';
 import 'package:ente_strings/ente_strings.dart';
 import 'package:flutter/material.dart';
 
@@ -94,7 +95,7 @@ class CodeDisplayStore {
       if (code.isTrashed) continue;
       tags.addAll(code.display.tags);
     }
-    return tags.toList()..sort();
+    return tags.toList()..sort(compareNames);
   }
 
   Future<void> showDeleteTagDialog(BuildContext context, String tag) async {

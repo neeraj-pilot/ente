@@ -83,8 +83,6 @@ Renaming an Ente album does not rename the corresponding folder on your phone. I
 
 Add a description to provide context that appears with the album in the gallery and on shared links.
 
-![Edit album details dialog on Ente Photos mobile and web for name description and cover](https://docs-assets.ente.com/screenshots/duo-album-edit-details.png){width=900px}
-
 **On mobile and web/desktop:**
 
 1. Open the album
@@ -92,6 +90,8 @@ Add a description to provide context that appears with the album in the gallery 
 3. Select **Edit details**
 4. Enter or update the description
 5. Select **Save**
+
+![Mobile: typing an album description, then the description under the album title](https://docs-assets.ente.com/screenshots/phone-album-description-duo.png){width=520px}
 
 ## Set album cover
 
@@ -124,10 +124,20 @@ Select any photo you want to use as the cover for your album.
 
 Explore your album's memories based on their location.
 
+**On mobile:**
+
 - Open the album
-- Tap the overflow menu (three dots) in the top right corner
+- Tap the map button on the album cover at the top of the album. If you have scrolled down, tap the overflow menu (three dots) in the top-right corner and select **Map** instead.
+- All photos from the album with location data will appear in map view
+
+**On web and desktop:**
+
+- Open the album
+- Click the overflow menu (three dots) on the right of the album header
 - Select **Map**
-- All photos from the album will appear in map view
+- All photos from the album with location data will appear in map view
+
+For **Favorites**, click the globe button in the album header instead.
 
 ![Map view with location pins for photos on Ente Photos web](https://docs-assets.ente.com/screenshots/web-map-view.png){width=720px}
 
@@ -218,6 +228,8 @@ If you have multiple empty albums cluttering your album list, you can bulk delet
 This will delete all empty albums from your library. The feature only appears after your initial sync is complete and when you have more than 2 empty albums.
 
 Bulk-deleting empty Ente albums does not turn off backup for their device folders. If a selected folder contains media eligible for backup, Ente can create its album again. Open `Settings > Backup > Backed up folders` and turn off a folder only if you also want to stop its automatic backup.
+
+![Delete empty albums button highlighted on Ente Photos mobile](https://docs-assets.ente.com/screenshots/phone-albums-delete-empty-callout.png){width=320px}
 
 **On web / desktop:**
 

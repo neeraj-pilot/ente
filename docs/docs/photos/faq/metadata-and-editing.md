@@ -99,6 +99,34 @@ For photos already in Ente, you can select the affected items in the desktop app
 
 If an import is still running, [stop the upload](/photos/migration/from-local-hard-disk#stop-and-resume-an-upload) before cleanup. Files still present in the selected source can be uploaded again during that import or a later retry.
 
+## Editing Photos
+
+### What editing tools are available on mobile? {#mobile-photo-editor}
+
+In the Ente Photos mobile app, open a photo, tap the overflow menu (⋮) and select **Edit**. The editor has these tools:
+
+- **Crop & rotate**: **Crop**, **Straighten** a tilted photo, **Rotate**, or **Flip** it.
+- **Filter**: Apply a filter to the photo.
+- **Adjust**: Change **Brightness**, **Contrast**, **Saturation**, **Exposure**, **Hue**, **Temperature**, **Tint**, and **Fade**.
+- **Draw**: Draw on the photo.
+- **Text**: Add text, then choose its font, text color, background, and alignment.
+- **Sticker**: Add stickers.
+
+To change an added text, sticker, or drawing, tap it and select **Edit**, **Duplicate**, or **Delete**.
+
+Text you add becomes part of the edited image. To add searchable text without changing the image, [add a description](#add-descriptions) instead.
+
+There's no tool to blur or pixelate only part of a photo. To hide something such as text, cover it with **Draw**, or blur that area in another app and upload the edited copy.
+
+When you are finished, tap **Save copy**. Ente saves the edit as a separate copy and leaves your original untouched. Learn more about [how saving edits affects the copy](#saving-photo-edits).
+
+### How do I straighten a tilted photo? {#straighten-photo}
+
+1. Open the photo, tap the overflow menu (⋮) and select **Edit**.
+2. Tap **Crop & rotate**, then select **Straighten**.
+3. Drag the slider until the photo is level.
+4. Tap **Done**, then **Save copy**.
+
 ## Editing Metadata
 
 ### What metadata is preserved when I edit a photo? {#metadata-preserved-after-edit}
@@ -159,7 +187,7 @@ Yes! You can bulk-edit location coordinates:
 **On mobile:**
 
 1. Long press to multi-select the photos you want to edit
-2. Tap "Edit location" from the action bar
+2. Pull up the selection menu, then tap "Edit location"
 3. Choose the correct location on the map
 4. Tap Save
 
@@ -412,3 +440,9 @@ No. Ente never modifies your original files or their embedded metadata. All edit
 - Kept separate from the original file
 
 Your original photos with their original metadata remain untouched.
+
+### Can Ente remove metadata such as location from my photos? {#remove-metadata}
+
+No. Ente uploads your files as they are, including metadata such as the date taken, camera details and GPS location. This metadata is end-to-end encrypted along with your photos, so Ente can't see it. People you share an album or public link with can see it. See [What metadata can people I share with see?](#shared-metadata-visibility)
+
+If you want to store or share photos without metadata, remove it from copies with another app before uploading, check the copies, then upload them. Keep your originals separately.

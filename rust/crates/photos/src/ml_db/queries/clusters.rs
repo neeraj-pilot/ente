@@ -134,6 +134,16 @@ impl MlDb {
         self.read_grouped("SELECT cluster_id, face_id FROM face_clusters", ())
     }
 
+    pub(crate) fn for_each_cluster_face_id(
+        &self,
+        mut visit: impl FnMut(String, String),
+    ) -> Result<()> {
+        self.read_each("SELECT cluster_id, face_id FROM face_clusters", (), |row| {
+            visit(row.get(0)?, row.get(1)?);
+            Ok(())
+        })
+    }
+
     pub fn get_face_ids_for_cluster(&self, cluster_id: &str) -> Result<Vec<String>> {
         self.read_column(
             "SELECT face_id FROM face_clusters WHERE face_clusters.cluster_id = ?",
@@ -158,24 +168,6 @@ impl MlDb {
                 "#,
             (cluster_id, limit),
         )
-    }
-
-    pub fn get_blur_values_for_cluster(&self, cluster_id: &str) -> Result<Vec<f64>> {
-        let blur_values: Vec<f64> = self.read_column(
-            r#"
-            SELECT faces.blur
-            FROM faces
-            JOIN face_clusters
-                ON faces.face_id = face_clusters.face_id
-            WHERE face_clusters.cluster_id = ?
-            "#,
-            [cluster_id],
-        )?;
-        let mut seen = HashSet::new();
-        Ok(blur_values
-            .into_iter()
-            .filter(|blur| seen.insert(blur.to_bits()))
-            .collect())
     }
 
     pub fn get_face_ids_to_cluster_ids(
@@ -571,13 +563,6 @@ pub(in crate::ml_db) mod tests {
             &db,
             &cases![
                 "c1 files": vec![1, 2] => |db| db.get_file_ids_of_cluster_id("c1").map(sorted),
-            ],
-        );
-        check(
-            &db,
-            &cases![
-                "c1 blur deduplicated": vec![300.0] => |db| db.get_blur_values_for_cluster("c1"),
-                "c9 blur": vec![20.0] => |db| db.get_blur_values_for_cluster("c9"),
             ],
         );
     }

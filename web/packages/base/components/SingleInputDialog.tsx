@@ -14,13 +14,16 @@ import {
     v2CloseButtonSx,
     v2HeaderRowSx,
     v2PaperSx,
-    v2TitleSx,
 } from "./SingleInput.styles";
 import { SingleInputForm, type SingleInputFormProps } from "./SingleInputForm";
 
 type SingleInputDialogProps = ModalVisibilityProps &
-    Omit<SingleInputFormProps, "onCancel"> & {
+    Omit<SingleInputFormProps, "onCancel" | "onSubmit"> & {
         title: string;
+        onSubmit: (
+            value: string,
+            setFieldError: (message: string) => void,
+        ) => ReturnType<SingleInputFormProps["onSubmit"]> | Promise<boolean>;
         description?: string;
         sx?: SxProps<Theme>;
     };
@@ -40,11 +43,11 @@ export const SingleInputDialog: React.FC<SingleInputDialogProps> = ({
     const handleSubmit: SingleInputFormProps["onSubmit"] = useCallback(
         async (value, setFieldError) => {
             const submission = { hasError: false };
-            await onSubmit(value, (message) => {
+            const result = await onSubmit(value, (message) => {
                 submission.hasError = true;
                 setFieldError(message);
             });
-            if (!submission.hasError) onClose();
+            if (result !== false && !submission.hasError) onClose();
         },
         [onClose, onSubmit],
     );
@@ -61,7 +64,14 @@ export const SingleInputDialog: React.FC<SingleInputDialogProps> = ({
         >
             <Stack sx={{ p: "20px", gap: "20px" }}>
                 <Stack direction="row" sx={v2HeaderRowSx}>
-                    <Typography id={titleID} sx={v2TitleSx}>
+                    <Typography
+                        id={titleID}
+                        sx={{
+                            fontSize: "20px",
+                            lineHeight: "28px",
+                            fontWeight: 600,
+                        }}
+                    >
                         {title}
                     </Typography>
                     <IconButton

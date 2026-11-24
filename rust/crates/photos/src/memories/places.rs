@@ -1,15 +1,27 @@
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 
-use ente_location::Coordinate;
+use ente_location::{Coordinate, CountryCode, normalize_search_text};
 
 use super::geo::Located;
 use super::input::CityLookup;
+
+const NEARBY_TOWN_KM: f64 = 10.0;
+const TOWN_MAX_PHOTO_RATIO: usize = 3;
 
 #[derive(Debug)]
 struct Place {
     city: String,
     country: String,
+    country_code: CountryCode,
+    rank: u8,
+    location: Coordinate,
+}
+
+pub(super) struct CityPhotos<'p> {
+    pub(super) name: &'p str,
+    pub(super) location: Coordinate,
+    pub(super) photos: usize,
 }
 
 #[derive(Debug, Default)]
@@ -37,6 +49,9 @@ impl Places {
             places.places.push(Place {
                 city: group.city.name,
                 country: group.city.country_name,
+                country_code: group.city.country_code,
+                rank: group.city.rank,
+                location: Coordinate::new(group.city.latitude, group.city.longitude),
             });
             for position in group.coordinate_indices {
                 if let Some(member) = members.get(position as usize) {
@@ -74,13 +89,82 @@ impl Places {
         Some(normalized(&self.places[tally.biggest].country)).filter(|country| !country.is_empty())
     }
 
-    fn tally(&self, members: &[Located]) -> Option<Tally> {
+    pub(super) fn city(&self, photo_id: i64) -> Option<&str> {
+        self.place_of_photo
+            .get(&photo_id)
+            .map(|&place| self.places[place].city.as_str())
+    }
+
+    pub(super) fn country_code(&self, photo_id: i64) -> Option<CountryCode> {
+        self.place_of_photo
+            .get(&photo_id)
+            .map(|&place| self.places[place].country_code)
+    }
+
+    pub(super) fn cities(&self, members: &[Located]) -> Vec<CityPhotos<'_>> {
+        let places = self.fold(self.place_counts(members), |town, place, _, _| {
+            normalize_search_text(&town.city) == normalize_search_text(&place.city)
+                && town.location.distance_km(place.location) <= NEARBY_TOWN_KM
+        });
+        let towns = self.fold(places, |town, place, town_photos, place_photos| {
+            town.rank > place.rank
+                && town.location.distance_km(place.location) <= NEARBY_TOWN_KM
+                && town_photos * TOWN_MAX_PHOTO_RATIO >= place_photos
+        });
+        let mut cities: Vec<CityPhotos> = towns
+            .into_iter()
+            .map(|(town, photos)| CityPhotos {
+                name: &self.places[town].city,
+                location: self.places[town].location,
+                photos,
+            })
+            .collect();
+        cities.sort_by_key(|city| (Reverse(city.photos), city.name));
+        cities
+    }
+
+    fn fold(
+        &self,
+        own_photos: HashMap<usize, usize>,
+        absorbs: impl Fn(&Place, &Place, usize, usize) -> bool,
+    ) -> HashMap<usize, usize> {
+        let mut smallest_first: Vec<usize> = own_photos.keys().copied().collect();
+        smallest_first
+            .sort_by_key(|&place| (self.places[place].rank, own_photos[&place], Reverse(place)));
+        let mut photos = own_photos.clone();
+        for (position, &place) in smallest_first.iter().enumerate() {
+            if let Some(town) = smallest_first[position + 1..]
+                .iter()
+                .copied()
+                .filter(|&town| {
+                    absorbs(
+                        &self.places[town],
+                        &self.places[place],
+                        own_photos[&town],
+                        photos[&place],
+                    )
+                })
+                .max_by_key(|&town| (self.places[town].rank, own_photos[&town]))
+                && let Some(folded) = photos.remove(&place)
+            {
+                *photos.entry(town).or_default() += folded;
+            }
+        }
+        photos
+    }
+
+    fn place_counts(&self, members: &[Located]) -> HashMap<usize, usize> {
         let mut counts: HashMap<usize, usize> = HashMap::new();
         for member in members {
             if let Some(&place) = self.place_of_photo.get(&member.photo.id) {
                 *counts.entry(place).or_default() += 1;
             }
         }
+        counts
+    }
+
+    fn tally(&self, members: &[Located]) -> Option<Tally> {
+        let counts = self.place_counts(members);
         let (&biggest, &biggest_count) = counts
             .iter()
             .max_by_key(|&(&place, &count)| (count, Reverse(place)))?;

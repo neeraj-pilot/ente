@@ -1,16 +1,21 @@
 import "dart:async";
 import "dart:io" show File, Platform;
 
+import "package:ente_photos_platform/ente_photos_platform.dart";
 import "package:flutter/foundation.dart" show kDebugMode;
 import "package:flutter/widgets.dart" show AppLifecycleState, WidgetsBinding;
 import "package:logging/logging.dart";
+import "package:photo_manager/photo_manager.dart";
 import "package:photos/core/event_bus.dart";
 import "package:photos/db/files_db.dart";
 import "package:photos/db/ml/base.dart";
 import "package:photos/db/ml/db.dart";
+import "package:photos/db/ml/rust_db.dart";
 import "package:photos/db/offline_files_db.dart";
 import "package:photos/events/app_mode_changed_event.dart";
 import "package:photos/events/compute_control_event.dart";
+import "package:photos/events/files_updated_event.dart";
+import "package:photos/events/local_photos_updated_event.dart";
 import "package:photos/main.dart";
 import "package:photos/models/file/file.dart";
 import "package:photos/models/file/file_type.dart";
@@ -57,6 +62,7 @@ class MLService {
 
   bool debugIndexingDisabled = false;
   bool _clusteringIsHappening = false;
+  bool _facesClusteredByLastRun = false;
   bool _mlControllerStatus = false;
   final Set<MlRunControl> _runControls = {};
   MlRunControl? _activeRunControl;
@@ -65,12 +71,14 @@ class MLService {
 
   static const _kPredownloadLocalModelsDelay = Duration(seconds: 10);
   static const _kDeniedRunRetryDelay = Duration(seconds: 15);
+  static const _kVectorGraphBuildBatch = 2000;
 
   bool get isRunningML =>
       MlProcessLock.instance.activeOperation == MlOperation.fullRun;
 
   static const _kForceClusteringFaceCount = 8000;
   static const _kForceClusteringFaceCountLocalGallery = 100;
+  static const _rewindCheckInterval = Duration(minutes: 5);
   int _forceClusteringFaceCountForMode(MLMode mode) {
     return mode == MLMode.localGallery
         ? _kForceClusteringFaceCountLocalGallery
@@ -410,6 +418,12 @@ class MLService {
     } finally {
       computeController.releaseCompute(ml: true);
     }
+    if (disposition == MlRunDisposition.completed && _mlControllerStatus) {
+      await rewindService.refresh(
+        afterMlRun: true,
+        justClustered: _facesClusteredByLastRun,
+      );
+    }
     return disposition;
   }
 
@@ -440,6 +454,7 @@ class MLService {
     required MlRunControl control,
   }) async {
     assert(MlProcessLock.instance.isBusy, "ml funnel must be held");
+    _facesClusteredByLastRun = false;
     if (control.stopRequested) {
       _logRunStopped(control, "before sync");
       return MlRunDisposition.stopped;
@@ -500,9 +515,9 @@ class MLService {
         _logRunStopped(control, "before final clustering");
         return MlRunDisposition.stopped;
       }
-      if ((await mlDataDB.getUnclusteredFaceCount()) > 0) {
-        await _clusterAllImages(control: control);
-      }
+      _facesClusteredByLastRun =
+          (await mlDataDB.getUnclusteredFaceCount()) == 0 ||
+          await _clusterAllImages(control: control);
       if (control.stopRequested) {
         _logRunStopped(control, "before post-run cache scheduling");
         return MlRunDisposition.stopped;
@@ -524,12 +539,35 @@ class MLService {
           return MlRunDisposition.stopped;
         }
       }
+      if (mlDataDB is RustMLDataDB && mode != MLMode.localGallery) {
+        await _buildPendingVectorGraphs(mlDataDB, control);
+        if (control.stopRequested) {
+          _logRunStopped(control, "after building vector graphs");
+          return MlRunDisposition.stopped;
+        }
+      }
       return MlRunDisposition.completed;
     } finally {
       _logger.info("ML finished running");
       if (!isProcessBg) {
         VideoPreviewService.instance.queueFiles();
       }
+    }
+  }
+
+  Future<void> _buildPendingVectorGraphs(
+    RustMLDataDB mlDataDB,
+    MlRunControl control,
+  ) async {
+    try {
+      while (!control.stopRequested) {
+        final processed = await mlDataDB.buildPendingVectorGraphs(
+          maxVectors: _kVectorGraphBuildBatch,
+        );
+        if (processed < _kVectorGraphBuildBatch) break;
+      }
+    } catch (e, s) {
+      _logger.warning("Failed to build pending vector graphs", e, s);
     }
   }
 
@@ -629,11 +667,28 @@ class MLService {
           onlyIndexingModels: true,
         );
       }
+      var nextRewindCheck = DateTime.now();
+      var checkedFirstChunk = false;
+      Future<void> checkRewind() async {
+        if (DateTime.now().isBefore(nextRewindCheck)) return;
+        nextRewindCheck = DateTime.now().add(_rewindCheckInterval);
+        await _addRewindMlCardsOnceIndexed(
+          mode,
+          control,
+          beforeClustering: () async {
+            if (!rustRuntimePrepared) return;
+            await MLIndexingIsolate.instance.releaseRustRuntime();
+            rustRuntimePrepared = false;
+          },
+        );
+      }
+
       final Stream<List<FileMLInstruction>> instructionStream =
           fetchEmbeddingsAndInstructions(
             fileDownloadMlLimit,
             mode: mode,
             control: control,
+            afterRemoteBatch: checkRewind,
           );
 
       int fileAnalyzedCount = 0;
@@ -698,6 +753,11 @@ class MLService {
         if (stopRun) {
           break;
         }
+        if (!checkedFirstChunk) {
+          checkedFirstChunk = true;
+          nextRewindCheck = DateTime.now();
+        }
+        await checkRewind();
       }
       if (fileAnalyzedCount > 0) {
         magicCacheService.queueUpdate('fileIndexed');
@@ -718,6 +778,32 @@ class MLService {
     }
   }
 
+  Future<void> _addRewindMlCardsOnceIndexed(
+    MLMode mode,
+    MlRunControl control, {
+    required Future<void> Function() beforeClustering,
+  }) async {
+    if (control.stopRequested ||
+        !rewindService.hasPendingMlChapters ||
+        !await rewindService.hasEnoughMl()) {
+      return;
+    }
+    _logger.info("Enough files are indexed for Rewind's ML cards");
+    try {
+      if ((await _dbForMode(mode).getUnclusteredFaceCount()) > 0) {
+        await beforeClustering();
+        if (!await _clusterAllImages(control: control)) return;
+      }
+      if (control.stopRequested) return;
+      await PersonService.instance.sync();
+    } catch (e, s) {
+      _logger.warning("Failed to cluster for Rewind's ML cards", e, s);
+      return;
+    }
+    if (control.stopRequested) return;
+    unawaited(rewindService.refresh(afterMlRun: true, justClustered: true));
+  }
+
   Future<MlLockAttempt> clusterAllImages({bool force = false}) async {
     final control = MlRunControl();
     final attempt = await _runExclusiveWithControl(
@@ -733,16 +819,16 @@ class MLService {
     return attempt;
   }
 
-  Future<void> _clusterAllImages({
+  Future<bool> _clusterAllImages({
     required MlRunControl control,
     bool force = false,
   }) async {
     assert(MlProcessLock.instance.isBusy, "ml funnel must be held");
     if (control.stopRequested) {
       _logRunStopped(control, "before clustering started");
-      return;
+      return false;
     }
-    if (!_canRunMLFunction(function: "Clustering") && !force) return;
+    if (!_canRunMLFunction(function: "Clustering") && !force) return false;
     final faceClustering = _faceClustering;
     _logger.info("`clusterAllImages()` called");
     _clusteringIsHappening = true;
@@ -757,7 +843,7 @@ class MLService {
         if (person.data.rejectedFaceIDs.isNotEmpty) {
           final personClusters = person.data.assigned.map((e) => e.id).toList();
           for (final faceID in person.data.rejectedFaceIDs) {
-            faceIdNotToCluster[faceID] = personClusters;
+            (faceIdNotToCluster[faceID] ??= []).addAll(personClusters);
           }
         }
       }
@@ -778,8 +864,10 @@ class MLService {
         'clusterAllImages() finished, in '
         '${DateTime.now().difference(clusterAllImagesTime).inSeconds} seconds',
       );
+      return !control.stopRequested;
     } catch (e, s) {
       _logger.severe("`clusterAllImages` failed", e, s);
+      return false;
     } finally {
       _clusteringIsHappening = false;
     }
@@ -890,6 +978,10 @@ class MLService {
       final String format = instruction.file.displayName.split('.').last;
       final int? size = instruction.file.fileSize;
       final fileType = instruction.file.fileType;
+      if (e is CouldNotRetrieveAnyFileData &&
+          await _removeMissingLocalFileReference(instruction)) {
+        return false;
+      }
       if (e is RustCorruptModelException) {
         stopActiveRun(MlStopReason.corruptModel);
         _logger.severe(
@@ -951,6 +1043,52 @@ class MLService {
         }
         await _evictRemoteCacheAfterMLProcessing(instruction.file);
       }
+    }
+  }
+
+  Future<bool> _removeMissingLocalFileReference(
+    FileMLInstruction instruction,
+  ) async {
+    final file = instruction.file;
+    final localID = file.localID;
+    if (!Platform.isAndroid ||
+        !instruction.isLocalGallery ||
+        !isLocalGalleryMode ||
+        localID == null ||
+        localID.isEmpty ||
+        file.isSharedMediaToAppSandbox) {
+      return false;
+    }
+    try {
+      if (await permissionService.getPermissionState() !=
+          PermissionState.authorized) {
+        return false;
+      }
+      if (await LocalMediaClient.instance.assetExists(localID) != false) {
+        _logger.info("Retaining localID $localID: absence is not confirmed");
+        return false;
+      }
+      if (await permissionService.getPermissionState() !=
+              PermissionState.authorized ||
+          !isLocalGalleryMode ||
+          file.localID != localID ||
+          (file.uploadedFileID != null && file.uploadedFileID != -1)) {
+        return false;
+      }
+      await FilesDB.instance.deleteLocalFile(file);
+      SearchService.instance.invalidateFileCaches();
+      Bus.instance.fire(
+        LocalPhotosUpdatedEvent(
+          [file],
+          type: EventType.deletedFromDevice,
+          source: "mlMissingLocalFile",
+        ),
+      );
+      _logger.info("Removed missing Android local file reference $localID");
+      return true;
+    } catch (e, s) {
+      _logger.warning("Could not clean up missing localID $localID", e, s);
+      return false;
     }
   }
 

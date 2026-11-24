@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import type { PageFlip } from "page-flip";
 import { test, vi } from "vitest";
-import { clipSoftcoverInsidePages } from "./softcoverPreview";
+import type { PrintBinding } from "./printProducts";
+import {
+    clipSoftcoverInsidePages,
+    setPreviewPageDensity,
+} from "./softcoverPreview";
 
-function fixture() {
+function fixture(binding: PrintBinding = "Softcover") {
     const state = { index: 1, direction: 1, folding: true };
-    const pages = Array.from({ length: 8 }, () => {
+    const pages = Array.from({ length: 8 }, (_, index) => {
         const style = {
             clipPath: "",
             webkitClipPath: "",
@@ -13,14 +17,19 @@ function fixture() {
                 if (name === "-webkit-clip-path") this.webkitClipPath = value;
             },
         };
+        const element = { style, dataset: { density: "" } };
+        setPreviewPageDensity(element, binding, index, 8);
         return {
             style,
+            getDensity() {
+                return element.dataset.density;
+            },
             simpleDraw: vi.fn((orientation: number) => {
                 assert.ok(orientation === 0 || orientation === 1);
                 style.clipPath = "";
                 style.webkitClipPath = "";
             }),
-            getElement: () => ({ style }),
+            getElement: () => element,
         };
     });
     const book = {
@@ -83,12 +92,35 @@ test("closing the front cover reveals the background behind the left fold", () =
 
 test("closing the back cover mirrors the cutout onto the right page", () => {
     const { book, pages, state } = fixture();
+    assert.ok(pages.every((page) => page.getDensity() === "soft"));
     state.index = 5;
     state.direction = 0;
     clipSoftcoverInsidePages(book);
     pages[6]!.simpleDraw(1);
     assert.equal(visibleAt(pages[6]!.style.clipPath, 290, 150), false);
     assert.equal(visibleAt(pages[6]!.style.clipPath, 20, 150), true);
+});
+
+test("hard covers retain their normal drawing on both sides", () => {
+    const { book, pages, state } = fixture("Hardcover");
+    assert.deepEqual(
+        pages.map((page) => page.getDensity()),
+        ["hard", "hard", "soft", "soft", "soft", "soft", "hard", "hard"],
+    );
+    const frontDraw = pages[1]!.simpleDraw;
+    const backDraw = pages[6]!.simpleDraw;
+    const restore = clipSoftcoverInsidePages(book);
+    assert.equal(pages[1]!.simpleDraw, frontDraw);
+    assert.equal(pages[6]!.simpleDraw, backDraw);
+    pages[1]!.simpleDraw(0);
+    assert.equal(pages[1]!.style.clipPath, "");
+    state.index = 5;
+    state.direction = 0;
+    pages[6]!.simpleDraw(1);
+    assert.equal(pages[6]!.style.clipPath, "");
+    restore();
+    assert.equal(pages[1]!.simpleDraw, frontDraw);
+    assert.equal(pages[6]!.simpleDraw, backDraw);
 });
 
 test("opening covers and turning interior pages retain the normal page drawing", () => {

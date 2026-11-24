@@ -25,6 +25,7 @@ pub enum AccountsError {
     IncorrectTotp,
     TotpRateLimited,
     SessionExpired,
+    TwoFactorRecoveryNotConfigured,
     KeyDerivation,
     Network { timeout: bool },
     Other { message: String },
@@ -39,6 +40,7 @@ impl From<Error> for AccountsError {
             Error::EmailAlreadyInUse => Self::EmailAlreadyInUse,
             Error::SrpNotConfigured => Self::SrpNotConfigured,
             Error::IncorrectPassword => Self::IncorrectPassword,
+            Error::SrpSessionExpired => Self::SessionExpired,
             Error::IncorrectRecoveryKey => Self::IncorrectRecoveryKey,
             Error::MalformedRecoveryKey => Self::MalformedRecoveryKey,
             Error::IncorrectEmailVerificationCode => Self::IncorrectEmailCode,
@@ -47,6 +49,7 @@ impl From<Error> for AccountsError {
             Error::IncorrectTotp => Self::IncorrectTotp,
             Error::TotpRateLimited => Self::TotpRateLimited,
             Error::SecondFactorSessionExpired => Self::SessionExpired,
+            Error::TwoFactorRecoveryNotConfigured => Self::TwoFactorRecoveryNotConfigured,
             Error::InsufficientMemory
             | Error::Crypto(ente_core::crypto::Error::KeyDerivationFailed)
             | Error::Crypto(ente_core::crypto::Error::InvalidKeyDerivationParams(_)) => {

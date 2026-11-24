@@ -1,4 +1,9 @@
 {
+    "uploadDestinationUnavailable": "This collection is no longer available. Choose another destination or remove it from the upload.",
+    "uploadDestinationNeedsChoice": "Choose a collection for “{{name}}” or remove the suggestion before uploading.",
+    "uploadDestinationUnavailableLabel": "Unavailable collection (#{{id}})",
+    "uploadDestinationNeedsChoiceLabel": "{{name}} (choose a collection)",
+    "uploadDestinationShared": "{{name}} (shared)",
     "invalidUploadFileName": "Enter a valid file name of at most 255 bytes, including its extension.",
     "discardUnsavedChangesTitle": "Discard unsaved changes?",
     "discardUnsavedChangesBody": "You have unsaved changes. Discarding will lose them.",
@@ -258,5 +263,6 @@
     "legacy_accounts": "Legacy accounts",
     "add_trusted_contact": "Add trusted contact",
     "trusted_contacts_empty": "Nominate another Ente user as a trusted contact to recover your account",
-    "legacy_accounts_empty": "Trusted contacts can initiate account recovery, and if not blocked within 30 days, reset your password and access your account."
+    "legacy_accounts_empty": "Trusted contacts can initiate account recovery, and if not blocked within 30 days, reset your password and access your account.",
+    "uploadShareBody": "{{name}} is safely stored in Locker. Share a link now?"
 }

@@ -167,6 +167,14 @@ Video streaming is still in beta. If something isn't working:
 
 For crashes or upload failures with streaming enabled, see [Troubleshooting](/photos/faq/troubleshooting#app-crashes-ml-video).
 
+### Why is Streamable videos stuck just below 100%? {#stream-progress-stuck}
+
+If a stream can't be created for a video after a few attempts, Ente stops retrying it automatically. That video still counts as not processed, so the percentage stays just below 100%. The video is still backed up and plays from the original file.
+
+To try again on mobile, first make sure video streaming is enabled. Open the video, tap the overflow menu (⋮) in the top-right corner and select **Create stream**. Keep the app open until it finishes. This option is not available in the desktop viewer.
+
+If you cannot use the mobile app or the same video keeps failing, [send logs](/photos/faq/troubleshooting#sharing-logs) to support and identify an affected video.
+
 ### How can I check if a video is being streamed? {#check-streaming-detection}
 
 **On mobile:**
@@ -176,6 +184,17 @@ If you see a green "Play Original" button, the streamed version is being used.
 **On desktop/web:**
 
 Open the video and click the gear icon in the player. If it shows **Auto**, the video is being streamed.
+
+### Why does a video look lower quality than the original? {#video-lower-quality}
+
+Ente may be playing the streamable version of the video, which is 720p, instead of your original file. Your original is still stored at full quality.
+
+To watch the original:
+
+- **On desktop and web:** click the gear icon in the video player, choose **Quality**, then **Original**
+- **On mobile:** tap **Play original**
+
+The original may take longer to start, because the whole file has to download first.
 
 ### Why does my shared video start downloading instead of playing immediately? {#shared-video-downloads-instead-of-playing}
 
@@ -188,6 +207,13 @@ To avoid this, ensure video streaming is enabled so that streamable versions are
 Ente Cast lets you play slideshow albums on Chromecast TVs or any internet-connected large screen. You can pair using auto-pair (Chromium browsers with Chromecast) or PIN pairing (works with any device). You can also manage multiple active cast sessions and disconnect screens you are no longer using.
 
 For setup instructions, see the [Cast feature guide](/photos/features/utilities/cast/).
+
+### Can I use Ente as a photo frame on a tablet or TV? {#photo-frame}
+
+Yes, in two common ways:
+
+- **Cast to a TV or large screen.** Use [Cast](/photos/features/utilities/cast/) to play an album slideshow on a Chromecast TV or any screen that can open [cast.ente.com](https://cast.ente.com). Pair from the album menu (**Play album on TV** / **Cast album**), then manage or disconnect sessions from the cast controls.
+- **Slideshow on a tablet or computer.** Open an album and start [Slideshow](/photos/faq/albums-and-organization#start-album-slideshow). On a large tablet or desktop this works well as a simple photo frame. You can also start a slideshow from an **On device** album; see [Can I start a slideshow from On device albums or Gallery mode?](/photos/faq/albums-and-organization#album-slideshow-gallery-mode).
 
 ### When I scroll through photos on my phone, does Cast show the same photo on the TV? {#cast-phone-scrolling}
 
