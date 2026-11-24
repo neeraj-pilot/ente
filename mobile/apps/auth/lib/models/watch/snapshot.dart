@@ -21,7 +21,10 @@ class WatchSnapshot {
       (_isSteam(code) || code.type == Type.totp);
 
   // A bad selected entry must not prevent a different entry from being removed.
-  factory WatchSnapshot.fromCodes(Iterable<Code> codes) {
+  factory WatchSnapshot.fromCodes(
+    Iterable<Code> codes, {
+    bool hideCodes = false,
+  }) {
     final entries = <Map<String, Object>>[];
     var omitted = 0;
     for (final code in codes.where(supports)) {
@@ -31,8 +34,12 @@ class WatchSnapshot {
         omitted++;
       }
     }
+    final payload = <String, Object>{
+      'entries': entries,
+      if (hideCodes) 'hideCodes': true,
+    };
     return WatchSnapshot._(
-      Uint8List.fromList(utf8.encode(jsonEncode({'entries': entries}))),
+      Uint8List.fromList(utf8.encode(jsonEncode(payload))),
       omitted,
     );
   }
@@ -48,6 +55,8 @@ class WatchSnapshot {
     if (secret.isEmpty) {
       throw const FormatException('Missing OTP secret.');
     }
+    final tags = code.display.tags.where((tag) => tag.isNotEmpty).toList()
+      ..sort();
     return {
       'id': code.generatedID!.toString(),
       'issuer': code.issuer,
@@ -57,6 +66,8 @@ class WatchSnapshot {
       'algorithm': steam ? Algorithm.sha1.name : code.algorithm.name,
       'digits': digits,
       'period': period,
+      if (code.isPinned) 'pinned': true,
+      if (tags.isNotEmpty) 'tags': tags,
     };
   }
 }

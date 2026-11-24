@@ -130,6 +130,36 @@ final class EnvelopeAndRepositoryTests: XCTestCase {
     XCTAssertEqual(orphan.envelope.header.revision, 2)
   }
 
+  func testSnapshotMetadataRoundTripAndBackwardCompatibility() throws {
+    let taggedEntry = Entry(
+      id: "42",
+      issuer: "Ente",
+      account: "alice@ente.io",
+      secret: Data("12345678901234567890".utf8),
+      generator: .totp,
+      algorithm: .sha1,
+      digits: 6,
+      period: 30,
+      pinned: true,
+      tags: ["Daily", "Work"]
+    )
+    let snapshot = Snapshot(entries: [taggedEntry], hideCodes: true)
+    let encoded = try Envelope.jsonData(snapshot)
+    let decoded = try JSONDecoder().decode(Snapshot.self, from: encoded)
+    XCTAssertTrue(decoded.hideCodes)
+    XCTAssertEqual(decoded.entries.first?.pinned, true)
+    XCTAssertEqual(decoded.entries.first?.tags, ["Daily", "Work"])
+
+    let legacyJson = Data(
+      """
+      {"entries":[{"id":"7","issuer":"Legacy","account":"a@b.c","secret":"MTIzNDU2Nzg5MDEyMzQ1Njc4OTA=","generator":"totp","algorithm":"sha1","digits":6,"period":30}]}
+      """.utf8)
+    let legacy = try JSONDecoder().decode(Snapshot.self, from: legacyJson)
+    XCTAssertFalse(legacy.hideCodes)
+    XCTAssertEqual(legacy.entries.first?.pinned, false)
+    XCTAssertEqual(legacy.entries.first?.tags, [])
+  }
+
   private func compressRawDeflate(_ data: Data) throws -> Data {
     let dummy = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
     defer { dummy.deallocate() }

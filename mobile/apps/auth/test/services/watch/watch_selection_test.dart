@@ -32,6 +32,19 @@ void main() {
     );
     expect(tagSharing.includes(workCode), true);
     expect(tagSharing.includes(personalCode), false);
+
+    final pinnedCode = Code.fromAccountAndSecret(
+      Type.totp,
+      'pin@example.com',
+      'PinnedApp',
+      'JBSWY3DPEHPK3PXP',
+      CodeDisplay(pinned: true),
+      6,
+    );
+    const pinnedSharing = WatchSharing(mode: WatchSharingMode.pinned);
+    expect(pinnedSharing.includes(pinnedCode), true);
+    expect(pinnedSharing.includes(workCode), false);
+    expect(pinnedSharing.includes(personalCode), false);
   });
 
   test('WatchSelection round-trips JSON and rejects invalid payloads', () {
@@ -43,6 +56,7 @@ void main() {
           mode: WatchSharingMode.tags,
           tags: {'Work', 'Bank'},
         ),
+        'enroll-2': const WatchSharing(mode: WatchSharingMode.pinned),
       },
     );
 
@@ -52,6 +66,8 @@ void main() {
     expect(decoded.epoch, 'epoch-1');
     expect(decoded.watches['enroll-1']?.mode, WatchSharingMode.tags);
     expect(decoded.watches['enroll-1']?.tags, {'Work', 'Bank'});
+    expect(decoded.watches['enroll-2']?.mode, WatchSharingMode.pinned);
+    expect(decoded.watches['enroll-2']?.tags, isEmpty);
 
     expect(WatchSelection.decode(null), isNull);
     expect(WatchSelection.decode('not json'), isNull);

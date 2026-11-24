@@ -9,6 +9,7 @@
     public enum Issue: Equatable { case passcodeRequired, unlockWatch, syncFailed, updatePhone }
 
     @Published public private(set) var entries: [Entry] = []
+    @Published public private(set) var hideCodes = false
     @Published public private(set) var status = WatchStatus(enrollment: nil, receipt: nil)
     @Published public private(set) var issue: Issue?
     @Published public private(set) var canEnroll = false
@@ -33,7 +34,12 @@
 
     public func setVisible(_ visible: Bool) {
       self.visible = visible
-      if visible { reload() } else { entries = [] }
+      if visible {
+        reload()
+      } else {
+        entries = []
+        hideCodes = false
+      }
     }
 
     public func enroll() {
@@ -52,6 +58,7 @@
 
     public func erase() {
       entries = []
+      hideCodes = false
       do {
         try repository.erase()
         status = WatchStatus(enrollment: nil, receipt: nil)
@@ -62,21 +69,34 @@
     }
 
     private func reload() {
-      guard visible else { return }
-      do {
-        var state = try repository.read()
-        var syncFailed = false
+      if !visible {
         do {
-          if !session.receivedApplicationContext.isEmpty {
-            phone = try PhoneContext(session.receivedApplicationContext)
-          }
-          if let data = phone?.envelope { state = try repository.apply(data) }
-        } catch WatchError.wrongEnrollment {
+          let initial = try repository.read()
+          let applied = applyIncomingContext(to: initial)
+          canEnroll = CipherSuite.supported.contains { phone?.suites.contains($0) == true }
+          status = WatchStatus(
+            enrollment: applied.state.enrollment, receipt: applied.state.receipt)
+          updatedAt =
+            applied.state.receipt == nil
+            ? nil
+            : (try? file.url.resourceValues(forKeys: [.contentModificationDateKey]))?
+              .contentModificationDate
+          try? sendStatus()
         } catch {
-          syncFailed = true
+          // Leave issue/entries hidden while backgrounded (e.g. Keychain locked).
         }
+        entries = []
+        hideCodes = false
+        return
+      }
+      do {
+        let initial = try repository.read()
+        let applied = applyIncomingContext(to: initial)
+        var syncFailed = applied.syncFailed
+        let state = applied.state
         canEnroll = CipherSuite.supported.contains { phone?.suites.contains($0) == true }
         entries = state.snapshot.entries
+        hideCodes = state.snapshot.hideCodes
         status = WatchStatus(enrollment: state.enrollment, receipt: state.receipt)
         updatedAt =
           state.receipt == nil
@@ -87,14 +107,33 @@
         issue = syncFailed ? .syncFailed : nil
       } catch is KeychainError {
         entries = []
+        hideCodes = false
         issue = .unlockWatch
       } catch {
         entries = []
+        hideCodes = false
         issue = .syncFailed
         status = WatchStatus(
           enrollment: try? repository.enrollment(), receipt: nil, storageError: true)
         try? sendStatus()
       }
+    }
+
+    private func applyIncomingContext(to current: WatchRepository.State) -> (
+      state: WatchRepository.State, syncFailed: Bool
+    ) {
+      var next = current
+      var syncFailed = false
+      do {
+        if !session.receivedApplicationContext.isEmpty {
+          phone = try PhoneContext(session.receivedApplicationContext)
+        }
+        if let data = phone?.envelope { next = try repository.apply(data) }
+      } catch WatchError.wrongEnrollment {
+      } catch {
+        syncFailed = true
+      }
+      return (next, syncFailed)
     }
 
     private func sendStatus() throws {

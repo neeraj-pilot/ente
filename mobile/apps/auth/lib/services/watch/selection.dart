@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:ente_auth/models/code.dart';
 
-enum WatchSharingMode { all, tags }
+enum WatchSharingMode { all, pinned, tags }
 
 class WatchSharing {
   const WatchSharing({required this.mode, this.tags = const {}});
@@ -10,8 +10,11 @@ class WatchSharing {
   final WatchSharingMode mode;
   final Set<String> tags;
 
-  bool includes(Code code) =>
-      mode == WatchSharingMode.all || code.display.tags.any(tags.contains);
+  bool includes(Code code) => switch (mode) {
+    WatchSharingMode.all => true,
+    WatchSharingMode.pinned => code.isPinned,
+    WatchSharingMode.tags => code.display.tags.any(tags.contains),
+  };
 
   factory WatchSharing.fromJson(Map<String, dynamic> json) => WatchSharing(
     mode: WatchSharingMode.values.byName(json['mode'] as String),

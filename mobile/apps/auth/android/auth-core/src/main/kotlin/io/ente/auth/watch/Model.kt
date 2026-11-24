@@ -29,6 +29,19 @@ internal fun JsonObject.number(name: String): Long {
     requireWatch(value != null && value.isJsonPrimitive && value.asJsonPrimitive.isNumber, "invalidEnvelope")
     return value.asBigDecimal.longValueExact()
 }
+internal fun JsonObject.optionalBoolean(name: String): Boolean? {
+    val value = get(name)?.takeUnless { it.isJsonNull } ?: return null
+    requireWatch(value.isJsonPrimitive && value.asJsonPrimitive.isBoolean, "invalidEnvelope")
+    return value.asBoolean
+}
+internal fun JsonObject.optionalStringList(name: String): List<String> {
+    val value = get(name)?.takeUnless { it.isJsonNull } ?: return emptyList()
+    requireWatch(value.isJsonArray, "invalidEnvelope")
+    return value.asJsonArray.map { element ->
+        requireWatch(element.isJsonPrimitive && element.asJsonPrimitive.isString, "invalidEnvelope")
+        element.asString
+    }
+}
 internal fun json(data: ByteArray, maximum: Int = Envelope.MAXIMUM_BYTES): JsonObject {
     requireWatch(data.size <= maximum, "payloadTooLarge")
     return JsonParser.parseString(data.toString(Charsets.UTF_8)).asJsonObject
@@ -44,6 +57,8 @@ data class Entry(
     val algorithm: String,
     val digits: Int,
     val period: Int,
+    val pinned: Boolean = false,
+    val tags: List<String> = emptyList(),
 ) {
     fun validate() {
         requireWatch(id.isNotEmpty() && secret.bytes().isNotEmpty(), "invalidEntry")
@@ -79,6 +94,8 @@ data class Entry(
         addProperty("id", id); addProperty("issuer", issuer); addProperty("account", account)
         addProperty("secret", secret); addProperty("generator", generator); addProperty("algorithm", algorithm)
         addProperty("digits", digits); addProperty("period", period)
+        if (pinned) addProperty("pinned", true)
+        if (tags.isNotEmpty()) add("tags", JsonArray().apply { tags.forEach(::add) })
     }
 
     companion object {
@@ -88,15 +105,20 @@ data class Entry(
             requireWatch(digits in 1..10 && period in 1..Int.MAX_VALUE, "invalidEntry")
             return Entry(value.string("id"), value.string("issuer"), value.string("account"),
                 value.string("secret"), value.string("generator"), value.string("algorithm"),
-                digits.toInt(), period.toInt()).also { it.validate() }
+                digits.toInt(), period.toInt(),
+                value.optionalBoolean("pinned") ?: false,
+                value.optionalStringList("tags")).also { it.validate() }
         }
     }
 }
 
-data class Snapshot(val entries: List<Entry>) {
+data class Snapshot(val entries: List<Entry>, val hideCodes: Boolean = false) {
     fun encode(): ByteArray {
         validate()
-        return JsonObject().apply { add("entries", JsonArray().apply { entries.forEach { add(it.encode()) } }) }.encode()
+        return JsonObject().apply {
+            add("entries", JsonArray().apply { entries.forEach { add(it.encode()) } })
+            if (hideCodes) addProperty("hideCodes", true)
+        }.encode()
     }
 
     fun validate() {
@@ -106,8 +128,11 @@ data class Snapshot(val entries: List<Entry>) {
 
     companion object {
         val EMPTY = Snapshot(emptyList())
-        fun decode(data: ByteArray, maximum: Int = Envelope.MAX_PLAINTEXT_BYTES): Snapshot =
-            Snapshot(json(data, maximum).getAsJsonArray("entries")
-                .map { Entry.decode(it.asJsonObject) }).also { it.validate() }
+        fun decode(data: ByteArray, maximum: Int = Envelope.MAX_PLAINTEXT_BYTES): Snapshot {
+            val root = json(data, maximum)
+            val hideCodes = root.optionalBoolean("hideCodes") ?: false
+            val entries = root.getAsJsonArray("entries").map { Entry.decode(it.asJsonObject) }
+            return Snapshot(entries, hideCodes).also { it.validate() }
+        }
     }
 }

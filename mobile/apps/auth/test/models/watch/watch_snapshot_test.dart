@@ -74,6 +74,32 @@ void main() {
       expect(entries[1]['algorithm'], 'sha1');
       expect(entries[1]['digits'], 5);
       expect(entries[1]['period'], 30);
+      expect(decoded.containsKey('hideCodes'), false);
+      expect(entries[0].containsKey('pinned'), false);
+      expect(entries[0].containsKey('tags'), false);
+    },
+  );
+
+  test(
+    'WatchSnapshot encodes pinned, sorted tags, and hideCodes only when set',
+    () {
+      final code = Code.fromAccountAndSecret(
+        Type.totp,
+        'alice@example.com',
+        'GitHub',
+        'JBSWY3DPEHPK3PXP',
+        CodeDisplay(pinned: true, tags: ['Work', 'Daily']),
+        6,
+      )..generatedID = 99;
+
+      final snapshot = WatchSnapshot.fromCodes([code], hideCodes: true);
+      final decoded =
+          jsonDecode(utf8.decode(snapshot.data)) as Map<String, dynamic>;
+      expect(decoded['hideCodes'], true);
+      final entries = (decoded['entries'] as List).cast<Map<String, dynamic>>();
+      expect(entries.length, 1);
+      expect(entries[0]['pinned'], true);
+      expect(entries[0]['tags'], ['Daily', 'Work']);
     },
   );
 

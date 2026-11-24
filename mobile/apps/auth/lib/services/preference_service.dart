@@ -85,9 +85,11 @@ class PreferenceService {
     Bus.instance.fire(IconsChangedEvent());
   }
 
-  bool shouldHideCodes() {
-    return _prefs.getBool(kShouldHideCodesKey) ?? false;
+  static bool shouldHideCodesFrom(SharedPreferences prefs) {
+    return prefs.getBool(kShouldHideCodesKey) ?? false;
   }
+
+  bool shouldHideCodes() => shouldHideCodesFrom(_prefs);
 
   bool isCompactMode() {
     return _prefs.getBool(kCompactMode) ?? false;
@@ -100,6 +102,7 @@ class PreferenceService {
   Future<void> setHideCodes(bool value) async {
     await _prefs.setBool(kShouldHideCodesKey, value);
     Bus.instance.fire(IconsChangedEvent());
+    WatchService.scheduleRefresh();
   }
 
   bool shouldAutoFocusOnSearchBar() {

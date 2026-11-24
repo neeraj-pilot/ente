@@ -16,6 +16,11 @@
     <string name="code">Code</string>
     <string name="code_spoken">Code: %1$s</string>
     <string name="codes_hidden">Codes hidden</string>
+    <string name="all_tags">All</string>
+    <string name="next_code">Next: %1$s</string>
+    <string name="next_code_spoken">Next code: %1$s</string>
+    <string name="unlock">Unlock watch</string>
+    <string name="pinned">Pinned</string>
     <string name="erase">Erase watch data</string>
     <string name="erase_title">Erase watch data?</string>
     <string name="erase_description">This removes the codes from this watch. Your phone accounts remain available.</string>

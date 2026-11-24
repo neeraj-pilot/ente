@@ -84,6 +84,7 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
                   title: l10n.watchSharing,
                   subtitle: switch (service.sharing?.mode) {
                     WatchSharingMode.all => l10n.watchAllAccounts,
+                    WatchSharingMode.pinned => l10n.watchPinnedAccounts,
                     WatchSharingMode.tags => l10n.watchSelectedTags,
                     null => l10n.watchChooseSharing,
                   },
@@ -279,6 +280,11 @@ class _WatchSharingPageState extends State<_WatchSharingPage> {
                 WatchSharingMode.all,
                 l10n.watchAllAccounts,
                 l10n.watchAllAccountsDescription,
+              ),
+              _modeRow(
+                WatchSharingMode.pinned,
+                l10n.watchPinnedAccounts,
+                l10n.watchPinnedAccountsDescription,
               ),
               _modeRow(
                 WatchSharingMode.tags,

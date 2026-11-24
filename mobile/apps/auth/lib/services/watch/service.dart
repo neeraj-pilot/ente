@@ -16,7 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WatchService extends ChangeNotifier with WidgetsBindingObserver {
-  WatchService._(this._preferences);
+  WatchService._(this._preferences, [this._loadCodes]);
 
   static const _preferenceKey = 'watchSelection';
   static const _channel = MethodChannel('io.ente.auth/watch');
@@ -35,9 +35,13 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
   @visibleForTesting
   static Future<WatchService> initializeForTest({
     bool initiallyLocked = false,
+    Future<List<Code>> Function()? loadCodes,
   }) async {
     _instance?.dispose();
-    final service = WatchService._(await SharedPreferences.getInstance());
+    final service = WatchService._(
+      await SharedPreferences.getInstance(),
+      loadCodes,
+    );
     service._locked = initiallyLocked;
     _instance = service;
     await service._start();
@@ -47,6 +51,22 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
   static void appLockChanged(bool locked) => _instance?._setLocked(locked);
 
   static void scheduleRefresh() => _instance?._schedule();
+
+  static Future<void> onTagRenamed(String previousTag, String updatedTag) =>
+      _instance?._reconcileTagChange(
+        (tags) => tags.contains(previousTag)
+            ? ({...tags}
+                ..remove(previousTag)
+                ..add(updatedTag))
+            : null,
+      ) ??
+      Future.value();
+
+  static Future<void> onTagDeleted(String tag) =>
+      _instance?._reconcileTagChange(
+        (tags) => tags.contains(tag) ? ({...tags}..remove(tag)) : null,
+      ) ??
+      Future.value();
 
   static Future<void> clearBeforeLogout() async {
     if (_instance == null && !Platform.isIOS && !Platform.isAndroid) return;
@@ -66,6 +86,7 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   final SharedPreferences _preferences;
+  final Future<List<Code>> Function()? _loadCodes;
 
   String vaultScope() {
     final config = Configuration.instance;
@@ -211,18 +232,22 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
       final sharing = this.sharing;
       final codes = sharing == null
           ? <Code>[]
-          : await CodeStore.instance.getAllCodes(requireCompleteRead: true);
+          : await (_loadCodes?.call() ??
+                CodeStore.instance.getAllCodes(requireCompleteRead: true));
       if (!_current(generation, scope) ||
           state.enrollmentID != id ||
           state.vaultEpoch != epoch) {
         return;
       }
+      var hideCodes = false;
       if (sharing != null) {
         await _preferences.reload();
         sortAuthCodes(codes, PreferenceService.codeSortKeyFrom(_preferences));
+        hideCodes = PreferenceService.shouldHideCodesFrom(_preferences);
       }
       final snapshot = WatchSnapshot.fromCodes(
         sharing == null ? const [] : codes.where(sharing.includes),
+        hideCodes: hideCodes,
       );
       _accept(
         await _call('publish', {
@@ -341,6 +366,44 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
         watches: {..._selection!.watches}..remove(target.enrollmentID),
       ),
     );
+  });
+
+  Future<void> _reconcileTagChange(
+    Set<String>? Function(Set<String> tags) updateTags,
+  ) => _enqueue(() async {
+    await _preferences.reload();
+    final scope = vaultScope();
+    final stored = WatchSelection.decode(
+      _preferences.getString(_preferenceKey),
+    );
+    final current = stored ?? _selection;
+    if (current == null || current.scope != scope) return;
+    if (state.vaultEpoch != null && current.epoch != state.vaultEpoch) return;
+    var changed = false;
+    final watches = <String, WatchSharing>{};
+    current.watches.forEach((watch, sharing) {
+      if (sharing.mode == WatchSharingMode.tags) {
+        final nextTags = updateTags(sharing.tags);
+        if (nextTags != null) {
+          changed = true;
+          watches[watch] = WatchSharing(
+            mode: WatchSharingMode.tags,
+            tags: nextTags,
+          );
+          return;
+        }
+      }
+      watches[watch] = sharing;
+    });
+    if (!changed) return;
+    await _save(
+      WatchSelection(
+        scope: current.scope,
+        epoch: current.epoch,
+        watches: watches,
+      ),
+    );
+    _schedule();
   });
 
   Future<void> _prepareChange(WatchState target, String scope) async {

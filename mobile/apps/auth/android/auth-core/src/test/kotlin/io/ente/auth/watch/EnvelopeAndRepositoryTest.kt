@@ -158,6 +158,36 @@ class EnvelopeAndRepositoryTest {
         }
     }
 
+    @Test
+    fun snapshotMetadataRoundTripAndBackwardCompatibility() {
+        val secret = "12345678901234567890".toByteArray(StandardCharsets.UTF_8).base64()
+        val entry = Entry(
+            id = "42",
+            issuer = "Ente",
+            account = "alice@ente.io",
+            secret = secret,
+            generator = "totp",
+            algorithm = "sha1",
+            digits = 6,
+            period = 30,
+            pinned = true,
+            tags = listOf("Daily", "Work"),
+        )
+        val snapshot = Snapshot(listOf(entry), hideCodes = true)
+        val decoded = Snapshot.decode(snapshot.encode())
+        assertTrue(decoded.hideCodes)
+        assertTrue(decoded.entries.first().pinned)
+        assertEquals(listOf("Daily", "Work"), decoded.entries.first().tags)
+
+        val legacyJson =
+            """{"entries":[{"id":"7","issuer":"Legacy","account":"a@b.c","secret":"$secret","generator":"totp","algorithm":"sha1","digits":6,"period":30}]}"""
+                .toByteArray(StandardCharsets.UTF_8)
+        val legacy = Snapshot.decode(legacyJson)
+        assertFalse(legacy.hideCodes)
+        assertFalse(legacy.entries.first().pinned)
+        assertTrue(legacy.entries.first().tags.isEmpty())
+    }
+
     private fun compressRawDeflate(data: ByteArray): ByteArray {
         val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, true)
         return try {

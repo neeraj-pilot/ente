@@ -127,6 +127,7 @@ class CodeDisplayStore {
         }
 
         final results = await Future.wait(tasks);
+        await WatchService.onTagDeleted(tag);
         if (results.any((r) => r != AddResult.duplicate) &&
             AuthenticatorService.instance.getAccountMode() ==
                 AccountMode.online) {
@@ -150,7 +151,8 @@ class CodeDisplayStore {
       onSubmit: (value) async {
         final updatedTag = value.trim();
         if (updatedTag.isEmpty || updatedTag == tag) return;
-        if (WatchService.sharedTags.contains(updatedTag)) {
+        if (!WatchService.sharedTags.contains(tag) &&
+            WatchService.sharedTags.contains(updatedTag)) {
           await showChoiceActionSheet(
             context,
             title: context.strings.editTag,
@@ -192,6 +194,7 @@ class CodeDisplayStore {
     }
 
     final results = await Future.wait(tasks);
+    await WatchService.onTagRenamed(previousTag, updatedTag);
     if (results.any((r) => r != AddResult.duplicate) &&
         AuthenticatorService.instance.getAccountMode() == AccountMode.online) {
       AuthenticatorService.instance.onlineSync().ignore();
