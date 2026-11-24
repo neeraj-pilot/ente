@@ -12,7 +12,8 @@ class WatchSnapshot {
   final int omittedCount;
 
   static bool _isSteam(Code code) =>
-      code.type == Type.steam || code.issuer.toLowerCase() == 'steam';
+      code.type == Type.steam ||
+      (code.type == Type.totp && code.issuer.toLowerCase() == 'steam');
 
   static bool supports(Code code) =>
       !code.hasError &&

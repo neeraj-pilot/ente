@@ -1,4 +1,5 @@
 import 'package:ente_auth/events/icons_changed_event.dart';
+import 'package:ente_auth/services/watch/service.dart';
 import 'package:ente_auth/utils/debug_build_flags.dart';
 import 'package:ente_events/event_bus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -53,13 +54,18 @@ class PreferenceService {
     }
   }
 
-  CodeSortKey codeSortKey() {
-    return CodeSortKey.values[_prefs.getInt("codeSortKey") ??
+  static const kCodeSortKey = "codeSortKey";
+
+  static CodeSortKey codeSortKeyFrom(SharedPreferences prefs) {
+    return CodeSortKey.values[prefs.getInt(kCodeSortKey) ??
         CodeSortKey.issuerName.index];
   }
 
+  CodeSortKey codeSortKey() => codeSortKeyFrom(_prefs);
+
   Future<void> setCodeSortKey(CodeSortKey key) async {
-    await _prefs.setInt("codeSortKey", key.index);
+    await _prefs.setInt(kCodeSortKey, key.index);
+    WatchService.scheduleRefresh();
   }
 
   Future<void> setHasShownCoachMark(bool value) {

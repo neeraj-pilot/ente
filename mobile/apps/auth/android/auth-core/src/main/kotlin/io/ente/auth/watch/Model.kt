@@ -106,7 +106,8 @@ data class Snapshot(val entries: List<Entry>) {
 
     companion object {
         val EMPTY = Snapshot(emptyList())
-        fun decode(data: ByteArray): Snapshot = Snapshot(json(data).getAsJsonArray("entries")
-            .map { Entry.decode(it.asJsonObject) }).also { it.validate() }
+        fun decode(data: ByteArray, maximum: Int = Envelope.MAX_PLAINTEXT_BYTES): Snapshot =
+            Snapshot(json(data, maximum).getAsJsonArray("entries")
+                .map { Entry.decode(it.asJsonObject) }).also { it.validate() }
     }
 }

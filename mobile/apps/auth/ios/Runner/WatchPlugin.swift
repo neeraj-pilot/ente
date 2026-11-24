@@ -27,7 +27,7 @@ final class WatchPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         guard let data = (arguments["snapshot"] as? FlutterStandardTypedData)?.data else {
           throw WatchError.invalidSnapshot
         }
-        guard data.count <= Envelope.maximumBytes else { throw WatchError.payloadTooLarge }
+        guard data.count <= Envelope.maxPlaintextBytes else { throw WatchError.payloadTooLarge }
         guard let epoch = arguments["vaultEpoch"] as? String else { throw WatchError.staleVault }
         try companion.publish(
           JSONDecoder().decode(Snapshot.self, from: data), enrollmentID: enrollmentID(arguments),

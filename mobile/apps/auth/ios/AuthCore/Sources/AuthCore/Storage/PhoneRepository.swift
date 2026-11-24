@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-@available(iOS 17, *)
+@available(iOS 17, macOS 14, watchOS 10, *)
 struct PhoneRepository {
   struct Record: Codable, Sendable {
     let enrollment: Enrollment

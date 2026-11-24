@@ -6,8 +6,10 @@ import 'package:ente_auth/events/codes_updated_event.dart';
 import 'package:ente_auth/models/code.dart';
 import 'package:ente_auth/models/watch/snapshot.dart';
 import 'package:ente_auth/models/watch/state.dart';
+import 'package:ente_auth/services/preference_service.dart';
 import 'package:ente_auth/services/watch/selection.dart';
 import 'package:ente_auth/store/code_store.dart';
+import 'package:ente_auth/utils/code_sort.dart';
 import 'package:ente_events/event_bus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,10 +32,24 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(service._start());
   }
 
+  @visibleForTesting
+  static Future<WatchService> initializeForTest({
+    bool initiallyLocked = false,
+  }) async {
+    _instance?.dispose();
+    final service = WatchService._(await SharedPreferences.getInstance());
+    service._locked = initiallyLocked;
+    _instance = service;
+    await service._start();
+    return service;
+  }
+
   static void appLockChanged(bool locked) => _instance?._setLocked(locked);
 
+  static void scheduleRefresh() => _instance?._schedule();
+
   static Future<void> clearBeforeLogout() async {
-    if (!Platform.isIOS && !Platform.isAndroid) return;
+    if (_instance == null && !Platform.isIOS && !Platform.isAndroid) return;
     try {
       if (_instance case final service?) {
         await service._clearForLogout();
@@ -62,12 +78,15 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
   int omittedCount = 0;
   WatchSelection? _selection;
   bool _available = false;
+  bool get isPlatformSupported => _available;
   bool _locked = true;
   bool _foreground = false;
   int _generation = 0;
   Future<void> _tail = Future.value();
   Timer? _debounce;
   Completer<void>? _resumed;
+  StreamSubscription<dynamic>? _eventsSubscription;
+  StreamSubscription<CodesUpdatedEvent>? _codesSubscription;
 
   WatchSharing? get sharing =>
       _selection?.scope == vaultScope() && _selection?.epoch == state.vaultEpoch
@@ -84,9 +103,12 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     WidgetsBinding.instance.addObserver(this);
     try {
-      _accept(await _call('state'));
+      final initialState = await _call('state');
       _available = true;
-      _events.receiveBroadcastStream().listen((dynamic value) {
+      _accept(initialState);
+      _eventsSubscription = _events.receiveBroadcastStream().listen((
+        dynamic value,
+      ) {
         final next = WatchState.fromMap(value as Map<Object?, Object?>);
         final changed =
             next.enrollmentID != state.enrollmentID ||
@@ -95,13 +117,28 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
         _accept(next);
         if (changed) _schedule();
       }, onError: (Object _) => _failed('watchUnavailable'));
-      Bus.instance.on<CodesUpdatedEvent>().listen((_) => _schedule());
+      _codesSubscription = Bus.instance.on<CodesUpdatedEvent>().listen(
+        (_) => _schedule(),
+      );
       await refresh();
     } on MissingPluginException {
       _available = false;
+      notifyListeners();
     } on Object {
       _failed('watchUnavailable');
     }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _debounce?.cancel();
+    unawaited(_eventsSubscription?.cancel());
+    unawaited(_codesSubscription?.cancel());
+    if (identical(_instance, this)) {
+      _instance = null;
+    }
+    super.dispose();
   }
 
   static Future<WatchState> _call(
@@ -179,6 +216,10 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
           state.enrollmentID != id ||
           state.vaultEpoch != epoch) {
         return;
+      }
+      if (sharing != null) {
+        await _preferences.reload();
+        sortAuthCodes(codes, PreferenceService.codeSortKeyFrom(_preferences));
       }
       final snapshot = WatchSnapshot.fromCodes(
         sharing == null ? const [] : codes.where(sharing.includes),

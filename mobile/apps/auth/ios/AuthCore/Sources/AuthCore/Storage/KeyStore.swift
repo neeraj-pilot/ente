@@ -5,7 +5,7 @@ struct KeychainError: Error {
   let status: OSStatus
 }
 
-@available(iOS 17, *)
+@available(iOS 17, macOS 14, watchOS 10, *)
 struct PasscodeKeychain {
   private var query: [String: Any] {
     [

@@ -9,6 +9,9 @@ import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.hybrid.HpkeParameters
 import com.google.crypto.tink.hybrid.HybridConfig
 import com.google.gson.JsonObject
+import java.io.ByteArrayOutputStream
+import java.util.zip.Deflater
+import java.util.zip.Inflater
 
 internal enum class CipherSuite(val wire: String, private val kem: HpkeParameters.KemId) {
     XWING("xwing-sha256-aes256", HpkeParameters.KemId.X_WING),
@@ -93,6 +96,7 @@ internal class Envelope private constructor(
     val suite: CipherSuite,
     val revision: Long,
     val retire: Boolean,
+    private val encoding: String?,
     private val header: ByteArray,
     private val ciphertext: ByteArray,
 ) {
@@ -100,23 +104,34 @@ internal class Envelope private constructor(
 
     fun open(key: PrivateKey): Snapshot {
         requireWatch(enrollmentID == key.enrollment.id && suite == key.suite, "wrongEnrollment")
-        val snapshot = Snapshot.decode(key.decrypt(ciphertext, context(header)))
+        val raw = key.decrypt(ciphertext, context(header))
+        val plaintext = if (encoding == "deflate") decompressDeflate(raw, MAX_PLAINTEXT_BYTES) else {
+            requireWatch(raw.size <= MAX_PLAINTEXT_BYTES, "payloadTooLarge")
+            raw
+        }
+        val snapshot = Snapshot.decode(plaintext, MAX_PLAINTEXT_BYTES)
         requireWatch(!retire || snapshot.entries.isEmpty(), "invalidEnvelope")
         return snapshot
     }
 
     companion object {
         const val MAXIMUM_BYTES = 48 * 1024
+        const val MAX_PLAINTEXT_BYTES = 256 * 1024
         private fun context(header: ByteArray) = "io.ente.auth.watch/v1/".toByteArray() + header
 
         fun seal(snapshot: Snapshot, enrollment: Enrollment, revision: Long, retire: Boolean = false): Envelope {
             requireWatch(!retire || snapshot.entries.isEmpty(), "invalidEnvelope")
+            val raw = snapshot.encode()
+            requireWatch(raw.size <= MAX_PLAINTEXT_BYTES, "payloadTooLarge")
+            val compressed = compressDeflate(raw)
+            val useDeflate = compressed.size < raw.size
             val header = JsonObject().apply {
                 addProperty("version", 1); addProperty("enrollment", enrollment.id)
                 addProperty("suite", enrollment.suite.wire); addProperty("revision", revision)
                 addProperty("kind", if (retire) "retire" else "snapshot")
+                if (useDeflate) addProperty("encoding", "deflate")
             }.encode()
-            val ciphertext = enrollment.encrypt(snapshot.encode(), context(header))
+            val ciphertext = enrollment.encrypt(if (useDeflate) compressed else raw, context(header))
             return decode(JsonObject().apply {
                 addProperty("header", header.base64()); addProperty("ciphertext", ciphertext.base64())
             }.encode())
@@ -130,10 +145,60 @@ internal class Envelope private constructor(
             val enrollment = fields.string("enrollment")
             val revision = fields.number("revision")
             val kind = fields.string("kind")
+            val encoding = fields.get("encoding")?.takeUnless { it.isJsonNull }?.let {
+                requireWatch(it.isJsonPrimitive && it.asJsonPrimitive.isString && it.asString == "deflate",
+                    "invalidEnvelope")
+                "deflate"
+            }
             requireWatch(enrollment.matches(Regex("[0-9a-f]{64}")) && revision > 0 &&
                 kind in listOf("snapshot", "retire"), "invalidEnvelope")
             return Envelope(data.copyOf(), enrollment, CipherSuite.parse(fields.string("suite")), revision,
-                kind == "retire", header, value.string("ciphertext").bytes())
+                kind == "retire", encoding, header, value.string("ciphertext").bytes())
+        }
+
+        private fun compressDeflate(data: ByteArray): ByteArray {
+            if (data.isEmpty()) return data
+            val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, true)
+            return try {
+                deflater.setInput(data)
+                deflater.finish()
+                val out = ByteArrayOutputStream(data.size)
+                val buf = ByteArray(4096)
+                while (!deflater.finished()) {
+                    val count = deflater.deflate(buf)
+                    if (count == 0 && deflater.needsInput()) break
+                    out.write(buf, 0, count)
+                }
+                out.toByteArray()
+            } finally {
+                deflater.end()
+            }
+        }
+
+        private fun decompressDeflate(data: ByteArray, maxBytes: Int): ByteArray {
+            if (data.isEmpty()) return data
+            val inflater = Inflater(true)
+            return try {
+                inflater.setInput(data)
+                val out = ByteArrayOutputStream()
+                val buf = ByteArray(4096)
+                while (!inflater.finished()) {
+                    val count = inflater.inflate(buf)
+                    if (count == 0) {
+                        if (inflater.needsInput() || inflater.needsDictionary()) throw WatchException("invalidEnvelope")
+                        continue
+                    }
+                    requireWatch(out.size() + count <= maxBytes, "payloadTooLarge")
+                    out.write(buf, 0, count)
+                }
+                out.toByteArray()
+            } catch (error: WatchException) {
+                throw error
+            } catch (_: Exception) {
+                throw WatchException("invalidEnvelope")
+            } finally {
+                inflater.end()
+            }
         }
     }
 }

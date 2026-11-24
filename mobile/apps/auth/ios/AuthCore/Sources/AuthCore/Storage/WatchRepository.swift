@@ -1,6 +1,6 @@
 import Foundation
 
-@available(iOS 17, *)
+@available(iOS 17, macOS 14, watchOS 10, *)
 struct WatchRepository {
   struct State {
     let enrollment: Enrollment?

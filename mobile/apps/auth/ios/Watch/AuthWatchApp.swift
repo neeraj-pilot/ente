@@ -145,8 +145,10 @@ private struct CodeDetail: View {
       TimelineView(
         .periodic(from: Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970)), by: 1)
       ) { timeline in
-        let remaining = entry.period - Int(timeline.date.timeIntervalSince1970) % entry.period
-        let code = (try? entry.code(at: timeline.date)) ?? "—"
+        let seconds = Int(floor(timeline.date.timeIntervalSince1970 + 0.05))
+        let aligned = Date(timeIntervalSince1970: Double(seconds))
+        let remaining = entry.period - seconds % entry.period
+        let code = (try? entry.code(at: aligned)) ?? "—"
         VStack(spacing: 12) {
           if !entry.account.isEmpty {
             Text(entry.account).font(.caption).lineLimit(1).truncationMode(.middle)

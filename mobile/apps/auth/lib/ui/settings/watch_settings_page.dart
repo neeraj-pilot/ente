@@ -48,7 +48,7 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
           ? colors.warningDarker
           : colors.warning;
       final canRefresh = switch (state.phase) {
-        WatchPhase.unavailable ||
+        WatchPhase.unavailable => service.isPlatformSupported,
         WatchPhase.pending ||
         WatchPhase.retiring ||
         WatchPhase.failed ||

@@ -6,18 +6,18 @@ enum CipherSuite: String, Codable, Sendable {
   case xwing = "xwing-aes256gcm"
 
   static var supported: [CipherSuite] {
-    if #available(iOS 26, watchOS 26, *) { return [.xwing, .p256] }
-    if #available(iOS 17, watchOS 10, *) { return [.p256] }
+    if #available(iOS 26, macOS 26, watchOS 26, *) { return [.xwing, .p256] }
+    if #available(iOS 17, macOS 14, watchOS 10, *) { return [.p256] }
     return []
   }
 
-  @available(iOS 17, *)
+  @available(iOS 17, macOS 14, watchOS 10, *)
   var hpke: HPKE.Ciphersuite {
     get throws {
       switch self {
       case .p256: return .P256_SHA256_AES_GCM_256
       case .xwing:
-        guard #available(iOS 26, watchOS 26, *) else {
+        guard #available(iOS 26, macOS 26, watchOS 26, *) else {
           throw WatchError.unsupportedSuite
         }
         return .XWingMLKEM768X25519_SHA256_AES_GCM_256
@@ -40,12 +40,12 @@ public struct Enrollment: Codable, Equatable, Sendable {
     self.publicKey = publicKey
   }
 
-  @available(iOS 17, *)
+  @available(iOS 17, macOS 14, watchOS 10, *)
   func validate() throws {
     _ = try sender(info: Envelope.context)
   }
 
-  @available(iOS 17, *)
+  @available(iOS 17, macOS 14, watchOS 10, *)
   func sender(info: Data) throws -> HPKE.Sender {
     switch suite {
     case .p256:
@@ -54,7 +54,7 @@ public struct Enrollment: Codable, Equatable, Sendable {
         ciphersuite: suite.hpke, info: info
       )
     case .xwing:
-      guard #available(iOS 26, watchOS 26, *) else { throw WatchError.unsupportedSuite }
+      guard #available(iOS 26, macOS 26, watchOS 26, *) else { throw WatchError.unsupportedSuite }
       return try HPKE.Sender(
         recipientKey: XWingMLKEM768X25519.PublicKey(rawRepresentation: publicKey),
         ciphersuite: suite.hpke, info: info
@@ -63,7 +63,7 @@ public struct Enrollment: Codable, Equatable, Sendable {
   }
 }
 
-@available(iOS 17, *)
+@available(iOS 17, macOS 14, watchOS 10, *)
 struct PrivateKey: Codable, Sendable {
   let suite: CipherSuite
   let representation: Data
@@ -74,7 +74,7 @@ struct PrivateKey: Codable, Sendable {
       return PrivateKey(
         suite: suite, representation: P256.KeyAgreement.PrivateKey().rawRepresentation)
     case .xwing:
-      guard #available(iOS 26, watchOS 26, *) else {
+      guard #available(iOS 26, macOS 26, watchOS 26, *) else {
         throw WatchError.unsupportedSuite
       }
       return try PrivateKey(
@@ -92,7 +92,7 @@ struct PrivateKey: Codable, Sendable {
         publicKey = try P256.KeyAgreement.PrivateKey(rawRepresentation: representation)
           .publicKey.x963Representation
       case .xwing:
-        guard #available(iOS 26, watchOS 26, *) else {
+        guard #available(iOS 26, macOS 26, watchOS 26, *) else {
           throw WatchError.unsupportedSuite
         }
         publicKey = try XWingMLKEM768X25519.PrivateKey(
@@ -115,7 +115,7 @@ struct PrivateKey: Codable, Sendable {
         ciphersuite: suite.hpke, info: Envelope.context, encapsulatedKey: envelope.encapsulatedKey
       )
     case .xwing:
-      guard #available(iOS 26, watchOS 26, *) else {
+      guard #available(iOS 26, macOS 26, watchOS 26, *) else {
         throw WatchError.unsupportedSuite
       }
       return try HPKE.Recipient(
