@@ -15,15 +15,13 @@ import "package:photos/module/upload/model/xml.dart";
 import "package:photos/service_locator.dart";
 import "package:photos/services/collections_service.dart";
 
-/// Whether [error] means the tracked multipart upload cannot be resumed.
 bool shouldDiscardMultipartUpload(Object error, {required bool duringCommit}) {
   if (error is MultiPartFileMissingError ||
       error is MultiPartError ||
       error is BadMD5DigestError) {
     return true;
   }
-  // A resume commits the same object again, so the upload has to go once that
-  // commit fails.
+  // A resume would commit the same object again.
   return duringCommit && error is DioException;
 }
 
@@ -199,9 +197,6 @@ class MultiPartUploader {
       if (statusCode != 401 && statusCode != 403 && statusCode != 404) {
         rethrow;
       }
-      // The storage no longer accepts the tracked upload: its upload ID is
-      // gone or its URLs expired. The encrypted file is still good, so send it
-      // through a new upload instead of encrypting the source again.
       _logger.warning(
         "Tracked multipart upload ${multipartInfo.urls.objectKey} rejected "
         "with HTTP $statusCode (sizeBytes=${multipartInfo.encFileSize} "

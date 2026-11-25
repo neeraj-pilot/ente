@@ -514,8 +514,6 @@ class UploadLocksDB with SqlDbBase {
     });
   }
 
-  /// Points the tracked upload at a new multipart upload of the same encrypted
-  /// file, with every part pending again.
   Future<void> replaceMultipartUpload(
     String staleObjectKey,
     MultipartUploadURLs urls,

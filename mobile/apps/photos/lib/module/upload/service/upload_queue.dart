@@ -212,8 +212,6 @@ class UploadQueue {
     _notifyBackupItemsChanged(upserts: {localID: updatedItem});
   }
 
-  /// Moves the progress of an upload that starts over back to zero, which
-  /// [updateBackupProgress] alone never does.
   void resetBackupProgress(Object owner, String localID) {
     final item = _backupItems[localID];
     if (!identical(_backupOwners[localID], owner) ||

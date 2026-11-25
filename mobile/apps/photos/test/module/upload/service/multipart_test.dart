@@ -46,7 +46,6 @@ void main() {
     dio = _FakeDio();
     gateway = _FakeGateway();
     uploader = MultiPartUploader(dio, db, _FakeFlagService(), gateway);
-    // An interrupted upload: the first part went through, the rest did not.
     await db.createTrackUploadsEntry(
       _localID,
       _fileHash,
@@ -63,7 +62,7 @@ void main() {
     await db.updatePartStatus("stale-key", 0, "stale-etag-1");
   });
 
-  // Bytes reported as sent, with a null where the upload started over.
+  // A null marks a restart.
   late List<int?> progress;
 
   Future<String> resume() {
