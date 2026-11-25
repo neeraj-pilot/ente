@@ -315,7 +315,8 @@ class MultiPartUploader {
       count++;
       final partURL = partsURLs[i];
       final isLastPart = i == partsLength - 1;
-      final fileSize = isLastPart ? encFileLength - (i * partSize) : partSize;
+      final start = i * partSize;
+      final fileSize = isLastPart ? encFileLength - start : partSize;
       _logger.info(
         "Uploading part ${i + 1} / $partsLength of size $fileSize bytes (total size $encFileLength). ObjectKey=${partInfo.urls.objectKey}",
       );
@@ -348,10 +349,7 @@ class MultiPartUploader {
               useUploadProxy
                   ? "$kUploadProxyEndpoint/multipart-upload"
                   : partURL,
-              data: encryptedFile.openRead(
-                i * partSize,
-                isLastPart ? null : (i + 1) * partSize,
-              ),
+              data: _readPart(encryptedFile, i + 1, start, fileSize),
               options: Options(headers: headers),
               onSendProgress: (sent, _) {
                 if (sent > partBytesSent) {
@@ -391,13 +389,16 @@ class MultiPartUploader {
         onSendProgress?.call(completedBytes, encFileLength);
         i++;
       } on DioException catch (e) {
+        if (e.error case final MultiPartError error) {
+          Error.throwWithStackTrace(error, e.stackTrace);
+        }
         if (e.response?.statusCode == 400 &&
                 e.response?.data.toString().contains('BadDigest') == true ||
             e.response?.data.toString().contains('InvalidDigest') == true) {
           final recomputedMD5 = await computeMd5(
             encryptedFile.path,
-            start: i * partSize,
-            end: isLastPart ? null : (i + 1) * partSize,
+            start: start,
+            end: start + fileSize,
           );
           throw BadMD5DigestError(
             "Failed for part ${i + 1} ${e.response?.data}, sent: ${partMd5s?[i]}, computed: $recomputedMD5",
@@ -413,6 +414,34 @@ class MultiPartUploader {
     );
 
     return etags;
+  }
+
+  Stream<List<int>> _readPart(
+    File file,
+    int part,
+    int start,
+    int length,
+  ) async* {
+    var bytesRead = 0;
+    try {
+      await for (final chunk in file.openRead(start, start + length)) {
+        bytesRead += chunk.length;
+        yield chunk;
+      }
+    } on FileSystemException catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        MultiPartError(
+          "Could not read multipart part $part after $bytesRead of $length bytes: "
+          "${error.osError?.message ?? error.message}",
+        ),
+        stackTrace,
+      );
+    }
+    if (bytesRead != length) {
+      throw MultiPartError(
+        "Multipart part $part length mismatch: expected $length bytes, read $bytesRead",
+      );
+    }
   }
 
   Future<void> _completeMultipartUpload(
