@@ -36,20 +36,88 @@ type FileHandler struct {
 const DefaultMaxBatchSize = 1000
 const DefaultCopyBatchSize = 100
 
+type fileWriteRequest struct {
+	ID                  int64               `json:"id"`
+	CollectionID        int64               `json:"collectionID"`
+	EncryptedKey        string              `json:"encryptedKey"`
+	KeyDecryptionNonce  string              `json:"keyDecryptionNonce"`
+	File                ente.FileAttributes `json:"file" binding:"required"`
+	Thumbnail           ente.FileAttributes `json:"thumbnail" binding:"required"`
+	Metadata            ente.FileAttributes `json:"metadata" binding:"required"`
+	UpdationTime        *int64              `json:"updationTime"`
+	MagicMetadata       *ente.MagicMetadata `json:"magicMetadata,omitempty"`
+	PublicMagicMetadata *ente.MagicMetadata `json:"pubMagicMetadata,omitempty"`
+}
+
+func (r fileWriteRequest) toFile(ownerID int64) (ente.File, error) {
+	if r.UpdationTime != nil {
+		return ente.File{}, stacktrace.Propagate(ente.ErrBadRequest, "updationTime can't be set")
+	}
+	return ente.File{
+		ID:                  r.ID,
+		OwnerID:             ownerID,
+		CollectionID:        r.CollectionID,
+		EncryptedKey:        r.EncryptedKey,
+		KeyDecryptionNonce:  r.KeyDecryptionNonce,
+		File:                r.File,
+		Thumbnail:           r.Thumbnail,
+		Metadata:            r.Metadata,
+		UpdationTime:        time.Microseconds(),
+		MagicMetadata:       r.MagicMetadata,
+		PublicMagicMetadata: r.PublicMagicMetadata,
+	}, nil
+}
+
+type metaFileCreateRequest struct {
+	ID                  int64               `json:"id"`
+	CollectionID        int64               `json:"collectionID"`
+	EncryptedKey        string              `json:"encryptedKey"`
+	KeyDecryptionNonce  string              `json:"keyDecryptionNonce"`
+	Metadata            ente.FileAttributes `json:"metadata" binding:"required"`
+	UpdationTime        *int64              `json:"updationTime"`
+	MagicMetadata       *ente.MagicMetadata `json:"magicMetadata,omitempty"`
+	PublicMagicMetadata *ente.MagicMetadata `json:"pubMagicMetadata,omitempty"`
+}
+
+func (r metaFileCreateRequest) toMetaFile(ownerID int64) (ente.MetaFile, error) {
+	if r.ID != 0 {
+		return ente.MetaFile{}, stacktrace.Propagate(ente.ErrBadRequest, "fileID can't be set when creating a new file")
+	}
+	if r.UpdationTime != nil {
+		return ente.MetaFile{}, stacktrace.Propagate(ente.ErrBadRequest, "updationTime can't be set")
+	}
+	return ente.MetaFile{
+		OwnerID:             ownerID,
+		CollectionID:        r.CollectionID,
+		EncryptedKey:        r.EncryptedKey,
+		KeyDecryptionNonce:  r.KeyDecryptionNonce,
+		Metadata:            r.Metadata,
+		UpdationTime:        time.Microseconds(),
+		MagicMetadata:       r.MagicMetadata,
+		PublicMagicMetadata: r.PublicMagicMetadata,
+	}, nil
+}
+
 func (h *FileHandler) CreateOrUpdate(c *gin.Context) {
 	userID := auth.GetUserID(c.Request.Header)
-	var file ente.File
-	if err := handler.BindJSON(c, &file); err != nil {
+	var req fileWriteRequest
+	if err := handler.BindJSON(c, &req); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
-	file.UpdationTime = time.Microseconds()
+	ownerID := int64(0)
+	if req.ID == 0 {
+		ownerID = userID
+	}
+	file, err := req.toFile(ownerID)
+	if err != nil {
+		handler.Error(c, err)
+		return
+	}
 
 	enteApp := auth.GetApp(c)
 
 	if file.ID == 0 {
-		file.OwnerID = userID
-		file.IsDeleted = false
 		file, err := h.Controller.Create(c, userID, file, c.Request.UserAgent(), enteApp)
 		if err != nil {
 			handler.Error(c, stacktrace.Propagate(err, ""))
@@ -68,20 +136,18 @@ func (h *FileHandler) CreateOrUpdate(c *gin.Context) {
 
 func (h *FileHandler) CreateMetaFile(c *gin.Context) {
 	userID := auth.GetUserID(c.Request.Header)
-	var file ente.MetaFile
-	if err := handler.BindJSON(c, &file); err != nil {
+	var req metaFileCreateRequest
+	if err := handler.BindJSON(c, &req); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
-	if file.ID != 0 {
-		handler.Error(c, stacktrace.Propagate(ente.ErrBadRequest, "fileID can't be set when creating a new file"))
+	file, err := req.toMetaFile(userID)
+	if err != nil {
+		handler.Error(c, err)
 		return
 	}
-	file.UpdationTime = time.Microseconds()
 
 	enteApp := auth.GetApp(c)
-	file.OwnerID = userID
-	file.IsDeleted = false
 	resp, err := h.Controller.CreateMetaFile(c, userID, file, c.Request.UserAgent(), enteApp)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -112,14 +178,18 @@ func (h *FileHandler) Update(c *gin.Context) {
 	enteApp := auth.GetApp(c)
 
 	userID := auth.GetUserID(c.Request.Header)
-	var file ente.File
-	if err := handler.BindJSON(c, &file); err != nil {
+	var req fileWriteRequest
+	if err := handler.BindJSON(c, &req); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
-	file.UpdationTime = time.Microseconds()
-	if file.ID <= 0 {
+	if req.ID <= 0 {
 		handler.Error(c, stacktrace.Propagate(ente.ErrBadRequest, "fileID should be >0"))
+		return
+	}
+	file, err := req.toFile(0)
+	if err != nil {
+		handler.Error(c, err)
 		return
 	}
 	response, err := h.Controller.Update(c, userID, file, enteApp)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -196,6 +197,23 @@ func TestCreateAdvancesPastFutureCollectionVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, previous+1, created.UpdationTime)
 	assertFileCreateVersionsMatch(t, repository.DB, file.CollectionID, created.ID, previous+1)
+}
+
+func TestCreateIgnoresCallerUpdationTime(t *testing.T) {
+	repository, file := setupFileCreateLockTest(t)
+	file.UpdationTime = math.MaxInt64
+
+	created, _, err := repository.Create(file, 200, 20, 220, file.OwnerID, ente.Photos, testCreateBuckets)
+	require.NoError(t, err)
+	require.Less(t, created.UpdationTime, int64(math.MaxInt64))
+	assertFileCreateVersionsMatch(t, repository.DB, file.CollectionID, created.ID, created.UpdationTime)
+
+	stageCreateTestObjects(t, repository.DB, "after-max-file", "after-max-thumb")
+	next := newTestUploadFile(file.OwnerID, file.CollectionID, "after-max-file", "after-max-thumb", 1)
+	second, _, err := repository.Create(next, 200, 20, 220, file.OwnerID, ente.Photos, testCreateBuckets)
+	require.NoError(t, err)
+	require.Greater(t, second.UpdationTime, created.UpdationTime)
+	assertFileCreateVersionsMatch(t, repository.DB, file.CollectionID, second.ID, second.UpdationTime)
 }
 
 func TestCreateConcurrentUploadsStrictlyIncreaseVersion(t *testing.T) {

@@ -175,9 +175,14 @@ func (h *PublicCollectionHandler) GetMultipartUploadURLV2(c *gin.Context) {
 }
 
 func (h *PublicCollectionHandler) CreateFile(c *gin.Context) {
-	var file ente.File
-	if err := handler.BindJSON(c, &file); err != nil {
+	var req fileWriteRequest
+	if err := handler.BindJSON(c, &req); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
+	file, err := req.toFile(0)
+	if err != nil {
+		handler.Error(c, err)
 		return
 	}
 

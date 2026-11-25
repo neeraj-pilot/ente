@@ -54,7 +54,7 @@ func (repo *FileRepository) Create(
 		return file, -1, stacktrace.Propagate(err, "")
 	}
 	defer tx.Rollback()
-	file.UpdationTime = max(file.UpdationTime, time.Microseconds())
+	file.UpdationTime = time.Microseconds()
 	var fileID int64
 	finishPhase = dbmetrics.Start(dbmetrics.FileCreate, "insert_file")
 	err = tx.QueryRowContext(ctx, `INSERT INTO files
