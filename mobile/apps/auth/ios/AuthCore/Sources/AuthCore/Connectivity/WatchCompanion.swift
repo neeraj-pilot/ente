@@ -13,11 +13,9 @@
     @Published public private(set) var status = WatchStatus(enrollment: nil, receipt: nil)
     @Published public private(set) var issue: Issue?
     @Published public private(set) var canEnroll = false
-    @Published public private(set) var updatedAt: Date?
 
     private let session: WCSession
     private let repository: WatchRepository
-    private let file: SnapshotFile
     private var visible = false
     private var phone: PhoneContext?
 
@@ -25,7 +23,7 @@
       session = .default
       let directory = FileManager.default.urls(
         for: .applicationSupportDirectory, in: .userDomainMask)[0]
-      file = SnapshotFile(url: directory.appendingPathComponent("watch/snapshot"))
+      let file = SnapshotFile(url: directory.appendingPathComponent("watch/snapshot"))
       repository = WatchRepository(file: file)
       super.init()
       session.delegate = self
@@ -62,7 +60,6 @@
       do {
         try repository.erase()
         status = WatchStatus(enrollment: nil, receipt: nil)
-        updatedAt = nil
         issue = nil
         try sendStatus()
       } catch { issue = .syncFailed }
@@ -76,15 +73,8 @@
           canEnroll = CipherSuite.supported.contains { phone?.suites.contains($0) == true }
           status = WatchStatus(
             enrollment: applied.state.enrollment, receipt: applied.state.receipt)
-          updatedAt =
-            applied.state.receipt == nil
-            ? nil
-            : (try? file.url.resourceValues(forKeys: [.contentModificationDateKey]))?
-              .contentModificationDate
           try? sendStatus()
-        } catch {
-          // Leave issue/entries hidden while backgrounded (e.g. Keychain locked).
-        }
+        } catch {}
         entries = []
         hideCodes = false
         return
@@ -98,11 +88,6 @@
         entries = state.snapshot.entries
         hideCodes = state.snapshot.hideCodes
         status = WatchStatus(enrollment: state.enrollment, receipt: state.receipt)
-        updatedAt =
-          state.receipt == nil
-          ? nil
-          : (try? file.url.resourceValues(forKeys: [.contentModificationDateKey]))?
-            .contentModificationDate
         do { try sendStatus() } catch { syncFailed = true }
         issue = syncFailed ? .syncFailed : nil
       } catch is KeychainError {

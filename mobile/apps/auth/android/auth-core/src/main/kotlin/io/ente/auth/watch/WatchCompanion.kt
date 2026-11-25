@@ -12,7 +12,7 @@ class WatchCompanion(context: Context) {
     enum class Message { connectPhone, hidden, setup, approvePhone, selectAccounts, offline, unlockWatch,
         storageFailed, secureStorageUnavailable, setupFailed, syncFailed, ready }
     data class State(val entries: List<Entry> = emptyList(), val message: Message = Message.connectPhone,
-                     val canEnroll: Boolean = false, val canErase: Boolean = false, val updatedAt: Long? = null,
+                     val canEnroll: Boolean = false, val canErase: Boolean = false,
                      val hideCodes: Boolean = false)
     private val appContext = context.applicationContext
     private val directory = File(appContext.noBackupFilesDir, "watch")
@@ -102,7 +102,7 @@ class WatchCompanion(context: Context) {
         }
         emit(State(local.snapshot.entries, message, local.enrollment == null && suites.isNotEmpty(),
             local.enrollment != null || local.receipt != null,
-            snapshotFile.lastModified().takeIf { it > 0 }, local.snapshot.hideCodes))
+            local.snapshot.hideCodes))
     }
 
     private fun failed(error: Exception, storageFailure: Boolean) {
@@ -167,7 +167,6 @@ class WatchCompanion(context: Context) {
                 }
                 transport.put(DataLayer.STATUS, status.encode())
             } catch (_: Exception) {
-                // Locked Keystore or transient transport failure stays silent in background.
             } finally {
                 transport.stop()
             }

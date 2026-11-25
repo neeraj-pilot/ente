@@ -15,22 +15,8 @@ public struct Envelope: Codable, Sendable {
     let suite: CipherSuite
     let revision: Int64
     let kind: Kind
-    let encoding: String?
-
-    init(
-      version: Int, enrollment: String, suite: CipherSuite, revision: Int64, kind: Kind,
-      encoding: String? = nil
-    ) {
-      self.version = version
-      self.enrollment = enrollment
-      self.suite = suite
-      self.revision = revision
-      self.kind = kind
-      self.encoding = encoding
-    }
-
     func validate() throws {
-      guard revision > 0, enrollment.count == 64, encoding == nil || encoding == "deflate" else {
+      guard revision > 0, enrollment.count == 64 else {
         throw WatchError.invalidEnvelope
       }
     }
@@ -95,15 +81,13 @@ public struct Envelope: Codable, Sendable {
     let raw = try jsonData(snapshot)
     guard raw.count <= maxPlaintextBytes else { throw WatchError.payloadTooLarge }
     let compressed = try runCompression(COMPRESSION_STREAM_ENCODE, input: raw)
-    let useDeflate = compressed.count < raw.count
     let header = Header(
-      version: 1, enrollment: enrollment.id, suite: enrollment.suite, revision: revision, kind: kind,
-      encoding: useDeflate ? "deflate" : nil
+      version: 1, enrollment: enrollment.id, suite: enrollment.suite, revision: revision, kind: kind
     )
     try header.validate()
     let headerData = try jsonData(header)
     var sender = try enrollment.sender(info: context)
-    let ciphertext = try sender.seal(useDeflate ? compressed : raw, authenticating: headerData)
+    let ciphertext = try sender.seal(compressed, authenticating: headerData)
     return try decode(
       jsonData(
         Body(header: headerData, encapsulatedKey: sender.encapsulatedKey, ciphertext: ciphertext)))
@@ -113,14 +97,8 @@ public struct Envelope: Codable, Sendable {
   func open(using privateKey: PrivateKey) throws -> Snapshot {
     var recipient = try privateKey.recipient(for: self)
     let raw = try recipient.open(ciphertext, authenticating: authenticatedHeader)
-    let plaintext: Data
-    if header.encoding == "deflate" {
-      plaintext = try Self.runCompression(
-        COMPRESSION_STREAM_DECODE, input: raw, maxOutputBytes: Self.maxPlaintextBytes)
-    } else {
-      guard raw.count <= Self.maxPlaintextBytes else { throw WatchError.payloadTooLarge }
-      plaintext = raw
-    }
+    let plaintext = try Self.runCompression(
+      COMPRESSION_STREAM_DECODE, input: raw, maxOutputBytes: Self.maxPlaintextBytes)
     let snapshot = try JSONDecoder().decode(Snapshot.self, from: plaintext)
     try snapshot.validate()
     guard header.kind != .retire || snapshot.entries.isEmpty else {

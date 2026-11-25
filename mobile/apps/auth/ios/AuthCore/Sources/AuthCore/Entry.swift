@@ -29,54 +29,6 @@ public struct Entry: Codable, Identifiable, Sendable, Equatable {
   public let pinned: Bool
   public let tags: [String]
 
-  public init(
-    id: String, issuer: String, account: String, secret: Data, generator: Generator,
-    algorithm: OTP.Algorithm, digits: Int, period: Int, pinned: Bool = false, tags: [String] = []
-  ) {
-    self.id = id
-    self.issuer = issuer
-    self.account = account
-    self.secret = secret
-    self.generator = generator
-    self.algorithm = algorithm
-    self.digits = digits
-    self.period = period
-    self.pinned = pinned
-    self.tags = tags
-  }
-
-  private enum CodingKeys: String, CodingKey {
-    case id, issuer, account, secret, generator, algorithm, digits, period, pinned, tags
-  }
-
-  public init(from decoder: any Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    id = try container.decode(String.self, forKey: .id)
-    issuer = try container.decode(String.self, forKey: .issuer)
-    account = try container.decode(String.self, forKey: .account)
-    secret = try container.decode(Data.self, forKey: .secret)
-    generator = try container.decode(Generator.self, forKey: .generator)
-    algorithm = try container.decode(OTP.Algorithm.self, forKey: .algorithm)
-    digits = try container.decode(Int.self, forKey: .digits)
-    period = try container.decode(Int.self, forKey: .period)
-    pinned = try container.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
-    tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
-  }
-
-  public func encode(to encoder: any Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(id, forKey: .id)
-    try container.encode(issuer, forKey: .issuer)
-    try container.encode(account, forKey: .account)
-    try container.encode(secret, forKey: .secret)
-    try container.encode(generator, forKey: .generator)
-    try container.encode(algorithm, forKey: .algorithm)
-    try container.encode(digits, forKey: .digits)
-    try container.encode(period, forKey: .period)
-    if pinned { try container.encode(true, forKey: .pinned) }
-    if !tags.isEmpty { try container.encode(tags, forKey: .tags) }
-  }
-
   public func validate() throws {
     guard !id.isEmpty, !secret.isEmpty else { throw WatchError.invalidEntry }
     switch generator {
@@ -112,22 +64,6 @@ public struct Snapshot: Codable, Sendable, Equatable {
   public init(entries: [Entry], hideCodes: Bool = false) {
     self.entries = entries
     self.hideCodes = hideCodes
-  }
-
-  private enum CodingKeys: String, CodingKey {
-    case entries, hideCodes
-  }
-
-  public init(from decoder: any Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    entries = try container.decode([Entry].self, forKey: .entries)
-    hideCodes = try container.decodeIfPresent(Bool.self, forKey: .hideCodes) ?? false
-  }
-
-  public func encode(to encoder: any Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(entries, forKey: .entries)
-    if hideCodes { try container.encode(true, forKey: .hideCodes) }
   }
 
   public func validate() throws {

@@ -96,7 +96,6 @@ internal class Envelope private constructor(
     val suite: CipherSuite,
     val revision: Long,
     val retire: Boolean,
-    private val encoding: String?,
     private val header: ByteArray,
     private val ciphertext: ByteArray,
 ) {
@@ -105,10 +104,7 @@ internal class Envelope private constructor(
     fun open(key: PrivateKey): Snapshot {
         requireWatch(enrollmentID == key.enrollment.id && suite == key.suite, "wrongEnrollment")
         val raw = key.decrypt(ciphertext, context(header))
-        val plaintext = if (encoding == "deflate") decompressDeflate(raw, MAX_PLAINTEXT_BYTES) else {
-            requireWatch(raw.size <= MAX_PLAINTEXT_BYTES, "payloadTooLarge")
-            raw
-        }
+        val plaintext = decompressDeflate(raw, MAX_PLAINTEXT_BYTES)
         val snapshot = Snapshot.decode(plaintext, MAX_PLAINTEXT_BYTES)
         requireWatch(!retire || snapshot.entries.isEmpty(), "invalidEnvelope")
         return snapshot
@@ -124,14 +120,12 @@ internal class Envelope private constructor(
             val raw = snapshot.encode()
             requireWatch(raw.size <= MAX_PLAINTEXT_BYTES, "payloadTooLarge")
             val compressed = compressDeflate(raw)
-            val useDeflate = compressed.size < raw.size
             val header = JsonObject().apply {
                 addProperty("version", 1); addProperty("enrollment", enrollment.id)
                 addProperty("suite", enrollment.suite.wire); addProperty("revision", revision)
                 addProperty("kind", if (retire) "retire" else "snapshot")
-                if (useDeflate) addProperty("encoding", "deflate")
             }.encode()
-            val ciphertext = enrollment.encrypt(if (useDeflate) compressed else raw, context(header))
+            val ciphertext = enrollment.encrypt(compressed, context(header))
             return decode(JsonObject().apply {
                 addProperty("header", header.base64()); addProperty("ciphertext", ciphertext.base64())
             }.encode())
@@ -145,15 +139,10 @@ internal class Envelope private constructor(
             val enrollment = fields.string("enrollment")
             val revision = fields.number("revision")
             val kind = fields.string("kind")
-            val encoding = fields.get("encoding")?.takeUnless { it.isJsonNull }?.let {
-                requireWatch(it.isJsonPrimitive && it.asJsonPrimitive.isString && it.asString == "deflate",
-                    "invalidEnvelope")
-                "deflate"
-            }
             requireWatch(enrollment.matches(Regex("[0-9a-f]{64}")) && revision > 0 &&
                 kind in listOf("snapshot", "retire"), "invalidEnvelope")
             return Envelope(data.copyOf(), enrollment, CipherSuite.parse(fields.string("suite")), revision,
-                kind == "retire", encoding, header, value.string("ciphertext").bytes())
+                kind == "retire", header, value.string("ciphertext").bytes())
         }
 
         private fun compressDeflate(data: ByteArray): ByteArray {

@@ -5445,8 +5445,6 @@
   "watchChooseSharing": "Choose what to share",
   "watchAllAccounts": "All accounts",
   "watchAllAccountsDescription": "Includes future accounts.",
-  "watchPinnedAccounts": "Pinned accounts",
-  "watchPinnedAccountsDescription": "Includes pinned accounts.",
   "watchSelectedTags": "Selected tags",
   "watchSelectedTagsDescription": "Includes future matches.",
   "watchShare": "Share",
@@ -5455,6 +5453,6 @@
   "watchSharedTag": "Used for watch sharing",
   "watchTagSharingNotice": "Tags with a watch icon share accounts.",
   "watchRenameTagNotice": "This tag stays shared with your watch under the new name.",
-  "watchRenameIntoSharedTagNotice": "This tag shares its accounts with your watch.",
+  "watchRenameIntoSharedTagNotice": "Accounts with either tag will be shared with your watch.",
   "watchDeleteTagNotice": "Accounts with this tag will stop syncing to your watch."
 }

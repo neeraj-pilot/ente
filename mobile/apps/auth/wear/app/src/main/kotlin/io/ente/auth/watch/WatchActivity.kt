@@ -4,14 +4,12 @@ import android.app.KeyguardManager
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
-import android.text.format.DateUtils
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +21,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -35,14 +35,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -51,6 +59,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
+import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.AlertDialog
@@ -61,10 +70,9 @@ import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.CardDefaults
 import androidx.wear.compose.material3.CompactButton
+import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.IconButtonDefaults
-import androidx.wear.compose.material3.LinearProgressIndicator
 import androidx.wear.compose.material3.MaterialTheme
-import androidx.wear.compose.material3.ProgressIndicatorDefaults
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
@@ -140,8 +148,9 @@ private fun AuthWatchRoot(
 ) {
     val context = LocalContext.current
     var selectedEntryId by rememberSaveable { mutableStateOf<String?>(null) }
-    var showManage by remember { mutableStateOf(false) }
     var selectedTag by remember { mutableStateOf<String?>(null) }
+    var pickingTag by rememberSaveable { mutableStateOf(false) }
+    val accountsListState = rememberTransformingLazyColumnState()
     var seconds by remember { mutableLongStateOf(System.currentTimeMillis() / 1000) }
 
     LaunchedEffect(resumed) {
@@ -153,7 +162,7 @@ private fun AuthWatchRoot(
                 break
             }
             val nowMs = System.currentTimeMillis()
-            seconds = (nowMs + 50) / 1000
+            seconds = nowMs / 1000
             delay((1000L - nowMs % 1000L).coerceAtLeast(16L))
         }
     }
@@ -161,8 +170,10 @@ private fun AuthWatchRoot(
     val availableTags = remember(state.entries) {
         state.entries.flatMap { it.tags }.distinct().sorted()
     }
-    LaunchedEffect(availableTags) {
-        if (selectedTag != null && selectedTag !in availableTags) {
+    LaunchedEffect(availableTags, state.message) {
+        if (state.message != WatchCompanion.Message.hidden &&
+            selectedTag != null && selectedTag !in availableTags
+        ) {
             selectedTag = null
         }
     }
@@ -176,8 +187,11 @@ private fun AuthWatchRoot(
     }
 
     val isHidden = state.message == WatchCompanion.Message.hidden
-    BackHandler(enabled = !isHidden && (showManage || selectedEntryId != null)) {
-        if (showManage) showManage = false else selectedEntryId = null
+    BackHandler(enabled = !isHidden && selectedEntryId != null) {
+        selectedEntryId = null
+    }
+    BackHandler(enabled = !isHidden && pickingTag) {
+        pickingTag = false
     }
 
     AppScaffold {
@@ -194,32 +208,33 @@ private fun AuthWatchRoot(
             }
         } else {
             val selectedEntry = selectedEntryId?.let { id -> state.entries.firstOrNull { it.id == id } }
-            when {
-                showManage -> ManageScreen(
-                    state = state,
-                    onRetry = companion::retry,
-                    onErase = {
-                        companion.erase()
-                        showManage = false
-                        selectedEntryId = null
-                    },
-                    onBack = { showManage = false },
-                )
-                selectedEntry != null -> CodeScreen(
+            if (selectedEntry != null) {
+                CodeScreen(
                     entry = selectedEntry,
                     seconds = seconds,
-                    onBack = { selectedEntryId = null },
                 )
-                else -> AccountsScreen(
+            } else if (pickingTag) {
+                TagPickerScreen(
+                    tags = availableTags,
+                    selectedTag = selectedTag,
+                    onSelectTag = {
+                        selectedTag = it
+                        pickingTag = false
+                    },
+                )
+            } else {
+                AccountsScreen(
                     state = state,
+                    listState = accountsListState,
                     seconds = seconds,
                     availableTags = availableTags,
                     selectedTag = selectedTag,
-                    onSelectTag = { selectedTag = it },
+                    onPickTag = { pickingTag = true },
                     onSelectEntry = { selectedEntryId = it },
                     onEnroll = companion::enroll,
                     onUnlock = onRequestUnlock,
-                    onOpenManage = { showManage = true },
+                    onRetry = companion::retry,
+                    onErase = companion::erase,
                 )
             }
         }
@@ -229,16 +244,18 @@ private fun AuthWatchRoot(
 @Composable
 private fun AccountsScreen(
     state: WatchCompanion.State,
+    listState: TransformingLazyColumnState,
     seconds: Long,
     availableTags: List<String>,
     selectedTag: String?,
-    onSelectTag: (String?) -> Unit,
+    onPickTag: () -> Unit,
     onSelectEntry: (String) -> Unit,
     onEnroll: () -> Unit,
     onUnlock: () -> Unit,
-    onOpenManage: () -> Unit,
+    onRetry: () -> Unit,
+    onErase: () -> Unit,
 ) {
-    val listState = rememberTransformingLazyColumnState()
+    var confirmErase by remember { mutableStateOf(false) }
     val transformationSpec = rememberTransformationSpec()
     val statusText = remember(state.message, state.entries) {
         if (state.message == WatchCompanion.Message.offline && state.entries.isNotEmpty()) null
@@ -255,13 +272,14 @@ private fun AccountsScreen(
             contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize(),
         ) {
-            item(key = "title") {
-                Text(
-                    text = stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                )
+            if (availableTags.isEmpty()) {
+                item(key = "title") {
+                    ScreenTitle(stringResource(R.string.app_name))
+                }
+            } else {
+                item(key = "tag-filter") {
+                    TagFilterButton(selectedTag = selectedTag, onClick = onPickTag)
+                }
             }
             if (statusText.isNotEmpty()) {
                 item(key = "status") {
@@ -285,15 +303,6 @@ private fun AccountsScreen(
                     }
                 }
             }
-            if (availableTags.size >= 2) {
-                item(key = "tag-filter") {
-                    TagFilterBar(
-                        tags = availableTags,
-                        selectedTag = selectedTag,
-                        onSelectTag = onSelectTag,
-                    )
-                }
-            }
             items(filteredEntries, key = { it.id }) { entry ->
                 AccountCard(
                     entry = entry,
@@ -303,17 +312,6 @@ private fun AccountsScreen(
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
                 )
-            }
-            state.updatedAt?.let { updatedAt ->
-                item(key = "updated") {
-                    Text(
-                        text = updatedLabel(updatedAt, (seconds / 60) * 60_000L),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = WatchStyle.secondary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                    )
-                }
             }
             if (state.canEnroll) {
                 item(key = "enroll") {
@@ -327,64 +325,137 @@ private fun AccountsScreen(
                 }
             }
             if (state.canErase) {
-                item(key = "manage") {
+                item(key = "sync") {
                     Button(
-                        onClick = onOpenManage,
+                        onClick = onRetry,
                         colors = ButtonDefaults.filledTonalButtonColors(),
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
                     ) {
-                        Text(stringResource(R.string.manage))
+                        Text(stringResource(R.string.sync))
+                    }
+                }
+                item(key = "erase") {
+                    Button(
+                        onClick = { confirmErase = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Black,
+                            contentColor = WatchStyle.destructive,
+                        ),
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
+                    ) {
+                        Text(stringResource(R.string.erase))
                     }
                 }
             }
         }
     }
+    EraseConfirmation(
+        visible = confirmErase,
+        onDismiss = { confirmErase = false },
+        onErase = onErase,
+    )
 }
 
 @Composable
-private fun TagFilterBar(
-    tags: List<String>,
-    selectedTag: String?,
-    onSelectTag: (String?) -> Unit,
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(vertical = 4.dp),
-    ) {
-        TagChipButton(
-            label = stringResource(R.string.all_tags),
-            selected = selectedTag == null,
-            onClick = { onSelectTag(null) },
-        )
-        for (tag in tags) {
-            TagChipButton(
-                label = tag,
-                selected = selectedTag == tag,
-                onClick = { onSelectTag(if (selectedTag == tag) null else tag) },
+private fun ScreenTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun TagFilterButton(selectedTag: String?, onClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        CompactButton(
+            onClick = onClick,
+            icon = {
+                Icon(
+                    painter = painterResource(R.drawable.ic_filter),
+                    contentDescription = stringResource(R.string.filter_by_tag),
+                    modifier = Modifier.size(ButtonDefaults.ExtraSmallIconSize),
+                )
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (selectedTag != null) WatchStyle.accent else WatchStyle.surface,
+                contentColor = Color.White,
+                iconColor = Color.White,
+            ),
+        ) {
+            Text(
+                text = selectedTag ?: stringResource(R.string.all_tags),
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
 
 @Composable
-private fun TagChipButton(label: String, selected: Boolean, onClick: () -> Unit) {
-    CompactButton(
+private fun TagPickerScreen(
+    tags: List<String>,
+    selectedTag: String?,
+    onSelectTag: (String?) -> Unit,
+) {
+    val listState = rememberTransformingLazyColumnState(
+        initialAnchorItemIndex = selectedTag?.let { tags.indexOf(it) + 2 } ?: 0,
+    )
+    val transformationSpec = rememberTransformationSpec()
+
+    ScreenScaffold(scrollState = listState) { contentPadding ->
+        TransformingLazyColumn(
+            state = listState,
+            contentPadding = contentPadding,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            item(key = "title") {
+                ScreenTitle(stringResource(R.string.tags))
+            }
+            item(key = "all") {
+                TagOption(
+                    label = stringResource(R.string.all_tags),
+                    selected = selectedTag == null,
+                    onClick = { onSelectTag(null) },
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
+                )
+            }
+            items(tags, key = { "tag:$it" }) { tag ->
+                TagOption(
+                    label = tag,
+                    selected = selectedTag == tag,
+                    onClick = { onSelectTag(tag) },
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TagOption(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    transformation: SurfaceTransformation,
+    modifier: Modifier = Modifier,
+) {
+    Button(
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected) WatchStyle.accent else WatchStyle.surface,
             contentColor = Color.White,
         ),
+        transformation = transformation,
+        modifier = modifier.semantics { this.selected = selected },
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Text(text = label, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -417,7 +488,7 @@ private fun AccountCard(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
@@ -425,15 +496,15 @@ private fun AccountCard(
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f, fill = false),
             )
             if (entry.pinned) {
-                val pinnedDesc = stringResource(R.string.pinned)
-                Canvas(
-                    modifier = Modifier.size(6.dp).semantics { contentDescription = pinnedDesc },
-                ) {
-                    drawCircle(color = WatchStyle.accent)
-                }
+                Icon(
+                    painter = painterResource(R.drawable.ic_pin),
+                    contentDescription = stringResource(R.string.pinned),
+                    tint = WatchStyle.secondary,
+                    modifier = Modifier.size(14.dp),
+                )
             }
         }
         if (entry.issuer.isNotEmpty() && entry.account.isNotEmpty()) {
@@ -459,36 +530,30 @@ private fun AccountCard(
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
-            LinearProgressIndicator(
-                progress = { remaining.toFloat() / entry.period.toFloat() },
-                colors = ProgressIndicatorDefaults.colors(
-                    indicatorColor = if (isWarning) WatchStyle.warning else WatchStyle.accent,
-                    trackColor = WatchStyle.track,
-                ),
-                modifier = Modifier.fillMaxWidth().clearAndSetSemantics {},
+            CountdownBar(
+                progress = remaining.toFloat() / entry.period,
+                color = if (isWarning) WatchStyle.warning else WatchStyle.accent,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
 }
 
 @Composable
-private fun CodeScreen(entry: Entry, seconds: Long, onBack: () -> Unit) {
+private fun CodeScreen(entry: Entry, seconds: Long) {
     val scrollState = rememberScrollState()
     val codeValue = entry.code(seconds)
-    val nextCodeValue = entry.code(seconds + entry.period)
     val formatted = formatCode(codeValue)
-    val formattedNext = formatCode(nextCodeValue)
     val spoken = stringResource(R.string.code_spoken, codeValue.toCharArray().joinToString(" "))
-    val spokenNext = stringResource(R.string.next_code_spoken, nextCodeValue.toCharArray().joinToString(" "))
     val remaining = (entry.period - seconds % entry.period).toInt()
     val isWarning = remaining <= 5
-    val codeFontSize = when {
-        formatted.length >= 10 -> 24.sp
-        formatted.length >= 8 -> 28.sp
-        else -> 34.sp
-    }
 
     ScreenScaffold(scrollState = scrollState) { contentPadding ->
+        CountdownRing(
+            progress = remaining.toFloat() / entry.period,
+            color = if (isWarning) WatchStyle.warning else WatchStyle.accent,
+            modifier = Modifier.fillMaxSize().padding(3.dp),
+        )
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -501,8 +566,6 @@ private fun CodeScreen(entry: Entry, seconds: Long, onBack: () -> Unit) {
             Text(
                 text = entry.issuer.ifEmpty { stringResource(R.string.code) },
                 style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
             )
             if (entry.account.isNotEmpty()) {
@@ -510,151 +573,85 @@ private fun CodeScreen(entry: Entry, seconds: Long, onBack: () -> Unit) {
                     text = entry.account,
                     style = MaterialTheme.typography.bodySmall,
                     color = WatchStyle.secondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.MiddleEllipsis,
                     textAlign = TextAlign.Center,
                 )
             }
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                Text(
+                BasicText(
                     text = formatted,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = codeFontSize,
-                    color = if (isWarning) WatchStyle.warning else Color.White,
+                    style = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 34.sp,
+                        color = if (isWarning) WatchStyle.warning else Color.White,
+                    ),
                     maxLines = 1,
+                    softWrap = false,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 34.sp),
                     modifier = Modifier.semantics { contentDescription = spoken },
                 )
             }
-            LinearProgressIndicator(
-                progress = { remaining.toFloat() / entry.period.toFloat() },
-                colors = ProgressIndicatorDefaults.colors(
-                    indicatorColor = if (isWarning) WatchStyle.warning else WatchStyle.accent,
-                    trackColor = WatchStyle.track,
-                ),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).clearAndSetSemantics {},
-            )
             Text(
                 text = pluralStringResource(R.plurals.seconds_remaining, remaining, remaining),
                 style = MaterialTheme.typography.bodySmall,
                 color = WatchStyle.secondary,
             )
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                Text(
-                    text = stringResource(R.string.next_code, formattedNext),
-                    fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = WatchStyle.secondary,
-                    maxLines = 1,
-                    modifier = Modifier.semantics { contentDescription = spokenNext },
+            if (isWarning) {
+                val nextCodeValue = entry.code(seconds + entry.period)
+                val spokenNext = stringResource(
+                    R.string.next_code_spoken, nextCodeValue.toCharArray().joinToString(" "),
                 )
-            }
-            val fullIdentity = listOf(entry.issuer, entry.account).filter { it.isNotEmpty() }.joinToString("\n")
-            if (fullIdentity.isNotEmpty()) {
-                Text(
-                    text = fullIdentity,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = WatchStyle.secondary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 6.dp).clearAndSetSemantics {},
-                )
-            }
-            Button(
-                onClick = onBack,
-                colors = ButtonDefaults.filledTonalButtonColors(),
-                modifier = Modifier.padding(top = 8.dp),
-            ) {
-                Text(stringResource(R.string.back))
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    Text(
+                        text = stringResource(R.string.next_code, formatCode(nextCodeValue)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = WatchStyle.secondary,
+                        maxLines = 1,
+                        modifier = Modifier.semantics { contentDescription = spokenNext },
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ManageScreen(
-    state: WatchCompanion.State,
-    onRetry: () -> Unit,
-    onErase: () -> Unit,
-    onBack: () -> Unit,
-) {
-    val listState = rememberTransformingLazyColumnState()
-    val transformationSpec = rememberTransformationSpec()
-    var confirmErase by remember { mutableStateOf(false) }
-    val helpText = statusStringRes(state.message)?.let { stringResource(it) }
-        ?.takeIf { it.isNotEmpty() } ?: stringResource(R.string.sync_help)
-
-    ScreenScaffold(scrollState = listState) { contentPadding ->
-        TransformingLazyColumn(
-            state = listState,
-            contentPadding = contentPadding,
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            item(key = "manage-title") {
-                Text(
-                    text = stringResource(R.string.manage),
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            item(key = "manage-help") {
-                Text(
-                    text = helpText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = WatchStyle.secondary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                )
-            }
-            item(key = "manage-sync") {
-                Button(
-                    onClick = onRetry,
-                    colors = ButtonDefaults.filledTonalButtonColors(),
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
-                ) {
-                    Text(stringResource(R.string.sync))
-                }
-            }
-            if (state.canErase) {
-                item(key = "manage-erase") {
-                    Button(
-                        onClick = { confirmErase = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Black,
-                            contentColor = WatchStyle.destructive,
-                        ),
-                        transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
-                    ) {
-                        Text(stringResource(R.string.erase))
-                    }
-                }
-            }
-            item(key = "manage-back") {
-                Button(
-                    onClick = onBack,
-                    colors = ButtonDefaults.filledTonalButtonColors(),
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
-                ) {
-                    Text(stringResource(R.string.back))
-                }
-            }
-        }
+private fun CountdownBar(progress: Float, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.height(4.dp).clearAndSetSemantics {}) {
+        val radius = CornerRadius(size.height / 2)
+        drawRoundRect(color = WatchStyle.track, cornerRadius = radius)
+        drawRoundRect(color = color, size = Size(size.width * progress, size.height), cornerRadius = radius)
     }
+}
 
+@Composable
+private fun CountdownRing(progress: Float, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.clearAndSetSemantics {}) {
+        val stroke = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round)
+        val diameter = size.minDimension - stroke.width
+        val topLeft = Offset((size.width - diameter) / 2, (size.height - diameter) / 2)
+        val arcSize = Size(diameter, diameter)
+        drawArc(WatchStyle.track, RING_START, RING_SWEEP, false, topLeft, arcSize, style = stroke)
+        drawArc(color, RING_START, RING_SWEEP * progress, false, topLeft, arcSize, style = stroke)
+    }
+}
+
+private const val RING_START = 295.5f
+private const val RING_SWEEP = 310f
+
+@Composable
+private fun EraseConfirmation(visible: Boolean, onDismiss: () -> Unit, onErase: () -> Unit) {
     val eraseActionLabel = stringResource(R.string.erase_action)
     val cancelLabel = stringResource(R.string.cancel)
     AlertDialog(
-        visible = confirmErase,
-        onDismissRequest = { confirmErase = false },
+        visible = visible,
+        onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.erase_title)) },
         text = { Text(stringResource(R.string.erase_description)) },
         confirmButton = {
             AlertDialogDefaults.ConfirmButton(
                 onClick = {
-                    confirmErase = false
+                    onDismiss()
                     onErase()
                 },
                 colors = IconButtonDefaults.filledIconButtonColors(
@@ -666,24 +663,11 @@ private fun ManageScreen(
         },
         dismissButton = {
             AlertDialogDefaults.DismissButton(
-                onClick = { confirmErase = false },
+                onClick = { onDismiss() },
                 modifier = Modifier.semantics { contentDescription = cancelLabel },
             )
         },
     )
-}
-
-@Composable
-private fun updatedLabel(updatedAt: Long, nowMs: Long): String {
-    val now = maxOf(nowMs, System.currentTimeMillis())
-    return if (now - updatedAt < DateUtils.MINUTE_IN_MILLIS) {
-        stringResource(R.string.updated_just_now)
-    } else {
-        stringResource(
-            R.string.updated,
-            DateUtils.getRelativeTimeSpanString(updatedAt, now, DateUtils.MINUTE_IN_MILLIS),
-        )
-    }
 }
 
 private fun statusStringRes(message: WatchCompanion.Message): Int? = when (message) {

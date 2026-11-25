@@ -36,7 +36,7 @@ class WatchSnapshot {
     }
     final payload = <String, Object>{
       'entries': entries,
-      if (hideCodes) 'hideCodes': true,
+      'hideCodes': hideCodes,
     };
     return WatchSnapshot._(
       Uint8List.fromList(utf8.encode(jsonEncode(payload))),
@@ -66,8 +66,8 @@ class WatchSnapshot {
       'algorithm': steam ? Algorithm.sha1.name : code.algorithm.name,
       'digits': digits,
       'period': period,
-      if (code.isPinned) 'pinned': true,
-      if (tags.isNotEmpty) 'tags': tags,
+      'pinned': code.isPinned,
+      'tags': tags,
     };
   }
 }

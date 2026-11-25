@@ -151,8 +151,13 @@ class CodeDisplayStore {
       onSubmit: (value) async {
         final updatedTag = value.trim();
         if (updatedTag.isEmpty || updatedTag == tag) return;
-        if (!WatchService.sharedTags.contains(tag) &&
-            WatchService.sharedTags.contains(updatedTag)) {
+        final destinationExists = (await getAllTags()).contains(updatedTag);
+        if (!context.mounted) return;
+        if (WatchService.tagRenameExpandsSharing(
+          tag,
+          updatedTag,
+          destinationExists: destinationExists,
+        )) {
           await showChoiceActionSheet(
             context,
             title: context.strings.editTag,

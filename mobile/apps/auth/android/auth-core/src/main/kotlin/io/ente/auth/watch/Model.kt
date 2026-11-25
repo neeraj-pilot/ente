@@ -29,14 +29,14 @@ internal fun JsonObject.number(name: String): Long {
     requireWatch(value != null && value.isJsonPrimitive && value.asJsonPrimitive.isNumber, "invalidEnvelope")
     return value.asBigDecimal.longValueExact()
 }
-internal fun JsonObject.optionalBoolean(name: String): Boolean? {
-    val value = get(name)?.takeUnless { it.isJsonNull } ?: return null
-    requireWatch(value.isJsonPrimitive && value.asJsonPrimitive.isBoolean, "invalidEnvelope")
+internal fun JsonObject.boolean(name: String): Boolean {
+    val value = get(name)
+    requireWatch(value != null && value.isJsonPrimitive && value.asJsonPrimitive.isBoolean, "invalidEnvelope")
     return value.asBoolean
 }
-internal fun JsonObject.optionalStringList(name: String): List<String> {
-    val value = get(name)?.takeUnless { it.isJsonNull } ?: return emptyList()
-    requireWatch(value.isJsonArray, "invalidEnvelope")
+internal fun JsonObject.stringList(name: String): List<String> {
+    val value = get(name)
+    requireWatch(value != null && value.isJsonArray, "invalidEnvelope")
     return value.asJsonArray.map { element ->
         requireWatch(element.isJsonPrimitive && element.asJsonPrimitive.isString, "invalidEnvelope")
         element.asString
@@ -94,8 +94,8 @@ data class Entry(
         addProperty("id", id); addProperty("issuer", issuer); addProperty("account", account)
         addProperty("secret", secret); addProperty("generator", generator); addProperty("algorithm", algorithm)
         addProperty("digits", digits); addProperty("period", period)
-        if (pinned) addProperty("pinned", true)
-        if (tags.isNotEmpty()) add("tags", JsonArray().apply { tags.forEach(::add) })
+        addProperty("pinned", pinned)
+        add("tags", JsonArray().apply { tags.forEach(::add) })
     }
 
     companion object {
@@ -106,8 +106,8 @@ data class Entry(
             return Entry(value.string("id"), value.string("issuer"), value.string("account"),
                 value.string("secret"), value.string("generator"), value.string("algorithm"),
                 digits.toInt(), period.toInt(),
-                value.optionalBoolean("pinned") ?: false,
-                value.optionalStringList("tags")).also { it.validate() }
+                value.boolean("pinned"),
+                value.stringList("tags")).also { it.validate() }
         }
     }
 }
@@ -117,7 +117,7 @@ data class Snapshot(val entries: List<Entry>, val hideCodes: Boolean = false) {
         validate()
         return JsonObject().apply {
             add("entries", JsonArray().apply { entries.forEach { add(it.encode()) } })
-            if (hideCodes) addProperty("hideCodes", true)
+            addProperty("hideCodes", hideCodes)
         }.encode()
     }
 
@@ -130,7 +130,7 @@ data class Snapshot(val entries: List<Entry>, val hideCodes: Boolean = false) {
         val EMPTY = Snapshot(emptyList())
         fun decode(data: ByteArray, maximum: Int = Envelope.MAX_PLAINTEXT_BYTES): Snapshot {
             val root = json(data, maximum)
-            val hideCodes = root.optionalBoolean("hideCodes") ?: false
+            val hideCodes = root.boolean("hideCodes")
             val entries = root.getAsJsonArray("entries").map { Entry.decode(it.asJsonObject) }
             return Snapshot(entries, hideCodes).also { it.validate() }
         }

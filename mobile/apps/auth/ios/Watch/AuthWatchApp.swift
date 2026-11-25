@@ -16,17 +16,6 @@ private enum WatchStyle {
   static let warning = Color(red: 245 / 255, green: 158 / 255, blue: 11 / 255)
 }
 
-private extension View {
-  @ViewBuilder
-  func searchableIfNeeded(_ enabled: Bool, text: Binding<String>) -> some View {
-    if enabled {
-      self.searchable(text: text)
-    } else {
-      self
-    }
-  }
-}
-
 private struct WatchHome: View {
   @ObservedObject var companion: WatchCompanion
   @Environment(\.scenePhase) private var scenePhase
@@ -79,7 +68,7 @@ private struct WatchHome: View {
           } else if companion.entries.isEmpty {
             Text("No shared accounts yet. Open Watch settings in Auth on your iPhone.")
           }
-          if availableTags.count >= 2 {
+          if !availableTags.isEmpty {
             TagFilterBar(tags: availableTags, selectedTag: $selectedTag)
               .listRowInsets(EdgeInsets())
               .listRowBackground(Color.clear)
@@ -90,26 +79,18 @@ private struct WatchHome: View {
                 EntryRowLink(entry: entry, code: nil, remaining: nil)
               }
             } else {
-              TimelineView(
-                .periodic(
-                  from: Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970)), by: 1)
-              ) { timeline in
-                let seconds = Int(floor(timeline.date.timeIntervalSince1970 + 0.05))
-                let aligned = Date(timeIntervalSince1970: Double(seconds))
-                ForEach(filteredEntries) { entry in
+              ForEach(filteredEntries) { entry in
+                TimelineView(
+                  .periodic(
+                    from: Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970)), by: 1)
+                ) { timeline in
+                  let seconds = Int(floor(timeline.date.timeIntervalSince1970))
                   let remaining = entry.period - seconds % entry.period
-                  let code = try? entry.code(at: aligned)
+                  let code = try? entry.code(at: timeline.date)
                   EntryRowLink(entry: entry, code: code, remaining: remaining)
                 }
               }
             }
-          }
-          if let updated = companion.updatedAt {
-            TimelineView(.periodic(from: .now, by: 60)) { timeline in
-              Text(updatedLabel(updated, now: timeline.date))
-                .font(.caption).foregroundStyle(.secondary)
-            }
-            .listRowBackground(Color.clear)
           }
           if companion.status.enrollment != nil || companion.issue == .syncFailed {
             NavigationLink {
@@ -120,7 +101,7 @@ private struct WatchHome: View {
           }
         }
       }
-      .searchableIfNeeded(visible && companion.entries.count > 8, text: $searchText)
+      .searchable(text: visible ? $searchText : .constant(""))
       .navigationTitle("Ente Auth")
       .navigationDestination(for: String.self) { id in
         if visible, let entry = companion.entries.first(where: { $0.id == id }) {
@@ -134,7 +115,7 @@ private struct WatchHome: View {
     .onAppear { companion.setVisible(visible) }
     .onChange(of: visible) { _, value in companion.setVisible(value) }
     .onChange(of: companion.entries) { _, _ in
-      if let selectedTag, !availableTags.contains(selectedTag) {
+      if visible, let selectedTag, !availableTags.contains(selectedTag) {
         self.selectedTag = nil
       }
     }
@@ -142,13 +123,6 @@ private struct WatchHome: View {
 
   private var hiddenCodes: some View {
     Image(systemName: "lock.shield").font(.largeTitle).accessibilityLabel("Codes hidden")
-  }
-
-  private func updatedLabel(_ date: Date, now: Date) -> LocalizedStringKey {
-    if now.timeIntervalSince(date) < 60 { return "Updated just now" }
-    let formatter = RelativeDateTimeFormatter()
-    formatter.unitsStyle = .abbreviated
-    return "Updated \(formatter.localizedString(for: date, relativeTo: now))"
   }
 
   private func message(for issue: WatchCompanion.Issue) -> LocalizedStringKey {
@@ -166,24 +140,38 @@ private struct TagFilterBar: View {
   @Binding var selectedTag: String?
 
   var body: some View {
-    ScrollView(.horizontal, showsIndicators: false) {
-      HStack(spacing: 6) {
-        tagButton(title: "All", isSelected: selectedTag == nil) { selectedTag = nil }
-        ForEach(tags, id: \.self) { tag in
-          tagButton(title: tag, isSelected: selectedTag == tag) {
-            selectedTag = selectedTag == tag ? nil : tag
+    ScrollViewReader { proxy in
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 4) {
+          tagButton(title: "All", isSelected: selectedTag == nil) { selectedTag = nil }
+            .id(String?.none)
+          ForEach(tags, id: \.self) { tag in
+            tagButton(title: tag, isSelected: selectedTag == tag) {
+              selectedTag = selectedTag == tag ? nil : tag
+            }
+            .id(String?.some(tag))
           }
         }
+        .padding(.vertical, 2)
       }
-      .padding(.vertical, 2)
+      .onChange(of: selectedTag) { _, tag in
+        withAnimation { proxy.scrollTo(tag, anchor: .center) }
+      }
     }
   }
 
   private func tagButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-    Button(title, action: action)
-      .font(.caption2)
-      .buttonStyle(.borderedProminent)
-      .tint(isSelected ? WatchStyle.accent : Color.white.opacity(0.18))
+    Button(action: action) {
+      Text(title)
+        .font(.footnote.weight(.medium))
+        .lineLimit(1)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(isSelected ? WatchStyle.accent : Color.white.opacity(0.18), in: Capsule())
+        .contentShape(Capsule())
+    }
+    .buttonStyle(.plain)
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
 }
 
@@ -257,21 +245,16 @@ private struct CodeDetail: View {
 
   var body: some View {
     ScrollView {
+      if !entry.account.isEmpty {
+        Text(entry.account).font(.caption).foregroundStyle(.secondary)
+          .lineLimit(1).truncationMode(.middle)
+          .padding(.horizontal)
+      }
       TimelineView(
         .periodic(from: Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970)), by: 1)
       ) { timeline in
         CodeDetailContent(entry: entry, date: timeline.date)
       }
-      VStack(alignment: .leading, spacing: 4) {
-        if !entry.issuer.isEmpty { Text(entry.issuer).font(.caption).bold() }
-        if !entry.account.isEmpty {
-          Text(entry.account).font(.caption).foregroundStyle(.secondary)
-        }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .accessibilityHidden(true)
-      .padding(.horizontal)
-      .padding(.bottom)
     }
     .navigationTitle(entry.issuer.isEmpty ? "Code" : entry.issuer)
     .privacySensitive()
@@ -281,23 +264,15 @@ private struct CodeDetail: View {
 private struct CodeDetailContent: View {
   let entry: Entry
   let date: Date
-  @State private var lastBucket: Int?
-
   var body: some View {
-    let seconds = Int(floor(date.timeIntervalSince1970 + 0.05))
+    let seconds = Int(floor(date.timeIntervalSince1970))
     let bucket = seconds / entry.period
     let aligned = Date(timeIntervalSince1970: Double(seconds))
     let remaining = entry.period - seconds % entry.period
     let isWarning = remaining <= 5
     let code = (try? entry.code(at: aligned)) ?? "—"
-    let nextCode =
-      (try? entry.code(at: aligned.addingTimeInterval(TimeInterval(entry.period)))) ?? "—"
 
     VStack(spacing: 10) {
-      if !entry.account.isEmpty {
-        Text(entry.account).font(.caption).lineLimit(1).truncationMode(.middle)
-          .foregroundStyle(.secondary)
-      }
       Text(formatCode(code))
         .font(.system(.title2, design: .monospaced).bold())
         .foregroundStyle(isWarning ? WatchStyle.warning : .primary)
@@ -311,21 +286,21 @@ private struct CodeDetailContent: View {
         .accessibilityHidden(true)
       Text(remaining == 1 ? "1 second" : "\(remaining) seconds")
         .font(.caption).foregroundStyle(.secondary)
-      Text("Next: \(formatCode(nextCode))")
-        .font(.system(.caption, design: .monospaced))
-        .foregroundStyle(.secondary)
-        .environment(\.layoutDirection, .leftToRight)
-        .privacySensitive()
-        .accessibilityLabel("Next code \(nextCode.map(String.init).joined(separator: " "))")
+      if isWarning {
+        let nextCode =
+          (try? entry.code(at: aligned.addingTimeInterval(TimeInterval(entry.period)))) ?? "—"
+        Text("Next: \(formatCode(nextCode))")
+          .font(.caption.monospacedDigit())
+          .foregroundStyle(.secondary)
+          .environment(\.layoutDirection, .leftToRight)
+          .privacySensitive()
+          .accessibilityLabel("Next code \(nextCode.map(String.init).joined(separator: " "))")
+      }
     }
     .padding(.horizontal)
     .padding(.bottom, 16)
-    .onAppear { lastBucket = bucket }
-    .onChange(of: bucket) { _, next in
-      if lastBucket != nil && lastBucket != next {
-        WKInterfaceDevice.current().play(.click)
-      }
-      lastBucket = next
+    .onChange(of: bucket) { _, _ in
+      WKInterfaceDevice.current().play(.click)
     }
   }
 }

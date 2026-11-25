@@ -16,7 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WatchService extends ChangeNotifier with WidgetsBindingObserver {
-  WatchService._(this._preferences, [this._loadCodes]);
+  WatchService._(this._preferences);
 
   static const _preferenceKey = 'watchSelection';
   static const _channel = MethodChannel('io.ente.auth/watch');
@@ -30,22 +30,6 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
     final service = WatchService._(await SharedPreferences.getInstance());
     _instance = service;
     unawaited(service._start());
-  }
-
-  @visibleForTesting
-  static Future<WatchService> initializeForTest({
-    bool initiallyLocked = false,
-    Future<List<Code>> Function()? loadCodes,
-  }) async {
-    _instance?.dispose();
-    final service = WatchService._(
-      await SharedPreferences.getInstance(),
-      loadCodes,
-    );
-    service._locked = initiallyLocked;
-    _instance = service;
-    await service._start();
-    return service;
   }
 
   static void appLockChanged(bool locked) => _instance?._setLocked(locked);
@@ -86,7 +70,6 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   final SharedPreferences _preferences;
-  final Future<List<Code>> Function()? _loadCodes;
 
   String vaultScope() {
     final config = Configuration.instance;
@@ -109,15 +92,33 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription<dynamic>? _eventsSubscription;
   StreamSubscription<CodesUpdatedEvent>? _codesSubscription;
 
-  WatchSharing? get sharing =>
+  WatchSelection? get _currentSelection =>
       _selection?.scope == vaultScope() && _selection?.epoch == state.vaultEpoch
-      ? _selection?.watches[state.enrollmentID]
+      ? _selection
       : null;
 
-  static Set<String> get sharedTags {
-    final sharing = _instance?.sharing;
-    return sharing?.mode == WatchSharingMode.tags ? sharing!.tags : const {};
-  }
+  WatchSharing? get sharing => _currentSelection?.watches[state.enrollmentID];
+
+  static Set<String> get sharedTags =>
+      _instance?._currentSelection?.watches.values
+          .where((sharing) => sharing.mode == WatchSharingMode.tags)
+          .expand((sharing) => sharing.tags)
+          .toSet() ??
+      const {};
+
+  static bool tagRenameExpandsSharing(
+    String previousTag,
+    String updatedTag, {
+    required bool destinationExists,
+  }) =>
+      _instance?._currentSelection?.watches.values.any(
+        (sharing) => sharing.tagRenameExpandsSharing(
+          previousTag,
+          updatedTag,
+          destinationExists: destinationExists,
+        ),
+      ) ??
+      false;
 
   Future<void> _start() async {
     _foreground =
@@ -232,8 +233,8 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
       final sharing = this.sharing;
       final codes = sharing == null
           ? <Code>[]
-          : await (_loadCodes?.call() ??
-                CodeStore.instance.getAllCodes(requireCompleteRead: true));
+          : await CodeStore.instance.getAllCodes(requireCompleteRead: true);
+      if (sharing != null) await _preferences.reload();
       if (!_current(generation, scope) ||
           state.enrollmentID != id ||
           state.vaultEpoch != epoch) {
@@ -241,7 +242,6 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
       }
       var hideCodes = false;
       if (sharing != null) {
-        await _preferences.reload();
         sortAuthCodes(codes, PreferenceService.codeSortKeyFrom(_preferences));
         hideCodes = PreferenceService.shouldHideCodesFrom(_preferences);
       }

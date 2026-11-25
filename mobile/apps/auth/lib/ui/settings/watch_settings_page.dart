@@ -84,7 +84,6 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
                   title: l10n.watchSharing,
                   subtitle: switch (service.sharing?.mode) {
                     WatchSharingMode.all => l10n.watchAllAccounts,
-                    WatchSharingMode.pinned => l10n.watchPinnedAccounts,
                     WatchSharingMode.tags => l10n.watchSelectedTags,
                     null => l10n.watchChooseSharing,
                   },
@@ -282,11 +281,6 @@ class _WatchSharingPageState extends State<_WatchSharingPage> {
                 l10n.watchAllAccountsDescription,
               ),
               _modeRow(
-                WatchSharingMode.pinned,
-                l10n.watchPinnedAccounts,
-                l10n.watchPinnedAccountsDescription,
-              ),
-              _modeRow(
                 WatchSharingMode.tags,
                 l10n.watchSelectedTags,
                 l10n.watchSelectedTagsDescription,
@@ -378,40 +372,14 @@ class _WatchSharingPageState extends State<_WatchSharingPage> {
       label: '$title. $description',
       onTap: busy ? null : onTap,
       child: ExcludeSemantics(
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: busy ? null : onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(Spacing.lg),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyles.bodyBold.copyWith(
-                            color: context.componentColors.textBase,
-                          ),
-                        ),
-                        const SizedBox(height: Spacing.xs),
-                        Text(
-                          description,
-                          style: TextStyles.body.copyWith(
-                            color: context.componentColors.textLight,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: Spacing.lg),
-                  SizedBox(width: 40, child: Center(child: control)),
-                ],
-              ),
-            ),
-          ),
+        child: MenuComponent(
+          title: title,
+          subtitle: description,
+          selected: selected,
+          trailing: control,
+          isDisabled: busy,
+          onTap: onTap,
+          titleBold: true,
         ),
       ),
     );
