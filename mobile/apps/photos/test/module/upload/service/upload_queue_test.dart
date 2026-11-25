@@ -342,6 +342,25 @@ void main() {
     expect(queue.backupItems['local-1']!.status, BackupItemStatus.uploading);
     expect(queue.backupItems['local-1']!.error, isNull);
   });
+
+  test('only a reset moves upload progress back', () {
+    final queue = UploadQueue((_) {});
+    final item = queue.add(_file('local-1'), 1).item;
+    expect(_start(queue), same(item));
+    int? progressPercent() => queue.backupItems['local-1']!.progressPercent;
+
+    queue.updateBackupProgress(item, 'local-1', 99, 100);
+    queue.updateBackupProgress(item, 'local-1', 10, 100);
+    expect(progressPercent(), 99);
+
+    queue.resetBackupProgress(Object(), 'local-1');
+    expect(progressPercent(), 99);
+
+    queue.resetBackupProgress(item, 'local-1');
+    expect(progressPercent(), 0);
+    queue.updateBackupProgress(item, 'local-1', 10, 100);
+    expect(progressPercent(), 10);
+  });
 }
 
 UploadQueueItem? _start(UploadQueue queue) {

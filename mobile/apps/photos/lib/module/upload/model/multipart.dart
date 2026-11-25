@@ -28,6 +28,7 @@ class MultipartInfo {
   final MultipartStatus status;
   final String? fileMd5;
   final List<String>? partMd5s;
+  final String? createdAt;
 
   MultipartInfo({
     this.partUploadStatus,
@@ -38,6 +39,7 @@ class MultipartInfo {
     required this.urls,
     this.fileMd5,
     this.partMd5s,
+    this.createdAt,
   });
 }
 

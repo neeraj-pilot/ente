@@ -134,6 +134,7 @@ class FileUploader {
       _dio,
       UploadLocksDB.instance,
       flagService,
+      _gateway,
     );
     if (currentTime - (_prefs.getInt(_lastStaleFileCleanupTime) ?? 0) >
         tempDirCleanUpInterval) {
@@ -256,6 +257,7 @@ class FileUploader {
         forcedUpload,
         onSendProgress: (sent, total) =>
             _queue.updateBackupProgress(item, file.localID!, sent, total),
+        onUploadRestart: () => _queue.resetBackupProgress(item, file.localID!),
       );
       stopwatch.stop();
       if (stopwatch.elapsed >= _longRunningUploadThreshold) {
@@ -349,6 +351,9 @@ class FileUploader {
                   sent,
                   total,
                 ),
+          onUploadRestart: backupOwner == null
+              ? null
+              : () => _queue.resetBackupProgress(backupOwner, localID),
         );
         if (backupOwner != null) {
           _queue.markBackupUploaded(backupOwner, localID);
@@ -368,6 +373,7 @@ class FileUploader {
     int collectionID,
     bool forcedUpload, {
     ProgressCallback? onSendProgress,
+    VoidCallback? onUploadRestart,
   }) async {
     await checkNetworkForUpload(isForceUpload: forcedUpload);
     if (!forcedUpload) {
@@ -456,6 +462,7 @@ class FileUploader {
 
     var uploadCompleted = false;
     var uploadHardFailure = false;
+    var isCommitting = false;
 
     try {
       final bool isUpdatedFile =
@@ -588,11 +595,11 @@ class FileUploader {
           onSendProgress: onSendProgress,
         );
       } else {
-        isMultipartUpload = true;
         _logger.info(
           "Init multipartUpload $hasExistingMultiPart, isUpdate $isUpdatedFile",
         );
         if (hasExistingMultiPart) {
+          isMultipartUpload = true;
           fileObjectKey = await _multiPartUploader.putExistingMultipartFile(
             encryptedFile,
             lockKey,
@@ -600,6 +607,7 @@ class FileUploader {
             collectionID,
             existingMultipartEncFileName,
             onSendProgress: onSendProgress,
+            onRestart: onUploadRestart,
           );
         } else {
           if (partMd5s == null || partMd5s.isEmpty) {
@@ -628,6 +636,8 @@ class FileUploader {
             fileMd5: fileMd5,
             partMd5s: partMd5s,
           );
+          // Only an encrypted file that a track entry points at can be resumed.
+          isMultipartUpload = true;
           fileObjectKey = await _multiPartUploader.putMultipartFile(
             fileUploadURLs,
             encryptedFile,
@@ -693,6 +703,7 @@ class FileUploader {
         metadataDecryptionHeader: metadataDecryptionHeader,
       );
       EnteFile remoteFile;
+      isCommitting = true;
       if (isUpdatedFile) {
         await CryptoUtil.decryptVerify(
           encryptedFilePath,
@@ -805,7 +816,7 @@ class FileUploader {
         uploadHardFailure = true;
       }
       if ((isMultipartUpload || hasExistingMultiPart) &&
-          isPutOrMultiPartError(e)) {
+          shouldDiscardMultipartUpload(e, duringCommit: isCommitting)) {
         await UploadLocksDB.instance.deleteMultipartTrack(lockKey);
         await deleteFileSystemEntityIfPresent(File(encryptedFilePath));
       }
@@ -822,19 +833,6 @@ class FileUploader {
         isMultiPartUpload: isMultipartUpload,
       );
     }
-  }
-
-  bool isPutOrMultiPartError(Object e) {
-    if (e is MultiPartFileMissingError ||
-        e is MultiPartError ||
-        e is BadMD5DigestError) {
-      return true;
-    }
-    if (e is DioException) {
-      return e.requestOptions.path.contains("/files") ||
-          e.requestOptions.path.contains("/files/update");
-    }
-    return false;
   }
 
   Future<void> _onUploadDone(
