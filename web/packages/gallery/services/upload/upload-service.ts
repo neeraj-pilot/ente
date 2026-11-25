@@ -9,6 +9,7 @@ import { basename, nameAndExtension } from "ente-base/file-name";
 import {
     ensureOk,
     HTTPError,
+    isMuseumHTTPError,
     retryAsyncOperation,
     type HTTPRequestRetrier,
     type PublicAlbumsCredentials,
@@ -1650,8 +1651,10 @@ const retriedPostPublicAlbumsEnteFile = async (
             return postPublicAlbumsEnteFile(newFileRequest, credentials);
         },
         {
-            abortIfNeeded: (e) => {
+            abortIfNeeded: async (e) => {
                 if (isUploadCancelledError(e)) throw e;
+                if (await isMuseumHTTPError(e, 400, "FILE_UPLOAD_CONFLICT"))
+                    throw e;
                 if (e instanceof HTTPError) {
                     switch (e.res.status) {
                         case 413:
@@ -1672,8 +1675,10 @@ const retriedPostEnteFile = async (
             return postEnteFile(newFileRequest);
         },
         {
-            abortIfNeeded: (e) => {
+            abortIfNeeded: async (e) => {
                 if (isUploadCancelledError(e)) throw e;
+                if (await isMuseumHTTPError(e, 400, "FILE_UPLOAD_CONFLICT"))
+                    throw e;
                 if (e instanceof HTTPError) {
                     switch (e.res.status) {
                         case 401:

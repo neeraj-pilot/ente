@@ -109,7 +109,7 @@ export const isMuseumHTTPError = async (
 
 interface RetryAsyncOperationOpts {
     retryProfile?: "background";
-    abortIfNeeded?: (error: unknown) => void;
+    abortIfNeeded?: (error: unknown) => void | Promise<void>;
 }
 
 // Only retry operations whose repeated execution is safe.
@@ -128,7 +128,7 @@ export const retryAsyncOperation = async <T>(
             return await op();
         } catch (e) {
             if (abortIfNeeded) {
-                abortIfNeeded(e);
+                await abortIfNeeded(e);
             }
             const t = waitTimeBeforeNextTry.shift();
             if (!t) throw e;
