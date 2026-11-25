@@ -18,6 +18,7 @@ import "package:photos/services/collections_service.dart";
 bool shouldDiscardMultipartUpload(Object error, {required bool duringCommit}) {
   if (error is MultiPartFileMissingError ||
       error is MultiPartError ||
+      error is EncSizeMismatchError ||
       error is BadMD5DigestError) {
     return true;
   }
