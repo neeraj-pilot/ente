@@ -105,17 +105,44 @@ test("path filters cover root files, nested files, and dotfiles", (t) => {
 
 test("deletions and moves select every affected area", (t) => {
     const before = ["web/shared.txt"];
-    assert.deepEqual(select(t, [], before), [
+    assert.deepEqual(select(t, [], { before }), [
         "repo-lint",
         "web-e2e",
         "web-lint",
     ]);
-    assert.deepEqual(select(t, ["desktop/shared.txt"], before), [
+    assert.deepEqual(select(t, ["desktop/shared.txt"], { before }), [
         "desktop-lint",
         "repo-lint",
         "web-e2e",
         "web-lint",
     ]);
+});
+
+test("Auth and Locker app changes can skip Photos tests", (t) => {
+    const auth = "mobile/apps/auth/lib/main.dart";
+    const locker = "mobile/apps/locker/lib/main.dart";
+    for (const files of [[auth], [locker], [auth, locker]]) {
+        assert.deepEqual(select(t, files, { skipPhotos: true }), [
+            "mobile-lint",
+            "repo-lint",
+        ]);
+    }
+});
+
+test("mixed changes and shared mobile configuration keep Photos tests", (t) => {
+    const auth = "mobile/apps/auth/lib/main.dart";
+    for (const file of [
+        ".github/workflows/ci.yml",
+        "mobile/packages/base/lib/base.dart",
+        "rust/crates/core/src/lib.rs",
+        "mobile/apps/auth/pubspec.yaml",
+        "mobile/apps/auth/pubspec_overrides.yaml",
+        "mobile/apps/locker/build.yaml",
+        "mobile/apps/locker/flutter_rust_bridge.yaml",
+    ]) {
+        select(t, [auth, file]);
+    }
+    select(t, [auth], { before: ["mobile/apps/photos/lib/main.dart"] });
 });
 
 test("web E2E follows its apps, backend, and Rust dependencies", (t) => {
@@ -202,7 +229,7 @@ test("invalid arguments report usage", () => {
     }
 });
 
-function select(t, files, before = []) {
+function select(t, files, { before = [], skipPhotos = false } = {}) {
     const cwd = mkdtempSync(join(tmpdir(), "ente-ci-"));
     t.after(() => rmSync(cwd, { recursive: true }));
     const git = (...args) =>
@@ -231,9 +258,10 @@ function select(t, files, before = []) {
     });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stderr, "");
-    const data = readFileSync(output, "utf8");
-    assert.match(data, /^jobs=\[.*\]\n$/);
-    const selected = JSON.parse(data.slice(5));
+    const [jobs, photos] = readFileSync(output, "utf8").trimEnd().split("\n");
+    assert.match(jobs, /^jobs=\[.*\]$/);
+    assert.equal(photos, `skip-photos-tests=${skipPhotos}`);
+    const selected = JSON.parse(jobs.slice(5));
     assert.equal(result.stdout, `Selected CI: ${selected.join(", ")}\n`);
     return selected;
 }

@@ -15,4 +15,3 @@ node --test .github/checks/pr-approval/test.mjs
 node .github/checks/rust-ci-paths/check.mjs
 node --test .github/checks/rust-ci-paths/test.mjs
 node --test .github/scripts/ci/test.mjs
-node --test .github/scripts/mobile-tests/test.mjs

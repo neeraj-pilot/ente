@@ -77,7 +77,6 @@
         ".github/actions/restore-frb-outputs/**",
         ".github/actions/restore-rust-target/**",
         ".github/actions/setup-flutter/**",
-        ".github/scripts/mobile-tests/**",
         ".github/workflows/mobile-lint.yml",
         "mobile/**",
         "rust/.cargo/config.toml",

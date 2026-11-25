@@ -16,6 +16,7 @@ jobs:
         runs-on: ubuntu-latest
         outputs:
             jobs: ${{ steps.select.outputs.jobs }}
+            skip-photos-tests: ${{ steps.select.outputs.skip-photos-tests }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -63,6 +64,8 @@ jobs:
         needs: select
         if: ${{ contains(fromJSON(needs.select.outputs.jobs), 'mobile-lint') }}
         uses: ./.github/workflows/mobile-lint.yml
+        with:
+            skip-photos-tests: ${{ needs.select.outputs.skip-photos-tests == 'true' }}
 
     mobile-podfile-lock:
         needs: select
