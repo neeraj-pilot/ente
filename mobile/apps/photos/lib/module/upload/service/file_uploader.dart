@@ -636,7 +636,6 @@ class FileUploader {
             fileMd5: fileMd5,
             partMd5s: partMd5s,
           );
-          // Only an encrypted file that a track entry points at can be resumed.
           isMultipartUpload = true;
           fileObjectKey = await _multiPartUploader.putMultipartFile(
             fileUploadURLs,

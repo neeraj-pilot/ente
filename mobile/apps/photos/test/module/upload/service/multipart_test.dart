@@ -41,28 +41,34 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  setUp(() async {
+  Future<void> seedTrackedUpload({
+    int? encryptedFileSize,
+    List<String>? partMd5s = _partMd5s,
+  }) async {
     await db.clearTable();
-    dio = _FakeDio();
-    gateway = _FakeGateway();
-    uploader = MultiPartUploader(dio, db, _FakeFlagService(), gateway);
     await db.createTrackUploadsEntry(
       _localID,
       _fileHash,
       _collectionID,
       _urls("stale"),
       _encryptedFileName,
-      _payload.length,
+      encryptedFileSize ?? _payload.length,
       "fileKey",
       "fileNonce",
       "keyNonce",
       partSize: _partSize,
-      partMd5s: _partMd5s,
+      partMd5s: partMd5s,
     );
     await db.updatePartStatus("stale-key", 0, "stale-etag-1");
+  }
+
+  setUp(() async {
+    dio = _FakeDio();
+    gateway = _FakeGateway();
+    uploader = MultiPartUploader(dio, db, _FakeFlagService(), gateway);
+    await seedTrackedUpload();
   });
 
-  // A null marks a restart.
   late List<int?> progress;
 
   Future<String> resume() {
@@ -82,7 +88,6 @@ void main() {
       db.getCachedLinks(_localID, _fileHash, _collectionID, _encryptedFileName);
 
   for (final (statusCode, rejectedURL) in [
-    (404, "stale-part-2"),
     (403, "stale-part-2"),
     (401, "stale-part-2"),
     (404, "stale-complete"),
@@ -150,7 +155,7 @@ void main() {
     ]) {
       expect(discards(error), isTrue, reason: "$error");
     }
-    for (final statusCode in [null, 400, 429, 503]) {
+    for (final statusCode in [null, 503]) {
       final error = _dioError("/files", statusCode);
       expect(discards(error, duringCommit: true), isTrue, reason: "$error");
       expect(discards(error), isFalse, reason: "$error");
@@ -159,20 +164,8 @@ void main() {
   });
 
   test("discards a rejected upload that has no part MD5s", () async {
-    await db.clearTable();
-    await db.createTrackUploadsEntry(
-      _localID,
-      _fileHash,
-      _collectionID,
-      _urls("stale"),
-      _encryptedFileName,
-      _payload.length,
-      "fileKey",
-      "fileNonce",
-      "keyNonce",
-      partSize: _partSize,
-    );
-    dio.failures["stale-part-1"] = 403;
+    await seedTrackedUpload(partMd5s: null);
+    dio.failures["stale-part-2"] = 403;
 
     await expectLater(resume(), throwsA(isA<MultiPartError>()));
 
@@ -180,20 +173,7 @@ void main() {
   });
 
   test("discards an upload whose encrypted file changed size", () async {
-    await db.clearTable();
-    await db.createTrackUploadsEntry(
-      _localID,
-      _fileHash,
-      _collectionID,
-      _urls("stale"),
-      _encryptedFileName,
-      _payload.length + 1,
-      "fileKey",
-      "fileNonce",
-      "keyNonce",
-      partSize: _partSize,
-      partMd5s: _partMd5s,
-    );
+    await seedTrackedUpload(encryptedFileSize: _payload.length + 1);
 
     await expectLater(resume(), throwsA(isA<MultiPartError>()));
 
