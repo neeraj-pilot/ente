@@ -300,6 +300,64 @@ func TestCreateDuplicateObjectAndMissingCollectionRollBack(t *testing.T) {
 	})
 }
 
+func TestCreateRollsBackWhenCollectionDeletedDuringObjectWork(t *testing.T) {
+	repository, file := setupFileCreateLockTest(t)
+	collections := &CollectionRepository{
+		DB:        repository.DB,
+		QueueRepo: &QueueRepository{DB: repository.DB},
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	blocker, err := repository.DB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer blocker.Rollback()
+	var pid int
+	require.NoError(t, blocker.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&pid))
+	_, err = blocker.ExecContext(ctx, `SELECT 1 FROM temp_objects WHERE object_key = $1 FOR UPDATE`, file.Thumbnail.ObjectKey)
+	require.NoError(t, err)
+
+	type result struct {
+		file ente.File
+		err  error
+	}
+	completed := make(chan result, 1)
+	go func() {
+		created, _, err := repository.Create(file, 200, 20, 220, file.OwnerID, ente.Photos, testCreateBuckets)
+		completed <- result{created, err}
+	}()
+	finished := false
+	t.Cleanup(func() {
+		_ = blocker.Rollback()
+		if !finished {
+			select {
+			case <-completed:
+			case <-time.After(5 * time.Second):
+				t.Error("file create did not finish after releasing blocker")
+			}
+		}
+	})
+
+	waitForCreateBlocker(t, ctx, repository.DB, pid)
+	require.NoError(t, collections.ScheduleDelete(file.CollectionID))
+
+	require.NoError(t, blocker.Commit())
+	written := <-completed
+	finished = true
+	require.ErrorIs(t, written.err, ente.ErrCollectionDeleted)
+
+	assertCreateLockTestRowCounts(t, repository.DB, 1, 2)
+	var newKeys int
+	require.NoError(t, repository.DB.QueryRow(`SELECT COUNT(*) FROM object_keys WHERE object_key IN ('lock-new-file', 'lock-new-thumbnail')`).Scan(&newKeys))
+	require.Zero(t, newKeys)
+
+	var storage int64
+	var photos int
+	require.NoError(t, repository.DB.QueryRow(`SELECT storage_consumed, photos_file_count FROM usage WHERE user_id = $1`, file.OwnerID).Scan(&storage, &photos))
+	require.Equal(t, int64(110), storage)
+	require.Equal(t, 1, photos)
+}
+
 func setupFileCreateLockTest(t *testing.T) (*FileRepository, ente.File) {
 	t.Helper()
 	viper.Reset()

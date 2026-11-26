@@ -128,8 +128,11 @@ func (repo *FileRepository) Create(
 	var committedTime int64
 	err = tx.QueryRowContext(ctx, `UPDATE collections
 			SET updation_time = GREATEST(updation_time + 1, $1)
-			WHERE collection_id = $2
+			WHERE collection_id = $2 AND is_deleted = FALSE
 			RETURNING updation_time`, file.UpdationTime, file.CollectionID).Scan(&committedTime)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = ente.ErrCollectionDeleted
+	}
 	if err == nil && committedTime != file.UpdationTime {
 		file.UpdationTime = committedTime
 		_, err = tx.ExecContext(ctx, `WITH _ AS (
