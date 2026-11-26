@@ -50,10 +50,6 @@ private struct WatchHome: View {
         } else {
           if let issue = companion.issue {
             Text(message(for: issue)).foregroundStyle(.secondary)
-            if issue == .syncFailed {
-              Text("If this continues, erase watch data in Manage and set up this watch again.")
-                .foregroundStyle(.secondary)
-            }
           }
           if companion.status.enrollment == nil {
             Text("Keep codes on this watch for offline use. A watch passcode is required.")
@@ -73,22 +69,18 @@ private struct WatchHome: View {
               .listRowInsets(EdgeInsets())
               .listRowBackground(Color.clear)
           }
-          if !filteredEntries.isEmpty {
+          ForEach(filteredEntries) { entry in
             if companion.hideCodes {
-              ForEach(filteredEntries) { entry in
-                EntryRowLink(entry: entry, code: nil, remaining: nil)
-              }
+              EntryRowLink(entry: entry, code: nil, remaining: nil)
             } else {
-              ForEach(filteredEntries) { entry in
-                TimelineView(
-                  .periodic(
-                    from: Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970)), by: 1)
-                ) { timeline in
-                  let seconds = Int(floor(timeline.date.timeIntervalSince1970))
-                  let remaining = entry.period - seconds % entry.period
-                  let code = try? entry.code(at: timeline.date)
-                  EntryRowLink(entry: entry, code: code, remaining: remaining)
-                }
+              TimelineView(
+                .periodic(
+                  from: Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970)), by: 1)
+              ) { timeline in
+                let seconds = Int(floor(timeline.date.timeIntervalSince1970))
+                let remaining = entry.period - seconds % entry.period
+                let code = try? entry.code(at: timeline.date)
+                EntryRowLink(entry: entry, code: code, remaining: remaining)
               }
             }
           }
@@ -130,7 +122,6 @@ private struct WatchHome: View {
     case .passcodeRequired: return "Set a passcode in watch Settings, then try again."
     case .unlockWatch: return "Unlock your watch to show codes."
     case .syncFailed: return "Could not sync. Open Auth on your iPhone and try again."
-    case .updatePhone: return "Open Auth on a supported iPhone to set up this watch."
     }
   }
 }
@@ -160,7 +151,8 @@ private struct TagFilterBar: View {
     }
   }
 
-  private func tagButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+  private func tagButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View
+  {
     Button(action: action) {
       Text(title)
         .font(.footnote.weight(.medium))
@@ -210,7 +202,8 @@ private struct EntryRowLink: View {
       }
     }
     .accessibilityLabel(
-      [entry.issuer, entry.account].filter { !$0.isEmpty }.joined(separator: ", "))
+      [entry.issuer, entry.account].filter { !$0.isEmpty }.joined(separator: ", ")
+    )
     .accessibilityValue(
       code.map { $0.map(String.init).joined(separator: " ") } ?? "")
   }
@@ -223,7 +216,6 @@ private struct WatchManagement: View {
 
   var body: some View {
     List {
-      Text("Open Auth on your iPhone to sync changes.").foregroundStyle(.secondary)
       Button("Erase watch data", role: .destructive) { confirmErase = true }
     }
     .navigationTitle("Manage")
@@ -267,10 +259,9 @@ private struct CodeDetailContent: View {
   var body: some View {
     let seconds = Int(floor(date.timeIntervalSince1970))
     let bucket = seconds / entry.period
-    let aligned = Date(timeIntervalSince1970: Double(seconds))
     let remaining = entry.period - seconds % entry.period
     let isWarning = remaining <= 5
-    let code = (try? entry.code(at: aligned)) ?? "—"
+    let code = (try? entry.code(at: date)) ?? "—"
 
     VStack(spacing: 10) {
       Text(formatCode(code))
@@ -288,7 +279,7 @@ private struct CodeDetailContent: View {
         .font(.caption).foregroundStyle(.secondary)
       if isWarning {
         let nextCode =
-          (try? entry.code(at: aligned.addingTimeInterval(TimeInterval(entry.period)))) ?? "—"
+          (try? entry.code(at: date.addingTimeInterval(TimeInterval(entry.period)))) ?? "—"
         Text("Next: \(formatCode(nextCode))")
           .font(.caption.monospacedDigit())
           .foregroundStyle(.secondary)

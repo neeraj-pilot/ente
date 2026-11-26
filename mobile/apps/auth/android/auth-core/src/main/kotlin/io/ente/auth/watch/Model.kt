@@ -71,7 +71,6 @@ data class Entry(
     }
 
     fun code(seconds: Long): String {
-        validate()
         requireWatch(seconds >= 0, "invalidEntry")
         val name = when (algorithm) { "sha1" -> "HmacSHA1"; "sha256" -> "HmacSHA256"; else -> "HmacSHA512" }
         val mac = Mac.getInstance(name)
@@ -107,7 +106,7 @@ data class Entry(
                 value.string("secret"), value.string("generator"), value.string("algorithm"),
                 digits.toInt(), period.toInt(),
                 value.boolean("pinned"),
-                value.stringList("tags")).also { it.validate() }
+                value.stringList("tags"))
         }
     }
 }

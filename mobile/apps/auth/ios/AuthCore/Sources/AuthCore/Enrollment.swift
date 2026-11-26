@@ -18,7 +18,7 @@ enum CipherSuite: String, Codable, Sendable {
       case .p256: return .P256_SHA256_AES_GCM_256
       case .xwing:
         guard #available(iOS 26, macOS 26, watchOS 26, *) else {
-          throw WatchError.unsupportedSuite
+          throw WatchError.invalidData
         }
         return .XWingMLKEM768X25519_SHA256_AES_GCM_256
       }
@@ -35,11 +35,6 @@ public struct Enrollment: Codable, Equatable, Sendable {
       .map { String(format: "%02x", $0) }.joined()
   }
 
-  init(suite: CipherSuite, publicKey: Data) {
-    self.suite = suite
-    self.publicKey = publicKey
-  }
-
   @available(iOS 17, macOS 14, watchOS 10, *)
   func validate() throws {
     _ = try sender(info: Envelope.context)
@@ -54,7 +49,7 @@ public struct Enrollment: Codable, Equatable, Sendable {
         ciphersuite: suite.hpke, info: info
       )
     case .xwing:
-      guard #available(iOS 26, macOS 26, watchOS 26, *) else { throw WatchError.unsupportedSuite }
+      guard #available(iOS 26, macOS 26, watchOS 26, *) else { throw WatchError.invalidData }
       return try HPKE.Sender(
         recipientKey: XWingMLKEM768X25519.PublicKey(rawRepresentation: publicKey),
         ciphersuite: suite.hpke, info: info
@@ -75,7 +70,7 @@ struct PrivateKey: Codable, Sendable {
         suite: suite, representation: P256.KeyAgreement.PrivateKey().rawRepresentation)
     case .xwing:
       guard #available(iOS 26, macOS 26, watchOS 26, *) else {
-        throw WatchError.unsupportedSuite
+        throw WatchError.invalidData
       }
       return try PrivateKey(
         suite: suite,
@@ -93,7 +88,7 @@ struct PrivateKey: Codable, Sendable {
           .publicKey.x963Representation
       case .xwing:
         guard #available(iOS 26, macOS 26, watchOS 26, *) else {
-          throw WatchError.unsupportedSuite
+          throw WatchError.invalidData
         }
         publicKey = try XWingMLKEM768X25519.PrivateKey(
           integrityCheckedRepresentation: representation
@@ -116,7 +111,7 @@ struct PrivateKey: Codable, Sendable {
       )
     case .xwing:
       guard #available(iOS 26, macOS 26, watchOS 26, *) else {
-        throw WatchError.unsupportedSuite
+        throw WatchError.invalidData
       }
       return try HPKE.Recipient(
         privateKey: XWingMLKEM768X25519.PrivateKey(integrityCheckedRepresentation: representation),

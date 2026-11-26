@@ -55,29 +55,34 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
         WatchPhase.ambiguous => true,
         _ => false,
       };
+      final statusText = switch (state.phase) {
+        WatchPhase.unavailable =>
+          Platform.isIOS
+              ? l10n.watchUnavailableApple
+              : l10n.watchUnavailableAndroid,
+        WatchPhase.setup => l10n.watchSetupInstructions,
+        WatchPhase.approval => null,
+        WatchPhase.pending => l10n.watchPending,
+        WatchPhase.synced => l10n.watchSynced,
+        WatchPhase.retiring => l10n.watchRetiring,
+        WatchPhase.disabled => l10n.watchDisabled,
+        WatchPhase.failed => l10n.watchSyncFailed,
+        WatchPhase.replacement => l10n.watchReplacement,
+        WatchPhase.ambiguous => l10n.watchAmbiguous,
+      };
       return AuthSettingsPageScaffold(
         title: l10n.watch,
         children: [
           MenuGroupComponent(
             items: [
-              if (!state.canPublish || service.sharing != null)
+              if (statusText != null &&
+                  (!state.canPublish || service.sharing != null))
                 Padding(
                   padding: const EdgeInsets.all(Spacing.lg),
-                  child: Text(switch (state.phase) {
-                    WatchPhase.unavailable =>
-                      Platform.isIOS
-                          ? l10n.watchUnavailableApple
-                          : l10n.watchUnavailableAndroid,
-                    WatchPhase.setup => l10n.watchSetupInstructions,
-                    WatchPhase.approval => l10n.watchApproveInstructions,
-                    WatchPhase.pending => l10n.watchPending,
-                    WatchPhase.synced => l10n.watchSynced,
-                    WatchPhase.retiring => l10n.watchRetiring,
-                    WatchPhase.disabled => l10n.watchDisabled,
-                    WatchPhase.failed => l10n.watchSyncFailed,
-                    WatchPhase.replacement => l10n.watchReplacement,
-                    WatchPhase.ambiguous => l10n.watchAmbiguous,
-                  }, style: TextStyles.body.copyWith(color: colors.textBase)),
+                  child: Text(
+                    statusText,
+                    style: TextStyles.body.copyWith(color: colors.textBase),
+                  ),
                 ),
               if (state.canPublish)
                 SettingsItem(
@@ -145,7 +150,15 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
                   showOnlyLoadingState: true,
                   onTap: busy && activeAction != _WatchAction.disable
                       ? null
-                      : () => _change(_WatchAction.disable, service.disable),
+                      : () {
+                          final target = service.state;
+                          final scope = service.vaultScope();
+                          return _run(_WatchAction.disable, () async {
+                            if (await _authenticate(context) && mounted) {
+                              await service.disable(target, scope);
+                            }
+                          });
+                        },
                 ),
               ],
             ),
@@ -154,17 +167,6 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
       );
     },
   );
-
-  Future<void> _change(
-    _WatchAction kind,
-    Future<void> Function(WatchState, String) action,
-  ) {
-    final target = service.state;
-    final scope = service.vaultScope();
-    return _run(kind, () async {
-      if (await _authenticate(context) && mounted) await action(target, scope);
-    });
-  }
 
   Future<void> _run(_WatchAction kind, Future<void> Function() action) async {
     if (busy) return;
@@ -252,9 +254,7 @@ class _WatchSharingPageState extends State<_WatchSharingPage> {
                   const SizedBox(height: Spacing.md),
                 ],
                 ButtonComponent(
-                  label: widget.target.phase == WatchPhase.approval
-                      ? l10n.watchShare
-                      : l10n.save,
+                  label: l10n.save,
                   isDisabled:
                       !snapshot.hasData ||
                       snapshot.hasError ||
@@ -386,7 +386,6 @@ class _WatchSharingPageState extends State<_WatchSharingPage> {
   }
 
   Future<void> _save() async {
-    if (busy || mode == null) return;
     setState(() => busy = true);
     try {
       if (!await _authenticate(context) || !mounted) return;
@@ -398,7 +397,6 @@ class _WatchSharingPageState extends State<_WatchSharingPage> {
           tags: mode == WatchSharingMode.tags ? Set.of(selectedTags) : {},
         ),
       );
-      await service.refresh();
       if (mounted) Navigator.of(context).pop();
     } on Object catch (error) {
       if (mounted) {

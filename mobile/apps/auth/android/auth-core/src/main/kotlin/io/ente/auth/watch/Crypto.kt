@@ -11,6 +11,7 @@ import com.google.crypto.tink.hybrid.HybridConfig
 import com.google.gson.JsonObject
 import java.io.ByteArrayOutputStream
 import java.util.zip.Deflater
+import java.util.zip.DeflaterOutputStream
 import java.util.zip.Inflater
 
 internal enum class CipherSuite(val wire: String, private val kem: HpkeParameters.KemId) {
@@ -121,7 +122,7 @@ internal class Envelope private constructor(
             requireWatch(raw.size <= MAX_PLAINTEXT_BYTES, "payloadTooLarge")
             val compressed = compressDeflate(raw)
             val header = JsonObject().apply {
-                addProperty("version", 1); addProperty("enrollment", enrollment.id)
+                addProperty("enrollment", enrollment.id)
                 addProperty("suite", enrollment.suite.wire); addProperty("revision", revision)
                 addProperty("kind", if (retire) "retire" else "snapshot")
             }.encode()
@@ -135,7 +136,6 @@ internal class Envelope private constructor(
             val value = json(data)
             val header = value.string("header").bytes()
             val fields = json(header, 1024)
-            requireWatch(fields.number("version") == 1L, "unsupportedVersion")
             val enrollment = fields.string("enrollment")
             val revision = fields.number("revision")
             val kind = fields.string("kind")
@@ -146,18 +146,10 @@ internal class Envelope private constructor(
         }
 
         private fun compressDeflate(data: ByteArray): ByteArray {
-            if (data.isEmpty()) return data
             val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, true)
             return try {
-                deflater.setInput(data)
-                deflater.finish()
-                val out = ByteArrayOutputStream(data.size)
-                val buf = ByteArray(4096)
-                while (!deflater.finished()) {
-                    val count = deflater.deflate(buf)
-                    if (count == 0 && deflater.needsInput()) break
-                    out.write(buf, 0, count)
-                }
+                val out = ByteArrayOutputStream()
+                DeflaterOutputStream(out, deflater).use { it.write(data) }
                 out.toByteArray()
             } finally {
                 deflater.end()
@@ -165,7 +157,6 @@ internal class Envelope private constructor(
         }
 
         private fun decompressDeflate(data: ByteArray, maxBytes: Int): ByteArray {
-            if (data.isEmpty()) return data
             val inflater = Inflater(true)
             return try {
                 inflater.setInput(data)
@@ -181,10 +172,6 @@ internal class Envelope private constructor(
                     out.write(buf, 0, count)
                 }
                 out.toByteArray()
-            } catch (error: WatchException) {
-                throw error
-            } catch (_: Exception) {
-                throw WatchException("invalidEnvelope")
             } finally {
                 inflater.end()
             }

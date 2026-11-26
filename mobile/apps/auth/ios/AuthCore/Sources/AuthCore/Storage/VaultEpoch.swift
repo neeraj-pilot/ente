@@ -1,6 +1,5 @@
 import Foundation
 
-// A reset applies to every watch, including watches that are inactive at logout.
 struct VaultEpoch {
   private let url: URL
 

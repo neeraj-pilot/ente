@@ -11,7 +11,6 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.annotation:annotation:1.8.2'
     implementation 'com.google.crypto.tink:tink-android:1.23.0'
     implementation 'com.google.code.gson:gson:2.13.2'
     implementation 'com.google.android.gms:play-services-wearable:20.0.1'

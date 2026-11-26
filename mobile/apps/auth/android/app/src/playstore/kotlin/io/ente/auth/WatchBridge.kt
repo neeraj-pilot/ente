@@ -37,17 +37,11 @@ internal object WatchBridge {
             }
         }
         val events = EventChannel(messenger, "io.ente.auth/watch/state").also { channel ->
-            var activeSink: EventChannel.EventSink? = null
             channel.setStreamHandler(object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, sink: EventChannel.EventSink) {
-                    activeSink = sink
-                    owner.onChange = { state -> if (activeSink === sink) sink.success(state.asMap()) }
-                    owner.readState { outcome ->
-                        outcome.onSuccess { state -> if (activeSink === sink) sink.success(state.asMap()) }
-                    }
+                    owner.onChange = { state -> sink.success(state.asMap()) }
                 }
                 override fun onCancel(arguments: Any?) {
-                    activeSink = null
                     owner.onChange = null
                 }
             })

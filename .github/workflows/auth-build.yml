@@ -163,12 +163,6 @@ jobs:
             - name: Generate checksums
               run: cd artifacts && sha256sum ente-auth-*.apk > SHA256SUMS-android
 
-            - name: Save Wear OS bundle for the Wear OS release track
-              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-              with:
-                  name: auth-wear-aab
-                  path: mobile/apps/auth/wear/app/build/outputs/bundle/release/app-release.aab
-
             - name: Upload checksum snippet
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:

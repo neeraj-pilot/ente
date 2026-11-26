@@ -26,7 +26,7 @@ public struct WatchStatus: Codable, Sendable {
     let status = try JSONDecoder().decode(Self.self, from: data)
     if let receipt = status.receipt {
       guard receipt.revision > 0, receipt.digest.count == 32, receipt.enrollment.count == 64 else {
-        throw WatchError.invalidEnvelope
+        throw WatchError.invalidData
       }
     }
     if let enrollment = status.enrollment, let receipt = status.receipt {
@@ -41,7 +41,7 @@ struct PhoneContext: Sendable {
   let envelope: Data?
 
   init(_ context: [String: Any]) throws {
-    guard context["version"] as? Int == 1 else { throw WatchError.unsupportedVersion }
+    guard context["version"] as? Int == 1 else { throw WatchError.invalidData }
     suites = (context["suites"] as? [String] ?? []).compactMap(CipherSuite.init(rawValue:))
     envelope = context["snapshot"] as? Data
     guard (envelope?.count ?? 0) <= Envelope.maximumBytes else { throw WatchError.payloadTooLarge }

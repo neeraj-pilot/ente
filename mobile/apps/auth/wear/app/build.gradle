@@ -21,7 +21,6 @@ android {
     defaultConfig {
         applicationId 'io.ente.auth'
         minSdk 30
-        // Play requires codes to be unique across the phone and watch form factors.
         versionCode 1000000000 + phoneBuild
         versionName authVersion.group(1)
     }
@@ -44,7 +43,5 @@ dependencies {
     implementation project(':auth-core')
     implementation 'com.google.android.gms:play-services-wearable:20.0.1'
     implementation 'androidx.activity:activity-compose:1.10.1'
-    implementation 'androidx.fragment:fragment:1.7.1'
-    implementation 'androidx.wear.compose:compose-foundation:1.5.6'
     implementation 'androidx.wear.compose:compose-material3:1.5.6'
 }

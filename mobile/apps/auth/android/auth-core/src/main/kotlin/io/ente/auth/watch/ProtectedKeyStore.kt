@@ -20,7 +20,6 @@ internal class ProtectedKeyStore(context: Context) {
     fun read(): PrivateKey? {
         val data = file.read() ?: return null
         requireWatch(!keyguard.isDeviceLocked, "watchLocked")
-        // Missing or invalidated keys are errors until the user explicitly erases this enrollment.
         val plaintext = AndroidKeystore.getAead(alias).decrypt(data, associatedData)
         return try { PrivateKey.decode(plaintext) } finally { plaintext.fill(0) }
     }

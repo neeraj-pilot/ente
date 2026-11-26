@@ -46,7 +46,7 @@
       else {
         throw WatchError.wrongEnrollment
       }
-      _ = try repository.approve(enrollment, receipt: watch?.receipt)
+      _ = try repository.start(enrollment, receipt: watch?.receipt)
       try send()
       refresh()
     }
@@ -103,7 +103,6 @@
         let repository = PhoneRepository(
           url: currentDirectory.appendingPathComponent("auth-state"), epoch: currentEpoch)
         self.repository = repository
-        // Publish a durable reset even if the incoming context cannot be decoded.
         try send()
         var invalidStatus = false
         do {
@@ -118,7 +117,7 @@
         if record == nil, let watch, watch.active, let enrollment = watch.enrollment,
           let receipt = watch.receipt
         {
-          record = try repository.retireOrphan(enrollment, receipt: receipt)
+          record = try repository.start(enrollment, receipt: receipt, kind: .retire)
         }
         let phase: Phase
         if invalidStatus || watch?.storageError == true {

@@ -63,8 +63,6 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
     } on MissingPluginException {
       return;
     } on Object {
-      // A watch failure must not retain the phone's signed-in vault. Base logout
-      // clears preferences; the absent root forces reset before the next export.
       _instance?._failed('watchUnavailable');
     }
   }
@@ -89,8 +87,6 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _tail = Future.value();
   Timer? _debounce;
   Completer<void>? _resumed;
-  StreamSubscription<dynamic>? _eventsSubscription;
-  StreamSubscription<CodesUpdatedEvent>? _codesSubscription;
 
   WatchSelection? get _currentSelection =>
       _selection?.scope == vaultScope() && _selection?.epoch == state.vaultEpoch
@@ -112,11 +108,13 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
     required bool destinationExists,
   }) =>
       _instance?._currentSelection?.watches.values.any(
-        (sharing) => sharing.tagRenameExpandsSharing(
-          previousTag,
-          updatedTag,
-          destinationExists: destinationExists,
-        ),
+        (sharing) =>
+            sharing.mode == WatchSharingMode.tags &&
+            ((!sharing.tags.contains(previousTag) &&
+                    sharing.tags.contains(updatedTag)) ||
+                (destinationExists &&
+                    sharing.tags.contains(previousTag) &&
+                    !sharing.tags.contains(updatedTag))),
       ) ??
       false;
 
@@ -128,9 +126,7 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
       final initialState = await _call('state');
       _available = true;
       _accept(initialState);
-      _eventsSubscription = _events.receiveBroadcastStream().listen((
-        dynamic value,
-      ) {
+      _events.receiveBroadcastStream().listen((dynamic value) {
         final next = WatchState.fromMap(value as Map<Object?, Object?>);
         final changed =
             next.enrollmentID != state.enrollmentID ||
@@ -139,9 +135,7 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
         _accept(next);
         if (changed) _schedule();
       }, onError: (Object _) => _failed('watchUnavailable'));
-      _codesSubscription = Bus.instance.on<CodesUpdatedEvent>().listen(
-        (_) => _schedule(),
-      );
+      Bus.instance.on<CodesUpdatedEvent>().listen((_) => _schedule());
       await refresh();
     } on MissingPluginException {
       _available = false;
@@ -149,18 +143,6 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
     } on Object {
       _failed('watchUnavailable');
     }
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _debounce?.cancel();
-    unawaited(_eventsSubscription?.cancel());
-    unawaited(_codesSubscription?.cancel());
-    if (identical(_instance, this)) {
-      _instance = null;
-    }
-    super.dispose();
   }
 
   static Future<WatchState> _call(
@@ -242,8 +224,8 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
       }
       var hideCodes = false;
       if (sharing != null) {
-        sortAuthCodes(codes, PreferenceService.codeSortKeyFrom(_preferences));
-        hideCodes = PreferenceService.shouldHideCodesFrom(_preferences);
+        sortAuthCodes(codes, PreferenceService.instance.codeSortKey());
+        hideCodes = PreferenceService.instance.shouldHideCodes();
       }
       final snapshot = WatchSnapshot.fromCodes(
         sharing == null ? const [] : codes.where(sharing.includes),
@@ -299,8 +281,6 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   static Future<WatchState> _clearNative(SharedPreferences preferences) async {
-    // An absent selection requires a reset before the next export, including
-    // after a native failure or a logout from another isolate.
     if (!await preferences.remove(_preferenceKey)) {
       throw StateError('Could not clear watch selection.');
     }
@@ -315,16 +295,9 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _clearForLogout() {
     _generation++;
-    return _enqueue(() async {
-      try {
-        await _clear();
-      } on MissingPluginException {
-        return;
-      }
-    });
+    return _enqueue(_clear);
   }
 
-  // The UI must authenticate the user immediately before these actions.
   Future<void> share(WatchState target, String scope, WatchSharing sharing) =>
       _enqueue(() async {
         await _prepareChange(target, scope);

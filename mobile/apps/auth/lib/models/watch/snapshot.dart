@@ -20,7 +20,6 @@ class WatchSnapshot {
       !code.isTrashed &&
       (_isSteam(code) || code.type == Type.totp);
 
-  // A bad selected entry must not prevent a different entry from being removed.
   factory WatchSnapshot.fromCodes(
     Iterable<Code> codes, {
     bool hideCodes = false,

@@ -11,7 +11,7 @@ import java.util.concurrent.RejectedExecutionException
 class WatchCompanion(context: Context) {
     enum class Message { connectPhone, hidden, setup, approvePhone, selectAccounts, offline, unlockWatch,
         storageFailed, secureStorageUnavailable, setupFailed, syncFailed, ready }
-    data class State(val entries: List<Entry> = emptyList(), val message: Message = Message.connectPhone,
+    data class State(val entries: List<Entry> = emptyList(), val message: Message = Message.hidden,
                      val canEnroll: Boolean = false, val canErase: Boolean = false,
                      val hideCodes: Boolean = false)
     private val appContext = context.applicationContext
@@ -68,7 +68,6 @@ class WatchCompanion(context: Context) {
             val phone = items.filter { it.path == DataLayer.CAPABILITIES && it.node in nodes }.singleOrNull()
             if (phone != null) {
                 val capabilities = json(phone.data, 1024)
-                requireWatch(capabilities.number("version") == 1L, "unsupportedVersion")
                 val offered = capabilities.getAsJsonArray("suites").map { it.asString }.toSet()
                 suites = CipherSuite.supported.filter { it.wire in offered }
                 connected = true

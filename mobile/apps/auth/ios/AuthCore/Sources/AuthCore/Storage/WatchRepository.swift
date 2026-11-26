@@ -17,7 +17,6 @@ struct WatchRepository {
 
   func enrollment() throws -> Enrollment? { try keys.read()?.enrollment }
 
-  // Call from one owner. Each read checks Keychain again; locked is not missing.
   func read() throws -> State {
     let key = try keys.read()
     let envelope = try file.read()
@@ -59,7 +58,6 @@ struct WatchRepository {
     _ = try envelope.open(using: key)
     if let receipt = state.receipt, try !receipt.needsReplacement(with: envelope) { return state }
     try file.write(envelope)
-    // read finishes retirement after the file is durable, including after a crash.
     return try read()
   }
 

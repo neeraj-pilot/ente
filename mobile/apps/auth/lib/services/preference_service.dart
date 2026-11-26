@@ -56,12 +56,10 @@ class PreferenceService {
 
   static const kCodeSortKey = "codeSortKey";
 
-  static CodeSortKey codeSortKeyFrom(SharedPreferences prefs) {
-    return CodeSortKey.values[prefs.getInt(kCodeSortKey) ??
+  CodeSortKey codeSortKey() {
+    return CodeSortKey.values[_prefs.getInt(kCodeSortKey) ??
         CodeSortKey.issuerName.index];
   }
-
-  CodeSortKey codeSortKey() => codeSortKeyFrom(_prefs);
 
   Future<void> setCodeSortKey(CodeSortKey key) async {
     await _prefs.setInt(kCodeSortKey, key.index);
@@ -85,11 +83,7 @@ class PreferenceService {
     Bus.instance.fire(IconsChangedEvent());
   }
 
-  static bool shouldHideCodesFrom(SharedPreferences prefs) {
-    return prefs.getBool(kShouldHideCodesKey) ?? false;
-  }
-
-  bool shouldHideCodes() => shouldHideCodesFrom(_prefs);
+  bool shouldHideCodes() => _prefs.getBool(kShouldHideCodesKey) ?? false;
 
   bool isCompactMode() {
     return _prefs.getBool(kCompactMode) ?? false;

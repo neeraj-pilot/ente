@@ -140,7 +140,6 @@ internal class PhoneRepository(file: File, private val epoch: String) {
 
 internal data class WatchStatus(val enrollment: Enrollment?, val receipt: Receipt?, val storageError: Boolean = false) {
     fun encode(): ByteArray = JsonObject().apply {
-        addProperty("version", 1)
         enrollment?.let { add("enrollment", it.encode()) }
         receipt?.let { add("receipt", it.encode()) }
         addProperty("storageError", storageError)
@@ -149,7 +148,6 @@ internal data class WatchStatus(val enrollment: Enrollment?, val receipt: Receip
     companion object {
         fun decode(data: ByteArray): WatchStatus {
             val value = json(data, 8192)
-            requireWatch(value.number("version") == 1L, "unsupportedVersion")
             return WatchStatus(value.getAsJsonObject("enrollment")?.let(Enrollment::decode),
                 value.getAsJsonObject("receipt")?.let(Receipt::decode), value.get("storageError")?.asBoolean == true)
                 .also { requireWatch(it.enrollment == null || it.receipt == null ||

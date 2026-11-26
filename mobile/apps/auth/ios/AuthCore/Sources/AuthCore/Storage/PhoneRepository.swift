@@ -15,13 +15,8 @@ struct PhoneRepository {
     }
   }
 
-  private let url: URL
-  private let epoch: String
-
-  init(url: URL, epoch: String) {
-    self.url = url
-    self.epoch = epoch
-  }
+  let url: URL
+  let epoch: String
 
   func read() throws -> Record? {
     let data: Data
@@ -37,18 +32,9 @@ struct PhoneRepository {
     return cleared
   }
 
-  func approve(_ enrollment: Enrollment, receipt: Receipt?) throws -> Record {
-    try start(enrollment, receipt: receipt, kind: .snapshot)
-  }
-
-  func retireOrphan(_ enrollment: Enrollment, receipt: Receipt) throws -> Record {
-    guard try read() == nil else { throw WatchError.wrongEnrollment }
-    return try start(enrollment, receipt: receipt, kind: .retire)
-  }
-
-  private func start(_ enrollment: Enrollment, receipt: Receipt?, kind: Envelope.Header.Kind) throws
-    -> Record
-  {
+  func start(
+    _ enrollment: Enrollment, receipt: Receipt?, kind: Envelope.Header.Kind = .snapshot
+  ) throws -> Record {
     let revision = try nextRevision(
       after: receipt?.enrollment == enrollment.id ? receipt?.revision ?? 0 : 0)
     let snapshot = Snapshot(entries: [])
@@ -65,7 +51,6 @@ struct PhoneRepository {
     guard let previous = try read(), previous.envelope.header.kind != .retire else {
       throw WatchError.wrongEnrollment
     }
-    try snapshot.validate()
     let desiredDigest = try digest(snapshot)
     let receiptAhead = (previous.receipt?.revision ?? 0) > previous.envelope.header.revision
     let receiptConflict =
@@ -87,7 +72,6 @@ struct PhoneRepository {
 
   func acknowledge(_ receipt: Receipt) throws {
     guard var record = try read(), receipt.enrollment == record.enrollment.id else { return }
-    guard receipt.revision > 0, receipt.digest.count == 32 else { throw WatchError.invalidEnvelope }
     guard receipt != record.receipt, receipt.revision >= (record.receipt?.revision ?? 0) else {
       return
     }
@@ -121,7 +105,7 @@ struct PhoneRepository {
   }
 
   private func nextRevision(after revision: Int64) throws -> Int64 {
-    guard revision < Int64.max else { throw WatchError.invalidEnvelope }
+    guard revision < Int64.max else { throw WatchError.invalidData }
     return revision + 1
   }
 

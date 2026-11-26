@@ -2,7 +2,7 @@ import Compression
 import CryptoKit
 import Foundation
 
-public struct Envelope: Codable, Sendable {
+public struct Envelope: Sendable {
   public static let maximumBytes = 48 * 1024
   public static let maxPlaintextBytes = 256 * 1024
   static let context = Data("io.ente.auth.watch.snapshot.v1".utf8)
@@ -15,11 +15,6 @@ public struct Envelope: Codable, Sendable {
     let suite: CipherSuite
     let revision: Int64
     let kind: Kind
-    func validate() throws {
-      guard revision > 0, enrollment.count == 64 else {
-        throw WatchError.invalidEnvelope
-      }
-    }
   }
 
   private struct Body: Codable {
@@ -40,35 +35,14 @@ public struct Envelope: Codable, Sendable {
   static func decode(_ data: Data) throws -> Envelope {
     guard data.count <= maximumBytes else { throw WatchError.payloadTooLarge }
     let body = try JSONDecoder().decode(Body.self, from: data)
-    struct Version: Decodable { let version: Int }
-    guard try JSONDecoder().decode(Version.self, from: body.header).version == 1 else {
-      throw WatchError.unsupportedVersion
-    }
     let header = try JSONDecoder().decode(Header.self, from: body.header)
-    try header.validate()
+    guard header.version == 1, header.revision > 0, header.enrollment.count == 64 else {
+      throw WatchError.invalidData
+    }
     return Envelope(
       header: header, encapsulatedKey: body.encapsulatedKey, ciphertext: body.ciphertext,
       data: data, authenticatedHeader: body.header
     )
-  }
-
-  private init(
-    header: Header, encapsulatedKey: Data, ciphertext: Data, data: Data, authenticatedHeader: Data
-  ) {
-    self.header = header
-    self.encapsulatedKey = encapsulatedKey
-    self.ciphertext = ciphertext
-    self.data = data
-    self.authenticatedHeader = authenticatedHeader
-  }
-
-  public init(from decoder: any Decoder) throws {
-    self = try Self.decode(decoder.singleValueContainer().decode(Data.self))
-  }
-
-  public func encode(to encoder: any Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(data)
   }
 
   @available(iOS 17, macOS 14, watchOS 10, *)
@@ -77,14 +51,13 @@ public struct Envelope: Codable, Sendable {
     kind: Header.Kind = .snapshot
   ) throws -> Envelope {
     try snapshot.validate()
-    guard kind != .retire || snapshot.entries.isEmpty else { throw WatchError.invalidSnapshot }
+    guard kind != .retire || snapshot.entries.isEmpty else { throw WatchError.invalidData }
     let raw = try jsonData(snapshot)
     guard raw.count <= maxPlaintextBytes else { throw WatchError.payloadTooLarge }
     let compressed = try runCompression(COMPRESSION_STREAM_ENCODE, input: raw)
     let header = Header(
       version: 1, enrollment: enrollment.id, suite: enrollment.suite, revision: revision, kind: kind
     )
-    try header.validate()
     let headerData = try jsonData(header)
     var sender = try enrollment.sender(info: context)
     let ciphertext = try sender.seal(compressed, authenticating: headerData)
@@ -102,7 +75,7 @@ public struct Envelope: Codable, Sendable {
     let snapshot = try JSONDecoder().decode(Snapshot.self, from: plaintext)
     try snapshot.validate()
     guard header.kind != .retire || snapshot.entries.isEmpty else {
-      throw WatchError.invalidSnapshot
+      throw WatchError.invalidData
     }
     return snapshot
   }
@@ -120,7 +93,7 @@ public struct Envelope: Codable, Sendable {
     )
     guard compression_stream_init(&stream, operation, COMPRESSION_ZLIB) != COMPRESSION_STATUS_ERROR
     else {
-      throw WatchError.invalidEnvelope
+      throw WatchError.invalidData
     }
     defer { compression_stream_destroy(&stream) }
 
@@ -152,7 +125,7 @@ public struct Envelope: Codable, Sendable {
           break
         }
         if status == COMPRESSION_STATUS_ERROR || (written == 0 && stream.src_size == 0) {
-          throw WatchError.invalidEnvelope
+          throw WatchError.invalidData
         }
       }
     }
@@ -163,6 +136,17 @@ public struct Envelope: Codable, Sendable {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     return try encoder.encode(value)
+  }
+}
+
+extension Envelope: Codable {
+  public init(from decoder: any Decoder) throws {
+    self = try Self.decode(decoder.singleValueContainer().decode(Data.self))
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.singleValueContainer()
+    try container.encode(data)
   }
 }
 
@@ -177,12 +161,11 @@ struct Receipt: Codable, Equatable, Sendable {
     digest = envelope.digest
   }
 
-  // Call after HPKE open on the paired OS channel. Persist before sending a receipt.
   func needsReplacement(with envelope: Envelope) throws -> Bool {
     guard enrollment == envelope.header.enrollment else { throw WatchError.wrongEnrollment }
     if envelope.header.revision < revision { return false }
     if envelope.header.revision == revision {
-      guard digest == envelope.digest else { throw WatchError.conflictingRevision }
+      guard digest == envelope.digest else { throw WatchError.invalidData }
       return false
     }
     return true

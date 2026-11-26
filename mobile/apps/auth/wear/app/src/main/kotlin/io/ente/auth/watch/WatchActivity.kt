@@ -8,7 +8,6 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -80,17 +79,11 @@ import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import io.ente.auth.watch.app.R
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 
 class WatchActivity : ComponentActivity() {
     private lateinit var companion: WatchCompanion
     private var companionState by mutableStateOf(WatchCompanion.State())
     private var resumed by mutableStateOf(false)
-
-    private val unlockLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == RESULT_OK) companion.retry()
-        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -132,10 +125,10 @@ class WatchActivity : ComponentActivity() {
         val intent = getSystemService(KeyguardManager::class.java)
             .createConfirmDeviceCredentialIntent(
                 getString(R.string.app_name),
-                getString(R.string.unlock_watch),
+                null,
             )
             ?: Intent(Settings.ACTION_SECURITY_SETTINGS)
-        unlockLauncher.launch(intent)
+        startActivity(intent)
     }
 }
 
@@ -156,7 +149,7 @@ private fun AuthWatchRoot(
     LaunchedEffect(resumed) {
         if (!resumed) return@LaunchedEffect
         val keyguard = context.getSystemService(KeyguardManager::class.java)
-        while (isActive) {
+        while (true) {
             if (keyguard.isDeviceLocked) {
                 companion.setVisible(false)
                 break
@@ -170,24 +163,11 @@ private fun AuthWatchRoot(
     val availableTags = remember(state.entries) {
         state.entries.flatMap { it.tags }.distinct().sorted()
     }
-    LaunchedEffect(availableTags, state.message) {
-        if (state.message != WatchCompanion.Message.hidden &&
-            selectedTag != null && selectedTag !in availableTags
-        ) {
-            selectedTag = null
-        }
-    }
-    LaunchedEffect(state) {
-        if (state.message != WatchCompanion.Message.hidden &&
-            selectedEntryId != null &&
-            state.entries.none { it.id == selectedEntryId }
-        ) {
-            selectedEntryId = null
-        }
-    }
+    val currentTag = selectedTag?.takeIf { it in availableTags }
+    val selectedEntry = state.entries.firstOrNull { it.id == selectedEntryId }
 
     val isHidden = state.message == WatchCompanion.Message.hidden
-    BackHandler(enabled = !isHidden && selectedEntryId != null) {
+    BackHandler(enabled = !isHidden && selectedEntry != null) {
         selectedEntryId = null
     }
     BackHandler(enabled = !isHidden && pickingTag) {
@@ -207,7 +187,6 @@ private fun AuthWatchRoot(
                 )
             }
         } else {
-            val selectedEntry = selectedEntryId?.let { id -> state.entries.firstOrNull { it.id == id } }
             if (selectedEntry != null) {
                 CodeScreen(
                     entry = selectedEntry,
@@ -216,7 +195,7 @@ private fun AuthWatchRoot(
             } else if (pickingTag) {
                 TagPickerScreen(
                     tags = availableTags,
-                    selectedTag = selectedTag,
+                    selectedTag = currentTag,
                     onSelectTag = {
                         selectedTag = it
                         pickingTag = false
@@ -228,7 +207,7 @@ private fun AuthWatchRoot(
                     listState = accountsListState,
                     seconds = seconds,
                     availableTags = availableTags,
-                    selectedTag = selectedTag,
+                    selectedTag = currentTag,
                     onPickTag = { pickingTag = true },
                     onSelectEntry = { selectedEntryId = it },
                     onEnroll = companion::enroll,
@@ -382,8 +361,6 @@ private fun TagFilterButton(selectedTag: String?, onClick: () -> Unit) {
             },
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (selectedTag != null) WatchStyle.accent else WatchStyle.surface,
-                contentColor = Color.White,
-                iconColor = Color.White,
             ),
         ) {
             Text(
@@ -450,7 +427,6 @@ private fun TagOption(
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected) WatchStyle.accent else WatchStyle.surface,
-            contentColor = Color.White,
         ),
         transformation = transformation,
         modifier = modifier.semantics { this.selected = selected },
@@ -478,10 +454,7 @@ private fun AccountCard(
     Card(
         onClick = onClick,
         transformation = transformation,
-        colors = CardDefaults.cardColors(
-            containerColor = WatchStyle.surface,
-            contentColor = Color.White,
-        ),
+        colors = CardDefaults.cardColors(contentColor = Color.White),
         modifier = modifier.semantics(mergeDescendants = true) {
             contentDescription = spokenDesc
         },
@@ -642,7 +615,6 @@ private const val RING_SWEEP = 310f
 @Composable
 private fun EraseConfirmation(visible: Boolean, onDismiss: () -> Unit, onErase: () -> Unit) {
     val eraseActionLabel = stringResource(R.string.erase_action)
-    val cancelLabel = stringResource(R.string.cancel)
     AlertDialog(
         visible = visible,
         onDismissRequest = onDismiss,
@@ -656,7 +628,6 @@ private fun EraseConfirmation(visible: Boolean, onDismiss: () -> Unit, onErase: 
                 },
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = WatchStyle.destructive,
-                    contentColor = Color.White,
                 ),
                 modifier = Modifier.semantics { contentDescription = eraseActionLabel },
             )
@@ -664,7 +635,6 @@ private fun EraseConfirmation(visible: Boolean, onDismiss: () -> Unit, onErase: 
         dismissButton = {
             AlertDialogDefaults.DismissButton(
                 onClick = { onDismiss() },
-                modifier = Modifier.semantics { contentDescription = cancelLabel },
             )
         },
     )

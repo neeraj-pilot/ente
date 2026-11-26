@@ -141,9 +141,6 @@ class CodeDisplayStore {
     await showTextInputDialog(
       context,
       title: context.strings.editTag,
-      body: WatchService.sharedTags.contains(tag)
-          ? context.strings.watchRenameTagNotice
-          : null,
       label: context.strings.tag,
       initialValue: tag,
       submitButtonLabel: context.strings.save,

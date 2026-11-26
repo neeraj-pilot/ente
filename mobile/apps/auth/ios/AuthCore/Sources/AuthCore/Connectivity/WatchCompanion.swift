@@ -1,12 +1,11 @@
 #if os(watchOS)
   import Combine
   import Foundation
-  import Security
   import WatchConnectivity
 
   @MainActor
   public final class WatchCompanion: NSObject, ObservableObject, WCSessionDelegate {
-    public enum Issue: Equatable { case passcodeRequired, unlockWatch, syncFailed, updatePhone }
+    public enum Issue: Equatable { case passcodeRequired, unlockWatch, syncFailed }
 
     @Published public private(set) var entries: [Entry] = []
     @Published public private(set) var hideCodes = false
@@ -43,10 +42,7 @@
     public func enroll() {
       guard visible,
         let suite = CipherSuite.supported.first(where: { phone?.suites.contains($0) == true })
-      else {
-        issue = .updatePhone
-        return
-      }
+      else { return }
       do {
         _ = try repository.begin(suite: suite)
         issue = nil
@@ -66,27 +62,14 @@
     }
 
     private func reload() {
-      if !visible {
-        do {
-          let initial = try repository.read()
-          let applied = applyIncomingContext(to: initial)
-          canEnroll = CipherSuite.supported.contains { phone?.suites.contains($0) == true }
-          status = WatchStatus(
-            enrollment: applied.state.enrollment, receipt: applied.state.receipt)
-          try? sendStatus()
-        } catch {}
-        entries = []
-        hideCodes = false
-        return
-      }
       do {
         let initial = try repository.read()
         let applied = applyIncomingContext(to: initial)
         var syncFailed = applied.syncFailed
         let state = applied.state
         canEnroll = CipherSuite.supported.contains { phone?.suites.contains($0) == true }
-        entries = state.snapshot.entries
-        hideCodes = state.snapshot.hideCodes
+        entries = visible ? state.snapshot.entries : []
+        hideCodes = visible && state.snapshot.hideCodes
         status = WatchStatus(enrollment: state.enrollment, receipt: state.receipt)
         do { try sendStatus() } catch { syncFailed = true }
         issue = syncFailed ? .syncFailed : nil

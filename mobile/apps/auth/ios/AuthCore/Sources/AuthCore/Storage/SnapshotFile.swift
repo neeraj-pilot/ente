@@ -3,8 +3,6 @@ import Foundation
 struct SnapshotFile: Sendable {
   let url: URL
 
-  init(url: URL) { self.url = url }
-
   func read() throws -> Envelope? {
     do {
       return try Envelope.decode(Data(contentsOf: url))

@@ -5426,7 +5426,6 @@
   "watchReplacement": "A new watch setup is waiting. Stop sharing with the previous watch, then approve the new setup.",
   "watchAmbiguous": "More than one watch is requesting setup. Connect only the watch you want to set up, then try again.",
   "watchSetupInstructions": "Open Ente Auth on your watch and select Set up watch.",
-  "watchApproveInstructions": "Ready to set up.",
   "watchApprove": "Set up sharing",
   "watchCheckAgain": "Check again",
   "watchPending": "Changes are waiting for your watch. Open Ente Auth on it to sync.",
@@ -5447,12 +5446,9 @@
   "watchAllAccountsDescription": "Includes future accounts.",
   "watchSelectedTags": "Selected tags",
   "watchSelectedTagsDescription": "Includes future matches.",
-  "watchShare": "Share",
   "watchNoTags": "Add tags to your accounts first.",
   "watchAccountCount": "{count, plural, =0{No matches} one{1 account} other{{count} accounts}}",
   "watchSharedTag": "Used for watch sharing",
-  "watchTagSharingNotice": "Tags with a watch icon share accounts.",
-  "watchRenameTagNotice": "This tag stays shared with your watch under the new name.",
   "watchRenameIntoSharedTagNotice": "Accounts with either tag will be shared with your watch.",
   "watchDeleteTagNotice": "Accounts with this tag will stop syncing to your watch."
 }

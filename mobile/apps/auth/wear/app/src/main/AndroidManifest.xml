@@ -18,7 +18,7 @@
                 <data
                     android:scheme="wear"
                     android:host="*"
-                    android:pathPrefix="/auth/v1/" />
+                    android:pathPrefix="/auth/v1/snapshot/" />
             </intent-filter>
         </service>
     </application>

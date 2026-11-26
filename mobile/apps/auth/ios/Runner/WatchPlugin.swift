@@ -25,7 +25,7 @@ final class WatchPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       case "approve": try companion.approve(id: try enrollmentID(arguments))
       case "publish":
         guard let data = (arguments["snapshot"] as? FlutterStandardTypedData)?.data else {
-          throw WatchError.invalidSnapshot
+          throw WatchError.invalidData
         }
         guard data.count <= Envelope.maxPlaintextBytes else { throw WatchError.payloadTooLarge }
         guard let epoch = arguments["vaultEpoch"] as? String else { throw WatchError.staleVault }

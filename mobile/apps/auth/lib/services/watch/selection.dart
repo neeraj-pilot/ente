@@ -15,17 +15,6 @@ class WatchSharing {
     WatchSharingMode.tags => code.display.tags.any(tags.contains),
   };
 
-  bool tagRenameExpandsSharing(
-    String previousTag,
-    String updatedTag, {
-    required bool destinationExists,
-  }) =>
-      mode == WatchSharingMode.tags &&
-      ((!tags.contains(previousTag) && tags.contains(updatedTag)) ||
-          (destinationExists &&
-              tags.contains(previousTag) &&
-              !tags.contains(updatedTag)));
-
   factory WatchSharing.fromJson(Map<String, dynamic> json) => WatchSharing(
     mode: WatchSharingMode.values.byName(json['mode'] as String),
     tags: (json['tags'] as List).cast<String>().toSet(),
@@ -52,7 +41,6 @@ class WatchSelection {
     if (value == null) return null;
     try {
       final json = jsonDecode(value) as Map<String, dynamic>;
-      if (json['version'] != 2) return null;
       return WatchSelection(
         scope: json['scope'] as String,
         epoch: json['epoch'] as String,
@@ -69,7 +57,6 @@ class WatchSelection {
   }
 
   String encode() => jsonEncode({
-    'version': 2,
     'scope': scope,
     'epoch': epoch,
     'watches': watches.map(

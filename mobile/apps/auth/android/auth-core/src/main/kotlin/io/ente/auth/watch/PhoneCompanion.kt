@@ -100,7 +100,6 @@ class PhoneCompanion(context: Context) {
             }
             transport.start { enqueue { if (foreground) refresh() } }
             transport.put(DataLayer.CAPABILITIES, JsonObject().apply {
-                addProperty("version", 1)
                 add("suites", JsonArray().apply { CipherSuite.supported.forEach { add(it.wire) } })
             }.encode())
             send(record)
@@ -110,16 +109,22 @@ class PhoneCompanion(context: Context) {
             }
             statuses.forEach { (_, status) -> status.receipt?.let { repository.acknowledge(it) } }
             record = repository.read()
-            val selection = WatchSelection.choose(record, statuses.filter { it.first in nodes }.map { it.second },
-                statuses.map { it.second })
-            requested = selection.request
+            val connected = statuses.filter { it.first in nodes }.map { it.second }
+            val approvedID = record?.takeUnless { it.envelope.retire }?.enrollment?.id
+            val retiringID = record?.takeIf { it.envelope.retire }?.enrollment?.id
+            val candidates = connected.filter { it.enrollment != null && it.enrollment.id != retiringID }
+                .distinctBy { it.enrollment!!.id }
+            requested = connected.firstOrNull { approvedID != null && it.enrollment?.id == approvedID }
+                ?: candidates.singleOrNull()
+                ?: statuses.firstOrNull { candidates.isEmpty() && approvedID != null &&
+                    it.second.enrollment?.id == approvedID }?.second
             val watch = requested
             if (record == null && watch?.enrollment != null && watch.receipt != null) {
                 record = repository.approve(watch.enrollment, watch.receipt, retire = true)
             }
             val phase = when {
                 watch?.storageError == true -> Phase.failed
-                selection.ambiguous -> Phase.ambiguous
+                watch == null && candidates.size > 1 -> Phase.ambiguous
                 watch?.enrollment != null && watch.enrollment.id != record?.enrollment?.id ->
                     if (record != null && !record.envelope.retire) Phase.replacement else Phase.approval
                 record?.envelope?.retire == true -> if (record.delivered) Phase.disabled else Phase.retiring

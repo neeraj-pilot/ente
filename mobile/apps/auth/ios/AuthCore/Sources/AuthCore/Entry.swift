@@ -1,13 +1,8 @@
 import Foundation
 
 public enum WatchError: String, Error, Equatable, Sendable {
-  case invalidEntry
-  case invalidSnapshot
-  case invalidEnvelope
-  case unsupportedVersion
-  case unsupportedSuite
+  case invalidData
   case wrongEnrollment
-  case conflictingRevision
   case payloadTooLarge
   case phoneLocked
   case staleVault
@@ -30,21 +25,20 @@ public struct Entry: Codable, Identifiable, Sendable, Equatable {
   public let tags: [String]
 
   public func validate() throws {
-    guard !id.isEmpty, !secret.isEmpty else { throw WatchError.invalidEntry }
+    guard !id.isEmpty, !secret.isEmpty else { throw WatchError.invalidData }
     switch generator {
     case .totp:
       guard (1...10).contains(digits), (1...Int(Int32.max)).contains(period) else {
-        throw WatchError.invalidEntry
+        throw WatchError.invalidData
       }
     case .steam:
       guard algorithm == .sha1, digits == 5, period == 30 else {
-        throw WatchError.invalidEntry
+        throw WatchError.invalidData
       }
     }
   }
 
   public func code(at date: Date) throws -> String {
-    try validate()
     let code =
       switch generator {
       case .totp:
@@ -52,7 +46,7 @@ public struct Entry: Codable, Identifiable, Sendable, Equatable {
       case .steam:
         OTP.steam(secret: secret, at: date)
       }
-    guard let code else { throw WatchError.invalidEntry }
+    guard let code else { throw WatchError.invalidData }
     return code
   }
 }
@@ -68,7 +62,7 @@ public struct Snapshot: Codable, Sendable, Equatable {
 
   public func validate() throws {
     guard Set(entries.map(\.id)).count == entries.count else {
-      throw WatchError.invalidSnapshot
+      throw WatchError.invalidData
     }
     for entry in entries { try entry.validate() }
   }

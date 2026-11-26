@@ -23,7 +23,6 @@
     <string name="erase">Erase watch data</string>
     <string name="erase_title">Erase watch data?</string>
     <string name="erase_description">This removes the codes from this watch. Your phone accounts remain available.</string>
-    <string name="cancel">Cancel</string>
     <string name="erase_action">Erase</string>
     <string name="secure_storage_unavailable">This watch cannot provide the protected storage required for offline codes.</string>
     <string name="setup_failed">Could not set up this watch. Keep both apps open and try again.</string>

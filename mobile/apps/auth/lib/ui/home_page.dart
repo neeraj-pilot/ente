@@ -1192,7 +1192,7 @@ class _HomePageState extends State<HomePage> {
           [];
     }
 
-    sortFilteredCodes(_filteredCodes, _codeSortKey);
+    sortAuthCodes(_filteredCodes, _codeSortKey);
 
     if (mounted) {
       setState(() {});
@@ -1213,10 +1213,6 @@ class _HomePageState extends State<HomePage> {
     _firstItemFocusNode.dispose();
 
     super.dispose();
-  }
-
-  void sortFilteredCodes(List<Code> codes, CodeSortKey sortKey) {
-    sortAuthCodes(codes, sortKey);
   }
 
   bool get _shouldFocusAddedCode {
