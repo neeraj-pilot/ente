@@ -140,10 +140,12 @@ jobs:
             - name: Create artifacts directory
               run: mkdir artifacts
 
-            - name: Build independent APK
+            - name: Build independent APKs
               run: |
                   flutter build apk --build-name="${RELEASE_VERSION}" --build-number="${BUILD_NUMBER}" --dart-define=cronetHttpNoPlay=true --release --flavor independent
                   mv build/app/outputs/flutter-apk/app-independent-release.apk "artifacts/${ARTIFACT_STEM}.apk"
+                  android/gradlew -p wear :app:assembleIndependentRelease
+                  mv wear/app/build/outputs/apk/independent/release/app-independent-release.apk "artifacts/${ARTIFACT_STEM/ente-auth-/ente-watch-}.apk"
               env:
                   SIGNING_KEY_PATH: ${{ runner.temp }}/ente_auth_key.jks
                   SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS_AUTH }}
@@ -153,7 +155,7 @@ jobs:
             - name: Build Play Store bundles
               run: |
                   flutter build appbundle --build-name="${RELEASE_VERSION}" --build-number="${BUILD_NUMBER}" --release --flavor playstore --dart-define=cronetHttpNoPlay=true
-                  android/gradlew -p wear :app:bundleRelease
+                  android/gradlew -p wear :app:bundlePlaystoreRelease
               env:
                   SIGNING_KEY_PATH: ${{ runner.temp }}/ente_auth_key.jks
                   SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS_AUTH }}
@@ -161,7 +163,7 @@ jobs:
                   SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD_AUTH }}
 
             - name: Generate checksums
-              run: cd artifacts && sha256sum ente-auth-*.apk > SHA256SUMS-android
+              run: cd artifacts && sha256sum *.apk > SHA256SUMS-android
 
             - name: Upload checksum snippet
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -186,7 +188,7 @@ jobs:
                   tag: ${{ env.RELEASE_TAG }}
                   name: ${{ env.RELEASE_TAG }}
                   body: ${{ env.RELEASE_BODY }}
-                  artifacts: "mobile/apps/auth/artifacts/ente-auth-*.apk"
+                  artifacts: "mobile/apps/auth/artifacts/*.apk"
                   prerelease: true
                   makeLatest: false
                   allowUpdates: true
@@ -200,7 +202,7 @@ jobs:
                   name: ${{ env.RELEASE_TAG }}
                   body: ${{ env.RELEASE_BODY }}
                   commit: ${{ env.COMMIT_SHA }}
-                  artifacts: "mobile/apps/auth/artifacts/ente-auth-*.apk"
+                  artifacts: "mobile/apps/auth/artifacts/*.apk"
                   draft: true
                   allowUpdates: true
                   updateOnlyUnreleased: true
@@ -220,7 +222,7 @@ jobs:
               with:
                   serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
                   packageName: io.ente.auth
-                  releaseFiles: mobile/apps/auth/wear/app/build/outputs/bundle/release/app-release.aab
+                  releaseFiles: mobile/apps/auth/wear/app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab
                   tracks: wear:internal
                   whatsNewDirectory: mobile/apps/auth/whatsnew
 
