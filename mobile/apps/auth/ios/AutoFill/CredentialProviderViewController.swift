@@ -53,7 +53,12 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
   private static func siteName(_ identifier: ASCredentialServiceIdentifier) -> String? {
     let host =
       identifier.type == .URL ? URL(string: identifier.identifier)?.host() : identifier.identifier
-    let labels = host?.lowercased().split(separator: ".") ?? []
+    var labels = host?.lowercased().split(separator: ".") ?? []
+    if labels.count >= 3, labels.last?.count == 2,
+      ["ac", "co", "com", "edu", "gov", "net", "org"].contains(labels[labels.count - 2])
+    {
+      labels.removeLast()
+    }
     return labels.count >= 2 ? String(labels[labels.count - 2]) : nil
   }
 }
