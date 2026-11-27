@@ -17,36 +17,32 @@ class AutoFillService with WidgetsBindingObserver {
 
   static const _channel = MethodChannel('io.ente.auth/autofill');
   static final _logger = Logger('AutoFillService');
+  static AutoFillService? _instance;
 
   Future<void> _tail = Future.value();
 
   static void initialize() {
     if (!Platform.isIOS) return;
-    final service = AutoFillService._();
+    final service = _instance = AutoFillService._();
     WidgetsBinding.instance.addObserver(service);
     Bus.instance.on<CodesUpdatedEvent>().listen((_) => service._refresh());
     service._refresh();
   }
 
-  static Future<void> clearBeforeLogout() async {
-    if (!Platform.isIOS) return;
-    try {
-      await _channel.invokeMethod('clear');
-    } on Object catch (e, s) {
-      _logger.warning('Could not clear AutoFill codes', e, s);
-    }
-  }
+  static Future<void> clear() async =>
+      _instance?._enqueue(() => _channel.invokeMethod<void>('clear'));
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _refresh();
   }
 
-  void _refresh() {
-    _tail = _tail.then((_) => _sync()).catchError((Object e, StackTrace s) {
-      _logger.warning('Could not update AutoFill codes', e, s);
-    });
-  }
+  void _refresh() => unawaited(_enqueue(_sync));
+
+  Future<void> _enqueue(Future<void> Function() action) =>
+      _tail = _tail.then((_) => action()).catchError((Object e, StackTrace s) {
+        _logger.warning('Could not update AutoFill codes', e, s);
+      });
 
   Future<void> _sync() async {
     final config = Configuration.instance;

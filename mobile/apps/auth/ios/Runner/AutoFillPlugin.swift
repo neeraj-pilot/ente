@@ -20,18 +20,25 @@ final class AutoFillPlugin: NSObject, FlutterPlugin {
       guard let data = (call.arguments as? FlutterStandardTypedData)?.data else {
         return result(FlutterError(code: "invalidData", message: nil, details: nil))
       }
-      complete(result) {
+      do {
         let snapshot = try AutoFillVault.write(data)
-        if #available(iOS 18, *) {
-          ASCredentialIdentityStore.shared.replaceCredentialIdentities(
-            snapshot.entries.compactMap(Self.identity)
-          ) { _, _ in }
+        guard #available(iOS 18, *) else { return result(nil) }
+        ASCredentialIdentityStore.shared.replaceCredentialIdentities(
+          snapshot.entries.compactMap(Self.identity)
+        ) { _, error in
+          DispatchQueue.main.async { result(error.map(Self.flutterError)) }
         }
+      } catch {
+        result(Self.flutterError(error))
       }
     case "clear":
-      complete(result) {
+      do {
         try AutoFillVault.remove()
-        ASCredentialIdentityStore.shared.removeAllCredentialIdentities { _, _ in }
+        ASCredentialIdentityStore.shared.removeAllCredentialIdentities { _, _ in
+          DispatchQueue.main.async { result(nil) }
+        }
+      } catch {
+        result(Self.flutterError(error))
       }
     default:
       result(FlutterMethodNotImplemented)
@@ -52,12 +59,7 @@ final class AutoFillPlugin: NSObject, FlutterPlugin {
       recordIdentifier: entry.id)
   }
 
-  private func complete(_ result: FlutterResult, _ action: () throws -> Void) {
-    do {
-      try action()
-      result(nil)
-    } catch {
-      result(FlutterError(code: "autoFillUnavailable", message: "\(error)", details: nil))
-    }
+  private static func flutterError(_ error: Error) -> FlutterError {
+    FlutterError(code: "autoFillUnavailable", message: "\(error)", details: nil)
   }
 }

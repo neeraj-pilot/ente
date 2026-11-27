@@ -137,9 +137,9 @@ class Configuration extends BaseConfiguration
   Future<void> logout({bool autoLogout = false}) async {
     clearAuthenticatedSession();
     await WatchService.clearBeforeLogout();
-    await AutoFillService.clearBeforeLogout();
     _authSecretKey = null;
     await super.logout();
+    await AutoFillService.clear();
   }
 
   Future<void> setAuthSecretKey(String? authSecretKey) async {
