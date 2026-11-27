@@ -14,6 +14,7 @@ import 'package:ente_auth/models/code.dart';
 import 'package:ente_auth/onboarding/view/common/tag_chip.dart';
 import 'package:ente_auth/onboarding/view/setup_enter_secret_key_page.dart';
 import 'package:ente_auth/services/authenticator_service.dart';
+import 'package:ente_auth/services/autofill_service.dart';
 import 'package:ente_auth/services/local_backup_service.dart';
 import 'package:ente_auth/services/preference_service.dart';
 import 'package:ente_auth/store/code_display_store.dart';
@@ -125,6 +126,7 @@ class _HomePageState extends State<HomePage> {
   late CodeSortKey _codeSortKey;
   final Set<LogicalKeyboardKey> _pressedKeys = <LogicalKeyboardKey>{};
   final FocusNode _firstItemFocusNode = FocusNode();
+  bool _autoFillNoticeOpen = false;
 
   @override
   void initState() {
@@ -158,6 +160,25 @@ class _HomePageState extends State<HomePage> {
 
     searchBoxFocusNode = FocusNode();
     ServicesBinding.instance.keyboard.addHandler(_handleKeyEvent);
+    AutoFillService.noticeNeeded.addListener(_showAutoFillNotice);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showAutoFillNotice());
+  }
+
+  Future<void> _showAutoFillNotice() async {
+    if (!mounted || _autoFillNoticeOpen) return;
+    if (!AutoFillService.noticeNeeded.value) return;
+    _autoFillNoticeOpen = true;
+    final result = await showChoiceActionSheet(
+      context,
+      title: pendingTranslation("Share codes with AutoFill?"),
+      body: pendingTranslation(
+        "AutoFill unlocks your codes with Face ID, Touch ID or your device passcode, not your Ente app lock.",
+      ),
+      firstButtonLabel: pendingTranslation("Share codes"),
+      secondButtonLabel: pendingTranslation("Not now"),
+    );
+    _autoFillNoticeOpen = false;
+    AutoFillService.answerNotice(share: result?.action == ButtonAction.first);
   }
 
   void _onAddTagPressed() {
@@ -1212,6 +1233,7 @@ class _HomePageState extends State<HomePage> {
     _textController.dispose();
     _textController.removeListener(_applyFilteringAndRefresh);
     ServicesBinding.instance.keyboard.removeHandler(_handleKeyEvent);
+    AutoFillService.noticeNeeded.removeListener(_showAutoFillNotice);
     searchBoxFocusNode.dispose();
     _firstItemFocusNode.dispose();
 

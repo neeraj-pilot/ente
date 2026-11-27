@@ -49,6 +49,12 @@ class PreferenceService {
     await _prefs.setStringList("tagOrder", order);
   }
 
+  bool autoFillAccepted() => _prefs.getBool("autoFillAccepted") ?? false;
+
+  Future<void> setAutoFillAccepted(bool value) async {
+    await _prefs.setBool("autoFillAccepted", value);
+  }
+
   bool hasShownCoachMark() {
     if (shouldSkipAuthGuidance) {
       return true;

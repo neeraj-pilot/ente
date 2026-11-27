@@ -161,7 +161,10 @@ Future<void> _runInForeground() async {
         builder: (args) => App(locale: locale, savedThemeMode: savedThemeMode),
         debugShowCheckedModeBanner: false,
         lockScreen: LockScreen(configuration),
-        onLockStateChanged: WatchService.appLockChanged,
+        onLockStateChanged: (locked) {
+          WatchService.appLockChanged(locked);
+          AutoFillService.appLockChanged(locked);
+        },
         enabled: await LockScreenSettings.instance.shouldShowLockScreen(),
         locale: locale,
         lightTheme: lightThemeData,

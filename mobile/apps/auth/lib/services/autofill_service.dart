@@ -18,8 +18,11 @@ class AutoFillService with WidgetsBindingObserver {
   static const _channel = MethodChannel('io.ente.auth/autofill');
   static final _logger = Logger('AutoFillService');
   static AutoFillService? _instance;
+  static final noticeNeeded = ValueNotifier(false);
 
   Future<void> _tail = Future.value();
+  bool _locked = true;
+  bool _declined = false;
 
   static void initialize() {
     if (!Platform.isIOS) return;
@@ -31,6 +34,28 @@ class AutoFillService with WidgetsBindingObserver {
 
   static Future<void> clear() async =>
       _instance?._enqueue(() => _channel.invokeMethod<void>('clear'));
+
+  static void appLockChanged(bool locked) {
+    final service = _instance;
+    if (service == null) return;
+    service._locked = locked;
+    if (!locked) service._refresh();
+  }
+
+  static void answerNotice({required bool share}) {
+    final service = _instance;
+    if (service == null) return;
+    noticeNeeded.value = false;
+    service._declined = !share;
+    if (share) {
+      unawaited(
+        service._enqueue(() async {
+          await PreferenceService.instance.setAutoFillAccepted(true);
+          await service._sync();
+        }),
+      );
+    }
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -48,12 +73,21 @@ class AutoFillService with WidgetsBindingObserver {
     final config = Configuration.instance;
     final hasVault =
         config.hasConfiguredAccount() || config.hasOptedForOfflineMode();
+    final prefs = PreferenceService.instance;
     if (!hasVault || await _channel.invokeMethod<bool>('isEnabled') != true) {
+      _declined = false;
+      noticeNeeded.value = false;
+      await prefs.setAutoFillAccepted(false);
+      await _channel.invokeMethod('clear');
+      return;
+    }
+    if (!prefs.autoFillAccepted()) {
+      if (!_locked && !_declined) noticeNeeded.value = true;
       await _channel.invokeMethod('clear');
       return;
     }
     final codes = await CodeStore.instance.getAllCodes(sortCodes: false);
-    sortAuthCodes(codes, PreferenceService.instance.codeSortKey());
+    sortAuthCodes(codes, prefs.codeSortKey());
     await _channel.invokeMethod('publish', WatchSnapshot.fromCodes(codes).data);
   }
 }
