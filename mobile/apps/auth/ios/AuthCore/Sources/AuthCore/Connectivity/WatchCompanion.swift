@@ -5,6 +5,8 @@
 
   @MainActor
   public final class WatchCompanion: NSObject, ObservableObject, WCSessionDelegate {
+    public static let selectedTagKey = "selectedTag"
+
     public enum Issue: Equatable { case passcodeRequired, unlockWatch, syncFailed }
 
     @Published public private(set) var entries: [Entry] = []
@@ -50,6 +52,7 @@
 
     public func erase() {
       entries = []
+      UserDefaults.standard.removeObject(forKey: Self.selectedTagKey)
       do {
         try repository.erase()
         status = WatchStatus(enrollment: nil, receipt: nil)
@@ -58,12 +61,20 @@
       } catch { issue = .syncFailed }
     }
 
+    private func clearStaleTag(for entries: [Entry]) {
+      guard let selected = UserDefaults.standard.string(forKey: Self.selectedTagKey) else { return }
+      if !entries.contains(where: { $0.tags.contains(selected) }) {
+        UserDefaults.standard.removeObject(forKey: Self.selectedTagKey)
+      }
+    }
+
     private func reload() {
       do {
         let initial = try repository.read()
         let applied = applyIncomingContext(to: initial)
         var syncFailed = applied.syncFailed
         let state = applied.state
+        clearStaleTag(for: state.snapshot.entries)
         canEnroll = CipherSuite.supported.contains { phone?.suites.contains($0) == true }
         entries = visible ? state.snapshot.entries : []
         status = WatchStatus(enrollment: state.enrollment, receipt: state.receipt)

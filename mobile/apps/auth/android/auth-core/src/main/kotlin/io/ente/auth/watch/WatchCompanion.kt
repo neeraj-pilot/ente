@@ -41,6 +41,7 @@ class WatchCompanion(context: Context) {
         synchronized(storageLock) {
             repository.erase()
             statusFile.remove()
+            clearSelectedTag(appContext)
         }
     }
 
@@ -90,6 +91,7 @@ class WatchCompanion(context: Context) {
             transport.put(DataLayer.STATUS, status.encode())
         } catch (_: Exception) {
         }
+        clearStaleTag(appContext, local.snapshot.entries)
         val message = when {
             invalidIncoming -> Message.syncFailed
             local.enrollment == null && suites.isNotEmpty() -> Message.setup
@@ -137,7 +139,22 @@ class WatchCompanion(context: Context) {
     }
 
     companion object {
+        const val PREFERENCES = "watch"
+        const val SELECTED_TAG_KEY = "selectedTag"
         private val storageLock = Any()
+
+        private fun clearSelectedTag(context: Context) {
+            context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                .edit().remove(SELECTED_TAG_KEY).apply()
+        }
+
+        private fun clearStaleTag(context: Context, entries: List<Entry>) {
+            val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+            val selected = prefs.getString(SELECTED_TAG_KEY, null) ?: return
+            if (entries.none { selected in it.tags }) {
+                prefs.edit().remove(SELECTED_TAG_KEY).apply()
+            }
+        }
 
         fun syncInBackground(context: Context) {
             val appContext = context.applicationContext
@@ -161,6 +178,7 @@ class WatchCompanion(context: Context) {
                             if (error.code != "wrongEnrollment") throw error
                         }
                     }
+                    clearStaleTag(appContext, local.snapshot.entries)
                     WatchStatus(local.enrollment, local.receipt).also { statusFile.write(it.encode()) }
                 }
                 transport.put(DataLayer.STATUS, status.encode())
