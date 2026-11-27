@@ -4,6 +4,8 @@
 <dict>
 	<key>aps-environment</key>
 	<string>development</string>
+	<key>com.apple.developer.authentication-services.autofill-credential-provider</key>
+	<true/>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>webcredentials:web.ente.io</string>
@@ -11,6 +13,11 @@
 		<string>webcredentials:auth.ente.io</string>
 		<string>webcredentials:auth.ente.com</string>
 		<string>webcredentials:locker.ente.com</string>
+	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)io.ente.auth</string>
+		<string>$(AppIdentifierPrefix)io.ente.auth.autofill</string>
 	</array>
 </dict>
 </plist>

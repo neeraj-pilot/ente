@@ -1,0 +1,63 @@
+import AuthCore
+import AuthenticationServices
+import Flutter
+
+final class AutoFillPlugin: NSObject, FlutterPlugin {
+  static func register(with registrar: FlutterPluginRegistrar) {
+    let channel = FlutterMethodChannel(
+      name: "io.ente.auth/autofill", binaryMessenger: registrar.messenger())
+    registrar.addMethodCallDelegate(AutoFillPlugin(), channel: channel)
+  }
+
+  func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "isEnabled":
+      guard #available(iOS 18, *) else { return result(false) }
+      ASCredentialIdentityStore.shared.getState { state in
+        DispatchQueue.main.async { result(state.isEnabled) }
+      }
+    case "publish":
+      guard let data = (call.arguments as? FlutterStandardTypedData)?.data else {
+        return result(FlutterError(code: "invalidData", message: nil, details: nil))
+      }
+      complete(result) {
+        let snapshot = try AutoFillVault.write(data)
+        if #available(iOS 18, *) {
+          ASCredentialIdentityStore.shared.replaceCredentialIdentities(
+            snapshot.entries.compactMap(Self.identity)
+          ) { _, _ in }
+        }
+      }
+    case "clear":
+      complete(result) {
+        try AutoFillVault.remove()
+        ASCredentialIdentityStore.shared.removeAllCredentialIdentities { _, _ in }
+      }
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  @available(iOS 18, *)
+  private static func identity(_ entry: Entry) -> ASOneTimeCodeCredentialIdentity? {
+    let host = entry.issuer.trimmingCharacters(in: .whitespaces).lowercased()
+    let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+    guard labels.count >= 2,
+      labels.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" } }
+      )
+    else { return nil }
+    return ASOneTimeCodeCredentialIdentity(
+      serviceIdentifier: ASCredentialServiceIdentifier(identifier: host, type: .domain),
+      label: entry.account.isEmpty ? entry.issuer : entry.account,
+      recordIdentifier: entry.id)
+  }
+
+  private func complete(_ result: FlutterResult, _ action: () throws -> Void) {
+    do {
+      try action()
+      result(nil)
+    } catch {
+      result(FlutterError(code: "autoFillUnavailable", message: "\(error)", details: nil))
+    }
+  }
+}

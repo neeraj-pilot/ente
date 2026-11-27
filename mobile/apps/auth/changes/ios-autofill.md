@@ -1,0 +1,1 @@
+- Added AutoFill for verification codes on iOS 18 and later.
