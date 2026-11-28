@@ -5,8 +5,6 @@ import 'package:ente_auth/core/configuration.dart';
 import 'package:ente_auth/events/codes_updated_event.dart';
 import 'package:ente_auth/models/code_snapshot.dart';
 import 'package:ente_auth/services/preference_service.dart';
-import 'package:ente_auth/store/code_store.dart';
-import 'package:ente_auth/utils/code_sort.dart';
 import 'package:ente_events/event_bus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -92,11 +90,6 @@ class AutoFillService with WidgetsBindingObserver {
       await _channel.invokeMethod('clear');
       return;
     }
-    final codes = await CodeStore.instance.getAllCodes(
-      sortCodes: false,
-      requireCompleteRead: true,
-    );
-    sortAuthCodes(codes, prefs.codeSortKey());
-    await _channel.invokeMethod('publish', CodeSnapshot.fromCodes(codes).data);
+    await _channel.invokeMethod('publish', (await CodeSnapshot.load()).data);
   }
 }
