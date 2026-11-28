@@ -53,7 +53,7 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
                   "Needs iOS 17, watchOS 10 and Ente Auth on your Apple Watch.",
                 )
               : pendingTranslation(
-                  "Needs Android 8, Wear OS 3 and Ente Auth from Google Play on both devices.",
+                  "Needs Android 8, Wear OS 3, Google Play services and matching Ente Auth on both devices.",
                 ),
         WatchPhase.setup ||
         WatchPhase.retiring ||

@@ -33,6 +33,16 @@ android {
             storePassword keystoreProperties['storePassword'] ?: System.getenv('SIGNING_STORE_PASSWORD')
         }
     }
+    flavorDimensions 'default'
+    productFlavors {
+        independent {
+            dimension 'default'
+            applicationIdSuffix '.independent'
+        }
+        playstore {
+            dimension 'default'
+        }
+    }
     buildTypes {
         debug { applicationIdSuffix '.debug' }
         release { signingConfig signingConfigs.release }
