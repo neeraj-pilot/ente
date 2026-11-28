@@ -5,7 +5,7 @@ use ente_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Result, open_collection_key};
+use crate::{CollectionFileRef, Error, Result, open_collection_key};
 
 pub struct CollectionPage {
     pub collections: Vec<Collection>,
@@ -126,6 +126,55 @@ impl FilePages<'_> {
     }
 }
 
+pub struct TrashPage {
+    pub entries: Vec<TrashEntry>,
+    pub cursor: i64,
+    pub has_more: bool,
+}
+
+pub async fn trash_diff(session: &Session, since: i64) -> Result<TrashPage> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Response {
+        diff: Vec<TrashEntry>,
+        has_more: bool,
+    }
+    let response: Response = http::retry(|| async {
+        session
+            .api
+            .get("/trash/v2/diff")
+            .query(&[("sinceTime", since)])
+            .send()
+            .await?
+            .error_for_code()
+            .await?
+            .json()
+            .await
+    })
+    .await?;
+    if response
+        .diff
+        .iter()
+        .any(|e| e.file.id <= 0 || e.file.collection_id <= 0 || e.updated_at < since)
+    {
+        return Err(Error::InvalidPage("invalid trash identity or timestamp"));
+    }
+    let cursor = response
+        .diff
+        .iter()
+        .map(|e| e.updated_at)
+        .max()
+        .unwrap_or(since);
+    if response.has_more && cursor <= since {
+        return Err(Error::TrashCursorDidNotAdvance);
+    }
+    Ok(TrashPage {
+        entries: response.diff,
+        cursor,
+        has_more: response.has_more,
+    })
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Collection {
@@ -215,6 +264,13 @@ pub struct File {
 }
 
 impl File {
+    pub fn file_ref(&self) -> CollectionFileRef {
+        CollectionFileRef {
+            file_id: self.id,
+            collection_id: self.collection_id,
+        }
+    }
+
     pub fn is_deleted(&self) -> bool {
         self.is_deleted || self.metadata.encrypted_data.as_deref() == Some("-")
     }
@@ -254,6 +310,19 @@ impl EncryptedMetadata {
             key,
         )?)
     }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrashEntry {
+    pub file: File,
+    pub is_deleted: bool,
+    pub is_restored: bool,
+    pub delete_by: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 #[cfg(test)]
