@@ -28,6 +28,43 @@ fn require_srp_m2(auth_response: &AuthResponse) -> Result<&str> {
         .ok_or_else(|| Error::Srp("Missing server proof".to_string()))
 }
 
+pub(crate) async fn post_srp_setup(
+    api: &Api,
+    request: &SetupSrpRequest,
+) -> Result<SetupSrpResponse> {
+    Ok(http::retry(|| async {
+        api.post("/users/srp/setup")
+            .json(request)
+            .send()
+            .await?
+            .error_for_code()
+            .await?
+            .json()
+            .await
+    })
+    .await?)
+}
+
+pub(crate) async fn post_srp_complete(
+    api: &Api,
+    setup_id: &uuid::Uuid,
+    srp_m1: &str,
+) -> Result<CompleteSrpSetupResponse> {
+    let request = CompleteSrpSetupRequest {
+        setup_id: setup_id.to_string(),
+        srp_m1: srp_m1.to_string(),
+    };
+    Ok(api
+        .post("/users/srp/complete")
+        .json(&request)
+        .send()
+        .await?
+        .error_for_code()
+        .await?
+        .json()
+        .await?)
+}
+
 pub struct AccountsClient {
     pub(crate) api: Api,
     config: AccountsClientConfig,
@@ -299,18 +336,7 @@ impl AccountsClient {
     }
 
     pub async fn setup_srp(&self, request: &SetupSrpRequest) -> Result<SetupSrpResponse> {
-        Ok(http::retry(|| async {
-            self.api
-                .post("/users/srp/setup")
-                .json(request)
-                .send()
-                .await?
-                .error_for_code()
-                .await?
-                .json()
-                .await
-        })
-        .await?)
+        post_srp_setup(&self.api, request).await
     }
 
     pub async fn complete_srp_setup(
@@ -318,20 +344,7 @@ impl AccountsClient {
         setup_id: &uuid::Uuid,
         srp_m1: &str,
     ) -> Result<CompleteSrpSetupResponse> {
-        let request = CompleteSrpSetupRequest {
-            setup_id: setup_id.to_string(),
-            srp_m1: srp_m1.to_string(),
-        };
-        Ok(self
-            .api
-            .post("/users/srp/complete")
-            .json(&request)
-            .send()
-            .await?
-            .error_for_code()
-            .await?
-            .json()
-            .await?)
+        post_srp_complete(&self.api, setup_id, srp_m1).await
     }
 
     pub async fn update_srp_and_key_attributes(

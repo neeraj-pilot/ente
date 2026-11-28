@@ -11,6 +11,9 @@ import 'package:ente_auth/src/rust/third_party/ente_frb_lib/active_sessions.dart
     as active_sessions;
 import 'package:ente_auth/src/rust/third_party/ente_frb_lib/recovery.dart'
     as recovery;
+import 'package:ente_auth/src/rust/third_party/ente_frb_lib/security.dart'
+    as security;
+import 'package:ente_base/models/accounts.dart' show accountsKeyAttributes;
 import 'package:ente_base/models/database.dart';
 import 'package:ente_configuration/base_configuration.dart';
 import 'package:ente_crypto_api/ente_crypto_api.dart';
@@ -127,6 +130,22 @@ class Configuration extends BaseConfiguration
   @override
   Future<void> logoutThisDevice(BuildContext context) =>
       UserService.instance.logout(context);
+
+  @override
+  Future<void> setEmailMfa(bool enabled) async {
+    await security.setEmailMfa(
+      session: authenticatedSession(),
+      enabled: enabled,
+    );
+    await UserService.instance.setEmailMFAStatus(enabled);
+  }
+
+  @override
+  Future<void> setupSrp(String password) => security.setupSrp(
+    session: authenticatedSession(),
+    password: password,
+    keyAttributes: accountsKeyAttributes(getKeyAttributes()!.toMap()),
+  );
 
   @override
   String recoveryKeyToMnemonic(String recoveryKeyHex) =>

@@ -3,6 +3,7 @@ import "dart:io";
 
 import 'package:backup_exclusion/backup_exclusion.dart';
 import 'package:ente_account_settings/account_settings.dart';
+import 'package:ente_base/models/accounts.dart' show accountsKeyAttributes;
 import 'package:ente_contacts/contacts.dart';
 import "package:ente_crypto/ente_crypto.dart";
 import 'package:ente_lock_screen/lock_screen_host.dart';
@@ -57,6 +58,8 @@ import 'package:photos/src/rust/third_party/ente_frb_lib/account_deletion.dart'
     as account_deletion;
 import 'package:photos/src/rust/third_party/ente_frb_lib/active_sessions.dart'
     as active_sessions;
+import 'package:photos/src/rust/third_party/ente_frb_lib/security.dart'
+    as security;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -417,6 +420,7 @@ class Configuration implements LockScreenHost, AccountSettingsHost {
     return _preferences.getString(encryptedTokenKey);
   }
 
+  @override
   String? getEmail() {
     return _preferences.getString(emailKey);
   }
@@ -480,6 +484,22 @@ class Configuration implements LockScreenHost, AccountSettingsHost {
   @override
   Future<void> logoutThisDevice(BuildContext context) =>
       UserService.instance.logout(context);
+
+  @override
+  Future<void> setEmailMfa(bool enabled) async {
+    await security.setEmailMfa(
+      session: authenticatedSession(),
+      enabled: enabled,
+    );
+    await UserService.instance.setEmailMFAStatus(enabled);
+  }
+
+  @override
+  Future<void> setupSrp(String password) => security.setupSrp(
+    session: authenticatedSession(),
+    password: password,
+    keyAttributes: accountsKeyAttributes(getKeyAttributes()!.toMap()),
+  );
 
   Future<void> setKey(String? key) async {
     _key = key;

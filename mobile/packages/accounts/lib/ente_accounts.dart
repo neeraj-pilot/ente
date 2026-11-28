@@ -15,7 +15,6 @@ export 'pages/password_entry_page.dart';
 export 'pages/password_reentry_page.dart';
 export 'pages/recovery_key_page.dart';
 export 'pages/recovery_page.dart';
-export 'pages/request_pwd_verification_page.dart';
 export 'pages/two_factor_authentication_page.dart';
 export 'pages/two_factor_recovery_page.dart';
 

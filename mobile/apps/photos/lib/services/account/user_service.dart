@@ -1141,24 +1141,12 @@ class UserService {
 
   Future<void> setEmailMFAStatus(bool isEnabled) async {
     await _preferences.setBool(kIsEmailMFAEnabled, isEnabled);
-  }
-
-  Future<void> updateEmailMFA(bool isEnabled) async {
-    try {
-      await _gateway.updateEmailMFA(isEnabled: isEnabled);
-
-      await _preferences.setBool(kIsEmailMFAEnabled, isEnabled);
-
-      final UserDetails? profile = getCachedUserDetails();
-      if (profile != null && profile.profileData != null) {
-        profile.profileData!.isEmailMFAEnabled = isEnabled;
-        await _preferences.setString(keyUserDetails, profile.toJson());
-      }
-      Bus.instance.fire(UserDetailsChangedEvent());
-    } catch (e) {
-      _logger.severe("Failed to update email mfa", e);
-      rethrow;
+    final UserDetails? profile = getCachedUserDetails();
+    if (profile != null && profile.profileData != null) {
+      profile.profileData!.isEmailMFAEnabled = isEnabled;
+      await _preferences.setString(keyUserDetails, profile.toJson());
     }
+    Bus.instance.fire(UserDetailsChangedEvent());
   }
 
   List<UserSuggestion> getRelevantContacts() {

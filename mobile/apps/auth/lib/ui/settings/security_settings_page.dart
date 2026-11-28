@@ -1,6 +1,4 @@
 import 'package:ente_account_settings/account_settings.dart';
-import 'package:ente_accounts/models/user_details.dart';
-import 'package:ente_accounts/pages/request_pwd_verification_page.dart';
 import 'package:ente_accounts/services/passkey_service.dart';
 import 'package:ente_accounts/services/user_service.dart';
 import 'package:ente_auth/core/configuration.dart';
@@ -9,7 +7,6 @@ import 'package:ente_auth/utils/dialog_util.dart';
 import 'package:ente_auth/utils/toast_util.dart';
 import 'package:ente_components/ente_components.dart';
 import 'package:ente_components/hugeicons.dart';
-import 'package:ente_crypto_api/ente_crypto_api.dart';
 import 'package:ente_lock_screen/local_authentication_service.dart';
 import 'package:ente_lock_screen/lock_screen_settings.dart';
 import 'package:ente_lock_screen/ui/lock_screen_options.dart';
@@ -29,16 +26,7 @@ class SecuritySettingsPage extends StatefulWidget {
 class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
   final _config = Configuration.instance;
   final _logger = Logger('SecuritySettingsPage');
-  late final bool _hasLoggedIn;
-
-  @override
-  void initState() {
-    super.initState();
-    _hasLoggedIn = _config.hasConfiguredAccount();
-    if (_hasLoggedIn && UserService.instance.canDisableEmailMFA() == null) {
-      UserService.instance.getUserDetailsV2().ignore();
-    }
-  }
+  late final _hasLoggedIn = _config.hasConfiguredAccount();
 
   @override
   Widget build(BuildContext context) {
@@ -149,38 +137,18 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
 
   Future<void> _updateEmailMFA(bool enableEmailMFA) async {
     try {
-      final UserDetails details = await UserService.instance.getUserDetailsV2(
-        memoryCount: false,
-      );
-      if (details.profileData?.canDisableEmailMFA == false) {
-        if (!mounted) return;
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) => RequestPasswordVerificationPage(
-              Configuration.instance,
-              onPasswordVerified: (keyEncryptionKey) async {
-                final loginKey = await CryptoUtil.deriveLoginKey(
-                  keyEncryptionKey,
-                );
-                await UserService.instance.setupSrp(loginKey);
-              },
-            ),
-          ),
-        );
-      }
       if (enableEmailMFA) {
-        if (!mounted) return;
         await showChoiceActionSheet(
           context,
           title: context.strings.warning,
           body: context.strings.emailVerificationEnableWarning,
           isCritical: true,
-          firstButtonOnTap: () => UserService.instance.updateEmailMFA(true),
+          firstButtonOnTap: () => setEmailVerification(context, true),
           secondButtonLabel: context.strings.cancel,
           firstButtonLabel: context.strings.iUnderStand,
         );
       } else {
-        await UserService.instance.updateEmailMFA(false);
+        await setEmailVerification(context, false);
       }
       if (mounted) setState(() {});
     } catch (_) {

@@ -20,6 +20,9 @@ abstract class AccountSettingsHost {
   Future<void> revokeActiveSession(String id);
 
   Future<void> logoutThisDevice(BuildContext context);
+  String? getEmail();
+  Future<void> setEmailMfa(bool enabled);
+  Future<void> setupSrp(String password);
 }
 
 class AccountSettings {

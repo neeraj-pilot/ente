@@ -1,13 +1,8 @@
-import "dart:typed_data";
-
 import "package:ente_account_settings/account_settings.dart";
-import "package:ente_accounts/models/user_details.dart";
-import "package:ente_accounts/pages/request_pwd_verification_page.dart";
 import "package:ente_accounts/services/passkey_service.dart";
 import "package:ente_accounts/services/user_service.dart";
 import "package:ente_components/ente_components.dart";
 import "package:ente_components/hugeicons.dart";
-import "package:ente_crypto_api/ente_crypto_api.dart";
 import "package:ente_lock_screen/local_authentication_service.dart";
 import "package:ente_lock_screen/lock_screen_settings.dart";
 import "package:ente_lock_screen/ui/lock_screen_options.dart";
@@ -200,33 +195,7 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
 
   Future<void> _updateEmailMFA(bool isEnabled) async {
     try {
-      final UserDetails details = await UserService.instance.getUserDetailsV2(
-        memoryCount: false,
-      );
-      if ((details.profileData?.canDisableEmailMFA ?? false) == false) {
-        if (!mounted) {
-          return;
-        }
-        final result = await Navigator.of(context).push<bool>(
-          MaterialPageRoute(
-            builder: (BuildContext context) {
-              return RequestPasswordVerificationPage(
-                Configuration.instance,
-                onPasswordVerified: (Uint8List keyEncryptionKey) async {
-                  final Uint8List loginKey = await CryptoUtil.deriveLoginKey(
-                    keyEncryptionKey,
-                  );
-                  await UserService.instance.setupSrp(loginKey);
-                },
-              );
-            },
-          ),
-        );
-        if (result != true) {
-          return;
-        }
-      }
-      await UserService.instance.updateEmailMFA(isEnabled);
+      await setEmailVerification(context, isEnabled);
     } catch (e) {
       if (!mounted) {
         return;

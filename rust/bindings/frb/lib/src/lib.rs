@@ -8,4 +8,5 @@ pub mod legacy;
 #[cfg(feature = "locker")]
 pub mod locker;
 pub mod recovery;
+pub mod security;
 pub mod session;
