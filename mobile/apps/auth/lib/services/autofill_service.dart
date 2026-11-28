@@ -32,7 +32,9 @@ class AutoFillService with WidgetsBindingObserver {
   }
 
   static Future<void> clear() async =>
-      _instance?._enqueue(() => _channel.invokeMethod<void>('clear'));
+      _instance?._enqueue(() => _invoke<void>('clear'));
+
+  static void scheduleRefresh() => _instance?._schedule();
 
   static void appLockChanged(bool locked) {
     final service = _instance;
@@ -73,21 +75,29 @@ class AutoFillService with WidgetsBindingObserver {
         _logger.warning('Could not update AutoFill codes', e, s);
       });
 
+  static Future<T?> _invoke<T>(String method) async {
+    try {
+      return await _channel.invokeMethod<T>(method);
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   Future<void> _sync() async {
     final config = Configuration.instance;
     final hasVault =
         config.hasConfiguredAccount() || config.hasOptedForOfflineMode();
     final prefs = PreferenceService.instance;
-    if (!hasVault || await _channel.invokeMethod<bool>('isEnabled') != true) {
+    if (!hasVault || await _invoke<bool>('isEnabled') != true) {
       _declined = false;
       noticeNeeded.value = false;
       await prefs.setAutoFillAccepted(false);
-      await _channel.invokeMethod('clear');
+      await _invoke<void>('clear');
       return;
     }
     if (!prefs.autoFillAccepted()) {
       if (!_locked && !_declined) noticeNeeded.value = true;
-      await _channel.invokeMethod('clear');
+      await _invoke<void>('clear');
       return;
     }
     await _channel.invokeMethod('publish', (await CodeSnapshot.load()).data);

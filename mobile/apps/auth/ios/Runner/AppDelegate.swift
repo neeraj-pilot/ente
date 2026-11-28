@@ -12,7 +12,7 @@ import app_links
     if #available(iOS 17, *), let registrar = registrar(forPlugin: "WatchPlugin") {
       WatchPlugin.register(with: registrar)
     }
-    if let registrar = registrar(forPlugin: "AutoFillPlugin") {
+    if #available(iOS 18, *), let registrar = registrar(forPlugin: "AutoFillPlugin") {
       AutoFillPlugin.register(with: registrar)
     }
     super.application(application, didFinishLaunchingWithOptions: launchOptions)

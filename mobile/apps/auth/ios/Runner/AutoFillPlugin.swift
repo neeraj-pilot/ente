@@ -2,6 +2,7 @@ import AuthCore
 import AuthenticationServices
 import Flutter
 
+@available(iOS 18, *)
 final class AutoFillPlugin: NSObject, FlutterPlugin {
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
@@ -10,9 +11,6 @@ final class AutoFillPlugin: NSObject, FlutterPlugin {
   }
 
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    guard #available(iOS 18, *) else {
-      return result(call.method == "isEnabled" ? false : nil)
-    }
     switch call.method {
     case "isEnabled":
       ASCredentialIdentityStore.shared.getState { state in
@@ -46,7 +44,6 @@ final class AutoFillPlugin: NSObject, FlutterPlugin {
     }
   }
 
-  @available(iOS 18, *)
   private static func identity(_ entry: Entry) -> ASOneTimeCodeCredentialIdentity? {
     let host = entry.issuer.trimmingCharacters(in: .whitespaces).lowercased()
     let labels = host.split(separator: ".", omittingEmptySubsequences: false)
