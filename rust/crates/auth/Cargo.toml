@@ -36,7 +36,6 @@ subtle = { workspace = true, optional = true }
 thiserror.workspace = true
 url.workspace = true
 urlencoding.workspace = true
-uuid = { workspace = true, features = ["serde"] }
 zeroize.workspace = true
 
 [lints]

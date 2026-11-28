@@ -1,3 +1,4 @@
+use ente_core::user_entity::KeyError;
 use ente_core::{b64, crypto, http};
 use thiserror::Error;
 
@@ -26,3 +27,12 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<KeyError> for Error {
+    fn from(error: KeyError) -> Self {
+        match error {
+            KeyError::Crypto(error) => Self::Crypto(error),
+            KeyError::Base64(error) => Self::Base64Decode(error),
+        }
+    }
+}

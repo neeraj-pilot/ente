@@ -625,3 +625,60 @@ async fn get_diff_uses_cached_wrapped_root_contact_key_for_reads_without_fetchin
     assert_eq!(diff.len(), 1);
     assert_eq!(diff[0].name.as_deref(), Some(contact.name.as_str()));
 }
+
+#[tokio::test]
+async fn create_contact_ensures_a_root_key_and_uses_the_stored_one() {
+    let mut server = Server::new_async().await;
+    let master_key = Key::generate().as_bytes().to_vec();
+    let stored_root_key = Key::generate().as_bytes().to_vec();
+    let stored_wrapped_root = wrap_root(&stored_root_key, &master_key);
+    let contact = sample_contact();
+
+    let missing_root_mock = server
+        .mock("GET", "/user-entity/key")
+        .match_query(Matcher::UrlEncoded("type".into(), "contact".into()))
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let ensure_mock = server
+        .mock("POST", "/user-entity/key/ensure")
+        .match_body(Matcher::PartialJson(serde_json::json!({"type": "contact"})))
+        .with_status(200)
+        .with_body(
+            serde_json::json!({
+                "userID": 7,
+                "type": "contact",
+                "encryptedKey": stored_wrapped_root.encrypted_key,
+                "header": stored_wrapped_root.header,
+                "createdAt": 1
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+
+    let create_mock = server
+        .mock("POST", "/contacts")
+        .with_status(200)
+        .with_body(
+            live_entity_json("ct_contact1", &contact, None, &stored_root_key, None).to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+
+    let session = open_session(server.url(), &master_key);
+
+    let created = ente_contacts::create_contact(&session, None, &contact)
+        .await
+        .unwrap();
+
+    missing_root_mock.assert_async().await;
+    ensure_mock.assert_async().await;
+    create_mock.assert_async().await;
+    assert_eq!(created.wrapped_root_contact_key, Some(stored_wrapped_root));
+    assert_eq!(created.value.name.as_deref(), Some(contact.name.as_str()));
+}

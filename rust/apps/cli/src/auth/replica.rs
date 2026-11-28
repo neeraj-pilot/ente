@@ -83,11 +83,9 @@ pub async fn refresh(db: &mut Db, session: &Session) -> Result<()> {
         return Ok(());
     }
     loop {
-        let page = ente_auth::diff(session, cursor).await?;
-        let complete = page.len() < ente_auth::PAGE_SIZE;
-        let next = page
-            .last()
-            .map_or(cursor, |entity| entity.updated_at.saturating_sub(1).max(0));
+        let page = ente_auth::diff(session, cursor)
+            .await
+            .context("cannot finish syncing Auth codes")?;
         db.write(|tx| {
             let mut upsert = tx.prepare_cached(
                 "INSERT INTO auth_entities(id, updated_at, encrypted_data, header) VALUES(?1, ?2, ?3, ?4)
@@ -95,28 +93,23 @@ pub async fn refresh(db: &mut Db, session: &Session) -> Result<()> {
                      encrypted_data=excluded.encrypted_data, header=excluded.header",
             )?;
             let mut delete = tx.prepare_cached("DELETE FROM auth_entities WHERE id=?1")?;
-            for entity in &page {
-                let id = entity.id.to_string();
+            for entity in &page.entities {
                 if entity.is_deleted {
-                    delete.execute([&id])?;
+                    delete.execute([&entity.id])?;
                 } else {
-                    upsert.execute(params![id, entity.updated_at, entity.encrypted_data, entity.header])?;
+                    upsert.execute(params![entity.id, entity.updated_at, entity.encrypted_data, entity.header])?;
                 }
             }
             tx.execute(
                 "UPDATE auth_sync SET cursor=?1, complete=?2 WHERE id=1",
-                params![next, complete],
+                params![page.cursor, !page.has_more],
             )?;
             Ok(())
         })?;
-        if complete {
+        if !page.has_more {
             return Ok(());
         }
-        ensure!(
-            next > cursor,
-            "cannot finish syncing Auth codes: the server's next page did not advance"
-        );
-        cursor = next;
+        cursor = page.cursor;
     }
 }
 
@@ -164,7 +157,7 @@ pub fn read<T>(
     let Some(wrapped) = state.key else {
         return visit(&mut std::iter::empty());
     };
-    let key = ente_auth::open_key(&wrapped, &session.master_key)?;
+    let key = wrapped.open(&session.master_key)?;
     db.read(|db| {
         let mut statement = db.prepare(if id.is_some() {
             "SELECT id, encrypted_data, header FROM auth_entities WHERE id=?1"

@@ -153,7 +153,7 @@ fn code_reads_refresh_select_and_render_without_a_backup() {
 
     let changed = page(
         &mut server,
-        9,
+        10,
         vec![
             entity(2, 20, &uri("Work:bob@example.com"), &key),
             entity(6, 20, &uri("GitHub:(alice@example.com)"), &key),
@@ -318,7 +318,7 @@ fn refresh_keeps_progress_and_refuses_unreadable_codes_until_updated() {
     let changed_uri = "otpauth://hotp/Updated?secret=JBSWY3DPEHPK3PXP&counter=42";
     let changed = page(
         &mut server,
-        9,
+        10,
         vec![
             entity(2, 20, &json!(changed_uri), &key),
             unreadable,
@@ -356,7 +356,7 @@ fn refresh_keeps_progress_and_refuses_unreadable_codes_until_updated() {
 
     let recovered = page(
         &mut server,
-        29,
+        30,
         vec![entity(1, 40, &json!(URI), &key), deleted(3, 40)],
     );
     let result = success(home.run(EXPORT));
@@ -470,18 +470,17 @@ fn key_resets_and_unadvanceable_pages_cannot_publish_stale_data() {
             row
         })
         .collect();
-    let first = page(&mut server, 0, rows.clone());
-    let stuck = page(&mut server, 9, rows);
+    let first = page(&mut server, 0, rows);
     let failed = home.run(EXPORT);
-    assert!(failure(&failed).contains("the server's next page did not advance"));
+    let stderr = failure(&failed);
+    assert!(stderr.contains("cannot finish syncing Auth codes"));
+    assert!(stderr.contains("a full page shares one timestamp"));
     assert!(failed.stdout.is_empty());
     assert!(
         failure(&home.command(EXPORT).arg("--offline").output().unwrap()).contains("incomplete")
     );
     first.assert();
-    stuck.assert();
     first.remove();
-    stuck.remove();
     next.remove();
     let reset = key_response(&mut server, &Key::generate());
     let interrupted = server
