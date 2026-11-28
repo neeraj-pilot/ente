@@ -1,0 +1,1 @@
+- Selecting text in a photo now hides the viewer controls, so text near the edges is easy to select.

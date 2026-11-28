@@ -428,6 +428,13 @@ class _InlineTextDetectionState extends State<InlineTextDetection> {
     }
   }
 
+  void _enterFullScreen() {
+    InheritedDetailPageState.of(context).requestFullScreen(
+      shouldEnable: true,
+      reason: FullScreenRequestReason.userInteraction,
+    );
+  }
+
   void _handleLongPress(LongPressStartDetails details) {
     _handleLongPressAt(details.globalPosition);
   }
@@ -885,6 +892,7 @@ class _InlineTextDetectionState extends State<InlineTextDetection> {
         onTextCopied: () {
           HapticFeedback.lightImpact();
         },
+        onSelectionStarted: _enterFullScreen,
       ),
     );
   }

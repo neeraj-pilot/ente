@@ -73,6 +73,7 @@ class TextOverlayWidget extends StatefulWidget {
   final Size imageSize;
   final List<TextBlock> textBlocks;
   final VoidCallback? onTextCopied;
+  final VoidCallback? onSelectionStarted;
   final TextOverlayController controller;
   final bool isImageZoomed;
   final double uiScale;
@@ -87,6 +88,7 @@ class TextOverlayWidget extends StatefulWidget {
     required this.uiScale,
     required this.uiOffset,
     this.onTextCopied,
+    this.onSelectionStarted,
   });
 
   @override
@@ -1466,7 +1468,11 @@ class _TextOverlayWidgetState extends State<TextOverlayWidget> {
   void _recomputeSelections() {
     _clampAnchorsToVisuals();
     _normalizeAnchors();
+    final bool hadSelection = _activeSelections.isNotEmpty;
     _activeSelections = _computeSelections(_baseAnchor, _extentAnchor);
+    if (!hadSelection && _activeSelections.isNotEmpty) {
+      widget.onSelectionStarted?.call();
+    }
   }
 
   void _normalizeAnchors() {
