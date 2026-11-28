@@ -34,7 +34,7 @@ pub enum CollectionChange {
     Deleted {
         id: i64,
         updation_time: i64,
-        key: Key,
+        key: Option<Key>,
         remote: Box<RemoteCollection>,
     },
 }
@@ -106,9 +106,12 @@ pub fn collect_collection_keys(changes: &[CollectionChange], keys: &mut HashMap<
             CollectionChange::Upsert(collection) => {
                 keys.insert(collection.id, Key::from_bytes(*collection.key.as_bytes()));
             }
-            CollectionChange::Deleted { id, key, .. } => {
+            CollectionChange::Deleted {
+                id, key: Some(key), ..
+            } => {
                 keys.insert(*id, Key::from_bytes(*key.as_bytes()));
             }
+            CollectionChange::Deleted { key: None, .. } => {}
         }
     }
 }
@@ -128,7 +131,7 @@ pub async fn collections_diff(session: &Session, since: i64) -> Result<Collectio
 
 fn decode_collection(session: &Session, remote: RemoteCollection) -> Result<CollectionChange> {
     if remote.is_deleted() {
-        let key = remote.open_key(session)?;
+        let key = remote.open_key(session).ok();
         return Ok(CollectionChange::Deleted {
             id: remote.id,
             updation_time: remote.updation_time,
@@ -795,7 +798,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn deleted_collection_with_unreadable_key_fails_closed() -> Result<()> {
+    async fn deleted_collection_with_unreadable_key_returns_tombstone() -> Result<()> {
         let mut server = Server::new_async().await;
         let session = test_session(server.url(), 7)?;
         let wrong_key = Key::generate();
@@ -823,8 +826,45 @@ mod tests {
             .create_async()
             .await;
 
-        assert!(collections_diff(&session, 0).await.is_err());
+        let page = collections_diff(&session, 0).await?;
         mock_bad_deleted.assert_async().await;
+        assert_eq!(page.changes.len(), 1);
+        assert!(matches!(
+            &page.changes[0],
+            CollectionChange::Deleted {
+                id: 99,
+                updation_time: 300,
+                key: None,
+                ..
+            }
+        ));
+        let mut collected_keys = HashMap::new();
+        collect_collection_keys(&page.changes, &mut collected_keys);
+        assert!(collected_keys.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn non_object_file_metadata_fails_page() -> Result<()> {
+        let mut server = Server::new_async().await;
+        let session = test_session(server.url(), 7)?;
+        let key_a = Key::generate();
+        let non_object_file = encrypted_file_json(4, 10, 7, &key_a, &Key::generate(), b"[]", None);
+        let mock_non_object = server
+            .mock("GET", "/collections/v2/diff")
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("collectionID".into(), "10".into()),
+                Matcher::UrlEncoded("sinceTime".into(), "0".into()),
+            ]))
+            .with_status(200)
+            .with_body(json!({"diff": [non_object_file], "hasMore": false}).to_string())
+            .expect(1)
+            .create_async()
+            .await;
+
+        let res = file_pages(&session, 10, &key_a, 0).next().await;
+        mock_non_object.assert_async().await;
+        assert!(matches!(res, Err(crate::Error::MetadataNotObject)));
         Ok(())
     }
 }

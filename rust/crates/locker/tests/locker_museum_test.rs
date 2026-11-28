@@ -400,7 +400,7 @@ fn locker_collections_files_and_trash_against_museum() -> TestResult {
                 .changes
                 .iter()
                 .find_map(|c| match c {
-                    CollectionChange::Deleted { id, key, .. } if *id == to_delete => Some(key),
+                    CollectionChange::Deleted { id, key, .. } if *id == to_delete => key.as_ref(),
                     _ => None,
                 })
                 .ok_or("missing deleted collection change")?;

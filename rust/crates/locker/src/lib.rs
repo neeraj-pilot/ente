@@ -75,6 +75,8 @@ pub enum Error {
     Crypto(#[from] crypto::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+    #[error("decrypted metadata is not a JSON object")]
+    MetadataNotObject,
     #[error(transparent)]
     Utf8(#[from] FromUtf8Error),
 }

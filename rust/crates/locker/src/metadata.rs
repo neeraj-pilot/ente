@@ -1,7 +1,7 @@
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::Result;
+use crate::{Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct VersionedJson {
@@ -24,5 +24,22 @@ pub struct CollectionDocuments {
 }
 
 pub(crate) fn parse_json(bytes: &[u8]) -> Result<Value> {
-    Ok(serde_json::from_slice(bytes)?)
+    let value: Value = serde_json::from_slice(bytes)?;
+    if !value.is_object() {
+        return Err(Error::MetadataNotObject);
+    }
+    Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_non_object_json() {
+        assert!(parse_json(br#"{"title":"doc.pdf"}"#).is_ok());
+        for payload in [b"[]".as_slice(), b"null", b"\"str\"", b"123", b"true"] {
+            assert!(matches!(parse_json(payload), Err(Error::MetadataNotObject)));
+        }
+    }
 }
