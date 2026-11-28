@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ente_account_settings/account_settings.dart';
 import 'package:ente_components/ente_components.dart';
 import 'package:ente_frb/accounts.dart';
@@ -11,6 +13,7 @@ class _FakeHost implements AccountSettingsHost {
   final setEmailMfaCalls = <bool>[];
   final passwords = <String>[];
   bool srpConfigured = false;
+  Completer<void>? pendingSetup;
 
   @override
   String? getEmail() => 'user@example.org';
@@ -26,6 +29,9 @@ class _FakeHost implements AccountSettingsHost {
   @override
   Future<void> setupSrp(String password) async {
     passwords.add(password);
+    if (pendingSetup != null) {
+      await pendingSetup!.future;
+    }
     if (password != 'correct horse') {
       throw const AccountsError.incorrectPassword();
     }
@@ -59,6 +65,20 @@ Future<void> _expectPasswordPage(WidgetTester tester) async {
   await tester.pumpAndSettle();
   expect(find.text(_strings.enterPassword), findsOneWidget);
   expect(find.text('user@example.org'), findsOneWidget);
+  expect(find.byType(AutofillGroup), findsOneWidget);
+  final emailFieldFinder = find.byWidgetPredicate(
+    (widget) =>
+        widget is TextFormField && widget.initialValue == 'user@example.org',
+    skipOffstage: false,
+  );
+  expect(emailFieldFinder, findsOneWidget);
+  final emailTextField = tester.widget<TextField>(
+    find.descendant(
+      of: emailFieldFinder,
+      matching: find.byType(TextField, skipOffstage: false),
+    ),
+  );
+  expect(emailTextField.autofillHints, const [AutofillHints.email]);
 }
 
 void main() {
@@ -103,4 +123,28 @@ void main() {
     expect(host.setEmailMfaCalls, [false, false]);
     await done;
   });
+
+  testWidgets(
+    'submitting with Done shows loading feedback while setupSrp runs',
+    (tester) async {
+      final pendingSetup = Completer<void>();
+      final host = _FakeHost()..pendingSetup = pendingSetup;
+      final context = await _pumpApp(tester, host);
+      final done = setEmailVerification(context, false);
+      await _expectPasswordPage(tester);
+
+      await tester.enterText(find.byType(TextField), 'correct horse');
+      await tester.pump();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text(_strings.pleaseWait), findsOneWidget);
+
+      pendingSetup.complete();
+      await tester.pumpAndSettle();
+      expect(find.text(_strings.pleaseWait), findsNothing);
+      expect(find.text(_strings.enterPassword), findsNothing);
+      expect(host.setEmailMfaCalls, [false, false]);
+      await done;
+    },
+  );
 }

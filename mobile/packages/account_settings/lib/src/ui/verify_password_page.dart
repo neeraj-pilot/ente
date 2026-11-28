@@ -29,6 +29,7 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final email = _host.getEmail();
     return Scaffold(
       backgroundColor: context.componentColors.backgroundBase,
       bottomNavigationBar: SafeArea(
@@ -41,36 +42,57 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
         child: ButtonComponent(
           label: context.strings.verifyPassword,
           isDisabled: !_hasPassword,
-          shouldSurfaceExecutionStates: true,
-          shouldShowSuccessState: false,
+          shouldSurfaceExecutionStates: false,
           onTap: _verify,
         ),
       ),
-      body: AppBarComponent(
-        title: context.strings.enterPassword,
-        subtitle: _host.getEmail(),
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-            sliver: SliverToBoxAdapter(
-              child: TextInputComponent(
-                controller: _passwordController,
-                hintText: context.strings.enterYourPasswordHint,
-                autofocus: true,
-                isPasswordInput: true,
-                autofillHints: const [AutofillHints.password],
-                textInputAction: TextInputAction.done,
-                onSubmit: _hasPassword ? (_) => _verify() : null,
-                message: _error,
-                messageType: TextInputComponentMessageType.error,
-                onChanged: (value) => setState(() {
-                  _hasPassword = value.isNotEmpty;
-                  _error = null;
-                }),
+      body: AutofillGroup(
+        child: AppBarComponent(
+          title: context.strings.enterPassword,
+          subtitle: email,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (email != null && email.isNotEmpty)
+                      Offstage(
+                        offstage: true,
+                        child: ExcludeFocus(
+                          child: ExcludeSemantics(
+                            child: TextFormField(
+                              autofillHints: const [AutofillHints.email],
+                              autocorrect: false,
+                              keyboardType: TextInputType.emailAddress,
+                              initialValue: email,
+                              textInputAction: TextInputAction.next,
+                            ),
+                          ),
+                        ),
+                      ),
+                    TextInputComponent(
+                      controller: _passwordController,
+                      hintText: context.strings.enterYourPasswordHint,
+                      autofocus: true,
+                      isPasswordInput: true,
+                      autofillHints: const [AutofillHints.password],
+                      textInputAction: TextInputAction.done,
+                      onSubmit: _hasPassword ? (_) => _verify() : null,
+                      message: _error,
+                      messageType: TextInputComponentMessageType.error,
+                      onChanged: (value) => setState(() {
+                        _hasPassword = value.isNotEmpty;
+                        _error = null;
+                      }),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -80,14 +102,18 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
   );
 
   Future<void> _runVerification() async {
+    FocusScope.of(context).unfocus();
+    final loading = showLoadingComponent(context, context.strings.pleaseWait);
     try {
       await _host.setupSrp(_passwordController.text);
     } on AccountsError_IncorrectPassword {
+      await loading.hide();
       if (mounted) {
         setState(() => _error = context.strings.incorrectPasswordTitle);
       }
       return;
     } catch (e, s) {
+      await loading.hide();
       _logger.severe('Failed to set up SRP', e, s);
       if (mounted) {
         await showErrorBottomSheetComponent<void>(
@@ -98,6 +124,7 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
       }
       return;
     }
+    await loading.hide();
     if (mounted) {
       Navigator.of(context).pop(true);
     }
