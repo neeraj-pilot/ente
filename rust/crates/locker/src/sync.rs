@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use ente_collections::client::{
-    EncryptedMetadata, FilePage as RemoteFilePage, file_pages as collections_file_pages,
-    trash_pages as collections_trash_pages,
-};
+use ente_collections::client::{EncryptedMetadata, FilePage as RemoteFilePage};
 pub use ente_collections::{
     CollectionFileRef,
     client::{Collection as RemoteCollection, File as RemoteFile, TrashEntry},
@@ -182,9 +179,11 @@ fn decrypt_collection(session: &Session, remote: RemoteCollection) -> Result<Loc
 }
 
 pub struct LockerFilePages<'a> {
+    session: &'a Session,
     collection_id: i64,
     collection_key: &'a Key,
-    inner: ente_collections::client::FilePages<'a>,
+    cursor: i64,
+    done: bool,
 }
 
 pub fn file_pages<'a>(
@@ -194,9 +193,11 @@ pub fn file_pages<'a>(
     since: i64,
 ) -> LockerFilePages<'a> {
     LockerFilePages {
+        session,
         collection_id,
         collection_key,
-        inner: collections_file_pages(session, collection_id, since),
+        cursor: since,
+        done: false,
     }
 }
 
@@ -212,14 +213,16 @@ pub async fn file_diff_page(
 
 impl LockerFilePages<'_> {
     pub async fn next(&mut self) -> Result<Option<FileSyncPage>> {
-        let Some(page) = self.inner.next().await? else {
+        if self.done {
             return Ok(None);
-        };
-        Ok(Some(decode_file_page(
-            self.collection_id,
-            self.collection_key,
-            page,
-        )?))
+        }
+        let page =
+            ente_collections::client::files_diff(self.session, self.collection_id, self.cursor)
+                .await?;
+        let decoded = decode_file_page(self.collection_id, self.collection_key, page)?;
+        self.cursor = decoded.cursor;
+        self.done = !decoded.has_more;
+        Ok(Some(decoded))
     }
 }
 
@@ -242,8 +245,10 @@ fn decode_file_page(
 }
 
 pub struct LockerTrashPages<'a> {
+    session: &'a Session,
     collection_keys: &'a HashMap<i64, Key>,
-    inner: ente_collections::client::TrashPages<'a>,
+    cursor: i64,
+    done: bool,
 }
 
 pub fn trash_pages<'a>(
@@ -252,21 +257,26 @@ pub fn trash_pages<'a>(
     collection_keys: &'a HashMap<i64, Key>,
 ) -> LockerTrashPages<'a> {
     LockerTrashPages {
+        session,
         collection_keys,
-        inner: collections_trash_pages(session, since),
+        cursor: since,
+        done: false,
     }
 }
 
 impl LockerTrashPages<'_> {
     pub async fn next(&mut self) -> Result<Option<TrashSyncPage>> {
-        let Some(page) = self.inner.next().await? else {
+        if self.done {
             return Ok(None);
-        };
+        }
+        let page = ente_collections::client::trash_diff(self.session, self.cursor).await?;
         let changes = page
             .entries
             .into_iter()
             .map(|entry| decode_trash_change(entry, self.collection_keys))
             .collect::<Result<Vec<_>>>()?;
+        self.cursor = page.cursor;
+        self.done = !page.has_more;
         Ok(Some(TrashSyncPage {
             changes,
             cursor: page.cursor,
@@ -865,6 +875,63 @@ mod tests {
         let res = file_pages(&session, 10, &key_a, 0).next().await;
         mock_non_object.assert_async().await;
         assert!(matches!(res, Err(crate::Error::MetadataNotObject)));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn decode_error_does_not_advance_file_or_trash_pager() -> Result<()> {
+        let mut server = Server::new_async().await;
+        let session = test_session(server.url(), 7)?;
+        let key_a = Key::generate();
+        let keys = HashMap::from([(10, Key::from_bytes(*key_a.as_bytes()))]);
+
+        let bad_file =
+            encrypted_file_json(5, 10, 7, &key_a, &Key::generate(), b"not-valid-json", None);
+        let mock_file_page = server
+            .mock("GET", "/collections/v2/diff")
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("collectionID".into(), "10".into()),
+                Matcher::UrlEncoded("sinceTime".into(), "0".into()),
+            ]))
+            .with_status(200)
+            .with_body(json!({"diff": [bad_file], "hasMore": false}).to_string())
+            .expect(2)
+            .create_async()
+            .await;
+
+        let mut files = file_pages(&session, 10, &key_a, 0);
+        assert!(files.next().await.is_err());
+        assert!(files.next().await.is_err());
+        mock_file_page.assert_async().await;
+
+        let bad_trash =
+            encrypted_file_json(6, 10, 7, &key_a, &Key::generate(), b"not-valid-json", None);
+        let mock_trash_page = server
+            .mock("GET", "/trash/v2/diff")
+            .match_query(Matcher::UrlEncoded("sinceTime".into(), "0".into()))
+            .with_status(200)
+            .with_body(
+                json!({
+                    "diff": [{
+                        "file": bad_trash,
+                        "isDeleted": false,
+                        "isRestored": false,
+                        "deleteBy": 300,
+                        "createdAt": 100,
+                        "updatedAt": 200
+                    }],
+                    "hasMore": false
+                })
+                .to_string(),
+            )
+            .expect(2)
+            .create_async()
+            .await;
+
+        let mut trash = trash_pages(&session, 0, &keys);
+        assert!(trash.next().await.is_err());
+        assert!(trash.next().await.is_err());
+        mock_trash_page.assert_async().await;
         Ok(())
     }
 }
