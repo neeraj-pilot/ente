@@ -1,7 +1,8 @@
 use ente_core::{Session, http};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-use crate::{Error, Result};
+use crate::{Error, KeyAttributes, Result, auth, signup};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub struct EmailMfaStatus {
@@ -53,6 +54,23 @@ pub async fn set_email_mfa(session: &Session, enabled: bool) -> Result<()> {
             _ => error.into(),
         })?;
     Ok(())
+}
+
+pub async fn setup_srp(
+    session: &Session,
+    password: &str,
+    key_attributes: &KeyAttributes,
+) -> Result<()> {
+    let kek = auth::derive_kek(
+        password,
+        &key_attributes.kek_salt,
+        key_attributes.mem_limit,
+        key_attributes.ops_limit,
+    )?;
+    auth::decrypt_keys_only(&kek, key_attributes)?;
+    let srp_user_id = Uuid::new_v4();
+    let srp = auth::generate_srp_setup(&kek, &srp_user_id.to_string())?;
+    signup::register_srp(&session.api, srp_user_id, &srp).await
 }
 
 pub async fn change_email(session: &Session, email: &str, ott: &str) -> Result<()> {

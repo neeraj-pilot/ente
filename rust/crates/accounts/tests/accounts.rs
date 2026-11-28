@@ -11,7 +11,7 @@ use ente_accounts::{
     },
     login::{LoginFlow, LoginStep},
     models::TwoFactorType,
-    security::{EmailMfaStatus, change_email, get_email_mfa_status, set_email_mfa},
+    security::{EmailMfaStatus, change_email, get_email_mfa_status, set_email_mfa, setup_srp},
     signup::Signup,
 };
 use ente_core::{b64, crypto::SecretVec};
@@ -338,19 +338,51 @@ async fn run_security_settings(museum: &Museum) -> TestResult {
     let verified = unconfigured
         .verify_email(&unconfigured_email, HARDCODED_OTT, None)
         .await?;
+    let unconfigured_token = verified.token.ok_or("signup should return a token")?;
+    unconfigured
+        .with_auth_token(unconfigured_token.clone())
+        .set_user_key_attributes(account.key_attributes.clone())
+        .await?;
     let unconfigured = fixture_session(
         endpoint,
         &TestAccount {
             user_id: verified.id,
-            auth_token: verified.token.ok_or("signup should return a token")?,
+            auth_token: unconfigured_token,
             ..account.clone()
         },
     )?;
-    assert!(!get_email_mfa_status(&unconfigured).await?.can_disable);
+    set_email_mfa(&unconfigured, true).await?;
+    assert_eq!(
+        get_email_mfa_status(&unconfigured).await?,
+        EmailMfaStatus {
+            enabled: true,
+            can_disable: false
+        }
+    );
     assert!(matches!(
         set_email_mfa(&unconfigured, false).await,
         Err(Error::SrpNotConfigured)
     ));
+    assert!(matches!(
+        setup_srp(&unconfigured, "not the password", &account.key_attributes).await,
+        Err(Error::IncorrectPassword)
+    ));
+    assert!(!get_email_mfa_status(&unconfigured).await?.can_disable);
+    setup_srp(&unconfigured, &account.password, &account.key_attributes).await?;
+    set_email_mfa(&unconfigured, false).await?;
+    assert_eq!(
+        get_email_mfa_status(&unconfigured).await?,
+        EmailMfaStatus {
+            enabled: false,
+            can_disable: true
+        }
+    );
+    let login_client = accounts_client(endpoint);
+    let attributes = login_client.get_srp_attributes(&unconfigured_email).await?;
+    let (response, _) = login_client
+        .login_with_srp(&account.password, &attributes)
+        .await?;
+    assert_eq!(response.id, verified.id);
 
     let setup =
         TwoFactorSetup::start(&client, &account.master_key, &account.key_attributes).await?;
@@ -396,7 +428,6 @@ async fn run_security_settings(museum: &Museum) -> TestResult {
         client.get_srp_attributes(&account.email).await,
         Err(Error::SrpNotConfigured)
     ));
-    let login_client = accounts_client(endpoint);
     let (mut flow, step) = LoginFlow::prepare(&login_client, new_email).await?;
     assert!(matches!(step, LoginStep::Password));
     let LoginStep::Complete(login) = flow

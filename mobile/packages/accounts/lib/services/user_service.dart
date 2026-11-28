@@ -36,7 +36,6 @@ class UserService {
   static const keyHasEnabledTwoFactor = "has_enabled_two_factor";
   static const keyUserDetails = "user_details";
   static const kReferralSource = "referral_source";
-  static const kCanDisableEmailMFA = "can_disable_email_mfa";
   static const kIsEmailMFAEnabled = "is_email_mfa_enabled";
   final _dio = Network.instance.getDio();
   final _enteDio = Network.instance.enteDio;
@@ -182,10 +181,6 @@ class UserService {
           await _preferences.setBool(
             kIsEmailMFAEnabled,
             userDetails.profileData!.isEmailMFAEnabled,
-          );
-          await _preferences.setBool(
-            kCanDisableEmailMFA,
-            userDetails.profileData!.canDisableEmailMFA,
           );
         }
         if (userDetails.email != _config.getEmail()) {
@@ -967,22 +962,12 @@ class UserService {
     await _installSourceHandler?.autoAttributePendingSource();
   }
 
-  bool? canDisableEmailMFA() {
-    return _preferences.getBool(kCanDisableEmailMFA);
-  }
-
   bool hasEmailMFAEnabled() {
     return _preferences.getBool(kIsEmailMFAEnabled) ?? false;
   }
 
-  Future<void> updateEmailMFA(bool isEnabled) async {
-    try {
-      await _enteDio.put("/users/email-mfa", data: {"isEnabled": isEnabled});
-      await _preferences.setBool(kIsEmailMFAEnabled, isEnabled);
-    } catch (e) {
-      _logger.severe("Failed to update email mfa", e);
-      rethrow;
-    }
+  Future<void> setEmailMFAStatus(bool isEnabled) async {
+    await _preferences.setBool(kIsEmailMFAEnabled, isEnabled);
   }
 
   Future<void> setRefSource(String refSource) async {

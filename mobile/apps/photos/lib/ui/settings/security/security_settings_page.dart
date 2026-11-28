@@ -1,14 +1,11 @@
 import "dart:async";
-import "dart:typed_data";
 
 import "package:ente_account_settings/account_settings.dart";
 import "package:ente_components/ente_components.dart";
 import "package:ente_components/hugeicons.dart";
-import "package:ente_crypto/ente_crypto.dart";
 import "package:ente_lock_screen/auth_util.dart";
 import "package:ente_lock_screen/local_authentication_service.dart";
 import "package:ente_lock_screen/ui/lock_screen_options.dart";
-import "package:ente_pure_utils/ente_pure_utils.dart";
 import "package:ente_strings/ente_strings.dart";
 import "package:flutter/material.dart";
 import "package:local_auth/local_auth.dart";
@@ -17,11 +14,9 @@ import "package:photos/core/configuration.dart";
 import "package:photos/core/error-reporting/super_logging.dart";
 import "package:photos/core/event_bus.dart";
 import "package:photos/events/user_details_changed_event.dart";
-import "package:photos/models/user_details.dart";
 import "package:photos/service_locator.dart";
 import "package:photos/services/account/passkey_service.dart";
 import "package:photos/services/account/user_service.dart";
-import "package:photos/ui/account/request_pwd_verification_page.dart";
 import "package:photos/ui/notification/toast.dart";
 import "package:photos/utils/dialog_util.dart";
 
@@ -238,24 +233,7 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
 
   Future<void> _updateEmailMFA(bool isEnabled) async {
     try {
-      final UserDetails details = await UserService.instance.getUserDetailsV2(
-        memoryCount: false,
-      );
-      if ((details.profileData?.canDisableEmailMFA ?? false) == false) {
-        if (!mounted) return;
-        await routeToPage(
-          context,
-          RequestPasswordVerificationPage(
-            onPasswordVerified: (Uint8List keyEncryptionKey) async {
-              final Uint8List loginKey = await CryptoUtil.deriveLoginKey(
-                keyEncryptionKey,
-              );
-              await UserService.instance.setupSrp(loginKey);
-            },
-          ),
-        );
-      }
-      await UserService.instance.updateEmailMFA(isEnabled);
+      await setEmailVerification(context, isEnabled);
     } catch (e) {
       if (!mounted) return;
       showToast(context, context.strings.somethingWentWrong);

@@ -1,6 +1,7 @@
 use ente_core::{
     b64,
     crypto::{Key, SecretVec},
+    http::Api,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -12,6 +13,7 @@ use crate::{
         self, GeneratedSrpSetup, KeyDerivationStrength, KeyGenResult, SrpAttributes, SrpSession,
         decrypt_keys_only, derive_kek, generate_srp_setup_with_login_key, get_recovery_key,
     },
+    client,
     models::{AuthResponse, SetupSrpRequest},
 };
 
@@ -197,22 +199,30 @@ pub async fn setup_srp(
     srp_user_id: Uuid,
     srp: &GeneratedSrpSetup,
 ) -> Result<()> {
+    register_srp(&client.api, srp_user_id, srp).await
+}
+
+pub(crate) async fn register_srp(
+    api: &Api,
+    srp_user_id: Uuid,
+    srp: &GeneratedSrpSetup,
+) -> Result<()> {
     let mut srp_session =
         SrpSession::new(&srp_user_id.to_string(), &srp.srp_salt, &srp.login_sub_key)?;
     let srp_a = b64::encode(&srp_session.public_a());
-    let response = client
-        .setup_srp(&SetupSrpRequest {
+    let response = client::post_srp_setup(
+        api,
+        &SetupSrpRequest {
             srp_user_id: srp_user_id.to_string(),
             srp_salt: b64::encode(&srp.srp_salt),
             srp_verifier: b64::encode(&srp.srp_verifier),
             srp_a,
-        })
-        .await?;
+        },
+    )
+    .await?;
     let srp_b = b64::decode(&response.srp_b)?;
     let srp_m1 = b64::encode(&srp_session.compute_m1(&srp_b)?);
-    let complete = client
-        .complete_srp_setup(&response.setup_id, &srp_m1)
-        .await?;
+    let complete = client::post_srp_complete(api, &response.setup_id, &srp_m1).await?;
     srp_session.verify_m2(&b64::decode(&complete.srp_m2)?)?;
     Ok(())
 }

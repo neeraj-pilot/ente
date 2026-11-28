@@ -96,10 +96,6 @@ class UsersGateway {
     await _enteDio.post("/users/two-factor/disable");
   }
 
-  Future<void> updateEmailMFA({required bool isEnabled}) async {
-    await _enteDio.put("/users/email-mfa", data: {"isEnabled": isEnabled});
-  }
-
   Future<String?> getPaymentToken() async {
     final response = await _enteDio.get("/users/payment-token");
     return response.data["paymentToken"] as String?;

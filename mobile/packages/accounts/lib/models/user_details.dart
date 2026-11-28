@@ -191,19 +191,16 @@ class FamilyMember {
 }
 
 class ProfileData {
-  bool canDisableEmailMFA;
   bool isEmailMFAEnabled;
   bool isTwoFactorEnabled;
 
   ProfileData({
-    this.canDisableEmailMFA = false,
     this.isEmailMFAEnabled = false,
     this.isTwoFactorEnabled = false,
   });
 
   factory ProfileData.fromJson(Map<String, dynamic>? json) {
     return ProfileData(
-      canDisableEmailMFA: json?['canDisableEmailMFA'] ?? false,
       isEmailMFAEnabled: json?['isEmailMFAEnabled'] ?? false,
       isTwoFactorEnabled: json?['isTwoFactorEnabled'] ?? false,
     );
@@ -211,7 +208,6 @@ class ProfileData {
 
   Map<String, dynamic> toJson() {
     return {
-      'canDisableEmailMFA': canDisableEmailMFA,
       'isEmailMFAEnabled': isEmailMFAEnabled,
       'isTwoFactorEnabled': isTwoFactorEnabled,
     };
