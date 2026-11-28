@@ -21,6 +21,7 @@ class AutoFillService with WidgetsBindingObserver {
   static final noticeNeeded = ValueNotifier(false);
 
   Future<void> _tail = Future.value();
+  Timer? _debounce;
   bool _locked = true;
   bool _declined = false;
 
@@ -28,7 +29,7 @@ class AutoFillService with WidgetsBindingObserver {
     if (!Platform.isIOS) return;
     final service = _instance = AutoFillService._();
     WidgetsBinding.instance.addObserver(service);
-    Bus.instance.on<CodesUpdatedEvent>().listen((_) => service._refresh());
+    Bus.instance.on<CodesUpdatedEvent>().listen((_) => service._schedule());
     service._refresh();
   }
 
@@ -64,6 +65,11 @@ class AutoFillService with WidgetsBindingObserver {
 
   void _refresh() => unawaited(_enqueue(_sync));
 
+  void _schedule() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 150), _refresh);
+  }
+
   Future<void> _enqueue(Future<void> Function() action) =>
       _tail = _tail.then((_) => action()).catchError((Object e, StackTrace s) {
         _logger.warning('Could not update AutoFill codes', e, s);
@@ -86,7 +92,10 @@ class AutoFillService with WidgetsBindingObserver {
       await _channel.invokeMethod('clear');
       return;
     }
-    final codes = await CodeStore.instance.getAllCodes(sortCodes: false);
+    final codes = await CodeStore.instance.getAllCodes(
+      sortCodes: false,
+      requireCompleteRead: true,
+    );
     sortAuthCodes(codes, prefs.codeSortKey());
     await _channel.invokeMethod('publish', CodeSnapshot.fromCodes(codes).data);
   }

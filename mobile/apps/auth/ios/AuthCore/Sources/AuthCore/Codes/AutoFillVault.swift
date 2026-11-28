@@ -4,18 +4,14 @@
 
   public enum AutoFillVault {
     private static var query: [String: Any] {
-      var query: [String: Any] = [
+      [
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: "io.ente.auth.autofill",
         kSecAttrAccount as String: "snapshot",
         kSecAttrSynchronizable as String: false,
+        kSecAttrAccessGroup as String: Bundle.main.object(
+          forInfoDictionaryKey: "EnteAutoFillKeychainGroup") as! String,
       ]
-      if let group = Bundle.main.object(forInfoDictionaryKey: "EnteAutoFillKeychainGroup")
-        as? String
-      {
-        query[kSecAttrAccessGroup as String] = group
-      }
-      return query
     }
 
     public static func read() throws -> Snapshot? {

@@ -190,8 +190,9 @@ private struct CodePicker: View {
   }
 
   private func matchesSite(_ entry: Entry) -> Bool {
-    guard let site, site.count >= 3 else { return false }
+    guard let site = site?.filter({ $0.isLetter || $0.isNumber }) else { return false }
     let issuer = entry.issuer.lowercased().filter { $0.isLetter || $0.isNumber }
-    return issuer.count >= 3 && (issuer.contains(site) || site.contains(issuer))
+    if issuer == site { return true }
+    return site.count >= 3 && issuer.count >= 3 && (issuer.contains(site) || site.contains(issuer))
   }
 }

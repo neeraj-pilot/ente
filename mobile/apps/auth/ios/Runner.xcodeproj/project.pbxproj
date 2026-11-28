@@ -105,7 +105,6 @@
 		7BE1A7D2292BE799B664E3D6 /* Pods-AuthWatch.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AuthWatch.release.xcconfig"; path = "Target Support Files/Pods-AuthWatch/Pods-AuthWatch.release.xcconfig"; sourceTree = "<group>"; };
 		7E0DB72437FDEF358B1513C0 /* Release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		89F4DA6DFA72F3D2D9293411 /* AutoFill.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = AutoFill.xcconfig; sourceTree = "<group>"; };
-		8BBC7EF38661391432192F1F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		8C6D98B958CEE886665CB12B /* Pods-AuthWatch.debug-production.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AuthWatch.debug-production.xcconfig"; path = "Target Support Files/Pods-AuthWatch/Pods-AuthWatch.debug-production.xcconfig"; sourceTree = "<group>"; };
 		8F18DC77E5FBD5BCD6B9C4A1 /* Profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Profile.xcconfig; sourceTree = "<group>"; };
 		90AF0EF908DF7E8DCE837C1D /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -187,20 +186,11 @@
 			path = Watch;
 			sourceTree = "<group>";
 		};
-		2811F1CCCFE6573B03A1D270 /* iOS */ = {
-			isa = PBXGroup;
-			children = (
-				8BBC7EF38661391432192F1F /* Foundation.framework */,
-			);
-			name = iOS;
-			sourceTree = "<group>";
-		};
 		3A395285A668F1F2BB041513 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				D28AA20446BAC82150599AAF /* Pods_Runner.framework */,
 				0E5E4D6E35C3DE9833F5D315 /* Pods_AuthWatch.framework */,
-				2811F1CCCFE6573B03A1D270 /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
