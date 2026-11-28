@@ -46,6 +46,7 @@ members = [
     "crates/photos-export",
     "crates/space",
     "crates/test-support",
+    "crates/user-entity",
     "crates/vecdb",
     "tools/codegen",
     "tools/location-dataset",
@@ -87,6 +88,7 @@ ente-photos-export = { path = "crates/photos-export" }
 ente-space = { path = "crates/space" }
 ente-test-support = { path = "crates/test-support" }
 ente-uniffi-log = { path = "bindings/uniffi/log" }
+ente-user-entity = { path = "crates/user-entity" }
 ente-vecdb = { path = "crates/vecdb" }
 ente-wasm-lib = { path = "bindings/wasm/lib" }
 env_logger = { version = "0.11.11", default-features = false }

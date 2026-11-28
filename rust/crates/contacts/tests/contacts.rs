@@ -48,6 +48,9 @@ async fn run(endpoint: String) -> TestResult {
     assert_eq!(fetched.id, contact.id);
     assert_eq!(fetched.name.as_deref(), Some("Trusted Contact"));
 
+    let refetched = ente_contacts::get_contact(&owner_session, None, &contact.id).await?;
+    assert_eq!(refetched.wrapped_root_contact_key, wrapped_root_key);
+
     let updated = ente_contacts::update_contact(
         &owner_session,
         wrapped_root_key.as_ref(),

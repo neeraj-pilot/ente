@@ -4,16 +4,12 @@ pub mod code;
 pub mod import;
 pub mod record;
 
-use ente_core::{
-    Session, b64,
-    crypto::{self, Key, Nonce, secretbox},
-    http, otp,
-};
-use serde::Deserialize;
-use uuid::Uuid;
-use zeroize::Zeroizing;
+use ente_core::{Session, b64, crypto, http, otp};
+pub use ente_user_entity::WrappedKey;
+use ente_user_entity::{Endpoint, Page};
 
-pub const PAGE_SIZE: usize = 5000;
+const ENDPOINT: Endpoint = Endpoint::Authenticator;
+const PAGE_SIZE: u16 = 5000;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -35,65 +31,27 @@ pub enum Error {
     InvalidBackup,
     #[error("unsupported Auth export version")]
     UnsupportedVersion,
+    #[error("invalid Auth diff: {0}")]
+    InvalidDiff(&'static str),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct WrappedKey {
-    pub encrypted_key: String,
-    pub header: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Entity {
-    pub id: Uuid,
-    pub updated_at: i64,
-    pub is_deleted: bool,
-    pub encrypted_data: Option<String>,
-    pub header: Option<String>,
+impl From<ente_user_entity::Error> for Error {
+    fn from(error: ente_user_entity::Error) -> Self {
+        match error {
+            ente_user_entity::Error::Http(error) => Self::Http(error),
+            ente_user_entity::Error::Crypto(error) => Self::Crypto(error),
+            ente_user_entity::Error::Base64(error) => Self::Base64(error),
+            ente_user_entity::Error::InvalidDiff(reason) => Self::InvalidDiff(reason),
+        }
+    }
 }
 
 pub async fn fetch_key(session: &Session) -> Result<Option<WrappedKey>> {
-    Ok(http::retry(|| async {
-        let response = session.api.get("/authenticator/key").send().await?;
-        if response.status() == 404 {
-            return Ok(None);
-        }
-        response.error_for_code().await?.json().await.map(Some)
-    })
-    .await?)
+    Ok(ente_user_entity::fetch_key(session, ENDPOINT).await?)
 }
 
-pub async fn diff(session: &Session, since: i64) -> Result<Vec<Entity>> {
-    #[derive(Deserialize)]
-    struct Response {
-        diff: Vec<Entity>,
-    }
-    let response: Response = http::retry(|| async {
-        session
-            .api
-            .get("/authenticator/entity/diff")
-            .query(&[("sinceTime", since), ("limit", PAGE_SIZE as i64)])
-            .send()
-            .await?
-            .error_for_code()
-            .await?
-            .json()
-            .await
-    })
-    .await?;
-    Ok(response.diff)
-}
-
-pub fn open_key(wrapped: &WrappedKey, master_key: &Key) -> Result<Key> {
-    let nonce = Nonce::try_from_slice(&b64::decode(&wrapped.header)?)?;
-    let plaintext = Zeroizing::new(secretbox::decrypt(
-        &b64::decode(&wrapped.encrypted_key)?,
-        &nonce,
-        master_key,
-    )?);
-    Ok(Key::try_from_slice(&plaintext)?)
+pub async fn diff(session: &Session, since: i64) -> Result<Page> {
+    Ok(ente_user_entity::diff(session, ENDPOINT, since, PAGE_SIZE).await?)
 }

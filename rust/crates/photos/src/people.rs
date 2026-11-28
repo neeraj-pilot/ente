@@ -2,8 +2,9 @@ use std::collections::{BTreeSet, HashSet};
 use std::io::Read;
 use std::ops::Range;
 
-use ente_core::crypto::{self, Header, Key, Nonce, SecretVec, blob, secretbox};
+use ente_core::crypto::{self, Key};
 use ente_core::{Session, b64, http};
+use ente_user_entity::{Endpoint, KeyError};
 use flate2::read::GzDecoder;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
@@ -11,8 +12,8 @@ use serde_json::{Map, Number, Value};
 
 use crate::ml_db::try_file_id_from_face_id;
 
-const ENTITY_TYPE: &str = "cgroup";
-const PAGE_SIZE: usize = 500;
+const ENDPOINT: Endpoint = Endpoint::UserEntity("cgroup");
+const PAGE_SIZE: u16 = 500;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -33,6 +34,26 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<ente_user_entity::Error> for Error {
+    fn from(error: ente_user_entity::Error) -> Self {
+        match error {
+            ente_user_entity::Error::Http(error) => Self::Http(error),
+            ente_user_entity::Error::Crypto(error) => Self::Crypto(error),
+            ente_user_entity::Error::Base64(error) => Self::Base64(error),
+            ente_user_entity::Error::InvalidDiff(reason) => Self::InvalidDiff(reason),
+        }
+    }
+}
+
+impl From<KeyError> for Error {
+    fn from(error: KeyError) -> Self {
+        match error {
+            KeyError::Crypto(error) => Self::Crypto(error),
+            KeyError::Base64(error) => Self::Base64(error),
+        }
+    }
+}
 
 pub struct Page {
     pub updated: Vec<RemotePerson>,
@@ -92,13 +113,16 @@ impl Person {
 }
 
 pub async fn diff(session: &Session, since: i64) -> Result<Page> {
-    let entities = fetch_diff(session, since).await?;
-    let key = if entities.iter().any(|entity| !entity.is_deleted) {
-        Some(fetch_key(session).await?.ok_or(Error::MissingKey)?)
+    let page = ente_user_entity::diff(session, ENDPOINT, since, PAGE_SIZE).await?;
+    let key = if page.entities.iter().any(|entity| !entity.is_deleted) {
+        let wrapped = ente_user_entity::fetch_key(session, ENDPOINT)
+            .await?
+            .ok_or(Error::MissingKey)?;
+        Some(wrapped.open(&session.master_key)?)
     } else {
         None
     };
-    page(entities, since, key.as_ref())
+    decrypt_page(page, key.as_ref())
 }
 
 #[derive(Deserialize)]
@@ -155,87 +179,14 @@ fn whole_number(number: &Number) -> Option<i64> {
     })
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Entity {
-    id: String,
-    encrypted_data: Option<String>,
-    header: Option<String>,
-    is_deleted: bool,
-    updated_at: i64,
-}
-
-async fn fetch_diff(session: &Session, since: i64) -> Result<Vec<Entity>> {
-    #[derive(Deserialize)]
-    struct Response {
-        diff: Vec<Entity>,
-    }
-    let query = [
-        ("sinceTime", since.to_string()),
-        ("limit", PAGE_SIZE.to_string()),
-        ("type", ENTITY_TYPE.to_owned()),
-    ];
-    let response: Response = http::retry(|| async {
-        session
-            .api
-            .get("/user-entity/entity/diff")
-            .query(&query)
-            .send()
-            .await?
-            .error_for_code()
-            .await?
-            .json()
-            .await
-    })
-    .await?;
-    Ok(response.diff)
-}
-
-async fn fetch_key(session: &Session) -> Result<Option<Key>> {
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct WrappedKey {
-        encrypted_key: String,
-        header: String,
-    }
-    let wrapped: Option<WrappedKey> = http::retry(|| async {
-        let response = session
-            .api
-            .get("/user-entity/key")
-            .query(&[("type", ENTITY_TYPE)])
-            .send()
-            .await?;
-        if response.status() == 404 {
-            return Ok(None);
-        }
-        response.error_for_code().await?.json().await.map(Some)
-    })
-    .await?;
-    wrapped
-        .map(|wrapped| {
-            let key = SecretVec::new(secretbox::decrypt(
-                &b64::decode(&wrapped.encrypted_key)?,
-                &Nonce::try_from_slice(&b64::decode(&wrapped.header)?)?,
-                &session.master_key,
-            )?);
-            Ok(Key::try_from_slice(&key)?)
-        })
-        .transpose()
-}
-
-fn page(entities: Vec<Entity>, since: i64, key: Option<&Key>) -> Result<Page> {
-    if entities.iter().any(|entity| entity.updated_at <= since) {
-        return Err(Error::InvalidDiff("entity is not newer than the cursor"));
-    }
-    let has_more = entities.len() >= PAGE_SIZE;
-    let cursor = next_cursor(&entities, since, has_more)?;
+fn decrypt_page(page: ente_user_entity::Page, key: Option<&Key>) -> Result<Page> {
     let mut updated = Vec::new();
     let mut deleted = Vec::new();
-    for entity in entities {
+    for entity in page.entities {
         if entity.is_deleted {
             deleted.push(entity.id);
         } else {
-            let data = decrypt(&entity, key.ok_or(Error::MissingKey)?)?;
+            let data = decompress(&entity.decrypt(key.ok_or(Error::MissingKey)?)?)?;
             updated.push(RemotePerson {
                 id: entity.id,
                 updated_at: entity.updated_at,
@@ -246,37 +197,14 @@ fn page(entities: Vec<Entity>, since: i64, key: Option<&Key>) -> Result<Page> {
     Ok(Page {
         updated,
         deleted,
-        cursor,
-        has_more,
+        cursor: page.cursor,
+        has_more: page.has_more,
     })
 }
 
-fn next_cursor(entities: &[Entity], since: i64, has_more: bool) -> Result<i64> {
-    let Some(newest) = entities.iter().map(|entity| entity.updated_at).max() else {
-        return Ok(since);
-    };
-    if !has_more {
-        return Ok(newest);
-    }
-    if entities.iter().all(|entity| entity.updated_at == newest) {
-        return Err(Error::InvalidDiff(
-            "a full page of people shares one timestamp",
-        ));
-    }
-    Ok(newest - 1)
-}
-
-fn decrypt(entity: &Entity, key: &Key) -> Result<String> {
-    let (Some(data), Some(header)) = (&entity.encrypted_data, &entity.header) else {
-        return Err(Error::InvalidDiff("live entity without encrypted data"));
-    };
-    let compressed = blob::decrypt(
-        &b64::decode(data)?,
-        &Header::try_from_slice(&b64::decode(header)?)?,
-        key,
-    )?;
+fn decompress(compressed: &[u8]) -> Result<String> {
     let mut json = String::new();
-    GzDecoder::new(compressed.as_slice())
+    GzDecoder::new(compressed)
         .read_to_string(&mut json)
         .map_err(Error::Decompress)?;
     Ok(json)
@@ -286,6 +214,8 @@ fn decrypt(entity: &Entity, key: &Key) -> Result<String> {
 mod tests {
     use std::io::Write;
 
+    use ente_core::crypto::blob;
+    use ente_user_entity::Entity;
     use flate2::Compression;
     use flate2::write::GzEncoder;
     use serde_json::json;
@@ -448,6 +378,17 @@ mod tests {
         assert_eq!(parsed.file_ids(), BTreeSet::from([10]));
     }
 
+    fn page(entities: Vec<Entity>, key: Option<&Key>) -> Result<Page> {
+        decrypt_page(
+            ente_user_entity::Page {
+                entities,
+                cursor: 30,
+                has_more: true,
+            },
+            key,
+        )
+    }
+
     #[test]
     fn page_decrypts_live_people_and_lists_deletions() {
         let key = Key::generate();
@@ -458,7 +399,6 @@ mod tests {
                 tombstone("p2", 30),
                 sealed("p3", 25, b"{}", &key),
             ],
-            10,
             Some(&key),
         )
         .unwrap();
@@ -470,69 +410,21 @@ mod tests {
         assert_eq!(updated, [("p1", 20, r#"{"name":"Ada"}"#), ("p3", 25, "{}")]);
         assert_eq!(page.deleted, ["p2"]);
         assert_eq!(page.cursor, 30);
-        assert!(!page.has_more);
-    }
-
-    #[test]
-    fn empty_page_keeps_the_cursor() {
-        let page = page(Vec::new(), 42, None).unwrap();
-        assert!(page.updated.is_empty() && page.deleted.is_empty());
-        assert_eq!(page.cursor, 42);
-        assert!(!page.has_more);
+        assert!(page.has_more);
     }
 
     #[test]
     fn deletions_need_no_key() {
-        let page = page(vec![tombstone("p1", 5)], 0, None).unwrap();
+        let page = page(vec![tombstone("p1", 5)], None).unwrap();
         assert_eq!(page.deleted, ["p1"]);
-    }
-
-    #[test]
-    fn a_full_page_reports_more_and_rereads_its_newest_timestamp() {
-        let entities = (1..=PAGE_SIZE as i64)
-            .map(|updated_at| tombstone(&updated_at.to_string(), updated_at))
-            .collect();
-        let page = page(entities, 0, None).unwrap();
-        assert!(page.has_more);
-        assert_eq!(page.cursor, PAGE_SIZE as i64 - 1);
-    }
-
-    #[test]
-    fn a_full_page_cut_inside_a_tie_resumes_before_the_tie() {
-        let entities = (1..PAGE_SIZE as i64)
-            .chain([1000])
-            .map(|updated_at| tombstone(&updated_at.to_string(), updated_at))
-            .collect();
-        let page = page(entities, 0, None).unwrap();
-        assert!(page.has_more);
-        assert_eq!(page.cursor, 999);
-    }
-
-    #[test]
-    fn a_full_page_sharing_one_timestamp_is_an_error() {
-        let entities = (0..PAGE_SIZE)
-            .map(|index| tombstone(&index.to_string(), 7))
-            .collect();
-        assert!(matches!(
-            page(entities, 0, None),
-            Err(Error::InvalidDiff(_))
-        ));
     }
 
     #[test]
     fn live_people_without_a_key_are_an_error() {
         let key = Key::generate();
         assert!(matches!(
-            page(vec![sealed("p1", 5, b"{}", &key)], 0, None),
+            page(vec![sealed("p1", 5, b"{}", &key)], None),
             Err(Error::MissingKey)
-        ));
-    }
-
-    #[test]
-    fn rejects_entities_that_do_not_advance_the_cursor() {
-        assert!(matches!(
-            page(vec![tombstone("p1", 10)], 10, None),
-            Err(Error::InvalidDiff(_))
         ));
     }
 
@@ -542,7 +434,7 @@ mod tests {
         let mut entity = sealed("p1", 5, b"{}", &key);
         entity.header = None;
         assert!(matches!(
-            page(vec![entity], 0, Some(&key)),
+            page(vec![entity], Some(&key)),
             Err(Error::InvalidDiff(_))
         ));
     }
@@ -551,11 +443,7 @@ mod tests {
     fn wrong_key_or_uncompressed_data_fails() {
         let key = Key::generate();
         assert!(matches!(
-            page(
-                vec![sealed("p1", 5, b"{}", &key)],
-                0,
-                Some(&Key::generate())
-            ),
+            page(vec![sealed("p1", 5, b"{}", &key)], Some(&Key::generate())),
             Err(Error::Crypto(_))
         ));
         let encrypted = blob::encrypt(b"{}", &key).unwrap();
@@ -567,7 +455,7 @@ mod tests {
             updated_at: 5,
         };
         assert!(matches!(
-            page(vec![plain], 0, Some(&key)),
+            page(vec![plain], Some(&key)),
             Err(Error::Decompress(_))
         ));
     }
