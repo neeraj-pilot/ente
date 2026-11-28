@@ -2,6 +2,8 @@ package usercache
 
 import (
 	"context"
+	"time"
+
 	"github.com/ente/museum/ente/cache"
 	bonus "github.com/ente/museum/ente/storagebonus"
 	"github.com/ente/museum/pkg/repo"
@@ -22,7 +24,9 @@ func (c *Controller) GetActiveStorageBonus(ctx context.Context, userID int64) (*
 	if bonus, ok := c.UserCache.GetBonus(userID); ok {
 		// Cache hit, update the cache asynchronously
 		go func() {
-			_, _ = c.getAndCacheActiveStorageBonus(ctx, userID)
+			refreshCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			_, _ = c.getAndCacheActiveStorageBonus(refreshCtx, userID)
 		}()
 		return bonus, nil
 	}

@@ -146,11 +146,15 @@ db:
 # the key names have to be one of those in the list below.
 s3:
     # Override the primary and secondary hot storage. The commented out values
-    # are the defaults.
+    # are the defaults. When auto_failover is true and both B2 and Wasabi hot
+    # buckets are configured, switch until restart after two minutes without
+    # staged upload registrations in the primary bucket and 20 POST upload URL
+    # successes or storage initiation failures (no gap over 30s).
     #
     #hot_storage:
     #    primary: b2-eu-cen
     #    secondary: wasabi-eu-central-2-v3
+    #    auto_failover: false
     b2-eu-cen:
         # Uncomment to override top-level bucket configuration for URL addressing and external buckets
         # are_local_buckets: true
