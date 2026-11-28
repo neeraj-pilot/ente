@@ -1,0 +1,1 @@
+- Fixed large uploads encrypting the file again, and filling up device storage, when the storage provider discards a partially uploaded file.

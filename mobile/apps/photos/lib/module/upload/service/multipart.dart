@@ -15,16 +15,32 @@ import "package:photos/module/upload/model/xml.dart";
 import "package:photos/service_locator.dart";
 import "package:photos/services/collections_service.dart";
 
+bool shouldDiscardMultipartUpload(Object error, {required bool duringCommit}) {
+  if (error is MultiPartFileMissingError ||
+      error is MultiPartError ||
+      error is EncSizeMismatchError ||
+      error is BadMD5DigestError) {
+    return true;
+  }
+  // A resume would commit the same object again.
+  return duringCommit && error is DioException;
+}
+
 class MultiPartUploader {
   static const _maximumPartUploadAttempts = 3;
 
   final Dio _s3Dio;
   final UploadLocksDB _db;
   final FlagService _featureFlagService;
+  final FileUploadGateway _gateway;
   late final Logger _logger = Logger("MultiPartUploader");
-  FileUploadGateway get _gateway => fileUploadGateway;
 
-  MultiPartUploader(this._s3Dio, this._db, this._featureFlagService);
+  MultiPartUploader(
+    this._s3Dio,
+    this._db,
+    this._featureFlagService,
+    this._gateway,
+  );
 
   Future<FileEncryptResult> getEncryptionResult(
     String localId,
@@ -158,6 +174,7 @@ class MultiPartUploader {
     int collectionID,
     String encryptedFileName, {
     ProgressCallback? onSendProgress,
+    VoidCallback? onRestart,
   }) async {
     final multipartInfo = await _db.getCachedLinks(
       localId,
@@ -166,87 +183,52 @@ class MultiPartUploader {
       encryptedFileName,
     );
     await _db.updateLastAttempted(localId, fileHash, collectionID);
+    _logger.info(
+      "Resuming multipart upload ${multipartInfo.urls.objectKey} tracked "
+      "since ${multipartInfo.createdAt} UTC: "
+      "${multipartInfo.partUploadStatus?.where((done) => done).length} of "
+      "${multipartInfo.urls.partsURLs.length} parts uploaded, "
+      "status ${multipartInfo.status.name}",
+    );
 
-    Map<int, String> etags = multipartInfo.partETags ?? {};
-
-    if (multipartInfo.status == MultipartStatus.pending) {
-      try {
-        etags = await _uploadParts(
-          multipartInfo,
-          encryptedFile,
-          onSendProgress: onSendProgress,
-        );
-      } on DioException catch (e) {
-        if (e.response?.statusCode == 404) {
-          _logger.severe(
-            "Multipart upload not found for key ${multipartInfo.urls.objectKey}",
-          );
-          await _db.deleteMultipartTrack(localId);
-        }
-        if (e.response?.statusCode == 401) {
-          _logger.severe(
-            "Multipart upload not authorized ${multipartInfo.urls.objectKey}",
-          );
-          await _db.deleteMultipartTrack(localId);
-        }
-        if (e.response?.statusCode == 403) {
-          await _db.deleteMultipartTrack(localId);
-          Error.throwWithStackTrace(
-            MultiPartError(
-              "HTTP 403 uploading multipart parts: "
-              "sizeBytes=${multipartInfo.encFileSize} "
-              "partCount=${multipartInfo.urls.partsURLs.length} "
-              "resumeStatus=${multipartInfo.status.name}",
-            ),
-            e.stackTrace,
-          );
-        }
+    try {
+      return await _put(multipartInfo, encryptedFile, onSendProgress);
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      if (statusCode != 401 && statusCode != 403 && statusCode != 404) {
         rethrow;
       }
-    } else {
-      onSendProgress?.call(
-        multipartInfo.encFileSize,
-        multipartInfo.encFileSize,
+      _logger.warning(
+        "Tracked multipart upload ${multipartInfo.urls.objectKey} rejected "
+        "with HTTP $statusCode (sizeBytes=${multipartInfo.encFileSize} "
+        "partCount=${multipartInfo.urls.partsURLs.length} "
+        "resumeStatus=${multipartInfo.status.name}), restarting with the "
+        "same encrypted file",
+      );
+      final partMd5s = multipartInfo.partMd5s;
+      if (partMd5s == null) {
+        throw MultiPartError("Missing part MD5s for multipart upload");
+      }
+      final urls = await getMultipartUploadURLs(
+        count: multipartInfo.urls.partsURLs.length,
+        contentLength: multipartInfo.encFileSize,
+        partLength: multipartInfo.partSize!,
+        partMd5s: partMd5s,
+      );
+      await _db.replaceMultipartUpload(multipartInfo.urls.objectKey, urls);
+      onRestart?.call();
+      return _put(
+        MultipartInfo(
+          urls: urls,
+          encFileSize: multipartInfo.encFileSize,
+          partSize: multipartInfo.partSize,
+          fileMd5: multipartInfo.fileMd5,
+          partMd5s: partMd5s,
+        ),
+        encryptedFile,
+        onSendProgress,
       );
     }
-
-    if (multipartInfo.status != MultipartStatus.completed) {
-      try {
-        await _completeMultipartUpload(
-          multipartInfo.urls.objectKey,
-          etags,
-          multipartInfo.urls.completeURL,
-        );
-      } on DioException catch (e) {
-        if (e.response?.statusCode == 404) {
-          _logger.severe(
-            "Multipart upload not found for key ${multipartInfo.urls.objectKey}",
-          );
-          await _db.deleteMultipartTrack(localId);
-        }
-        if (e.response?.statusCode == 401) {
-          _logger.severe(
-            "Multipart upload not authorized ${multipartInfo.urls.objectKey}",
-          );
-          await _db.deleteMultipartTrack(localId);
-        }
-        if (e.response?.statusCode == 403) {
-          await _db.deleteMultipartTrack(localId);
-          Error.throwWithStackTrace(
-            MultiPartError(
-              "HTTP 403 completing multipart upload: "
-              "sizeBytes=${multipartInfo.encFileSize} "
-              "partCount=${multipartInfo.urls.partsURLs.length} "
-              "resumeStatus=${multipartInfo.status.name}",
-            ),
-            e.stackTrace,
-          );
-        }
-        rethrow;
-      }
-    }
-
-    return multipartInfo.urls.objectKey;
   }
 
   Future<String> putMultipartFile(
@@ -256,21 +238,40 @@ class MultiPartUploader {
     String? fileMd5,
     List<String>? partMd5s,
     ProgressCallback? onSendProgress,
-  }) async {
-    final etags = await _uploadParts(
-      MultipartInfo(
-        urls: urls,
-        encFileSize: fileSize,
-        fileMd5: fileMd5,
-        partMd5s: partMd5s,
-      ),
-      encryptedFile,
-      onSendProgress: onSendProgress,
-    );
+  }) => _put(
+    MultipartInfo(
+      urls: urls,
+      encFileSize: fileSize,
+      fileMd5: fileMd5,
+      partMd5s: partMd5s,
+    ),
+    encryptedFile,
+    onSendProgress,
+  );
 
-    await _completeMultipartUpload(urls.objectKey, etags, urls.completeURL);
-
-    return urls.objectKey;
+  Future<String> _put(
+    MultipartInfo info,
+    File encryptedFile,
+    ProgressCallback? onSendProgress,
+  ) async {
+    var etags = info.partETags ?? {};
+    if (info.status == MultipartStatus.pending) {
+      etags = await _uploadParts(
+        info,
+        encryptedFile,
+        onSendProgress: onSendProgress,
+      );
+    } else {
+      onSendProgress?.call(info.encFileSize, info.encFileSize);
+    }
+    if (info.status != MultipartStatus.completed) {
+      await _completeMultipartUpload(
+        info.urls.objectKey,
+        etags,
+        info.urls.completeURL,
+      );
+    }
+    return info.urls.objectKey;
   }
 
   Future<Map<int, String>> _uploadParts(
@@ -295,7 +296,7 @@ class MultiPartUploader {
 
     final int encFileLength = encryptedFile.lengthSync();
     if (encFileLength != partInfo.encFileSize) {
-      throw Exception(
+      throw MultiPartError(
         "File size mismatch. Expected ${partInfo.encFileSize} but got $encFileLength",
       );
     }
@@ -315,7 +316,8 @@ class MultiPartUploader {
       count++;
       final partURL = partsURLs[i];
       final isLastPart = i == partsLength - 1;
-      final fileSize = isLastPart ? encFileLength - (i * partSize) : partSize;
+      final start = i * partSize;
+      final fileSize = isLastPart ? encFileLength - start : partSize;
       _logger.info(
         "Uploading part ${i + 1} / $partsLength of size $fileSize bytes (total size $encFileLength). ObjectKey=${partInfo.urls.objectKey}",
       );
@@ -348,10 +350,7 @@ class MultiPartUploader {
               useUploadProxy
                   ? "$kUploadProxyEndpoint/multipart-upload"
                   : partURL,
-              data: encryptedFile.openRead(
-                i * partSize,
-                isLastPart ? null : (i + 1) * partSize,
-              ),
+              data: _readPart(encryptedFile, i + 1, start, fileSize),
               options: Options(headers: headers),
               onSendProgress: (sent, _) {
                 if (sent > partBytesSent) {
@@ -391,13 +390,16 @@ class MultiPartUploader {
         onSendProgress?.call(completedBytes, encFileLength);
         i++;
       } on DioException catch (e) {
+        if (e.error case final MultiPartError error) {
+          Error.throwWithStackTrace(error, e.stackTrace);
+        }
         if (e.response?.statusCode == 400 &&
                 e.response?.data.toString().contains('BadDigest') == true ||
             e.response?.data.toString().contains('InvalidDigest') == true) {
           final recomputedMD5 = await computeMd5(
             encryptedFile.path,
-            start: i * partSize,
-            end: isLastPart ? null : (i + 1) * partSize,
+            start: start,
+            end: start + fileSize,
           );
           throw BadMD5DigestError(
             "Failed for part ${i + 1} ${e.response?.data}, sent: ${partMd5s?[i]}, computed: $recomputedMD5",
@@ -413,6 +415,34 @@ class MultiPartUploader {
     );
 
     return etags;
+  }
+
+  Stream<List<int>> _readPart(
+    File file,
+    int part,
+    int start,
+    int length,
+  ) async* {
+    var bytesRead = 0;
+    try {
+      await for (final chunk in file.openRead(start, start + length)) {
+        bytesRead += chunk.length;
+        yield chunk;
+      }
+    } on FileSystemException catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        MultiPartError(
+          "Could not read multipart part $part after $bytesRead of $length bytes: "
+          "${error.osError?.message ?? error.message}",
+        ),
+        stackTrace,
+      );
+    }
+    if (bytesRead != length) {
+      throw MultiPartError(
+        "Multipart part $part length mismatch: expected $length bytes, read $bytesRead",
+      );
+    }
   }
 
   Future<void> _completeMultipartUpload(

@@ -373,6 +373,7 @@ class UploadLocksDB with SqlDbBase {
       partSize: row[_trackUploadTable.columnPartSize] as int,
       fileMd5: fileMd5,
       partMd5s: partMd5s,
+      createdAt: row[_trackUploadTable.columnCreatedAt].toString(),
     );
   }
 
@@ -471,8 +472,6 @@ class UploadLocksDB with SqlDbBase {
     List<String>? partMd5s,
   }) async {
     final db = await database;
-    final objectKey = urls.objectKey;
-    final partsURLs = urls.partsURLs;
     await db.writeTransaction((tx) async {
       await tx.execute(
         '''
@@ -497,7 +496,7 @@ class UploadLocksDB with SqlDbBase {
           localId,
           fileHash,
           collectionID,
-          objectKey,
+          urls.objectKey,
           urls.completeURL,
           encryptedFileName,
           fileSize,
@@ -511,23 +510,60 @@ class UploadLocksDB with SqlDbBase {
         ],
       );
 
-      if (partsURLs.isNotEmpty) {
-        await tx.executeBatch(
-          '''
-          INSERT INTO ${_partsTable.table} (
-            ${_partsTable.columnObjectKey},
-            ${_partsTable.columnPartNumber},
-            ${_partsTable.columnPartUrl},
-            ${_partsTable.columnPartStatus}
-          ) VALUES (?, ?, ?, ?)
-          ''',
-          [
-            for (int i = 0; i < partsURLs.length; i++)
-              [objectKey, i, partsURLs[i], PartStatus.pending.name],
-          ],
-        );
-      }
+      await _insertParts(tx, urls);
     });
+  }
+
+  Future<void> replaceMultipartUpload(
+    String staleObjectKey,
+    MultipartUploadURLs urls,
+  ) async {
+    final db = await database;
+    await db.writeTransaction((tx) async {
+      await tx.execute(
+        '''
+        DELETE FROM ${_partsTable.table}
+        WHERE ${_partsTable.columnObjectKey} = ?
+        ''',
+        [staleObjectKey],
+      );
+      await tx.execute(
+        '''
+        UPDATE ${_trackUploadTable.table}
+        SET ${_trackUploadTable.columnObjectKey} = ?,
+            ${_trackUploadTable.columnCompleteUrl} = ?,
+            ${_trackUploadTable.columnStatus} = ?
+        WHERE ${_trackUploadTable.columnObjectKey} = ?
+        ''',
+        [
+          urls.objectKey,
+          urls.completeURL,
+          MultipartStatus.pending.name,
+          staleObjectKey,
+        ],
+      );
+      await _insertParts(tx, urls);
+    });
+  }
+
+  Future<void> _insertParts(
+    SqliteWriteContext tx,
+    MultipartUploadURLs urls,
+  ) async {
+    await tx.executeBatch(
+      '''
+      INSERT INTO ${_partsTable.table} (
+        ${_partsTable.columnObjectKey},
+        ${_partsTable.columnPartNumber},
+        ${_partsTable.columnPartUrl},
+        ${_partsTable.columnPartStatus}
+      ) VALUES (?, ?, ?, ?)
+      ''',
+      [
+        for (int i = 0; i < urls.partsURLs.length; i++)
+          [urls.objectKey, i, urls.partsURLs[i], PartStatus.pending.name],
+      ],
+    );
   }
 
   Future<void> updatePartStatus(
