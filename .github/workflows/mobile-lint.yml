@@ -2,6 +2,10 @@ name: "Lint (Mobile)"
 
 on:
     workflow_call:
+        inputs:
+            skip-photos-tests:
+                type: boolean
+                default: false
     workflow_dispatch:
 
 permissions:
@@ -126,6 +130,7 @@ jobs:
             - name: Test
               working-directory: mobile
               env:
+                  SKIP_PHOTOS_TESTS: ${{ inputs.skip-photos-tests }}
                   ENTE_AUTH_FRB_LIBRARY: ${{ github.workspace }}/rust/target/debug/libente_auth_frb.so
                   ENTE_PHOTOS_FRB_LIBRARY: ${{ github.workspace }}/rust/target/debug/libente_photos_frb.so
               run: |
@@ -140,7 +145,12 @@ jobs:
                   export -f test_package
 
                   dart pub workspace list --json |
-                      jq -r '.packages[] | select(.name != "ente_workspace") | .path' |
+                      jq -r --arg skip "$SKIP_PHOTOS_TESTS" '
+                          .packages[]
+                          | select(.name != "ente_workspace")
+                          | select($skip != "true" or .name != "photos")
+                          | .path
+                      ' |
                       while IFS= read -r member; do
                           if [[ -d "$member/test" ]]; then
                               printf '%s\n' "$member"
