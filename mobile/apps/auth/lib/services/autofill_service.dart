@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:ente_auth/core/configuration.dart';
 import 'package:ente_auth/events/codes_updated_event.dart';
-import 'package:ente_auth/models/watch/snapshot.dart';
+import 'package:ente_auth/models/code_snapshot.dart';
 import 'package:ente_auth/services/preference_service.dart';
 import 'package:ente_auth/store/code_store.dart';
 import 'package:ente_auth/utils/code_sort.dart';
@@ -88,6 +88,6 @@ class AutoFillService with WidgetsBindingObserver {
     }
     final codes = await CodeStore.instance.getAllCodes(sortCodes: false);
     sortAuthCodes(codes, prefs.codeSortKey());
-    await _channel.invokeMethod('publish', WatchSnapshot.fromCodes(codes).data);
+    await _channel.invokeMethod('publish', CodeSnapshot.fromCodes(codes).data);
   }
 }
