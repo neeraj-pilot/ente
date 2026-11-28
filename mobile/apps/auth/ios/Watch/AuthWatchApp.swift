@@ -21,7 +21,7 @@ private struct WatchHome: View {
   @ObservedObject var companion: WatchCompanion
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.isLuminanceReduced) private var dimmed
-  @AppStorage("selectedTag") private var selectedTag: String?
+  @AppStorage(WatchCompanion.selectedTagKey) private var selectedTag: String?
   @AppStorage("hideCodes") private var hideCodes = false
   @State private var searchText = ""
 

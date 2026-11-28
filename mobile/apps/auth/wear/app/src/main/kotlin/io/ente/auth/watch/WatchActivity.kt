@@ -144,8 +144,8 @@ private fun AuthWatchRoot(
 ) {
     val context = LocalContext.current
     var selectedEntryId by rememberSaveable { mutableStateOf<String?>(null) }
-    val preferences = remember { context.getSharedPreferences("watch", Context.MODE_PRIVATE) }
-    var selectedTag by remember { mutableStateOf(preferences.getString("selectedTag", null)) }
+    val preferences = remember { context.getSharedPreferences(WatchCompanion.PREFERENCES, Context.MODE_PRIVATE) }
+    var selectedTag by remember { mutableStateOf(preferences.getString(WatchCompanion.SELECTED_TAG_KEY, null)) }
     var hideCodes by remember { mutableStateOf(preferences.getBoolean("hideCodes", false)) }
     var pickingTag by rememberSaveable { mutableStateOf(false) }
     var managing by rememberSaveable { mutableStateOf(false) }
@@ -173,7 +173,10 @@ private fun AuthWatchRoot(
     val selectedEntry = state.entries.firstOrNull { it.id == selectedEntryId }
 
     LaunchedEffect(selectedTag) {
-        preferences.edit { putString("selectedTag", selectedTag) }
+        preferences.edit {
+            if (selectedTag == null) remove(WatchCompanion.SELECTED_TAG_KEY)
+            else putString(WatchCompanion.SELECTED_TAG_KEY, selectedTag)
+        }
     }
     LaunchedEffect(hideCodes) {
         preferences.edit { putBoolean("hideCodes", hideCodes) }
