@@ -13,7 +13,7 @@ pub use contact::{
 use ente_core::Session;
 use ente_core::b64;
 use ente_core::crypto::{Key, SecretVec, secretbox};
-use ente_core::user_entity::{self, Endpoint, WrappedKey};
+use ente_user_entity::{Endpoint, WrappedKey};
 
 use crate::Result;
 
@@ -65,9 +65,9 @@ async fn root_contact_key(
 ) -> Result<RootContactKey> {
     let wrapped = match cached {
         Some(cached) => cached.clone(),
-        None => match user_entity::fetch_key(session, ENDPOINT).await? {
+        None => match ente_user_entity::fetch_key(session, ENDPOINT).await? {
             Some(wrapped) => wrapped,
-            None => user_entity::ensure_key(session, CONTACT_TYPE).await?,
+            None => ente_user_entity::ensure_key(session, CONTACT_TYPE).await?,
         },
     };
     RootContactKey::from_wrapped(wrapped, &session.master_key)

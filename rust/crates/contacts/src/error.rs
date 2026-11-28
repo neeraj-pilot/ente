@@ -1,5 +1,5 @@
-use ente_core::user_entity::KeyError;
 use ente_core::{b64, crypto, http};
+use ente_user_entity::KeyError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

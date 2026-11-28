@@ -3,8 +3,8 @@ use std::io::Read;
 use std::ops::Range;
 
 use ente_core::crypto::{self, Key};
-use ente_core::user_entity::{self, Endpoint, KeyError};
 use ente_core::{Session, b64, http};
+use ente_user_entity::{Endpoint, KeyError};
 use flate2::read::GzDecoder;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
@@ -35,13 +35,13 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-impl From<user_entity::Error> for Error {
-    fn from(error: user_entity::Error) -> Self {
+impl From<ente_user_entity::Error> for Error {
+    fn from(error: ente_user_entity::Error) -> Self {
         match error {
-            user_entity::Error::Http(error) => Self::Http(error),
-            user_entity::Error::Crypto(error) => Self::Crypto(error),
-            user_entity::Error::Base64(error) => Self::Base64(error),
-            user_entity::Error::InvalidDiff(reason) => Self::InvalidDiff(reason),
+            ente_user_entity::Error::Http(error) => Self::Http(error),
+            ente_user_entity::Error::Crypto(error) => Self::Crypto(error),
+            ente_user_entity::Error::Base64(error) => Self::Base64(error),
+            ente_user_entity::Error::InvalidDiff(reason) => Self::InvalidDiff(reason),
         }
     }
 }
@@ -113,9 +113,9 @@ impl Person {
 }
 
 pub async fn diff(session: &Session, since: i64) -> Result<Page> {
-    let page = user_entity::diff(session, ENDPOINT, since, PAGE_SIZE).await?;
+    let page = ente_user_entity::diff(session, ENDPOINT, since, PAGE_SIZE).await?;
     let key = if page.entities.iter().any(|entity| !entity.is_deleted) {
-        let wrapped = user_entity::fetch_key(session, ENDPOINT)
+        let wrapped = ente_user_entity::fetch_key(session, ENDPOINT)
             .await?
             .ok_or(Error::MissingKey)?;
         Some(wrapped.open(&session.master_key)?)
@@ -179,7 +179,7 @@ fn whole_number(number: &Number) -> Option<i64> {
     })
 }
 
-fn decrypt_page(page: user_entity::Page, key: Option<&Key>) -> Result<Page> {
+fn decrypt_page(page: ente_user_entity::Page, key: Option<&Key>) -> Result<Page> {
     let mut updated = Vec::new();
     let mut deleted = Vec::new();
     for entity in page.entities {
@@ -215,7 +215,7 @@ mod tests {
     use std::io::Write;
 
     use ente_core::crypto::blob;
-    use ente_core::user_entity::Entity;
+    use ente_user_entity::Entity;
     use flate2::Compression;
     use flate2::write::GzEncoder;
     use serde_json::json;
@@ -380,7 +380,7 @@ mod tests {
 
     fn page(entities: Vec<Entity>, key: Option<&Key>) -> Result<Page> {
         decrypt_page(
-            user_entity::Page {
+            ente_user_entity::Page {
                 entities,
                 cursor: 30,
                 has_more: true,

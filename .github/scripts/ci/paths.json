@@ -98,6 +98,7 @@
         "rust/crates/locker/**",
         "rust/crates/ml/**",
         "rust/crates/photos/**",
+        "rust/crates/user-entity/**",
         "rust/crates/vecdb/**",
         "rust/tools/codegen/**"
     ],
@@ -131,6 +132,7 @@
         "rust/crates/photos/**",
         "rust/crates/photos-export/**",
         "rust/crates/test-support/**",
+        "rust/crates/user-entity/**",
         "rust/crates/vecdb/**"
     ],
     "rust-lint": [
@@ -169,6 +171,7 @@
         "rust/crates/locker/**",
         "rust/crates/photos/**",
         "rust/crates/test-support/**",
+        "rust/crates/user-entity/**",
         "rust/crates/vecdb/**",
         "server/**",
         "web/**"
@@ -196,6 +199,7 @@
         "rust/crates/photobook/**",
         "rust/crates/photos/**",
         "rust/crates/space/**",
+        "rust/crates/user-entity/**",
         "rust/crates/vecdb/**",
         "web/**"
     ]

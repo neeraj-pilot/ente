@@ -9,6 +9,7 @@ museum = []
 ente-collections.workspace = true
 ente-core.workspace = true
 ente-exif.workspace = true
+ente-user-entity.workspace = true
 log.workspace = true
 quick-xml.workspace = true
 serde.workspace = true

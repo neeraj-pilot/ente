@@ -1,8 +1,7 @@
+use ente_core::crypto::{self, Header, Key, Nonce, SecretVec, blob, secretbox};
+use ente_core::http::{self, Api, RequestBuilder};
+use ente_core::{Session, b64};
 use serde::{Deserialize, Serialize};
-
-use crate::crypto::{self, Header, Key, Nonce, SecretVec, blob, secretbox};
-use crate::http::{self, Api, RequestBuilder};
-use crate::{Session, b64};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -191,12 +190,12 @@ fn page(entities: Vec<Entity>, since: i64, limit: u16) -> Result<Page, Error> {
 
 #[cfg(test)]
 mod tests {
+    use ente_core::crypto::SecretKey;
+    use ente_core::http::{ApiConfig, Auth};
     use mockito::{Matcher, Server};
     use serde_json::json;
 
     use super::*;
-    use crate::crypto::SecretKey;
-    use crate::http::{ApiConfig, Auth};
 
     fn session(origin: String, master_key: Key) -> Session {
         Session::new(

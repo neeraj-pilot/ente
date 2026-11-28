@@ -2474,6 +2474,7 @@ dependencies = [
  "argon2",
  "cbc 0.2.1",
  "ente-core",
+ "ente-user-entity",
  "hex",
  "hmac 0.13.0",
  "pbkdf2",
@@ -2605,6 +2606,7 @@ dependencies = [
  "ente-core",
  "ente-legacy",
  "ente-test-support",
+ "ente-user-entity",
  "md-5 0.11.0",
  "mockito",
  "serde",
@@ -2954,6 +2956,7 @@ dependencies = [
  "ente-exif",
  "ente-location",
  "ente-test-support",
+ "ente-user-entity",
  "ente-vecdb",
  "flate2",
  "futures-util",
@@ -3098,6 +3101,18 @@ name = "ente-uniffi-log"
 version = "0.0.0"
 dependencies = [
  "log",
+]
+
+[[package]]
+name = "ente-user-entity"
+version = "0.0.0"
+dependencies = [
+ "ente-core",
+ "mockito",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]

@@ -1,0 +1,16 @@
+[package]
+name = "ente-user-entity"
+edition.workspace = true
+
+[dependencies]
+ente-core.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+mockito.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

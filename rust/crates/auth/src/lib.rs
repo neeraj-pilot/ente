@@ -4,9 +4,9 @@ pub mod code;
 pub mod import;
 pub mod record;
 
-pub use ente_core::user_entity::WrappedKey;
-use ente_core::user_entity::{self, Endpoint, Page};
 use ente_core::{Session, b64, crypto, http, otp};
+pub use ente_user_entity::WrappedKey;
+use ente_user_entity::{Endpoint, Page};
 
 const ENDPOINT: Endpoint = Endpoint::Authenticator;
 const PAGE_SIZE: u16 = 5000;
@@ -37,21 +37,21 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-impl From<user_entity::Error> for Error {
-    fn from(error: user_entity::Error) -> Self {
+impl From<ente_user_entity::Error> for Error {
+    fn from(error: ente_user_entity::Error) -> Self {
         match error {
-            user_entity::Error::Http(error) => Self::Http(error),
-            user_entity::Error::Crypto(error) => Self::Crypto(error),
-            user_entity::Error::Base64(error) => Self::Base64(error),
-            user_entity::Error::InvalidDiff(reason) => Self::InvalidDiff(reason),
+            ente_user_entity::Error::Http(error) => Self::Http(error),
+            ente_user_entity::Error::Crypto(error) => Self::Crypto(error),
+            ente_user_entity::Error::Base64(error) => Self::Base64(error),
+            ente_user_entity::Error::InvalidDiff(reason) => Self::InvalidDiff(reason),
         }
     }
 }
 
 pub async fn fetch_key(session: &Session) -> Result<Option<WrappedKey>> {
-    Ok(user_entity::fetch_key(session, ENDPOINT).await?)
+    Ok(ente_user_entity::fetch_key(session, ENDPOINT).await?)
 }
 
 pub async fn diff(session: &Session, since: i64) -> Result<Page> {
-    Ok(user_entity::diff(session, ENDPOINT, since, PAGE_SIZE).await?)
+    Ok(ente_user_entity::diff(session, ENDPOINT, since, PAGE_SIZE).await?)
 }
