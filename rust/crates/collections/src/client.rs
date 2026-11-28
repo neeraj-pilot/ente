@@ -175,32 +175,6 @@ pub async fn trash_diff(session: &Session, since: i64) -> Result<TrashPage> {
     })
 }
 
-pub struct TrashPages<'a> {
-    session: &'a Session,
-    cursor: i64,
-    done: bool,
-}
-
-pub fn trash_pages(session: &Session, since: i64) -> TrashPages<'_> {
-    TrashPages {
-        session,
-        cursor: since,
-        done: false,
-    }
-}
-
-impl TrashPages<'_> {
-    pub async fn next(&mut self) -> Result<Option<TrashPage>> {
-        if self.done {
-            return Ok(None);
-        }
-        let page = trash_diff(self.session, self.cursor).await?;
-        self.cursor = page.cursor;
-        self.done = !page.has_more;
-        Ok(Some(page))
-    }
-}
-
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Collection {
