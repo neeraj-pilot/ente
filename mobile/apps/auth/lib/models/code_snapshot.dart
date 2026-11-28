@@ -3,6 +3,9 @@ import 'dart:typed_data';
 
 import 'package:base32/base32.dart';
 import 'package:ente_auth/models/code.dart';
+import 'package:ente_auth/services/preference_service.dart';
+import 'package:ente_auth/store/code_store.dart';
+import 'package:ente_auth/utils/code_sort.dart';
 import 'package:ente_auth/utils/totp_util.dart';
 
 class CodeSnapshot {
@@ -15,16 +18,19 @@ class CodeSnapshot {
       code.type == Type.steam ||
       (code.type == Type.totp && code.issuer.toLowerCase() == 'steam');
 
-  static bool supports(Code code) =>
-      !code.hasError &&
-      !code.isTrashed &&
-      (_isSteam(code) || code.type == Type.totp);
+  static Future<CodeSnapshot> load() async {
+    final codes = await CodeStore.instance.getAllCodes(
+      requireCompleteRead: true,
+    );
+    sortAuthCodes(codes, PreferenceService.instance.codeSortKey());
+    return CodeSnapshot.fromCodes(codes);
+  }
 
   factory CodeSnapshot.fromCodes(Iterable<Code> codes) {
     final entries = <Map<String, Object>>[];
     var omitted = 0;
     for (final code in codes.where((c) => !c.hasError && !c.isTrashed)) {
-      if (!supports(code)) {
+      if (!_isSteam(code) && code.type != Type.totp) {
         omitted++;
         continue;
       }

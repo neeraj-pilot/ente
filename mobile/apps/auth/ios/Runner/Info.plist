@@ -51,6 +51,8 @@
 		<string>15.0</string>
 		<key>NSCameraUsageDescription</key>
 		<string>This app needs camera access to scan QR codes</string>
+		<key>EnteAutoFillKeychainGroup</key>
+		<string>$(DEVELOPMENT_TEAM).io.ente.auth.autofill</string>
 		<key>NSFaceIDUsageDescription</key>
 		<string>Please allow auth to lock itself with FaceID or TouchID</string>
 		<key>NSPhotoLibraryUsageDescription</key>

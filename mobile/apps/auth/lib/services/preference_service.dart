@@ -1,4 +1,5 @@
 import 'package:ente_auth/events/icons_changed_event.dart';
+import 'package:ente_auth/services/autofill_service.dart';
 import 'package:ente_auth/services/watch/service.dart';
 import 'package:ente_auth/utils/debug_build_flags.dart';
 import 'package:ente_events/event_bus.dart';
@@ -49,6 +50,12 @@ class PreferenceService {
     await _prefs.setStringList("tagOrder", order);
   }
 
+  bool autoFillAccepted() => _prefs.getBool("autoFillAccepted") ?? false;
+
+  Future<void> setAutoFillAccepted(bool value) async {
+    await _prefs.setBool("autoFillAccepted", value);
+  }
+
   bool hasShownCoachMark() {
     if (shouldSkipAuthGuidance) {
       return true;
@@ -70,6 +77,7 @@ class PreferenceService {
   Future<void> setCodeSortKey(CodeSortKey key) async {
     await _prefs.setInt(kCodeSortKey, key.index);
     WatchService.scheduleRefresh();
+    AutoFillService.scheduleRefresh();
   }
 
   Future<void> setHasShownCoachMark(bool value) {

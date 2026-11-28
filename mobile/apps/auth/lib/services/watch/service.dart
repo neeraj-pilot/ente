@@ -5,9 +5,6 @@ import 'package:ente_auth/core/configuration.dart';
 import 'package:ente_auth/events/codes_updated_event.dart';
 import 'package:ente_auth/models/code_snapshot.dart';
 import 'package:ente_auth/models/watch/state.dart';
-import 'package:ente_auth/services/preference_service.dart';
-import 'package:ente_auth/store/code_store.dart';
-import 'package:ente_auth/utils/code_sort.dart';
 import 'package:ente_events/event_bus.dart';
 import 'package:ente_events/models/signed_out_event.dart';
 import 'package:flutter/material.dart';
@@ -175,17 +172,13 @@ class WatchService extends ChangeNotifier with WidgetsBindingObserver {
       }
       final id = state.enrollmentID!;
       final epoch = state.vaultEpoch!;
-      final codes = await CodeStore.instance.getAllCodes(
-        requireCompleteRead: true,
-      );
       await _preferences.reload();
+      final snapshot = await CodeSnapshot.load();
       if (!_current(generation, scope) ||
           state.enrollmentID != id ||
           state.vaultEpoch != epoch) {
         return;
       }
-      sortAuthCodes(codes, PreferenceService.instance.codeSortKey());
-      final snapshot = CodeSnapshot.fromCodes(codes);
       _accept(
         await _call('publish', {
           'enrollmentID': id,

@@ -10,6 +10,7 @@ import 'package:ente_auth/ente_theme_data.dart';
 import 'package:ente_auth/locale.dart';
 import 'package:ente_auth/services/auth_theme_preferences.dart';
 import 'package:ente_auth/services/authenticator_service.dart';
+import 'package:ente_auth/services/autofill_service.dart';
 import 'package:ente_auth/services/billing_service.dart';
 import 'package:ente_auth/services/local_backup_service.dart';
 import 'package:ente_auth/services/notification_service.dart';
@@ -148,6 +149,7 @@ Future<void> _runInForeground() async {
     try {
       await _init();
       await WatchService.initialize();
+      AutoFillService.initialize();
     } catch (e, s) {
       _logger.severe("Failed to init", e, s);
       rethrow;
@@ -159,7 +161,10 @@ Future<void> _runInForeground() async {
         builder: (args) => App(locale: locale, savedThemeMode: savedThemeMode),
         debugShowCheckedModeBanner: false,
         lockScreen: LockScreen(configuration),
-        onLockStateChanged: WatchService.appLockChanged,
+        onLockStateChanged: (locked) {
+          WatchService.appLockChanged(locked);
+          AutoFillService.appLockChanged(locked);
+        },
         enabled: await LockScreenSettings.instance.shouldShowLockScreen(),
         locale: locale,
         lightTheme: lightThemeData,
