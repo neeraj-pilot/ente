@@ -43,11 +43,13 @@ class InlineTextDetection extends StatefulWidget {
   final EnteFile file;
   final InlineTextDetectionController controller;
   final bool isGuestView;
+  final VoidCallback onLongPressSelection;
 
   const InlineTextDetection({
     required this.file,
     required this.controller,
     required this.isGuestView,
+    required this.onLongPressSelection,
     super.key,
   });
 
@@ -426,13 +428,6 @@ class _InlineTextDetectionState extends State<InlineTextDetection> {
         _pendingLongPressPosition = null;
       });
     }
-  }
-
-  void _enterFullScreen() {
-    InheritedDetailPageState.of(context).requestFullScreen(
-      shouldEnable: true,
-      reason: FullScreenRequestReason.userInteraction,
-    );
   }
 
   void _handleLongPress(LongPressStartDetails details) {
@@ -892,7 +887,7 @@ class _InlineTextDetectionState extends State<InlineTextDetection> {
         onTextCopied: () {
           HapticFeedback.lightImpact();
         },
-        onSelectionStarted: _enterFullScreen,
+        onLongPressSelection: widget.onLongPressSelection,
       ),
     );
   }

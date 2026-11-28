@@ -4,9 +4,11 @@ import "package:photos/services/machine_learning/ocr/ocr_models.dart";
 import "package:photos/ui/viewer/file/ocr/text_overlay_widget.dart";
 
 void main() {
-  testWidgets("reports only the start of each selection", (tester) async {
-    final controller = TextOverlayController();
-    var selectionStarts = 0;
+  Future<Offset> pumpOverlay(
+    WidgetTester tester,
+    TextOverlayController controller,
+    VoidCallback onLongPressSelection,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Center(
@@ -31,30 +33,39 @@ void main() {
               isImageZoomed: false,
               uiScale: 1,
               uiOffset: Offset.zero,
-              onSelectionStarted: () => selectionStarts++,
+              onLongPressSelection: onLongPressSelection,
             ),
           ),
         ),
       ),
     );
     await tester.pump();
-    final center = tester.getCenter(find.byType(TextOverlayWidget));
-    final hello = center - const Offset(60, 0);
-    final world = center + const Offset(60, 0);
+    return tester.getCenter(find.byType(TextOverlayWidget));
+  }
 
-    controller.selectTextAtPosition(hello);
+  testWidgets("reports selections made by a long press", (tester) async {
+    final controller = TextOverlayController();
+    var reports = 0;
+    final center = await pumpOverlay(tester, controller, () => reports++);
+
+    controller.selectTextAtPosition(center - const Offset(60, 0));
     await tester.pump();
     expect(controller.hasActiveSelection, isTrue);
-    expect(selectionStarts, 1);
+    expect(reports, 1);
 
-    controller.selectTextAtPosition(world);
+    controller.selectTextAtPosition(center + const Offset(60, 0));
     await tester.pump();
-    expect(selectionStarts, 1);
+    expect(reports, 2);
+  });
 
-    controller.clearSelection();
+  testWidgets("does not report selections made by a drag", (tester) async {
+    final controller = TextOverlayController();
+    var reports = 0;
+    final center = await pumpOverlay(tester, controller, () => reports++);
+
+    await tester.dragFrom(center - const Offset(80, 0), const Offset(60, 0));
     await tester.pump();
-    controller.selectTextAtPosition(world);
-    await tester.pump();
-    expect(selectionStarts, 2);
+    expect(controller.hasActiveSelection, isTrue);
+    expect(reports, 0);
   });
 }
