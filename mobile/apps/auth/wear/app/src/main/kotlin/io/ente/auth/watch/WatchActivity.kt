@@ -232,8 +232,6 @@ private fun AuthWatchRoot(
                     onHideCodesChange = { hideCodes = it },
                     onRetry = companion::retry,
                     onErase = {
-                        selectedTag = null
-                        selectedEntryId = null
                         companion.erase()
                         managing = false
                     },

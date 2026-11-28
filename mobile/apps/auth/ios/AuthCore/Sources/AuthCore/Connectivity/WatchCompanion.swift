@@ -52,9 +52,9 @@
 
     public func erase() {
       entries = []
-      UserDefaults.standard.removeObject(forKey: Self.selectedTagKey)
       do {
         try repository.erase()
+        UserDefaults.standard.removeObject(forKey: Self.selectedTagKey)
         status = WatchStatus(enrollment: nil, receipt: nil)
         issue = nil
         try sendStatus()
