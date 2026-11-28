@@ -47,6 +47,7 @@ func TestMultipartUploadDuringHotStorageFailover(t *testing.T) {
 				}
 				viper.Set("s3.hot_storage.primary", primary)
 				viper.Set("s3.hot_storage.secondary", secondary)
+				viper.Set("s3.hot_storage.auto_failover", true)
 				for _, dc := range []string{primary, secondary} {
 					for field, value := range map[string]string{
 						"key": "test-key", "secret": "test-secret", "endpoint": storage.URL,
@@ -260,14 +261,15 @@ func TestMultipartUploadFailureClassification(t *testing.T) {
 func TestUploadFailoverURLIssuance(t *testing.T) {
 	for _, primary := range []string{fileBucketB2, fileBucketWasabi} {
 		for _, tc := range []struct {
-			name                                  string
-			multipart, legacy, missingCredentials bool
+			name                                            string
+			multipart, legacy, missingCredentials, disabled bool
 		}{
 			{name: "single"},
 			{name: "multipart", multipart: true},
 			{name: "legacy single", legacy: true},
 			{name: "legacy multipart", legacy: true, multipart: true},
 			{name: "missing secondary credentials", missingCredentials: true},
+			{name: "auto failover disabled", disabled: true},
 		} {
 			t.Run(primary+"/"+tc.name, func(t *testing.T) {
 				test := newFileBucketTest(t)
@@ -288,6 +290,9 @@ func TestUploadFailoverURLIssuance(t *testing.T) {
 					}
 					viper.Set("s3."+secondary+".secret", "")
 				}
+				if tc.disabled {
+					viper.Set("s3.hot_storage.auto_failover", false)
+				}
 				test.switchBucket(primary)
 				config := test.controller.S3Config
 				primeUploadStall(config)
@@ -307,7 +312,7 @@ func TestUploadFailoverURLIssuance(t *testing.T) {
 					}, ente.Photos, "test")
 				}
 				require.NoError(t, err)
-				require.Equal(t, !tc.legacy && !tc.missingCredentials, config.HasHotStorageFailedOver())
+				require.Equal(t, !tc.legacy && !tc.missingCredentials && !tc.disabled, config.HasHotStorageFailedOver())
 			})
 		}
 	}

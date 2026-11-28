@@ -202,6 +202,9 @@ func (config *S3Config) CanFailoverHotStorage() bool {
 }
 
 func (config *S3Config) hasFailoverHotStorage() bool {
+	if !viper.GetBool("s3.hot_storage.auto_failover") {
+		return false
+	}
 	if !((config.hotDC == dcB2EuropeCentral && config.secondaryHotDC == dcWasabiEuropeCentral_v3) ||
 		(config.hotDC == dcWasabiEuropeCentral_v3 && config.secondaryHotDC == dcB2EuropeCentral)) {
 		return false

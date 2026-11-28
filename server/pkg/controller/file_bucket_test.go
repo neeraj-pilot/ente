@@ -419,6 +419,7 @@ func newFileBucketTest(t *testing.T) *fileBucketTest {
 			},
 		},
 	}
+	viper.Set("s3.hot_storage.auto_failover", true)
 	test.switchBucket(fileBucketB2)
 	return test
 }

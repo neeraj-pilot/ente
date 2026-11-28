@@ -52,6 +52,14 @@ func TestHotStorageFailoverRequiresConfiguredPair(t *testing.T) {
 			require.False(t, NewS3Config().CanFailoverHotStorage())
 		})
 	}
+	t.Run("disabled by default", func(t *testing.T) {
+		failoverTestConfig(t, dcB2EuropeCentral)
+		viper.Set("s3.hot_storage.auto_failover", false)
+		config := NewS3Config()
+		require.False(t, config.CanFailoverHotStorage())
+		require.False(t, config.FailoverHotStorage())
+		require.Equal(t, dcB2EuropeCentral, config.GetHotDataCenter())
+	})
 }
 
 func TestHotStorageFailoverConcurrentSelection(t *testing.T) {
@@ -114,6 +122,7 @@ func failoverTestConfig(t *testing.T, primary string) *S3Config {
 	}
 	viper.Set("s3.hot_storage.primary", primary)
 	viper.Set("s3.hot_storage.secondary", secondary)
+	viper.Set("s3.hot_storage.auto_failover", true)
 	for _, dc := range []string{primary, secondary} {
 		for field, value := range map[string]string{
 			"key": "test-key", "secret": "test-secret", "bucket": dc,

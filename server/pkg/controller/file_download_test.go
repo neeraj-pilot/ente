@@ -70,7 +70,9 @@ func TestFileDownloadHotStorageFailover(t *testing.T) {
 		if primary == secondary {
 			secondary = fileBucketB2
 		}
-		controller := &FileController{S3Config: fileDownloadS3Config(t, primary, secondary)}
+		fileDownloadS3Config(t, primary, secondary)
+		viper.Set("s3.hot_storage.auto_failover", true)
+		controller := &FileController{S3Config: s3config.NewS3Config()}
 		require.True(t, controller.S3Config.FailoverHotStorage())
 		for _, userAgent := range []string{"ente", "go-resty/2.0"} {
 			for _, dcs := range [][]string{{primary}, {secondary}, {primary, secondary}} {
