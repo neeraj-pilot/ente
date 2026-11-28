@@ -43,11 +43,13 @@ class InlineTextDetection extends StatefulWidget {
   final EnteFile file;
   final InlineTextDetectionController controller;
   final bool isGuestView;
+  final VoidCallback onLongPressSelection;
 
   const InlineTextDetection({
     required this.file,
     required this.controller,
     required this.isGuestView,
+    required this.onLongPressSelection,
     super.key,
   });
 
@@ -885,6 +887,7 @@ class _InlineTextDetectionState extends State<InlineTextDetection> {
         onTextCopied: () {
           HapticFeedback.lightImpact();
         },
+        onLongPressSelection: widget.onLongPressSelection,
       ),
     );
   }

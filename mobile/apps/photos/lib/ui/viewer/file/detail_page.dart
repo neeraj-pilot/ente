@@ -507,6 +507,7 @@ class _BodyState extends State<_Body> {
                       file: _files![selectedIndex],
                       controller: _inlineTextDetectionController,
                       isGuestView: isGuestView,
+                      onLongPressSelection: _enterFullScreenForSelectedText,
                     );
                   }
                   return const SizedBox.shrink();
@@ -662,6 +663,17 @@ class _BodyState extends State<_Body> {
           ),
         ),
       ),
+    );
+  }
+
+  void _enterFullScreenForSelectedText() {
+    if (_filmstripCoordinator.isUserScrollSessionActive ||
+        ModalRoute.isCurrentOf(context) == false) {
+      return;
+    }
+    InheritedDetailPageState.of(context).requestFullScreen(
+      shouldEnable: true,
+      reason: FullScreenRequestReason.userInteraction,
     );
   }
 

@@ -68,6 +68,7 @@ class TextDetectorController extends ChangeNotifier {
 class TextDetectorWidget extends StatefulWidget {
   final String imagePath;
   final VoidCallback? onTextCopied;
+  final VoidCallback? onLongPressSelection;
   final TextDetectorController controller;
   final Offset? initialInteractionPosition;
   final bool isImageZoomed;
@@ -82,6 +83,7 @@ class TextDetectorWidget extends StatefulWidget {
     required this.uiScale,
     required this.uiOffset,
     this.onTextCopied,
+    this.onLongPressSelection,
     this.initialInteractionPosition,
   });
 
@@ -369,6 +371,7 @@ class _TextDetectorWidgetState extends State<TextDetectorWidget> {
         imageSize: imageSize,
         textBlocks: textBlocks,
         onTextCopied: widget.onTextCopied,
+        onLongPressSelection: widget.onLongPressSelection,
         controller: _textOverlayController,
         isImageZoomed: widget.isImageZoomed,
         uiScale: widget.uiScale,

@@ -73,6 +73,7 @@ class TextOverlayWidget extends StatefulWidget {
   final Size imageSize;
   final List<TextBlock> textBlocks;
   final VoidCallback? onTextCopied;
+  final VoidCallback? onLongPressSelection;
   final TextOverlayController controller;
   final bool isImageZoomed;
   final double uiScale;
@@ -87,6 +88,7 @@ class TextOverlayWidget extends StatefulWidget {
     required this.uiScale,
     required this.uiOffset,
     this.onTextCopied,
+    this.onLongPressSelection,
   });
 
   @override
@@ -1249,6 +1251,7 @@ class _TextOverlayWidgetState extends State<TextOverlayWidget> {
 
     if (wordSelected) {
       _clearPointerSelectionTracking();
+      widget.onLongPressSelection?.call();
       return;
     }
 
@@ -1958,6 +1961,9 @@ class _TextOverlayWidgetState extends State<TextOverlayWidget> {
       return false;
     }
     final bool selected = _performWordSelection(blockIndex, scenePoint);
+    if (selected) {
+      widget.onLongPressSelection?.call();
+    }
     return selected;
   }
 
