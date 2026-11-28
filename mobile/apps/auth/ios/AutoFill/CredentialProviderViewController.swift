@@ -59,7 +59,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     {
       labels.removeLast()
     }
-    return labels.count >= 2 ? String(labels[labels.count - 2]) : nil
+    return labels.count >= 2 ? labels[labels.count - 2].filter { $0.isLetter || $0.isNumber } : nil
   }
 }
 
@@ -190,7 +190,7 @@ private struct CodePicker: View {
   }
 
   private func matchesSite(_ entry: Entry) -> Bool {
-    guard let site = site?.filter({ $0.isLetter || $0.isNumber }) else { return false }
+    guard let site else { return false }
     let issuer = entry.issuer.lowercased().filter { $0.isLetter || $0.isNumber }
     if issuer == site { return true }
     return site.count >= 3 && issuer.count >= 3 && (issuer.contains(site) || site.contains(issuer))

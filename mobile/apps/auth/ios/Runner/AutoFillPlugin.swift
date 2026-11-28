@@ -10,19 +10,20 @@ final class AutoFillPlugin: NSObject, FlutterPlugin {
   }
 
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard #available(iOS 18, *) else {
+      return result(call.method == "isEnabled" ? false : nil)
+    }
     switch call.method {
     case "isEnabled":
-      guard #available(iOS 18, *) else { return result(false) }
       ASCredentialIdentityStore.shared.getState { state in
         DispatchQueue.main.async { result(state.isEnabled) }
       }
     case "publish":
-      guard let data = (call.arguments as? FlutterStandardTypedData)?.data else {
-        return result(FlutterError(code: "invalidData", message: nil, details: nil))
-      }
       do {
+        guard let data = (call.arguments as? FlutterStandardTypedData)?.data else {
+          throw CodeError.invalidData
+        }
         let snapshot = try AutoFillVault.write(data)
-        guard #available(iOS 18, *) else { return result(nil) }
         ASCredentialIdentityStore.shared.replaceCredentialIdentities(
           snapshot.entries.compactMap(Self.identity)
         ) { _, error in

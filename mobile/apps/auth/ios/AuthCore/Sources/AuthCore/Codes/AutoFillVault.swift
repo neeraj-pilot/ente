@@ -8,7 +8,6 @@
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: "io.ente.auth.autofill",
         kSecAttrAccount as String: "snapshot",
-        kSecAttrSynchronizable as String: false,
         kSecAttrAccessGroup as String: Bundle.main.object(
           forInfoDictionaryKey: "EnteAutoFillKeychainGroup") as! String,
       ]
@@ -24,9 +23,7 @@
       guard status == errSecSuccess, let data = result as? Data else {
         throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
       }
-      let snapshot = try JSONDecoder().decode(Snapshot.self, from: data)
-      try snapshot.validate()
-      return snapshot
+      return try JSONDecoder().decode(Snapshot.self, from: data)
     }
 
     @discardableResult
